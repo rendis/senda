@@ -1,0 +1,54 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.o
+*.a
+
+# Go
+*.test
+go.work
+go.work.sum
+vendor/
+
+# Test / Coverage
+coverage.out
+coverage.html
+*.coverprofile
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Docker
+docker-compose.override.yml
+
+# Air (hot reload)
+tmp/
+
+# Logs
+*.log
+
+# Project docs (specs, design, archive — not source code)
+docs/
+stories/
+*.pen

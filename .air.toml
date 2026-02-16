@@ -1,0 +1,19 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/senda ./cmd/senda"
+  bin = "./tmp/senda"
+  full_bin = "./tmp/senda"
+  include_ext = ["go", "toml", "yaml"]
+  exclude_dir = ["tmp", "vendor", "docs", "stories", "migrations", "docker", ".git"]
+  delay = 1000
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = 500
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

@@ -1,0 +1,52 @@
+services:
+  senda:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "${SENDA_PORT:-8081}:8080"
+    environment:
+      SENDA_DATABASE_URL: postgres://senda:senda@postgres:5432/senda?sslmode=disable
+      SENDA_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-https://placeholder.example.com}
+      SENDA_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-dev-client-id}
+      SENDA_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-dev-client-secret}
+      SENDA_MASTER_KEY: ${MASTER_KEY:-dev-master-key-change-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # volumes:
+    #   - ../:/app  # Uncomment for hot reload (requires Docker Desktop file sharing)
+
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_cron
+        -c cron.database_name=senda
+    environment:
+      POSTGRES_USER: senda
+      POSTGRES_PASSWORD: senda
+      POSTGRES_DB: senda
+    ports:
+      - "${SENDA_PG_PORT:-5435}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U senda"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    profiles:
+      - https
+
+volumes:
+  pgdata:

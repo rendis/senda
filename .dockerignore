@@ -1,0 +1,8 @@
+bin/
+tmp/
+.git/
+docs/
+stories/
+*.pen
+.DS_Store
+.claude/
