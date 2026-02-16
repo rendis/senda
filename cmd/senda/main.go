@@ -2,37 +2,40 @@ package main
 
 import (
 	"context"
-	"net/http"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
+	"github.com/senda-app/senda/config"
+	sendahttp "github.com/senda-app/senda/internal/http"
 )
 
 func main() {
-	e := echo.New()
-
-	e.Use(middleware.Recover())
-	e.Use(middleware.RequestLogger())
-
-	e.GET("/health", func(c *echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"status": "healthy",
-		})
-	})
-
-	port := os.Getenv("SENDA_PORT")
-	if port == "" {
-		port = "8080"
+	cfgPath := os.Getenv("SENDA_CONFIG")
+	if cfgPath == "" {
+		cfgPath = "config.yaml"
 	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	level := slog.LevelInfo
+	_ = level.UnmarshalText([]byte(cfg.Log.Level))
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	}))
+
+	srv := sendahttp.NewServer(cfg, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sc := echo.StartConfig{Address: ":" + port}
-	if err := sc.Start(ctx, e); err != nil {
-		e.Logger.Error("server shutdown", "error", err)
+	if err := srv.Start(ctx); err != nil {
+		logger.Error("server shutdown", "error", err)
 	}
 }

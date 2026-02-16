@@ -9,15 +9,17 @@ import (
 type AuditAction string
 
 const (
-	AuditCreate  AuditAction = "create"
-	AuditUpdate  AuditAction = "update"
-	AuditDelete  AuditAction = "delete"
-	AuditPublish AuditAction = "publish"
-	AuditDisable AuditAction = "disable"
-	AuditEnable  AuditAction = "enable"
-	AuditRevoke  AuditAction = "revoke"
-	AuditPurge   AuditAction = "purge"
-	AuditLogin   AuditAction = "login"
+	AuditCreate     AuditAction = "create"
+	AuditUpdate     AuditAction = "update"
+	AuditDelete     AuditAction = "delete"
+	AuditPurge      AuditAction = "purge"
+	AuditPublish    AuditAction = "publish"
+	AuditArchive    AuditAction = "archive"
+	AuditDisable    AuditAction = "disable"
+	AuditEnable     AuditAction = "enable"
+	AuditRevoke     AuditAction = "revoke"
+	AuditInvite     AuditAction = "invite"
+	AuditRemoveRole AuditAction = "remove_role"
 )
 
 type AuditLog struct {

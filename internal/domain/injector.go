@@ -9,13 +9,12 @@ import (
 type InjectorFieldType string
 
 const (
-	FieldTypeText    InjectorFieldType = "text"
-	FieldTypeNumber  InjectorFieldType = "number"
-	FieldTypeBoolean InjectorFieldType = "boolean"
-	FieldTypeURL     InjectorFieldType = "url"
-	FieldTypeImage   InjectorFieldType = "image_url"
-	FieldTypeDate    InjectorFieldType = "date"
-	FieldTypeJSON    InjectorFieldType = "json"
+	FieldTypeText   InjectorFieldType = "text"
+	FieldTypeNumber InjectorFieldType = "number"
+	FieldTypeBool   InjectorFieldType = "bool"
+	FieldTypeImg    InjectorFieldType = "img"
+	FieldTypeURL    InjectorFieldType = "url"
+	FieldTypeHTML   InjectorFieldType = "html"
 )
 
 type InjectorDefinition struct {

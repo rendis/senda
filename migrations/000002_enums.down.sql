@@ -1,0 +1,10 @@
+DROP TYPE IF EXISTS audit_action;
+DROP TYPE IF EXISTS suppression_reason;
+DROP TYPE IF EXISTS bounce_type;
+DROP TYPE IF EXISTS injector_field_type;
+DROP TYPE IF EXISTS scope_type;
+DROP TYPE IF EXISTS member_role;
+DROP TYPE IF EXISTS domain_status;
+DROP TYPE IF EXISTS adapter_type;
+DROP TYPE IF EXISTS version_status;
+DROP TYPE IF EXISTS email_status;

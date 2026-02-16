@@ -16,16 +16,15 @@ const (
 type SuppressionReason string
 
 const (
-	SuppressionBounce    SuppressionReason = "bounce"
-	SuppressionComplaint SuppressionReason = "complaint"
-	SuppressionManual    SuppressionReason = "manual"
+	SuppressionHardBounce SuppressionReason = "hard_bounce"
+	SuppressionComplaint  SuppressionReason = "complaint"
+	SuppressionManual     SuppressionReason = "manual"
 )
 
 type SuppressionGlobal struct {
 	ID            uuid.UUID
 	Email         string
 	Reason        SuppressionReason
-	Source        string // "ses_webhook", "manual", etc.
 	SourceEmailID *uuid.UUID
 	Notes         *string
 	CreatedAt     time.Time
@@ -39,7 +38,6 @@ type SuppressionWorkspace struct {
 	WorkspaceID   uuid.UUID
 	Email         string
 	Reason        SuppressionReason
-	Source        string
 	SourceEmailID *uuid.UUID
 	Notes         *string
 	CreatedAt     time.Time
