@@ -1,0 +1,64 @@
+# Senda Configuration
+# Copy this file to config.yaml and adjust values for your environment.
+# Environment variables with SENDA_ prefix override these values.
+
+server:
+  # Bind address for the HTTP server
+  # Env: SENDA_HOST
+  host: "0.0.0.0"
+
+  # Port for the HTTP server
+  # Env: SENDA_PORT
+  port: 8080
+
+  # Maximum duration for reading the entire request
+  read_timeout: "30s"
+
+  # Maximum duration before timing out writes of the response
+  write_timeout: "30s"
+
+  # Maximum duration to wait for active connections to finish during shutdown
+  shutdown_timeout: "15s"
+
+database:
+  # PostgreSQL connection URL (required)
+  # Env: SENDA_DATABASE_URL
+  url: "postgres://senda:senda@localhost:5432/senda?sslmode=disable"
+
+  # Maximum number of open connections to the database
+  max_open_conns: 25
+
+  # Maximum number of idle connections in the pool
+  max_idle_conns: 10
+
+  # Maximum amount of time a connection may be reused
+  conn_max_lifetime: "5m"
+
+  # Run database migrations on application start
+  migrate_on_start: true
+
+oidc:
+  # OIDC provider discovery URL (required)
+  # Env: SENDA_OIDC_DISCOVERY_URL
+  discovery_url: "https://your-provider.example.com/.well-known/openid-configuration"
+
+  # OIDC client ID (required)
+  # Env: SENDA_OIDC_CLIENT_ID
+  client_id: "your-client-id"
+
+  # OIDC client secret (required)
+  # Env: SENDA_OIDC_CLIENT_SECRET
+  client_secret: "your-client-secret"
+
+crypto:
+  # Master key for AES-256-GCM encryption of adapter credentials and DKIM keys.
+  # Must be at least 32 characters. (required)
+  # Env: SENDA_MASTER_KEY
+  master_key: "change-me-to-a-secure-key-at-least-32-chars"
+
+log:
+  # Log level: debug, info, warn, error
+  level: "info"
+
+  # Log format: json or text
+  format: "json"
