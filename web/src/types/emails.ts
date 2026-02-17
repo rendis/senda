@@ -1,0 +1,46 @@
+import type { EmailStatus } from "./api";
+
+/** Full email record from API */
+export interface Email {
+  id: string;
+  tracking_id: string;
+  external_id?: string;
+  workspace_id: string;
+  template_type_slug: string;
+  status: EmailStatus;
+  recipient_email: string;
+  from_name: string;
+  from_email: string;
+  subject: string;
+  locale: string;
+  adapter_id: string;
+  retry_count: number;
+  variables?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Email event in the timeline */
+export interface EmailEvent {
+  id: string;
+  email_id: string;
+  event_type: EmailStatus;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Email detail (includes events) */
+export interface EmailDetail extends Email {
+  events: EmailEvent[];
+  body_mjml?: string;
+  injectors_snapshot?: Record<string, unknown>;
+}
+
+/** Filters for email list */
+export interface EmailFilters {
+  status?: EmailStatus[];
+  template_type?: string;
+  since?: string;
+  until?: string;
+  search?: string;
+}
