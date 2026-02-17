@@ -110,7 +110,7 @@ func (r *WorkspaceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, op
 		args["search"] = "%" + opts.Search + "%"
 	}
 
-	qb.WriteString(` ORDER BY id DESC LIMIT @limit`)
+	qb.WriteString(` ORDER BY is_system DESC, id DESC LIMIT @limit`)
 
 	rows, err := r.pool.Query(ctx, qb.String(), args)
 	if err != nil {
