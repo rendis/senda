@@ -10,7 +10,7 @@ import {
   Eye,
   RefreshCw,
 } from "lucide-react";
-import { useScopedPath } from "@/hooks/use-scope";
+import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useDomainList,
   useDomainDetail,
@@ -40,6 +40,22 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Domain } from "@/types/domains";
 
 export function DomainsContent() {
+  const { level } = useScope();
+
+  if (level === "tenant") {
+    return (
+      <EmptyState
+        icon={Globe}
+        title="Select a workspace"
+        description="Domains are workspace-scoped. Select a workspace from the sidebar to manage domains."
+      />
+    );
+  }
+
+  return <DomainsTable />;
+}
+
+function DomainsTable() {
   const scopedPath = useScopedPath();
   const [search, setSearch] = useState("");
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);

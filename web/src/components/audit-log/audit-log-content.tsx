@@ -18,6 +18,7 @@ import { ActionBadge } from "@/components/audit-log/action-badge";
 import { ScopeBadge } from "@/components/audit-log/scope-badge";
 import { AuditLogDetail } from "@/components/audit-log/audit-log-detail";
 import { AuditLogFiltersBar } from "@/components/audit-log/audit-log-filters";
+import { useScope } from "@/hooks/use-scope";
 import { useAuditLog } from "@/hooks/use-audit-log";
 import type { AuditLogEntry, AuditLogFilters } from "@/types/audit-log";
 
@@ -68,6 +69,22 @@ function getDefaultSince(): string {
 }
 
 export function AuditLogContent() {
+  const { level } = useScope();
+
+  if (level === "tenant") {
+    return (
+      <EmptyState
+        icon={ScrollText}
+        title="Select a workspace"
+        description="Audit logs are workspace-scoped. Select a workspace from the sidebar to view audit logs."
+      />
+    );
+  }
+
+  return <AuditLogTable />;
+}
+
+function AuditLogTable() {
   const [filters, setFilters] = useState<AuditLogFilters>(() => ({
     since: getDefaultSince(),
   }));

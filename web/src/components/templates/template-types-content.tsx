@@ -29,6 +29,22 @@ import type { TemplateType } from "@/types/templates";
 import { toast } from "sonner";
 
 export function TemplateTypesContent() {
+  const scope = useScope();
+
+  if (scope.level === "tenant") {
+    return (
+      <EmptyState
+        icon={FileType}
+        title="Select a workspace"
+        description="Template types are workspace-scoped. Select a workspace from the sidebar to manage template types."
+      />
+    );
+  }
+
+  return <TemplateTypesTable />;
+}
+
+function TemplateTypesTable() {
   const router = useRouter();
   const scope = useScope();
   const scopedPath = useScopedPath();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plug, Plus, MoreHorizontal, Check, Trash2, Zap } from "lucide-react";
-import { useScopedPath } from "@/hooks/use-scope";
+import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useAdapterList,
   useCreateAdapter,
@@ -27,6 +27,22 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Adapter, CreateAdapterRequest } from "@/types/adapters";
 
 export function AdaptersContent() {
+  const { level } = useScope();
+
+  if (level === "tenant") {
+    return (
+      <EmptyState
+        icon={Plug}
+        title="Select a workspace"
+        description="Adapters are workspace-scoped. Select a workspace from the sidebar to manage adapters."
+      />
+    );
+  }
+
+  return <AdaptersTable />;
+}
+
+function AdaptersTable() {
   const scopedPath = useScopedPath();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Adapter | null>(null);

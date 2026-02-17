@@ -20,6 +20,22 @@ import type { InjectorDefinition } from "@/types/injectors";
 
 export function InjectorsContent() {
   const scope = useScope();
+
+  if (scope.level === "tenant") {
+    return (
+      <EmptyState
+        icon={Database}
+        title="Select a workspace"
+        description="Injectors are workspace-scoped. Select a workspace from the sidebar to manage injectors."
+      />
+    );
+  }
+
+  return <InjectorsTable />;
+}
+
+function InjectorsTable() {
+  const scope = useScope();
   const scopedPath = useScopedPath();
   const [selectedInjector, setSelectedInjector] = useState<string | null>(null);
 
