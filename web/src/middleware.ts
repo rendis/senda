@@ -6,6 +6,6 @@ export const config = {
      * Match all routes under (dashboard) group.
      * Exclude: /login, /access-denied, /api/auth/*, /_next/*, static assets.
      */
-    "/((?!login|access-denied|api/auth|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|access-denied|onboarding|api/auth|_next/static|_next/image|favicon.ico).*)",
   ],
 };

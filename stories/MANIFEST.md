@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 7 | HT-30 to HT-36 |
+| Backlog | 6 | HT-31 to HT-36 |
 | In Progress | 0 | — |
-| Done | 30 | HT-01 to HT-29, HT-37 |
+| Done | 31 | HT-01 to HT-30, HT-37 |
 | Blocked | 0 | — |
 
-**Progress: 30 / 37 (81%)**
+**Progress: 31 / 37 (84%)**
 
 ---
 
@@ -52,7 +52,7 @@
 | **HT-37** | **E2E Backend QA + Pentesting + Colección Postman** | **HT-11..12, HT-15..16, HT-19..25, HT-27** | **F** | **done** |
 | HT-28 | Frontend Scaffolding + Pencil MCP + Design System | HT-17, **HT-37** | E | done |
 | HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | done |
-| HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | backlog |
+| HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | done |
 | HT-31 | Dashboard + Métricas | HT-29 | E | backlog |
 | HT-32 | Emails — Lista + Detalle | HT-22, HT-29 | E | backlog |
 | HT-33 | Templates — Types + Lista + Editor MJML | HT-21, HT-29 | E | backlog |
@@ -169,7 +169,7 @@ HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → 
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 6 | 100% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 5 | 100% |
 | **E8 — QA Gate** | **HT-37** | **1** | **100%** |
-| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 2 | 22% |
+| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 3 | 33% |
 
 ---
 
@@ -188,7 +188,6 @@ Backend (Tracks A+B+C+D)  →  QA Gate (Track F)  →  Frontend (Track E)
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-30** — Onboarding Wizard (3 pasos)
 - **HT-31** — Dashboard + Métricas
 - **HT-32** — Emails — Lista + Detalle
 - **HT-33** — Templates — Types + Lista + Editor MJML

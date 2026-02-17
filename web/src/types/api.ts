@@ -112,9 +112,9 @@ export interface OnboardingStatus {
   needs_onboarding: boolean;
 }
 
-/** Onboarding setup response */
+/** Onboarding setup response (summary types from backend) */
 export interface OnboardingSetupResponse {
-  member: Member;
-  tenant: Tenant;
-  workspace: Workspace;
+  member: { id: string; email: string };
+  tenant: { id: string; code: string; name: string };
+  workspace: { id: string; code: string; name: string };
 }
