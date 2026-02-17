@@ -118,3 +118,51 @@ export interface OnboardingSetupResponse {
   tenant: { id: string; code: string; name: string };
   workspace: { id: string; code: string; name: string };
 }
+
+/** Dashboard stats response from backend */
+export interface DashboardStats {
+  totals: DashboardTotals;
+  rates: DashboardRates;
+  time_series: DashboardTimeSeriesPoint[];
+  recent_emails: DashboardRecentEmail[];
+  recent_activity: DashboardActivityItem[];
+}
+
+export interface DashboardTotals {
+  sent: number;
+  delivered: number;
+  bounced: number;
+  complained: number;
+  failed: number;
+}
+
+export interface DashboardRates {
+  delivery_rate: number;
+  bounce_rate: number;
+  complaint_rate: number;
+}
+
+export interface DashboardTimeSeriesPoint {
+  date: string;
+  sent: number;
+  delivered: number;
+  bounced: number;
+  failed: number;
+}
+
+export interface DashboardRecentEmail {
+  id: string;
+  tracking_id: string;
+  recipient_email: string;
+  template_type_slug: string;
+  status: EmailStatus;
+  created_at: string;
+}
+
+export interface DashboardActivityItem {
+  id: string;
+  actor_email: string;
+  action: string;
+  entity_type: string;
+  created_at: string;
+}
