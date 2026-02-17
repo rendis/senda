@@ -83,11 +83,11 @@ export function EmailBarChartSkeleton() {
         <div className="h-3 w-16 rounded bg-accent animate-pulse" />
       </div>
       <div className="flex-1 flex items-end gap-2 pt-4">
-        {Array.from({ length: 7 }).map((_, i) => (
+        {[45, 70, 35, 80, 55, 65, 50].map((h, i) => (
           <div
             key={i}
             className="flex-1 rounded-t bg-accent animate-pulse"
-            style={{ height: `${30 + Math.random() * 60}%` }}
+            style={{ height: `${h}%` }}
           />
         ))}
       </div>
