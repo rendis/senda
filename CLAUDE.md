@@ -97,6 +97,18 @@ El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. 
 - **Stack:** Next.js 16, TypeScript 5, Tailwind v4, shadcn/ui, TanStack Query 5, TanStack Table 9, React Hook Form 7, Zod 4, Auth.js v5, ky, Monaco Editor, Lucide React, Sileo
 - **Diseño:** `senda_desing.pen` — leer SIEMPRE via Pencil MCP, NUNCA parsear el .pen como JSON
 - **Flujo:** Pencil MCP lee frame → Claude genera componente React + Tailwind → verificar pixel-perfect → iterar en Pencil si hay drift
+- **Bloqueado por:** HT-37 (QA Gate) — el frontend NO comienza hasta que el backend esté 100% testeado
+
+**Team QA** — Track F (Quality Assurance + Security)
+
+- **Perfil:** QA Engineer / Security Tester / Pentester
+- **Expertise:** E2E testing, API testing, fuzzing, OWASP Top 10, race conditions, load testing, Postman, Go testing, TestContainers
+- **HTs:** HT-37
+- **Spec focus:** §6, §14, §15, §19, §20, §21, §24
+- **Mentalidad:** Adversarial — buscar romper el sistema, no confirmar que funciona
+- **Infraestructura:** TestContainers (PostgreSQL 16 + Mailpit + Senda Server + River workers)
+- **Entregables:** E2E test suite, pentesting OWASP, chaos tests, colección Postman, reportes de cobertura y findings
+- **Gate:** El frontend (Track E) NO comienza hasta que HT-37 esté en `done/`
 
 ### Parallelization Matrix
 
@@ -115,17 +127,25 @@ S9       —                 ✅ done              —                 HT-16
 S10      —                 —                   —                 HT-22 + HT-23
 S11      —                 —                   —                 HT-24 + HT-26
 
-Semana   Team Frontend
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BACKEND COMPLETE ↑   |   QA GATE ↓   |   FRONTEND ↓↓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Semana   Team QA
 ─────────────────────────
-S3       HT-28 (scaffolding + Pencil MCP + Design System)
-S7       HT-29 (auth + scope switcher — espera HT-25)
-S8       HT-30 (onboarding wizard)
-S8       HT-31 (dashboard + métricas)
-S9       HT-33 (templates — espera HT-21)
-S9       HT-34 (injectors + adapters + domains — espera HT-20)
-S10      HT-36 (audit log + settings + empty states)
-S11      HT-32 (emails — espera HT-22)
-S11      HT-35 (webhooks + API keys + members — espera HT-19, HT-24, HT-27)
+S12      HT-37 (E2E QA + Pentesting + Postman — espera TODO el backend)
+
+Semana   Team Frontend (después del QA Gate)
+─────────────────────────
+S13      HT-28 (scaffolding + Pencil MCP + Design System)
+S14      HT-29 (auth + scope switcher)
+S15      HT-30 (onboarding wizard)
+S15      HT-31 (dashboard + métricas)
+S16      HT-33 (templates)
+S16      HT-34 (injectors + adapters + domains)
+S17      HT-36 (audit log + settings + empty states)
+S17      HT-32 (emails)
+S18      HT-35 (webhooks + API keys + members)
 ```
 
 ### Reglas de Paralelización
@@ -134,10 +154,12 @@ S11      HT-35 (webhooks + API keys + members — espera HT-19, HT-24, HT-27)
 2. **Team Infra y Team Domain arrancan juntos** desde S1 (HT-01 y HT-05 solo dependen de HT-01)
 3. **Team API arranca en S3** — necesita HT-02 (config) para HT-17 (Echo server)
 4. **Team SendOps arranca en S8** — necesita resolvers (HT-10..12) + infra (HT-13, HT-14)
-5. **Team Frontend arranca en S3** — HT-28 solo necesita HT-17 (Echo server ya done). Las HTs que dependen de endpoints backend esperan a que los CRUD handlers estén done
-6. **Cross-team dependencies:** cuando una HT depende de otra de otro team, verificar que está en `stories/done/` antes de empezar
-7. **Cada team mantiene su propia sesión** — el MANIFEST.md es el punto de sincronización compartido
-8. **Pencil MCP obligatorio para Team Frontend** — leer diseño SIEMPRE via MCP server de Pencil, NUNCA parsear el .pen como JSON directo
+5. **Team QA arranca en S12** — necesita TODO el backend completado (Tracks A+B+C+D). HT-37 es bloqueante para el frontend
+6. **Team Frontend arranca en S13** — después del QA Gate (HT-37 en `done/`). El frontend NO comienza hasta que el backend esté 100% testeado y cerrado
+7. **Cross-team dependencies:** cuando una HT depende de otra de otro team, verificar que está en `stories/done/` antes de empezar
+8. **Cada team mantiene su propia sesión** — el MANIFEST.md es el punto de sincronización compartido
+9. **Pencil MCP obligatorio para Team Frontend** — leer diseño SIEMPRE via MCP server de Pencil, NUNCA parsear el .pen como JSON directo
+10. **Pipeline:** `Backend (Tracks A+B+C+D) → QA Gate (Track F) → Frontend (Track E)`
 
 ### Prompt tipo para iniciar un team:
 
@@ -146,6 +168,13 @@ Sos el Team Infra. Tu perfil es DevOps/Platform Engineer.
 Lee CLAUDE.md, revisa stories/done/ y stories/in-progress/,
 y continúa con la siguiente HT de tu track (A).
 Solo trabajá en HTs asignadas a tu team.
+```
+
+```
+Sos el Team QA. Tu perfil es QA Engineer / Pentester.
+Lee CLAUDE.md y HT-37. Verificá que TODOS los backend HTs estén en done/.
+Tu trabajo es romper el sistema, no confirmar que funciona.
+Levantá el stack E2E completo y ejecutá la batería de tests.
 ```
 
 ---
@@ -286,6 +315,50 @@ make test-integration     # Integration tests pass (if applicable)
 make lint                 # golangci-lint passes
 go vet ./...              # No issues
 ```
+
+---
+
+## Reglas de Código Fundamentales
+
+### Regla #0: NUNCA iterar sobre código roto
+
+**Esta es la regla más importante del proyecto.** No se puede trabajar sobre error ni iterar sobre código mal hecho. Si algo está mal, la respuesta correcta es:
+
+1. **PARAR** — no intentar "hacer que funcione" con parches
+2. **DIAGNOSTICAR** — entender la causa raíz, no el síntoma
+3. **REFACTORIZAR** — corregir el diseño/approach, no parchear el error
+4. **REIMPLEMENTAR** — si el approach es fundamentalmente incorrecto, reescribir desde cero
+
+**Anti-patrones prohibidos:**
+- Agregar `if err != nil { // ignore }` para "saltar" un error
+- Wrappear código roto en try/catch o recover para que "no falle"
+- Copiar-pegar código que no se entiende completamente
+- Agregar flags/booleans para "desactivar" la parte que falla
+- Cambiar tests para que pasen con el comportamiento incorrecto
+- Acumular TODO/FIXME sin resolverlos antes de marcar done
+
+**Lo correcto:**
+- Si un test falla → el código de producción está mal, no el test (salvo que el test esté mal escrito)
+- Si un approach no funciona después de 2 intentos → replantear el diseño
+- Si no se entiende por qué algo falla → leer la spec de nuevo antes de tocar código
+- Si se detecta deuda técnica mientras se implementa → refactorizar AHORA, no "después"
+
+### Metodología Frontend: Feature-First + Reutilización Explícita
+
+**Feature-first:** Cada HT frontend es una feature vertical completa (UI + hooks + API calls + estado + empty states). No se construyen capas horizontales aisladas.
+
+**Reutilización obligatoria:**
+1. **Antes de crear un componente** → verificar si ya existe en `components/shared/` o en el Design System (HT-28)
+2. **Si un componente se usa en 2+ features** → extraerlo a `components/shared/` con props genéricas
+3. **Patrones compartidos predefinidos** (creados en HT-28):
+   - `PageShell` — layout con sidebar + header + breadcrumbs
+   - `DataTable` — tabla con sort, filter, paginación cursor-based
+   - `FormDialog` — modal con formulario + validación Zod
+   - `EmptyState` — estado vacío con ícono + mensaje + CTA
+   - `ConfirmDialog` — confirmación destructiva
+   - `StatusBadge` — badge de estado con colores semánticos
+   - `ScopeIndicator` — indicador de nivel (Global/Tenant/Workspace)
+4. **Cada HT documenta** qué componentes reutiliza y cuáles nuevos extrae
 
 ---
 

@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/senda-app/senda/config"
-	sendahttp "github.com/senda-app/senda/internal/http"
+	"github.com/senda-app/senda/internal/app"
 	"github.com/senda-app/senda/internal/metrics"
 )
 
@@ -37,12 +37,24 @@ func main() {
 
 	metrics.Register()
 
-	srv := sendahttp.NewServer(cfg, logger)
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := srv.Start(ctx); err != nil {
+	application, err := app.Bootstrap(ctx, cfg, logger)
+	if err != nil {
+		logger.Error("failed to bootstrap application", "error", err)
+		os.Exit(1)
+	}
+	defer application.Close(ctx)
+
+	// Start River workers in background.
+	go func() {
+		if err := application.RiverClient.Start(ctx); err != nil {
+			logger.Error("river client error", "error", err)
+		}
+	}()
+
+	if err := application.Server.Start(ctx); err != nil {
 		logger.Error("server shutdown", "error", err)
 	}
 }

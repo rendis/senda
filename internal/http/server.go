@@ -45,6 +45,28 @@ type Server struct {
 	adapterHandler  *handler.AdapterHandler
 	domainHandler   *handler.DomainHTTPHandler
 	domainService   *service.DomainService
+
+	// HT-21 handlers (Templates).
+	templateTypeHandler *handler.TemplateTypeHandler
+	templateHandler     *handler.TemplateHandler
+
+	// HT-22 handlers (Send + Email Query).
+	sendHandler        *handler.SendHandler
+	emailHandler       *handler.EmailHandler
+	suppressionHandler *handler.SuppressionHandler
+	auditHandler       *handler.AuditHandler
+
+	// HT-23 handler (SES Webhooks).
+	sesWebhookHandler *handler.SESWebhookHandler
+
+	// HT-24 handler (Webhooks CRUD).
+	webhookHandler *handler.WebhookHandler
+
+	// HT-25 handler (Onboarding).
+	onboardingHandler *handler.OnboardingHandler
+
+	// HT-27 handler (API Keys).
+	apiKeyHandler *handler.APIKeyHandler
 }
 
 // ServerOption configures optional Server dependencies.
@@ -143,6 +165,76 @@ func WithDomainService(svc *service.DomainService) ServerOption {
 	}
 }
 
+// WithTemplateTypeHandler sets the TemplateTypeHandler for template type CRUD routes.
+func WithTemplateTypeHandler(h *handler.TemplateTypeHandler) ServerOption {
+	return func(s *Server) {
+		s.templateTypeHandler = h
+	}
+}
+
+// WithTemplateHandler sets the TemplateHandler for template/version/locale CRUD routes.
+func WithTemplateHandler(h *handler.TemplateHandler) ServerOption {
+	return func(s *Server) {
+		s.templateHandler = h
+	}
+}
+
+// WithSendHandler sets the SendHandler for the data-plane send endpoint.
+func WithSendHandler(h *handler.SendHandler) ServerOption {
+	return func(s *Server) {
+		s.sendHandler = h
+	}
+}
+
+// WithEmailHandler sets the EmailHandler for email query endpoints.
+func WithEmailHandler(h *handler.EmailHandler) ServerOption {
+	return func(s *Server) {
+		s.emailHandler = h
+	}
+}
+
+// WithSuppressionHandler sets the SuppressionHandler for suppression list management.
+func WithSuppressionHandler(h *handler.SuppressionHandler) ServerOption {
+	return func(s *Server) {
+		s.suppressionHandler = h
+	}
+}
+
+// WithAuditHandler sets the AuditHandler for audit log queries.
+func WithAuditHandler(h *handler.AuditHandler) ServerOption {
+	return func(s *Server) {
+		s.auditHandler = h
+	}
+}
+
+// WithSESWebhookHandler sets the SES webhook handler for provider event ingestion.
+func WithSESWebhookHandler(h *handler.SESWebhookHandler) ServerOption {
+	return func(s *Server) {
+		s.sesWebhookHandler = h
+	}
+}
+
+// WithWebhookHandler sets the WebhookHandler for webhook CRUD routes.
+func WithWebhookHandler(h *handler.WebhookHandler) ServerOption {
+	return func(s *Server) {
+		s.webhookHandler = h
+	}
+}
+
+// WithOnboardingHandler sets the OnboardingHandler for onboarding routes.
+func WithOnboardingHandler(h *handler.OnboardingHandler) ServerOption {
+	return func(s *Server) {
+		s.onboardingHandler = h
+	}
+}
+
+// WithAPIKeyHandler sets the APIKeyHandler for API key management routes.
+func WithAPIKeyHandler(h *handler.APIKeyHandler) ServerOption {
+	return func(s *Server) {
+		s.apiKeyHandler = h
+	}
+}
+
 // NewServer creates a configured Echo server with middleware and routes.
 func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *Server {
 	e := echo.New()
@@ -180,8 +272,24 @@ func (s *Server) registerRoutes() {
 	s.echo.GET("/healthz", healthH.Health)
 	s.echo.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
-	// Data-plane API group (future: send emails, query events, etc.).
-	_ = s.echo.Group("/api/v1")
+	// Data-plane API group.
+	api := s.echo.Group("/api/v1")
+
+	// POST /api/v1/send — API Key auth (HT-22).
+	if s.sendHandler != nil {
+		api.POST("/send", s.sendHandler.Send, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+	}
+
+	// SES webhook ingestion — NO AUTH, uses SNS signature verification (HT-23).
+	if s.sesWebhookHandler != nil {
+		api.POST("/webhooks/ses/inbound", s.sesWebhookHandler.HandleInbound)
+	}
+
+	// Onboarding — public status, OIDC setup (HT-25).
+	if s.onboardingHandler != nil {
+		api.GET("/onboarding/status", s.onboardingHandler.Status)
+		api.POST("/onboarding/setup", s.onboardingHandler.Setup)
+	}
 
 	// Management API (OIDC only) — only registered when handlers are provided.
 	if s.tenantHandler != nil {
@@ -219,8 +327,8 @@ func (s *Server) registerRoutes() {
 			mgmt.PUT("/config", s.configHandler.Update, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 		}
 
-		// Workspace-scoped resources (injectors, adapters, domains).
-		if s.injectorHandler != nil || s.adapterHandler != nil || s.domainHandler != nil {
+		// Workspace-scoped resources.
+		{
 			ws := mgmt.Group("/tenants/:tenant_code/workspaces/:workspace_code")
 
 			if s.injectorHandler != nil {
@@ -243,10 +351,66 @@ func (s *Server) registerRoutes() {
 				ws.POST("/domains/:id/verify", s.domainHandler.VerifyNow, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/domains/:id", s.domainHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
+
+			// Template types (HT-21).
+			if s.templateTypeHandler != nil {
+				ws.POST("/template-types", s.templateTypeHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/template-types", s.templateTypeHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/template-types/:slug", s.templateTypeHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
+
+			// Templates + versions + locales (HT-21).
+			if s.templateHandler != nil {
+				ws.POST("/templates", s.templateHandler.CreateTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/templates/:template_id/versions", s.templateHandler.ListVersions, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/versions/:version_id/locales", s.templateHandler.SetLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
+
+			// API keys (HT-27).
+			if s.apiKeyHandler != nil {
+				ws.POST("/api-keys", s.apiKeyHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/api-keys", s.apiKeyHandler.List, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/api-keys/:id", s.apiKeyHandler.Revoke, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+
+			// Webhooks CRUD (HT-24).
+			if s.webhookHandler != nil {
+				ws.POST("/webhooks", s.webhookHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/webhooks", s.webhookHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/webhooks/:id", s.webhookHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.PUT("/webhooks/:id", s.webhookHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/webhooks/:id", s.webhookHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/webhooks/:id/test", s.webhookHandler.Test, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+
+			// Emails query (HT-22).
+			if s.emailHandler != nil {
+				ws.GET("/emails", s.emailHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/emails/:tracking_id", s.emailHandler.GetByTrackingID, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/emails/:tracking_id/events", s.emailHandler.GetEvents, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
+
+			// Suppression list (HT-22).
+			if s.suppressionHandler != nil {
+				ws.POST("/suppression", s.suppressionHandler.Add, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/suppression/:email", s.suppressionHandler.Check, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.DELETE("/suppression/:email", s.suppressionHandler.Remove, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+
+			// Audit log (HT-22).
+			if s.auditHandler != nil {
+				ws.GET("/audit-log", s.auditHandler.Query, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
 		}
 
 		// Global resources (superadmin only).
-		if s.injectorHandler != nil || s.adapterHandler != nil || s.domainHandler != nil {
+		{
 			global := mgmt.Group("/global", middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 
 			if s.injectorHandler != nil {
@@ -266,6 +430,23 @@ func (s *Server) registerRoutes() {
 				global.POST("/domains", s.domainHandler.RegisterGlobal)
 				global.GET("/domains/:id", s.domainHandler.GetGlobal)
 				global.DELETE("/domains/:id", s.domainHandler.SoftDeleteGlobal)
+			}
+
+			// Global template types (HT-21).
+			if s.templateTypeHandler != nil {
+				global.POST("/template-types", s.templateTypeHandler.CreateGlobal)
+				global.GET("/template-types", s.templateTypeHandler.ListGlobal)
+				global.GET("/template-types/:slug", s.templateTypeHandler.GetGlobal)
+			}
+
+			// Global templates (HT-21).
+			if s.templateHandler != nil {
+				global.POST("/templates", s.templateHandler.CreateTemplateGlobal)
+			}
+
+			// Global audit log (HT-22).
+			if s.auditHandler != nil {
+				global.GET("/audit-log", s.auditHandler.QueryGlobal)
 			}
 		}
 	}

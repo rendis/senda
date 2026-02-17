@@ -1,0 +1,1 @@
+ALTER TABLE emails ALTER COLUMN tracking_id TYPE VARCHAR(32);

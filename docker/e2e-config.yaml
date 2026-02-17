@@ -1,0 +1,25 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  url: "postgres://senda:senda@postgres:5432/senda?sslmode=disable"
+  migrate_on_start: true
+  migrations_path: "/migrations"
+  max_open_conns: 25
+  max_idle_conns: 10
+
+oidc:
+  mode: "test"
+  test_secret: "e2e-test-jwt-secret-at-least-32-characters-long"
+
+crypto:
+  master_key: "e2e-master-key-must-be-at-least-32-characters"
+
+smtp:
+  host: "mailpit"
+  port: 1025
+
+log:
+  level: "debug"
+  format: "text"

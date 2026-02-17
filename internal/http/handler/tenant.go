@@ -12,6 +12,7 @@ import (
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/pkg/apperr"
 	"github.com/senda-app/senda/pkg/slug"
 )
 
@@ -166,6 +167,7 @@ func (h *TenantHandler) SoftDelete(c *echo.Context) error {
 
 // mapStoreError maps domain errors to HTTP error responses.
 func mapStoreError(c *echo.Context, err error) error {
+	// Check domain sentinel errors first.
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
@@ -175,7 +177,26 @@ func mapStoreError(c *echo.Context, err error) error {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	case errors.Is(err, domain.ErrInvalidCursor):
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid cursor")
-	default:
-		return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 	}
+
+	// Check apperr.AppError (used by repos for typed errors with HTTP status).
+	var appErr *apperr.AppError
+	if errors.As(err, &appErr) {
+		code := "INTERNAL_ERROR"
+		switch appErr.Code {
+		case http.StatusNotFound:
+			code = "NOT_FOUND"
+		case http.StatusConflict:
+			code = "CONFLICT"
+		case http.StatusBadRequest:
+			code = "BAD_REQUEST"
+		case http.StatusUnprocessableEntity:
+			code = "VALIDATION_ERROR"
+		case http.StatusForbidden:
+			code = "FORBIDDEN"
+		}
+		return response.WriteError(c, appErr.Code, code, appErr.Message)
+	}
+
+	return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 }

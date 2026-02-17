@@ -18,6 +18,7 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	OIDC     OIDCConfig     `yaml:"oidc"`
 	Crypto   CryptoConfig   `yaml:"crypto"`
+	SMTP     SMTPConfig     `yaml:"smtp"`
 	Log      LogConfig      `yaml:"log"`
 }
 
@@ -35,12 +36,20 @@ type DatabaseConfig struct {
 	MaxIdleConns    int    `yaml:"max_idle_conns" default:"10"`
 	ConnMaxLifetime string `yaml:"conn_max_lifetime" default:"5m"`
 	MigrateOnStart  bool   `yaml:"migrate_on_start" default:"true"`
+	MigrationsPath  string `yaml:"migrations_path" env:"SENDA_MIGRATIONS_PATH" default:"migrations"`
 }
 
 type OIDCConfig struct {
-	DiscoveryURL string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL" required:"true"`
-	ClientID     string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID" required:"true"`
-	ClientSecret string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET" required:"true"`
+	Mode         string `yaml:"mode" env:"SENDA_OIDC_MODE" default:"oidc"`
+	DiscoveryURL string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL"`
+	ClientID     string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID"`
+	ClientSecret string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET"`
+	TestSecret   string `yaml:"test_secret" env:"SENDA_OIDC_TEST_SECRET"`
+}
+
+type SMTPConfig struct {
+	Host string `yaml:"host" env:"SENDA_SMTP_HOST"`
+	Port int    `yaml:"port" env:"SENDA_SMTP_PORT" default:"1025"`
 }
 
 type CryptoConfig struct {
@@ -205,6 +214,23 @@ func validate(cfg *Config) error {
 		!strings.HasPrefix(cfg.Database.URL, "postgres://") &&
 		!strings.HasPrefix(cfg.Database.URL, "postgresql://") {
 		errs = append(errs, fmt.Errorf("database.url must start with postgres:// or postgresql://"))
+	}
+
+	// OIDC validation depends on mode.
+	if cfg.OIDC.Mode != "test" {
+		if cfg.OIDC.DiscoveryURL == "" {
+			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is %q", cfg.OIDC.Mode))
+		}
+		if cfg.OIDC.ClientID == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is %q", cfg.OIDC.Mode))
+		}
+		if cfg.OIDC.ClientSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_secret is required when mode is %q", cfg.OIDC.Mode))
+		}
+	} else {
+		if cfg.OIDC.TestSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"test\""))
+		}
 	}
 
 	if cfg.OIDC.DiscoveryURL != "" &&

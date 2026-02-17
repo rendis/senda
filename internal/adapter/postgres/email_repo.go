@@ -94,6 +94,22 @@ func (r *EmailRepo) GetByTrackingID(ctx context.Context, trackingID string) (*do
 	return scanEmail(row)
 }
 
+func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageID string) (*domain.Email, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, tracking_id, external_id, workspace_id, tenant_id,
+		        template_id, template_version_id, template_type_slug, template_ref,
+		        recipient_email, cc, bcc, from_email, from_name, reply_to,
+		        subject_rendered, body_mjml, locale, status, adapter_id,
+		        provider_message_id, variables_snapshot, injectors_snapshot,
+		        retry_count, max_retries, next_retry_at, created_at, updated_at
+		 FROM emails
+		 WHERE provider_message_id = @provider_message_id`,
+		pgx.NamedArgs{"provider_message_id": providerMessageID},
+	)
+
+	return scanEmail(row)
+}
+
 func (r *EmailRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE emails SET status = @status, updated_at = now() WHERE id = @id`,
