@@ -1,76 +1,52 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
-import { LogOut } from "lucide-react";
-import { ScopeIndicator } from "@/components/shared/scope-indicator";
-import { useScope } from "@/hooks/use-scope";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePathname } from "next/navigation";
+import { Bell } from "lucide-react";
 
-function getUserInitials(name?: string | null, email?: string | null): string {
-  if (name) {
-    return name
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+const pathToTitle: Record<string, string> = {
+  "": "Dashboard",
+  "/emails": "Emails",
+  "/templates": "Templates",
+  "/injectors": "Injectors",
+  "/adapters": "Adapters",
+  "/domains": "Domains",
+  "/webhooks": "Webhooks",
+  "/members": "Members",
+  "/api-keys": "API Keys",
+  "/audit-log": "Audit Log",
+  "/settings": "Settings",
+};
+
+function getPageTitle(pathname: string): string {
+  // Strip scope prefix: /global, /t/[code], /t/[code]/w/[code]
+  const stripped = pathname
+    .replace(/^\/global/, "")
+    .replace(/^\/t\/[^/]+(\/w\/[^/]+)?/, "");
+
+  // Exact match first
+  if (stripped in pathToTitle) return pathToTitle[stripped];
+
+  // Match by prefix (e.g. /emails/123 → "Emails")
+  for (const [key, title] of Object.entries(pathToTitle)) {
+    if (key && stripped.startsWith(key)) return title;
   }
-  if (email) {
-    return email.slice(0, 2).toUpperCase();
-  }
-  return "??";
+
+  return "Dashboard";
 }
 
 export function AppHeader() {
-  const { level } = useScope();
-  const { data: session } = useSession();
-
-  const initials = getUserInitials(session?.user?.name, session?.user?.email);
+  const pathname = usePathname();
+  const title = getPageTitle(pathname);
 
   return (
-    <header className="flex items-center justify-between h-14 px-6 border-b bg-card">
-      <div className="flex items-center gap-3">
-        <ScopeIndicator scope={level} />
-      </div>
+    <header className="flex items-center justify-between h-14 px-8 border-b bg-card">
+      <h2 className="text-lg font-semibold" style={{ letterSpacing: "-1px" }}>
+        {title}
+      </h2>
       <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="rounded-full outline-none ring-ring focus-visible:ring-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-muted text-xs font-medium">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium">
-                  {session?.user?.name ?? "User"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {session?.user?.email}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => signOut({ callbackUrl: "/login" })}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button className="rounded-md p-2 text-muted-foreground hover:text-foreground transition-colors outline-none ring-ring focus-visible:ring-2">
+          <Bell className="h-5 w-5" />
+        </button>
       </div>
     </header>
   );

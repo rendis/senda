@@ -10,11 +10,11 @@
 | Status | Count | Stories |
 |--------|-------|---------|
 | Backlog | 7 | HT-30 to HT-36 |
-| In Progress | 1 | HT-29 |
-| Done | 29 | HT-01 to HT-28, HT-37 |
+| In Progress | 0 | — |
+| Done | 30 | HT-01 to HT-29, HT-37 |
 | Blocked | 0 | — |
 
-**Progress: 29 / 37 (78%)**
+**Progress: 30 / 37 (81%)**
 
 ---
 
@@ -51,7 +51,7 @@
 | HT-27 | API Keys Service + Management Endpoints | HT-09, HT-17, HT-18 | C | done |
 | **HT-37** | **E2E Backend QA + Pentesting + Colección Postman** | **HT-11..12, HT-15..16, HT-19..25, HT-27** | **F** | **done** |
 | HT-28 | Frontend Scaffolding + Pencil MCP + Design System | HT-17, **HT-37** | E | done |
-| HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | in-progress |
+| HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | done |
 | HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | backlog |
 | HT-31 | Dashboard + Métricas | HT-29 | E | backlog |
 | HT-32 | Emails — Lista + Detalle | HT-22, HT-29 | E | backlog |
@@ -169,7 +169,7 @@ HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → 
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 6 | 100% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 5 | 100% |
 | **E8 — QA Gate** | **HT-37** | **1** | **100%** |
-| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 1 | 11% |
+| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 2 | 22% |
 
 ---
 
@@ -188,5 +188,10 @@ Backend (Tracks A+B+C+D)  →  QA Gate (Track F)  →  Frontend (Track E)
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-29** — Auth (OIDC) + Scope Switcher + Protected Routes *(in progress)*
-- After HT-29: HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 become unblocked
+- **HT-30** — Onboarding Wizard (3 pasos)
+- **HT-31** — Dashboard + Métricas
+- **HT-32** — Emails — Lista + Detalle
+- **HT-33** — Templates — Types + Lista + Editor MJML
+- **HT-34** — CRUD Views — Injectors + Adapters + Domains
+- **HT-35** — CRUD Views — Webhooks + API Keys + Members
+- **HT-36** — Audit Log + Settings + Empty States

@@ -19,6 +19,22 @@ async function checkOnboarding() {
   }
 }
 
+async function checkMembership(): Promise<boolean> {
+  try {
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+    const res = await fetch(`${apiUrl}/api/v1/members/me`, {
+      cache: "no-store",
+    });
+    if (res.status === 403) return false;
+    if (!res.ok) return true; // non-403 errors — skip check
+    return true;
+  } catch {
+    // Backend unavailable — skip check
+    return true;
+  }
+}
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -27,6 +43,11 @@ export default async function DashboardLayout({
   const needsOnboarding = await checkOnboarding();
   if (needsOnboarding) {
     redirect("/onboarding");
+  }
+
+  const hasMembership = await checkMembership();
+  if (!hasMembership) {
+    redirect("/access-denied");
   }
 
   return (

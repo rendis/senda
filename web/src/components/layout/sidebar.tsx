@@ -23,6 +23,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
 const navItems = [
@@ -136,30 +142,35 @@ export function AppSidebar() {
           {!collapsed && <span>Help</span>}
         </button>
 
-        {/* Sign out */}
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-2.5 px-3 h-9 rounded-md text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-white transition-colors"
-        >
-          <LogOut className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>Sign out</span>}
-        </button>
-
         {/* Divider */}
         <div className="h-px bg-sidebar-accent" />
 
-        {/* User + collapse */}
+        {/* User row (dropdown) + collapse */}
         <div className="flex items-center gap-2.5 px-2 h-10">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#334155] shrink-0">
-            <span className="text-[11px] font-semibold text-white">
-              {initials}
-            </span>
-          </div>
-          {!collapsed && (
-            <span className="text-[13px] text-white truncate flex-1">
-              {displayName}
-            </span>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2.5 outline-none rounded-md flex-1 min-w-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#334155] shrink-0">
+                  <span className="text-[11px] font-semibold text-white">
+                    {initials}
+                  </span>
+                </div>
+                {!collapsed && (
+                  <span className="text-[13px] text-white truncate">
+                    {displayName}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuItem
+                onClick={() => signOut({ callbackUrl: "/login" })}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="text-sidebar-foreground hover:text-white transition-colors shrink-0"
