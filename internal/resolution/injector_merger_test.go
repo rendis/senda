@@ -1,4 +1,4 @@
-package resolution
+package resolution_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/resolution"
 	"github.com/senda-app/senda/pkg/apperr"
 )
 
@@ -41,7 +42,7 @@ func (m *mockInjectorStore) GetValues(ctx context.Context, defID uuid.UUID, chai
 
 // --- Helper to build a mock ChainResolver that returns a pre-built chain ---
 
-func newTestChainResolver(chain *ResolutionChain, err error) *ChainResolver {
+func newTestChainResolver(chain *resolution.ResolutionChain, err error) *resolution.ChainResolver {
 	wsID := chain.WorkspaceID
 	sysID := chain.SystemWorkspaceID
 	tenantID := chain.TenantID
@@ -57,10 +58,10 @@ func newTestChainResolver(chain *ResolutionChain, err error) *ChainResolver {
 			return &domain.Workspace{ID: sysID, TenantID: tenantID, IsSystem: true}, nil
 		},
 	}
-	return NewChainResolver(store, newMockCache())
+	return resolution.NewChainResolver(store, newMockCache())
 }
 
-func newErrorChainResolver(retErr error) *ChainResolver {
+func newErrorChainResolver(retErr error) *resolution.ChainResolver {
 	store := &mockWorkspaceStore{
 		getByID: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 			return nil, retErr
@@ -69,7 +70,7 @@ func newErrorChainResolver(retErr error) *ChainResolver {
 			return nil, nil
 		},
 	}
-	return NewChainResolver(store, newMockCache())
+	return resolution.NewChainResolver(store, newMockCache())
 }
 
 // --- Tests ---
@@ -98,12 +99,12 @@ func TestInjectorMerger_SingleScopeGlobal(t *testing.T) {
 	tenantID := uuid.New()
 	wsID := uuid.New()
 	sysID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -148,12 +149,12 @@ func TestInjectorMerger_WorkspaceOverridesGlobal(t *testing.T) {
 
 	tenantID := uuid.New()
 	sysID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -199,12 +200,12 @@ func TestInjectorMerger_ThreeLevelMerge(t *testing.T) {
 	}
 
 	tenantID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -249,12 +250,12 @@ func TestInjectorMerger_FieldWithNoValue(t *testing.T) {
 
 	tenantID := uuid.New()
 	sysID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -311,12 +312,12 @@ func TestInjectorMerger_MultipleDefinitions(t *testing.T) {
 	wsID := uuid.New()
 	sysID := uuid.New()
 	tenantID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -368,12 +369,12 @@ func TestInjectorMerger_DuplicateDefNames_WorkspaceWins(t *testing.T) {
 
 	tenantID := uuid.New()
 	sysID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -395,7 +396,7 @@ func TestInjectorMerger_ChainResolverError(t *testing.T) {
 	}
 
 	cr := newErrorChainResolver(apperr.NotFound("workspace not found"))
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	_, err := merger.Resolve(context.Background(), uuid.New())
 	if err == nil {
@@ -421,12 +422,12 @@ func TestInjectorMerger_StoreError(t *testing.T) {
 	wsID := uuid.New()
 	sysID := uuid.New()
 	tenantID := uuid.New()
-	chain := &ResolutionChain{
+	chain := &resolution.ResolutionChain{
 		WorkspaceID: wsID, SystemWorkspaceID: sysID, TenantID: tenantID,
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr)
 
 	_, err := merger.Resolve(context.Background(), wsID)
 	if err == nil {

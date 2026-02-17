@@ -67,8 +67,9 @@ func RequireRole(minRole domain.Role, tenantStore port.TenantStore, wsStore port
 
 func hasPermission(roles []*domain.MemberRole, minRole domain.Role, tenantID, workspaceID *uuid.UUID) bool {
 	for _, role := range roles {
-		// Superadmin bypasses all checks.
-		if role.Role == domain.RoleSuperadmin {
+		// Superadmin with global scope bypasses all checks.
+		// Defense-in-depth: only ScopeGlobal superadmin gets full access.
+		if role.Role == domain.RoleSuperadmin && role.ScopeType == domain.ScopeGlobal {
 			return true
 		}
 

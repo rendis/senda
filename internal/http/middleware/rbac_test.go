@@ -138,6 +138,50 @@ func TestRequireRole_SuperadminAccessAnything(t *testing.T) {
 	}
 }
 
+func TestRequireRole_SuperadminWrongScopeType(t *testing.T) {
+	tenantID := uuid.New()
+	wsID := uuid.New()
+
+	// Superadmin assigned at workspace scope (data integrity error) should NOT bypass.
+	roles := []*domain.MemberRole{
+		{
+			ID:          uuid.New(),
+			Role:        domain.RoleSuperadmin,
+			ScopeType:   domain.ScopeWorkspace,
+			WorkspaceID: &wsID,
+		},
+	}
+
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: "acme"}, nil
+		},
+	}
+	ws := &mockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+			return &domain.Workspace{ID: wsID, TenantID: tenantID, Code: "main"}, nil
+		},
+	}
+
+	// Superadmin at workspace scope should NOT get global bypass — only workspace-level access
+	_, code := setupRBACTest("oidc", roles, "acme", "main", ts, ws, domain.RoleWorkspaceAdmin)
+	if code != http.StatusOK {
+		t.Fatalf("expected 200 (workspace-scoped match), got %d", code)
+	}
+
+	// But it should NOT bypass into a different workspace
+	otherWsID := uuid.New()
+	wsOther := &mockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+			return &domain.Workspace{ID: otherWsID, TenantID: tenantID, Code: "other"}, nil
+		},
+	}
+	_, code = setupRBACTest("oidc", roles, "acme", "other", ts, wsOther, domain.RoleWorkspaceAdmin)
+	if code != http.StatusForbidden {
+		t.Fatalf("expected 403 (superadmin at wrong scope should not bypass), got %d", code)
+	}
+}
+
 func TestRequireRole_TenantAdminOwnTenant(t *testing.T) {
 	tenantID := uuid.New()
 

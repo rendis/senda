@@ -1,4 +1,4 @@
-package resolution
+package resolution_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/internal/resolution"
 	"github.com/senda-app/senda/pkg/apperr"
 )
 
@@ -88,7 +89,7 @@ func TestChainResolver_RegularWorkspace(t *testing.T) {
 		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return sysWS, nil },
 	}
 	cache := newMockCache()
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 
 	chain, err := resolver.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -135,7 +136,7 @@ func TestChainResolver_SystemWorkspace(t *testing.T) {
 		},
 	}
 	cache := newMockCache()
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 
 	chain, err := resolver.Resolve(context.Background(), sysID)
 	if err != nil {
@@ -162,7 +163,7 @@ func TestChainResolver_CacheHit(t *testing.T) {
 	wsID := uuid.New()
 	sysID := uuid.New()
 
-	expected := &ResolutionChain{
+	expected := &resolution.ResolutionChain{
 		WorkspaceID:       wsID,
 		SystemWorkspaceID: sysID,
 		TenantID:          tenantID,
@@ -189,7 +190,7 @@ func TestChainResolver_CacheHit(t *testing.T) {
 		},
 	}
 
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 	chain, err := resolver.Resolve(context.Background(), wsID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -215,7 +216,7 @@ func TestChainResolver_WorkspaceNotFound(t *testing.T) {
 		},
 	}
 	cache := newMockCache()
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 
 	_, err := resolver.Resolve(context.Background(), uuid.New())
 	if err == nil {
@@ -239,7 +240,7 @@ func TestChainResolver_SystemWorkspaceNotFound(t *testing.T) {
 		},
 	}
 	cache := newMockCache()
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 
 	_, err := resolver.Resolve(context.Background(), wsID)
 	if err == nil {
@@ -266,7 +267,7 @@ func TestChainResolver_CacheSetFailureStillReturns(t *testing.T) {
 	cache := newMockCache()
 	cache.setErr = errors.New("cache write failed")
 
-	resolver := NewChainResolver(store, cache)
+	resolver := resolution.NewChainResolver(store, cache)
 	chain, err := resolver.Resolve(context.Background(), wsID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v (cache set failure should not cause error)", err)
