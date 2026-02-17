@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, ChevronDown, Globe, Building2, Layers } from "lucide-react";
+import { ChevronDown, Globe, Building2, Layers } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -39,6 +39,20 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
         ? workspaceCode ?? "Workspace"
         : tenantCode ?? "Tenant";
 
+  const ScopeIcon =
+    level === "global"
+      ? Globe
+      : level === "workspace"
+        ? Layers
+        : Building2;
+
+  const scopeIconColor =
+    level === "global"
+      ? "text-scope-global"
+      : level === "workspace"
+        ? "text-scope-workspace"
+        : "text-scope-system";
+
   function navigateTo(path: string) {
     setOpen(false);
     router.push(path);
@@ -53,7 +67,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
             collapsed && "justify-center px-0"
           )}
         >
-          <Box className="h-3.5 w-3.5 text-primary shrink-0" />
+          <ScopeIcon className={cn("h-3.5 w-3.5 shrink-0", scopeIconColor)} />
           {!collapsed && (
             <>
               <span className="text-xs font-medium text-white truncate flex-1 text-left">
