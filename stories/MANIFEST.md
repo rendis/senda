@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 5 | HT-32 to HT-36 |
+| Backlog | 0 | — |
 | In Progress | 0 | — |
-| Done | 32 | HT-01 to HT-31, HT-37 |
+| Done | 37 | HT-01 to HT-37 |
 | Blocked | 0 | — |
 
-**Progress: 32 / 37 (86%)**
+**Progress: 37 / 37 (100%)**
 
 ---
 
@@ -54,11 +54,11 @@
 | HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | done |
 | HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | done |
 | HT-31 | Dashboard + Métricas | HT-29 | E | done |
-| HT-32 | Emails — Lista + Detalle | HT-22, HT-29 | E | backlog |
-| HT-33 | Templates — Types + Lista + Editor MJML | HT-21, HT-29 | E | backlog |
-| HT-34 | CRUD Views — Injectors + Adapters + Domains | HT-20, HT-29 | E | backlog |
-| HT-35 | CRUD Views — Webhooks + API Keys + Members | HT-19, HT-24, HT-27, HT-29 | E | backlog |
-| HT-36 | Audit Log + Settings + Empty States | HT-29 | E | backlog |
+| HT-32 | Emails — Lista + Detalle | HT-22, HT-29 | E | done |
+| HT-33 | Templates — Types + Lista + Editor MJML | HT-21, HT-29 | E | done |
+| HT-34 | CRUD Views — Injectors + Adapters + Domains | HT-20, HT-29 | E | done |
+| HT-35 | CRUD Views — Webhooks + API Keys + Members | HT-19, HT-24, HT-27, HT-29 | E | done |
+| HT-36 | Audit Log + Settings + Empty States | HT-29 | E | done |
 
 ---
 
@@ -151,7 +151,7 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 HT-37 (depends on ALL of Track B + C + D completing)
 ```
 
-### Track E — Frontend (after QA Gate)
+### Track E — Frontend ✅ DONE
 ```
 HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → HT-36
 ```
@@ -169,7 +169,7 @@ HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → 
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 6 | 100% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 5 | 100% |
 | **E8 — QA Gate** | **HT-37** | **1** | **100%** |
-| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 4 | 44% |
+| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 9 | 100% |
 
 ---
 
@@ -188,8 +188,4 @@ Backend (Tracks A+B+C+D)  →  QA Gate (Track F)  →  Frontend (Track E)
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-32** — Emails — Lista + Detalle
-- **HT-33** — Templates — Types + Lista + Editor MJML
-- **HT-34** — CRUD Views — Injectors + Adapters + Domains
-- **HT-35** — CRUD Views — Webhooks + API Keys + Members
-- **HT-36** — Audit Log + Settings + Empty States
+**All 37 stories complete. Nothing remaining.**
