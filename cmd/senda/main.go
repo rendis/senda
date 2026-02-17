@@ -9,6 +9,7 @@ import (
 
 	"github.com/senda-app/senda/config"
 	sendahttp "github.com/senda-app/senda/internal/http"
+	"github.com/senda-app/senda/internal/metrics"
 )
 
 func main() {
@@ -26,9 +27,15 @@ func main() {
 	level := slog.LevelInfo
 	_ = level.UnmarshalText([]byte(cfg.Log.Level))
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: level,
-	}))
+	var handler slog.Handler
+	if cfg.Log.Format == "json" {
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	}
+	logger := slog.New(handler)
+
+	metrics.Register()
 
 	srv := sendahttp.NewServer(cfg, logger)
 

@@ -1,16 +1,14 @@
 package domain
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
+import "time"
 
 type GlobalConfig struct {
-	ID                        uuid.UUID
-	DefaultRateLimitPerSecond int
-	MaxRecipientsPerRequest   int
-	RetentionDays             int
-	MaintenanceMode           bool
-	UpdatedAt                 time.Time
+	DefaultRetryCount             int
+	RetryBackoffBaseSeconds       int
+	LogRetentionDays              int
+	BounceAlertThresholdPercent   float64
+	ComplaintAlertThresholdPercent float64
+	DomainRecheckIntervalHours    int
+	OnboardingCompleted           bool
+	UpdatedAt                     time.Time
 }

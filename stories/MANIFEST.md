@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 19 | HT-07 to HT-13, HT-15, HT-16, HT-18 to HT-27 |
+| Backlog | 16 | HT-08 to HT-12, HT-15, HT-16, HT-18 to HT-25, HT-27 |
 | In Progress | 0 | — |
-| Done | 8 | HT-01, HT-02, HT-03, HT-04, HT-05, HT-06, HT-14, HT-17 |
+| Done | 11 | HT-01, HT-02, HT-03, HT-04, HT-05, HT-06, HT-07, HT-13, HT-14, HT-17, HT-26 |
 | Blocked | 0 | — |
 
-**Progress: 8 / 27 (30%)**
+**Progress: 11 / 27 (41%)**
 
 ---
 
@@ -28,13 +28,13 @@
 | HT-04 | Encryption Module (AES-256-GCM) | HT-02 | A | done |
 | HT-05 | Domain Models + Error Types | HT-01 | B | done |
 | HT-06 | Port Interfaces (Contratos) | HT-05 | B | done |
-| HT-07 | PG Stores — Tenants, Workspaces, Config | HT-03, HT-05, HT-06 | B | backlog |
+| HT-07 | PG Stores — Tenants, Workspaces, Config | HT-03, HT-05, HT-06 | B | done |
 | HT-08 | PG Stores — Injectors, Adapters, Domains, Templates | HT-04, HT-07 | B | backlog |
 | HT-09 | PG Stores — Members, API Keys, Emails, Audit, etc. | HT-07 | B | backlog |
 | HT-10 | ChainResolver + InjectorMerger | HT-06, HT-08 | B | backlog |
 | HT-11 | TemplateResolver + AdapterResolver | HT-10 | B | backlog |
 | HT-12 | DomainResolver + Cache Invalidation | HT-10, HT-11 | B | backlog |
-| HT-13 | PG Cache + Token Bucket Rate Limiter | HT-03 | A | backlog |
+| HT-13 | PG Cache + Token Bucket Rate Limiter | HT-03 | A | done |
 | HT-14 | MJML Compiler + DKIM Signer | HT-01 | A | done |
 | HT-15 | SendService — Orchestration Core | HT-10, HT-11, HT-12, HT-13, HT-14 | D | backlog |
 | HT-16 | River Workers (Send, Verify, Webhook) | HT-13, HT-14, HT-15 | D | backlog |
@@ -47,7 +47,7 @@
 | HT-23 | Provider Event Ingestion (SES Webhooks) | HT-09, HT-16, HT-17 | D | backlog |
 | HT-24 | Webhook System (Dispatch + CRUD) | HT-16, HT-17, HT-18 | D | backlog |
 | HT-25 | Onboarding Flow | HT-07, HT-09, HT-17, HT-18 | C | backlog |
-| HT-26 | Observability (Metrics + Health + Logging) | HT-17 | D | backlog |
+| HT-26 | Observability (Metrics + Health + Logging) | HT-17 | D | done |
 | HT-27 | API Keys Service + Management Endpoints | HT-09, HT-17, HT-18 | C | backlog |
 
 ---
@@ -121,11 +121,11 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 | Epic | Stories | Done | % |
 |------|---------|------|---|
 | E1 — Foundation | HT-01, HT-02, HT-03, HT-04 | 4 | 100% |
-| E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 2 | 40% |
+| E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 3 | 60% |
 | E3 — Resolution Engine | HT-10, HT-11, HT-12 | 0 | 0% |
-| E4 — Send Flow | HT-13, HT-14, HT-15, HT-16 | 1 | 25% |
+| E4 — Send Flow | HT-13, HT-14, HT-15, HT-16 | 2 | 50% |
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 1 | 17% |
-| E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 0 | 0% |
+| E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 1 | 20% |
 
 ---
 
@@ -133,6 +133,5 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-07** — PG Stores: Tenants, Workspaces, Config *(deps: HT-03, HT-05, HT-06 done)*
-- **HT-13** — PG Cache + Token Bucket Rate Limiter *(dep: HT-03 done)*
-- **HT-26** — Observability (Metrics + Health + Logging) *(dep: HT-17 done)*
+- **HT-08** — PG Stores: Injectors, Adapters, Domains, Templates *(deps: HT-04, HT-07 done)*
+- **HT-09** — PG Stores: Members, API Keys, Emails, Audit, etc. *(dep: HT-07 done)*

@@ -7,7 +7,9 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/senda-app/senda/config"
+	"github.com/senda-app/senda/internal/http/handler"
 	"github.com/senda-app/senda/internal/http/middleware"
 	"github.com/senda-app/senda/internal/http/response"
 )
@@ -17,19 +19,24 @@ type Server struct {
 	echo   *echo.Echo
 	config *config.Config
 	logger *slog.Logger
+	pinger handler.Pinger
+}
+
+// ServerOption configures optional Server dependencies.
+type ServerOption func(*Server)
+
+// WithPinger sets the Pinger used by the health endpoint to check DB connectivity.
+func WithPinger(p handler.Pinger) ServerOption {
+	return func(s *Server) {
+		s.pinger = p
+	}
 }
 
 // NewServer creates a configured Echo server with middleware and routes.
-func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
+func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *Server {
 	e := echo.New()
 
 	e.HTTPErrorHandler = response.HTTPErrorHandler
-
-	// Middleware order: Recovery -> RequestID -> Logger -> Scope -> Handler
-	e.Use(middleware.Recovery(logger))
-	e.Use(middleware.RequestID())
-	e.Use(middleware.Logger(logger))
-	e.Use(middleware.Scope())
 
 	s := &Server{
 		echo:   e,
@@ -37,15 +44,30 @@ func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
 		logger: logger,
 	}
 
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	// Middleware order: Recovery -> RequestID -> Metrics -> Logger -> Scope -> Handler
+	e.Use(middleware.Recovery(logger))
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Metrics())
+	e.Use(middleware.Logger(logger))
+	e.Use(middleware.Scope())
+
 	s.registerRoutes()
 
 	return s
 }
 
 func (s *Server) registerRoutes() {
+	healthH := handler.NewHealthHandler(s.pinger)
+
 	s.echo.GET("/health", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
 	})
+	s.echo.GET("/healthz", healthH.Health)
+	s.echo.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// Placeholder route groups for future API handlers.
 	_ = s.echo.Group("/api/v1")
