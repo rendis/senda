@@ -88,6 +88,16 @@ El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. 
 - **HTs:** HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 - **Spec focus:** §13, §16, §19, §21
 
+**Team Frontend** — Track E (Frontend + Design-to-Code)
+
+- **Perfil:** Frontend Engineer / Design Systems Specialist
+- **Expertise:** Next.js, TypeScript, Tailwind CSS, React, component architecture, Pencil MCP
+- **HTs:** HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → HT-36
+- **Spec focus:** DESIGN_BRIEF (§3 a §8), PRD (§5 User Stories US-36 a US-45)
+- **Stack:** Next.js 16, TypeScript 5, Tailwind v4, shadcn/ui, TanStack Query 5, TanStack Table 9, React Hook Form 7, Zod 4, Auth.js v5, ky, Monaco Editor, Lucide React, Sileo
+- **Diseño:** `senda_desing.pen` — leer SIEMPRE via Pencil MCP, NUNCA parsear el .pen como JSON
+- **Flujo:** Pencil MCP lee frame → Claude genera componente React + Tailwind → verificar pixel-perfect → iterar en Pencil si hay drift
+
 ### Parallelization Matrix
 
 ```
@@ -104,6 +114,18 @@ S8       —                 HT-12               ✅ done            HT-15
 S9       —                 ✅ done              —                 HT-16
 S10      —                 —                   —                 HT-22 + HT-23
 S11      —                 —                   —                 HT-24 + HT-26
+
+Semana   Team Frontend
+─────────────────────────
+S3       HT-28 (scaffolding + Pencil MCP + Design System)
+S7       HT-29 (auth + scope switcher — espera HT-25)
+S8       HT-30 (onboarding wizard)
+S8       HT-31 (dashboard + métricas)
+S9       HT-33 (templates — espera HT-21)
+S9       HT-34 (injectors + adapters + domains — espera HT-20)
+S10      HT-36 (audit log + settings + empty states)
+S11      HT-32 (emails — espera HT-22)
+S11      HT-35 (webhooks + API keys + members — espera HT-19, HT-24, HT-27)
 ```
 
 ### Reglas de Paralelización
@@ -112,8 +134,10 @@ S11      —                 —                   —                 HT-24 + H
 2. **Team Infra y Team Domain arrancan juntos** desde S1 (HT-01 y HT-05 solo dependen de HT-01)
 3. **Team API arranca en S3** — necesita HT-02 (config) para HT-17 (Echo server)
 4. **Team SendOps arranca en S8** — necesita resolvers (HT-10..12) + infra (HT-13, HT-14)
-5. **Cross-team dependencies:** cuando una HT depende de otra de otro team, verificar que está en `stories/done/` antes de empezar
-6. **Cada team mantiene su propia sesión** — el MANIFEST.md es el punto de sincronización compartido
+5. **Team Frontend arranca en S3** — HT-28 solo necesita HT-17 (Echo server ya done). Las HTs que dependen de endpoints backend esperan a que los CRUD handlers estén done
+6. **Cross-team dependencies:** cuando una HT depende de otra de otro team, verificar que está en `stories/done/` antes de empezar
+7. **Cada team mantiene su propia sesión** — el MANIFEST.md es el punto de sincronización compartido
+8. **Pencil MCP obligatorio para Team Frontend** — leer diseño SIEMPRE via MCP server de Pencil, NUNCA parsear el .pen como JSON directo
 
 ### Prompt tipo para iniciar un team:
 

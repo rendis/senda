@@ -12,4 +12,14 @@ var (
 	ErrSuppressed          = errors.New("recipient is suppressed")
 	ErrRateLimited         = errors.New("rate limited")
 	ErrMaintenanceMode     = errors.New("maintenance mode")
+
+	// Template resolution errors (HT-11)
+	ErrTemplateTypeNotFound = errors.New("template type not found")
+	ErrTemplateNotFound     = errors.New("template not found")
+	ErrTemplateDisabled     = errors.New("template is disabled")
+	ErrNoPublishedVersion   = errors.New("no published version")
+	ErrDomainNotVerified    = errors.New("domain not verified")
+
+	// Pagination errors (HT-19)
+	ErrInvalidCursor = errors.New("invalid cursor")
 )

@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 12 | HT-11, HT-12, HT-15, HT-16, HT-19 to HT-25, HT-27 |
+| Backlog | 20 | HT-12, HT-15, HT-16, HT-20 to HT-25, HT-27, HT-28 to HT-37 |
 | In Progress | 0 | — |
-| Done | 15 | HT-01 to HT-10, HT-13, HT-14, HT-17, HT-18, HT-26 |
+| Done | 17 | HT-01 to HT-11, HT-13, HT-14, HT-17 to HT-19, HT-26 |
 | Blocked | 0 | — |
 
-**Progress: 15 / 27 (56%)**
+**Progress: 17 / 37 (46%)**
 
 ---
 
@@ -32,7 +32,7 @@
 | HT-08 | PG Stores — Injectors, Adapters, Domains, Templates | HT-04, HT-07 | B | done |
 | HT-09 | PG Stores — Members, API Keys, Emails, Audit, etc. | HT-07 | B | done |
 | HT-10 | ChainResolver + InjectorMerger | HT-06, HT-08 | B | done |
-| HT-11 | TemplateResolver + AdapterResolver | HT-10 | B | backlog |
+| HT-11 | TemplateResolver + AdapterResolver | HT-10 | B | done |
 | HT-12 | DomainResolver + Cache Invalidation | HT-10, HT-11 | B | backlog |
 | HT-13 | PG Cache + Token Bucket Rate Limiter | HT-03 | A | done |
 | HT-14 | MJML Compiler + DKIM Signer | HT-01 | A | done |
@@ -40,7 +40,7 @@
 | HT-16 | River Workers (Send, Verify, Webhook) | HT-13, HT-14, HT-15 | D | backlog |
 | HT-17 | Echo v5 Server + Base Middleware | HT-02 | C | done |
 | HT-18 | Auth Middleware (OIDC + API Keys) | HT-09, HT-17 | C | done |
-| HT-19 | CRUD Handlers — Tenants, Workspaces, Members | HT-07, HT-17, HT-18 | C | backlog |
+| HT-19 | CRUD Handlers — Tenants, Workspaces, Members | HT-07, HT-17, HT-18 | C | done |
 | HT-20 | CRUD Handlers — Injectors, Adapters, Domains | HT-08, HT-14, HT-17, HT-18 | C | backlog |
 | HT-21 | CRUD Handlers — Templates, Versions, Locales | HT-08, HT-14, HT-17, HT-18 | C | backlog |
 | HT-22 | Send Endpoint + Email Query + Tracking | HT-15, HT-16, HT-17, HT-18 | D | backlog |
@@ -49,6 +49,16 @@
 | HT-25 | Onboarding Flow | HT-07, HT-09, HT-17, HT-18 | C | backlog |
 | HT-26 | Observability (Metrics + Health + Logging) | HT-17 | D | done |
 | HT-27 | API Keys Service + Management Endpoints | HT-09, HT-17, HT-18 | C | backlog |
+| **HT-37** | **E2E Backend QA + Pentesting + Colección Postman** | **HT-11..12, HT-15..16, HT-19..25, HT-27** | **F** | **backlog** |
+| HT-28 | Frontend Scaffolding + Pencil MCP + Design System | HT-17, **HT-37** | E | backlog |
+| HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | backlog |
+| HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | backlog |
+| HT-31 | Dashboard + Métricas | HT-29 | E | backlog |
+| HT-32 | Emails — Lista + Detalle | HT-22, HT-29 | E | backlog |
+| HT-33 | Templates — Types + Lista + Editor MJML | HT-21, HT-29 | E | backlog |
+| HT-34 | CRUD Views — Injectors + Adapters + Domains | HT-20, HT-29 | E | backlog |
+| HT-35 | CRUD Views — Webhooks + API Keys + Members | HT-19, HT-24, HT-27, HT-29 | E | backlog |
+| HT-36 | Audit Log + Settings + Empty States | HT-29 | E | backlog |
 
 ---
 
@@ -88,13 +98,35 @@ Level 9:
 
 Level 10:
   HT-22 (15,16,17,18)   HT-23 (09,16,17)   HT-24 (16,17,18)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BACKEND COMPLETE ↑  |  QA GATE ↓  |  FRONTEND ↓↓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Level 11 — QA GATE (bloqueante para frontend):
+  HT-37 (ALL backend: HT-11,12,15,16,19-25,27)
+
+Level 12:
+  HT-28 (17,37)
+
+Level 13:
+  HT-29 (18,25,28)
+
+Level 14:
+  HT-30 (25,29)   HT-31 (29)   HT-36 (29)
+
+Level 15:
+  HT-33 (21,29)   HT-34 (20,29)
+
+Level 16:
+  HT-32 (22,29)   HT-35 (19,24,27,29)
 ```
 
 ---
 
 ## Tracks (Parallel Execution)
 
-### Track A — Infrastructure
+### Track A — Infrastructure ✅ DONE
 ```
 HT-01 → HT-02 → HT-03 → HT-04 → HT-13 → HT-14
 ```
@@ -114,6 +146,16 @@ HT-17 → HT-18 → HT-19 → HT-20 → HT-21 → HT-27 → HT-25
 HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 ```
 
+### Track F — QA Gate (after all backend)
+```
+HT-37 (depends on ALL of Track B + C + D completing)
+```
+
+### Track E — Frontend (after QA Gate)
+```
+HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → HT-36
+```
+
 ---
 
 ## Epic Summary
@@ -122,10 +164,23 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 |------|---------|------|---|
 | E1 — Foundation | HT-01, HT-02, HT-03, HT-04 | 4 | 100% |
 | E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 5 | 100% |
-| E3 — Resolution Engine | HT-10, HT-11, HT-12 | 1 | 33% |
+| E3 — Resolution Engine | HT-10, HT-11, HT-12 | 2 | 67% |
 | E4 — Send Flow | HT-13, HT-14, HT-15, HT-16 | 2 | 50% |
-| E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 2 | 33% |
+| E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 3 | 50% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 1 | 20% |
+| **E8 — QA Gate** | **HT-37** | **0** | **0%** |
+| E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 0 | 0% |
+
+---
+
+## Pipeline Flow
+
+```
+Backend (Tracks A+B+C+D)  →  QA Gate (Track F)  →  Frontend (Track E)
+     HT-01 to HT-27            HT-37                HT-28 to HT-36
+```
+
+**El frontend NO comienza hasta que HT-37 esté en `done/`.**
 
 ---
 
@@ -133,8 +188,7 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-11** — TemplateResolver + AdapterResolver *(deps: HT-10 done)*
-- **HT-19** — CRUD Handlers: Tenants, Workspaces, Members *(deps: HT-07, HT-17, HT-18 done)*
+- **HT-12** — DomainResolver + Cache Invalidation *(deps: HT-10, HT-11 done)*
 - **HT-20** — CRUD Handlers: Injectors, Adapters, Domains *(deps: HT-08, HT-14, HT-17, HT-18 done)*
 - **HT-21** — CRUD Handlers: Templates, Versions, Locales *(deps: HT-08, HT-14, HT-17, HT-18 done)*
 - **HT-25** — Onboarding Flow *(deps: HT-07, HT-09, HT-17, HT-18 done)*
