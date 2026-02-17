@@ -196,6 +196,7 @@ type GlobalConfigStore interface {
 type ListOptions struct {
 	Cursor string // opaque cursor (base64-encoded id+timestamp)
 	Limit  int    // max items to return (default 25, max 100)
+	Search string // ILIKE "%term%" on name/code (optional)
 }
 
 // PageResult wraps a paginated response.

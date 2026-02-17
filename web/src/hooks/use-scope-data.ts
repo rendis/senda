@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
 import type { Tenant, Workspace, PaginatedResponse } from "@/types/api";
 
@@ -49,5 +50,47 @@ export function useWorkspacesQuery(tenantCode?: string) {
     },
     enabled: ready && !!tenantCode,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Paginated tenants with server-side search.
+ */
+export function usePaginatedTenants(search: string) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return usePaginatedQuery<Tenant>({
+    queryKey: ["tenants", "paginated", search],
+    fetcher: async (cursor) => {
+      const params: Record<string, string | number> = { limit: 25 };
+      if (cursor) params.cursor = cursor;
+      if (search) params.search = search;
+      return api
+        .get("manage/tenants", { searchParams: params })
+        .json<PaginatedResponse<Tenant>>();
+    },
+    enabled: ready,
+  });
+}
+
+/**
+ * Paginated workspaces for a tenant with server-side search.
+ */
+export function usePaginatedWorkspaces(tenantCode: string, search: string) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return usePaginatedQuery<Workspace>({
+    queryKey: ["workspaces", tenantCode, "paginated", search],
+    fetcher: async (cursor) => {
+      const params: Record<string, string | number> = { limit: 25 };
+      if (cursor) params.cursor = cursor;
+      if (search) params.search = search;
+      return api
+        .get(`manage/tenants/${tenantCode}/workspaces`, { searchParams: params })
+        .json<PaginatedResponse<Workspace>>();
+    },
+    enabled: ready && !!tenantCode,
   });
 }

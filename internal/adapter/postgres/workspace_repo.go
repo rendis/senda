@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -94,29 +95,24 @@ func (r *WorkspaceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, op
 	}
 
 	fetchLimit := limit + 1
+	args := pgx.NamedArgs{"tenant_id": tenantID, "limit": fetchLimit}
 
-	var rows pgx.Rows
+	var qb strings.Builder
+	qb.WriteString(`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale, created_at, updated_at, deleted_at FROM workspaces WHERE tenant_id = @tenant_id AND deleted_at IS NULL`)
+
 	if afterID != nil {
-		rows, err = r.pool.Query(ctx,
-			`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
-			        created_at, updated_at, deleted_at
-			 FROM workspaces
-			 WHERE tenant_id = @tenant_id AND deleted_at IS NULL AND id < @after_id
-			 ORDER BY id DESC
-			 LIMIT @limit`,
-			pgx.NamedArgs{"tenant_id": tenantID, "after_id": *afterID, "limit": fetchLimit},
-		)
-	} else {
-		rows, err = r.pool.Query(ctx,
-			`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
-			        created_at, updated_at, deleted_at
-			 FROM workspaces
-			 WHERE tenant_id = @tenant_id AND deleted_at IS NULL
-			 ORDER BY id DESC
-			 LIMIT @limit`,
-			pgx.NamedArgs{"tenant_id": tenantID, "limit": fetchLimit},
-		)
+		qb.WriteString(` AND id < @after_id`)
+		args["after_id"] = *afterID
 	}
+
+	if opts.Search != "" {
+		qb.WriteString(` AND (name ILIKE @search OR code ILIKE @search)`)
+		args["search"] = "%" + opts.Search + "%"
+	}
+
+	qb.WriteString(` ORDER BY id DESC LIMIT @limit`)
+
+	rows, err := r.pool.Query(ctx, qb.String(), args)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing workspaces: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -75,29 +76,25 @@ func (r *TenantRepo) List(ctx context.Context, opts port.ListOptions) ([]*domain
 		return nil, "", err
 	}
 
-	// Fetch limit+1 to know if there are more pages.
 	fetchLimit := limit + 1
+	args := pgx.NamedArgs{"limit": fetchLimit}
 
-	var rows pgx.Rows
+	var qb strings.Builder
+	qb.WriteString(`SELECT id, code, name, created_at, updated_at, deleted_at FROM tenants WHERE deleted_at IS NULL`)
+
 	if afterID != nil {
-		rows, err = r.pool.Query(ctx,
-			`SELECT id, code, name, created_at, updated_at, deleted_at
-			 FROM tenants
-			 WHERE deleted_at IS NULL AND id < @after_id
-			 ORDER BY id DESC
-			 LIMIT @limit`,
-			pgx.NamedArgs{"after_id": *afterID, "limit": fetchLimit},
-		)
-	} else {
-		rows, err = r.pool.Query(ctx,
-			`SELECT id, code, name, created_at, updated_at, deleted_at
-			 FROM tenants
-			 WHERE deleted_at IS NULL
-			 ORDER BY id DESC
-			 LIMIT @limit`,
-			pgx.NamedArgs{"limit": fetchLimit},
-		)
+		qb.WriteString(` AND id < @after_id`)
+		args["after_id"] = *afterID
 	}
+
+	if opts.Search != "" {
+		qb.WriteString(` AND (name ILIKE @search OR code ILIKE @search)`)
+		args["search"] = "%" + opts.Search + "%"
+	}
+
+	qb.WriteString(` ORDER BY id DESC LIMIT @limit`)
+
+	rows, err := r.pool.Query(ctx, qb.String(), args)
 	if err != nil {
 		return nil, "", fmt.Errorf("listing tenants: %w", err)
 	}

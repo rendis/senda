@@ -68,5 +68,6 @@ func ParseListOptions(c *echo.Context) port.ListOptions {
 	return port.ListOptions{
 		Cursor: cursor,
 		Limit:  limit,
+		Search: c.QueryParam("search"),
 	}
 }
