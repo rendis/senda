@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
 )
 
@@ -99,6 +100,9 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 		return m.getLocaleFn(ctx, versionID, locale)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+	return nil, "", nil
 }
 
 // --- Mock TemplateCompiler ---

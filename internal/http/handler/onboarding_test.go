@@ -50,6 +50,9 @@ func (m *mockMemberStoreOnb) AddRole(ctx context.Context, role *domain.MemberRol
 	}
 	return nil
 }
+func (m *mockMemberStoreOnb) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
 func (m *mockMemberStoreOnb) RemoveRole(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockMemberStoreOnb) GetRoles(_ context.Context, _ uuid.UUID) ([]*domain.MemberRole, error) {
 	return nil, nil

@@ -78,6 +78,22 @@ const columns: ColumnDef<Email, unknown>[] = [
 ];
 
 export function EmailsContent() {
+  const scope = useScope();
+
+  if (scope.level !== "workspace") {
+    return (
+      <EmptyState
+        icon={Mail}
+        title="Select a workspace"
+        description="Emails are workspace-scoped. Select a workspace from the sidebar to view emails."
+      />
+    );
+  }
+
+  return <EmailsTable />;
+}
+
+function EmailsTable() {
   const [filters, setFilters] = useState<EmailFilters>({});
   const scope = useScope();
   const router = useRouter();

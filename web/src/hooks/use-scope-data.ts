@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import type { Tenant, Workspace, PaginatedResponse } from "@/types/api";
 
 /**
@@ -10,6 +10,7 @@ import type { Tenant, Workspace, PaginatedResponse } from "@/types/api";
  */
 export function useTenantsQuery() {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["tenants"],
@@ -24,6 +25,7 @@ export function useTenantsQuery() {
         return [] as Tenant[];
       }
     },
+    enabled: ready,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -33,6 +35,7 @@ export function useTenantsQuery() {
  */
 export function useWorkspacesQuery(tenantCode?: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["workspaces", tenantCode],
@@ -44,7 +47,7 @@ export function useWorkspacesQuery(tenantCode?: string) {
         .json<PaginatedResponse<Workspace>>();
       return res.items;
     },
-    enabled: !!tenantCode,
+    enabled: ready && !!tenantCode,
     staleTime: 5 * 60 * 1000,
   });
 }

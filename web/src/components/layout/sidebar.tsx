@@ -146,10 +146,22 @@ export function AppSidebar() {
         <div className="h-px bg-sidebar-accent" />
 
         {/* User row (dropdown) + collapse */}
-        <div className="flex items-center gap-2.5 px-2 h-10">
+        <div
+          className={cn(
+            "flex px-2",
+            collapsed
+              ? "flex-col items-center gap-2 py-1"
+              : "items-center gap-2.5 h-10"
+          )}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 outline-none rounded-md flex-1 min-w-0">
+              <button
+                className={cn(
+                  "flex items-center outline-none rounded-md",
+                  collapsed ? "justify-center" : "gap-2.5 flex-1 min-w-0"
+                )}
+              >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#334155] shrink-0">
                   <span className="text-[11px] font-semibold text-white">
                     {initials}

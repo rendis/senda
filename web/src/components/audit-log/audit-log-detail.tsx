@@ -45,7 +45,7 @@ export function AuditLogDetail({
                 Timestamp
               </span>
               <p className="mt-1 font-mono text-xs">
-                {new Date(entry.timestamp).toLocaleString()}
+                {new Date(entry.created_at).toLocaleString()}
               </p>
             </div>
             <div>

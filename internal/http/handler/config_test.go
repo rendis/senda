@@ -42,7 +42,12 @@ func setupConfigTest(cs port.GlobalConfigStore) *echo.Echo {
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 
-	h := handler.NewConfigHandler(cs)
+	oidc := handler.OIDCInfo{
+		DiscoveryURL:    "https://sso.example.com/realms/senda/.well-known/openid-configuration",
+		ClientID:        "senda-web",
+		ClientSecretSet: true,
+	}
+	h := handler.NewConfigHandler(cs, oidc)
 	e.GET("/api/v1/manage/config", h.Get)
 	e.PUT("/api/v1/manage/config", h.Update)
 	return e
@@ -79,18 +84,45 @@ func TestConfigHandler_Get_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	// Decode into nested response matching frontend SystemSettings contract.
 	var resp response.ConfigResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp.DefaultRetryCount != 3 {
-		t.Fatalf("expected default_retry_count 3, got %d", resp.DefaultRetryCount)
+
+	// OIDC section (read-only from env).
+	if resp.OIDC.DiscoveryURL != "https://sso.example.com/realms/senda/.well-known/openid-configuration" {
+		t.Fatalf("expected oidc.discovery_url, got %q", resp.OIDC.DiscoveryURL)
 	}
-	if resp.LogRetentionDays != 90 {
-		t.Fatalf("expected log_retention_days 90, got %d", resp.LogRetentionDays)
+	if resp.OIDC.ClientID != "senda-web" {
+		t.Fatalf("expected oidc.client_id 'senda-web', got %q", resp.OIDC.ClientID)
 	}
-	if !resp.OnboardingCompleted {
-		t.Fatal("expected onboarding_completed=true")
+	if !resp.OIDC.ClientSecretSet {
+		t.Fatal("expected oidc.client_secret_set=true")
+	}
+
+	// Email defaults section.
+	if resp.EmailDefaults.MaxRetries != 3 {
+		t.Fatalf("expected email_defaults.max_retries 3, got %d", resp.EmailDefaults.MaxRetries)
+	}
+	if resp.EmailDefaults.BackoffBaseSeconds != 60 {
+		t.Fatalf("expected email_defaults.backoff_base_seconds 60, got %d", resp.EmailDefaults.BackoffBaseSeconds)
+	}
+	if resp.EmailDefaults.LogRetentionDays != 90 {
+		t.Fatalf("expected email_defaults.log_retention_days 90, got %d", resp.EmailDefaults.LogRetentionDays)
+	}
+
+	// Alerts section.
+	if resp.Alerts.BounceThresholdPercent != 5.0 {
+		t.Fatalf("expected alerts.bounce_threshold_percent 5.0, got %f", resp.Alerts.BounceThresholdPercent)
+	}
+	if resp.Alerts.ComplaintThresholdPercent != 0.1 {
+		t.Fatalf("expected alerts.complaint_threshold_percent 0.1, got %f", resp.Alerts.ComplaintThresholdPercent)
+	}
+
+	// Domain section.
+	if resp.Domain.RecheckIntervalHours != 24 {
+		t.Fatalf("expected domain.recheck_interval_hours 24, got %d", resp.Domain.RecheckIntervalHours)
 	}
 }
 
@@ -120,7 +152,8 @@ func TestConfigHandler_Update_Success(t *testing.T) {
 
 	e := setupConfigTest(cs)
 
-	body := `{"default_retry_count":5,"onboarding_completed":true}`
+	// Nested request matching frontend UpdateSettingsRequest.
+	body := `{"email_defaults":{"max_retries":5},"alerts":{"bounce_threshold_percent":10.0}}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/config", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -135,12 +168,15 @@ func TestConfigHandler_Update_Success(t *testing.T) {
 	if upserted.DefaultRetryCount != 5 {
 		t.Fatalf("expected default_retry_count 5, got %d", upserted.DefaultRetryCount)
 	}
-	if !upserted.OnboardingCompleted {
-		t.Fatal("expected onboarding_completed=true")
+	if upserted.BounceAlertThresholdPercent != 10.0 {
+		t.Fatalf("expected bounce_alert_threshold_percent 10.0, got %f", upserted.BounceAlertThresholdPercent)
 	}
 	// Fields not in request should remain unchanged.
 	if upserted.LogRetentionDays != 90 {
 		t.Fatalf("expected log_retention_days 90 (unchanged), got %d", upserted.LogRetentionDays)
+	}
+	if upserted.DomainRecheckIntervalHours != 24 {
+		t.Fatalf("expected domain_recheck_interval_hours 24 (unchanged), got %d", upserted.DomainRecheckIntervalHours)
 	}
 }
 
@@ -170,8 +206,8 @@ func TestConfigHandler_Update_PartialFields(t *testing.T) {
 
 	e := setupConfigTest(cs)
 
-	// Only update log_retention_days.
-	body := `{"log_retention_days":180}`
+	// Only update domain section.
+	body := `{"domain":{"recheck_interval_hours":48}}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/config", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -180,8 +216,8 @@ func TestConfigHandler_Update_PartialFields(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if upserted.LogRetentionDays != 180 {
-		t.Fatalf("expected log_retention_days 180, got %d", upserted.LogRetentionDays)
+	if upserted.DomainRecheckIntervalHours != 48 {
+		t.Fatalf("expected domain_recheck_interval_hours 48, got %d", upserted.DomainRecheckIntervalHours)
 	}
 	// Other fields unchanged.
 	if upserted.DefaultRetryCount != 3 {
@@ -189,5 +225,8 @@ func TestConfigHandler_Update_PartialFields(t *testing.T) {
 	}
 	if upserted.RetryBackoffBaseSeconds != 60 {
 		t.Fatalf("expected retry_backoff_base_seconds 60, got %d", upserted.RetryBackoffBaseSeconds)
+	}
+	if upserted.LogRetentionDays != 90 {
+		t.Fatalf("expected log_retention_days 90, got %d", upserted.LogRetentionDays)
 	}
 }

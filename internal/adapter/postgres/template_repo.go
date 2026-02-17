@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/pkg/apperr"
 )
 
@@ -109,6 +110,80 @@ func (r *TemplateRepo) FindTypeBySlugInScope(ctx context.Context, slug string, w
 	}
 
 	return scanTemplateType(row)
+}
+
+func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error) {
+	limit, afterID, err := ApplyPagination(opts)
+	if err != nil {
+		return nil, "", err
+	}
+
+	fetchLimit := limit + 1
+
+	var rows pgx.Rows
+	if wsID == nil {
+		// Global scope: only global types.
+		if afterID != nil {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				        created_at, updated_at, deleted_at
+				 FROM template_types
+				 WHERE workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"after_id": *afterID, "limit": fetchLimit},
+			)
+		} else {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				        created_at, updated_at, deleted_at
+				 FROM template_types
+				 WHERE workspace_id IS NULL AND deleted_at IS NULL
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"limit": fetchLimit},
+			)
+		}
+	} else {
+		// Workspace scope: types in this workspace.
+		if afterID != nil {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				        created_at, updated_at, deleted_at
+				 FROM template_types
+				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"workspace_id": *wsID, "after_id": *afterID, "limit": fetchLimit},
+			)
+		} else {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				        created_at, updated_at, deleted_at
+				 FROM template_types
+				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"workspace_id": *wsID, "limit": fetchLimit},
+			)
+		}
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("listing template types: %w", err)
+	}
+
+	types, err := pgx.CollectRows(rows, scanTemplateTypeRow)
+	if err != nil {
+		return nil, "", fmt.Errorf("collecting template types: %w", err)
+	}
+
+	var nextCursor string
+	if len(types) > limit {
+		types = types[:limit]
+		nextCursor = EncodeCursor(types[limit-1].ID)
+	}
+
+	return types, nextCursor, nil
 }
 
 // --- Templates ---
@@ -374,6 +449,20 @@ func (r *TemplateRepo) GetLocale(ctx context.Context, versionID uuid.UUID, local
 }
 
 // --- Scanners ---
+
+// scanTemplateTypeRow is a pgx.RowToFunc for use with pgx.CollectRows.
+func scanTemplateTypeRow(row pgx.CollectableRow) (*domain.TemplateType, error) {
+	var tt domain.TemplateType
+	err := row.Scan(
+		&tt.ID, &tt.Slug, &tt.Name, &tt.Description,
+		&tt.WorkspaceID, &tt.AdapterID, &tt.VariableSchema,
+		&tt.CreatedAt, &tt.UpdatedAt, &tt.DeletedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scanning template type row: %w", err)
+	}
+	return &tt, nil
+}
 
 func scanTemplateType(row pgx.Row) (*domain.TemplateType, error) {
 	var tt domain.TemplateType

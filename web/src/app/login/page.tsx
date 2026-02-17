@@ -1,22 +1,32 @@
 "use client";
 
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { LogIn, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const signingOut = useRef(false);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    // If the session has a token refresh error, sign out to clear the
+    // stale JWT cookie, then the page will re-render as unauthenticated.
+    if (session?.error === "RefreshTokenError" && !signingOut.current) {
+      signingOut.current = true;
+      signOut({ redirect: false });
+      return;
+    }
+
+    // Normal case: already authenticated → go to dashboard.
+    if (status === "authenticated" && !session?.error) {
       router.replace("/global");
     }
-  }, [status, router]);
+  }, [status, session?.error, router]);
 
-  if (status === "loading" || status === "authenticated") {
+  if (status === "loading" || (status === "authenticated" && !session?.error)) {
     return null;
   }
 

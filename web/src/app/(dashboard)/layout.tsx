@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { AppSidebar } from "@/components/layout/sidebar";
 import { AppHeader } from "@/components/layout/header";
 import type { OnboardingStatus } from "@/types/api";
@@ -40,6 +41,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // If token refresh failed, redirect to login so the user re-authenticates.
+  // Can't call signIn() here because Server Components can't modify cookies.
+  const session = await auth();
+  if (session?.error === "RefreshTokenError") {
+    redirect("/login");
+  }
+
   const needsOnboarding = await checkOnboarding();
   if (needsOnboarding) {
     redirect("/onboarding");

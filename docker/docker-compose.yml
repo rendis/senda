@@ -6,16 +6,21 @@ services:
     ports:
       - "${SENDA_PORT:-8081}:8080"
     environment:
+      SENDA_CONFIG: config/config.example.yaml
       SENDA_DATABASE_URL: postgres://senda:senda@postgres:5432/senda?sslmode=disable
       SENDA_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-http://keycloak:8080/realms/senda/.well-known/openid-configuration}
       SENDA_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-senda-web}
       SENDA_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-senda-dev-secret}
       SENDA_MASTER_KEY: ${MASTER_KEY:-dev-master-key-change-in-production}
+      SENDA_SMTP_HOST: mailpit
+      SENDA_SMTP_PORT: "1025"
     depends_on:
       postgres:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     # volumes:
     #   - ../:/app  # Uncomment for hot reload (requires Docker Desktop file sharing)
 
@@ -42,7 +47,9 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.2
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
     command: start-dev --import-realm
     environment:
       KC_HEALTH_ENABLED: "true"
@@ -50,14 +57,21 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "${KEYCLOAK_PORT:-9090}:8080"
-    volumes:
-      - ./keycloak/realm-senda.json:/opt/keycloak/data/import/realm-senda.json:ro
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q 'UP'"]
       interval: 10s
       timeout: 5s
       retries: 15
       start_period: 30s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1026}:1025"
+      - "${MAILPIT_UI_PORT:-8026}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
   caddy:
     image: caddy:2-alpine

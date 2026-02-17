@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -33,6 +34,7 @@ type mockTemplateStore struct {
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	listTypesFn             func(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error)
 }
 
 func (m *mockTemplateStore) CreateType(ctx context.Context, tt *domain.TemplateType) error {
@@ -106,6 +108,12 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 		return m.getLocaleFn(ctx, versionID, locale)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error) {
+	if m.listTypesFn != nil {
+		return m.listTypesFn(ctx, wsID, opts)
+	}
+	return nil, "", nil
 }
 
 // --- Mock TemplateCompiler ---
@@ -400,18 +408,66 @@ func TestTemplateTypeHandler_GetGlobal_Success(t *testing.T) {
 	}
 }
 
-func TestTemplateTypeHandler_List_ReturnsNotImplemented(t *testing.T) {
+func TestTemplateTypeHandler_List_Success(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 
-	store := &mockTemplateStore{}
+	store := &mockTemplateStore{
+		listTypesFn: func(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+			return []*domain.TemplateType{}, "", nil
+		},
+	}
 	e, _ := setupTemplateTypeTest(store, ts, wsStore)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/template-types", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateTypeListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.HasMore {
+		t.Fatal("expected has_more=false for empty list")
+	}
+}
+
+func TestTemplateTypeHandler_ListGlobal_Success(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+	now := time.Now().UTC()
+
+	store := &mockTemplateStore{
+		listTypesFn: func(_ context.Context, wsID *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+			if wsID != nil {
+				t.Fatal("expected nil wsID for global scope")
+			}
+			return []*domain.TemplateType{
+				{ID: uuid.New(), Slug: "welcome", Name: "Welcome", CreatedAt: now, UpdatedAt: now},
+			}, "next-cursor", nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/global/template-types", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateTypeListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
+	if !resp.HasMore {
+		t.Fatal("expected has_more=true")
 	}
 }
 

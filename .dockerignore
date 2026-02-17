@@ -6,3 +6,6 @@ stories/
 *.pen
 .DS_Store
 .claude/
+web/node_modules/
+web/.next/
+senda/

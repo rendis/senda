@@ -25,6 +25,7 @@ type mockMemberStore struct {
 	getByEmailFn   func(ctx context.Context, email string) (*domain.Member, error)
 	getByIDFn      func(ctx context.Context, id uuid.UUID) (*domain.Member, error)
 	countAllFn     func(ctx context.Context) (int64, error)
+	listAllFn      func(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error)
 	addRoleFn      func(ctx context.Context, role *domain.MemberRole) error
 	removeRoleFn   func(ctx context.Context, roleID uuid.UUID) error
 	getRolesFn     func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
@@ -54,6 +55,12 @@ func (m *mockMemberStore) CountAll(ctx context.Context) (int64, error) {
 		return m.countAllFn(ctx)
 	}
 	return 0, nil
+}
+func (m *mockMemberStore) ListAll(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error) {
+	if m.listAllFn != nil {
+		return m.listAllFn(ctx, opts)
+	}
+	return nil, "", nil
 }
 func (m *mockMemberStore) AddRole(ctx context.Context, role *domain.MemberRole) error {
 	if m.addRoleFn != nil {
@@ -86,6 +93,7 @@ func setupMemberTest(ms port.MemberStore) *echo.Echo {
 	e.Use(middleware.RequestID())
 
 	h := handler.NewMemberHandler(ms)
+	e.GET("/api/v1/manage/members", h.List)
 	e.POST("/api/v1/manage/members", h.Create)
 	e.GET("/api/v1/manage/members/:member_id", h.Get)
 	e.POST("/api/v1/manage/members/:member_id/roles", h.AddRole)
@@ -282,6 +290,66 @@ func TestMemberHandler_AddRole_InvalidRole(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMemberHandler_List_Success(t *testing.T) {
+	now := time.Now().UTC()
+	member1 := uuid.New()
+	member2 := uuid.New()
+
+	members := []*domain.Member{
+		{ID: member1, Email: "alice@example.com", CreatedAt: now, UpdatedAt: now},
+		{ID: member2, Email: "bob@example.com", CreatedAt: now, UpdatedAt: now},
+	}
+	rolesMap := map[uuid.UUID][]*domain.MemberRole{
+		member1: {{ID: uuid.New(), MemberID: member1, Role: domain.RoleSuperadmin, ScopeType: domain.ScopeGlobal, CreatedAt: now}},
+		member2: {},
+	}
+
+	ms := &mockMemberStore{
+		listAllFn: func(_ context.Context, opts port.ListOptions) ([]*domain.Member, string, error) {
+			if opts.Limit != 25 {
+				t.Fatalf("expected default limit 25, got %d", opts.Limit)
+			}
+			return members, "next-cursor-token", nil
+		},
+		getRolesFn: func(_ context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error) {
+			return rolesMap[memberID], nil
+		},
+	}
+
+	e := setupMemberTest(ms)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/members", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.MemberListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(resp.Items))
+	}
+	if resp.Items[0].Email != "alice@example.com" {
+		t.Fatalf("expected first member email 'alice@example.com', got %q", resp.Items[0].Email)
+	}
+	if len(resp.Items[0].Roles) != 1 {
+		t.Fatalf("expected 1 role for alice, got %d", len(resp.Items[0].Roles))
+	}
+	if len(resp.Items[1].Roles) != 0 {
+		t.Fatalf("expected 0 roles for bob, got %d", len(resp.Items[1].Roles))
+	}
+	if resp.NextCursor != "next-cursor-token" {
+		t.Fatalf("expected next_cursor 'next-cursor-token', got %q", resp.NextCursor)
+	}
+	if !resp.HasMore {
+		t.Fatal("expected has_more=true")
 	}
 }
 

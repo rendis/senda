@@ -106,41 +106,35 @@ export function EmailFiltersBar({ filters, onFiltersChange }: EmailFiltersBarPro
       </div>
 
       {/* Status filter */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium font-[Sora]">Status</span>
-        <Select
-          value={filters.status?.[0] ?? "all"}
-          onValueChange={handleStatusChange}
-        >
-          <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {EMAIL_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Select
+        value={filters.status?.[0] ?? "all"}
+        onValueChange={handleStatusChange}
+      >
+        <SelectTrigger className="w-[160px] h-9">
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          {EMAIL_STATUSES.map((s) => (
+            <SelectItem key={s.value} value={s.value}>
+              {s.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Template filter */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium font-[Sora]">Template</span>
-        <Select
-          value={filters.template_type ?? "all"}
-          onValueChange={handleTemplateChange}
-        >
-          <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Select
+        value={filters.template_type ?? "all"}
+        onValueChange={handleTemplateChange}
+      >
+        <SelectTrigger className="w-[160px] h-9">
+          <SelectValue placeholder="Template" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All templates</SelectItem>
+        </SelectContent>
+      </Select>
 
       {/* Date range */}
       <Select value={dateRange} onValueChange={handleDateRangeChange}>

@@ -25,9 +25,26 @@ import {
   useAddMemberRole,
   useRemoveMemberRole,
 } from "@/hooks/use-members-mgmt";
+import { useScope } from "@/hooks/use-scope";
 import type { MemberWithRoles, MemberRoleDetail } from "@/types/members-ext";
 
 export function MembersContent() {
+  const { level } = useScope();
+
+  if (level !== "global") {
+    return (
+      <EmptyState
+        icon={Users}
+        title="Global scope required"
+        description="Members management is only available at global scope. Switch to global scope to manage members."
+      />
+    );
+  }
+
+  return <MembersTable />;
+}
+
+function MembersTable() {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useMembers();
   const inviteMutation = useInviteMember();

@@ -7,7 +7,7 @@ export interface AuditLogEntry {
   entity_type: string;
   entity_id: string;
   changes?: AuditLogChanges;
-  timestamp: string;
+  created_at: string;
 }
 
 /** JSON diff for audit log detail */

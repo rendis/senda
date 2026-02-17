@@ -58,6 +58,9 @@ func (m *mockMemberStore) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*
 func (m *mockMemberStore) GetRolesInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) ([]*domain.MemberRole, error) {
 	return nil, nil
 }
+func (m *mockMemberStore) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
 
 type mockOIDCVerifier struct {
 	verifyFn func(ctx context.Context, rawToken string) (*port.OIDCClaims, error)

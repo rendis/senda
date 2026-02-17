@@ -22,9 +22,26 @@ import {
   useRevokeApiKey,
 } from "@/hooks/use-api-keys-mgmt";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { useScope } from "@/hooks/use-scope";
 import type { ApiKey } from "@/types/api-keys";
 
 export function ApiKeysContent() {
+  const { level } = useScope();
+
+  if (level !== "workspace") {
+    return (
+      <EmptyState
+        icon={KeyRound}
+        title="Select a workspace"
+        description="API keys are workspace-scoped. Switch to a workspace to manage API keys."
+      />
+    );
+  }
+
+  return <ApiKeysTable />;
+}
+
+function ApiKeysTable() {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useApiKeys();
   const createMutation = useCreateApiKey();

@@ -10,14 +10,22 @@ import (
 	"github.com/senda-app/senda/internal/port"
 )
 
+// OIDCInfo holds read-only OIDC configuration exposed in the config response.
+type OIDCInfo struct {
+	DiscoveryURL    string
+	ClientID        string
+	ClientSecretSet bool
+}
+
 // ConfigHandler handles operations on the global configuration.
 type ConfigHandler struct {
 	store port.GlobalConfigStore
+	oidc  OIDCInfo
 }
 
 // NewConfigHandler creates a new ConfigHandler.
-func NewConfigHandler(cs port.GlobalConfigStore) *ConfigHandler {
-	return &ConfigHandler{store: cs}
+func NewConfigHandler(cs port.GlobalConfigStore, oidc OIDCInfo) *ConfigHandler {
+	return &ConfigHandler{store: cs, oidc: oidc}
 }
 
 // Get handles GET /api/v1/manage/config.
@@ -27,10 +35,10 @@ func (h *ConfigHandler) Get(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewConfigResponse(cfg))
+	return c.JSON(http.StatusOK, response.NewConfigResponse(cfg, h.oidc.DiscoveryURL, h.oidc.ClientID, h.oidc.ClientSecretSet))
 }
 
-// Update handles PUT /api/v1/manage/config (partial update).
+// Update handles PUT /api/v1/manage/config (partial update, nested format).
 func (h *ConfigHandler) Update(c *echo.Context) error {
 	ctx := c.Request().Context()
 	cfg, err := h.store.Get(ctx)
@@ -43,26 +51,31 @@ func (h *ConfigHandler) Update(c *echo.Context) error {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 	}
 
-	if req.DefaultRetryCount != nil {
-		cfg.DefaultRetryCount = *req.DefaultRetryCount
+	if req.EmailDefaults != nil {
+		if req.EmailDefaults.MaxRetries != nil {
+			cfg.DefaultRetryCount = *req.EmailDefaults.MaxRetries
+		}
+		if req.EmailDefaults.BackoffBaseSeconds != nil {
+			cfg.RetryBackoffBaseSeconds = *req.EmailDefaults.BackoffBaseSeconds
+		}
+		if req.EmailDefaults.LogRetentionDays != nil {
+			cfg.LogRetentionDays = *req.EmailDefaults.LogRetentionDays
+		}
 	}
-	if req.RetryBackoffBaseSeconds != nil {
-		cfg.RetryBackoffBaseSeconds = *req.RetryBackoffBaseSeconds
+
+	if req.Alerts != nil {
+		if req.Alerts.BounceThresholdPercent != nil {
+			cfg.BounceAlertThresholdPercent = *req.Alerts.BounceThresholdPercent
+		}
+		if req.Alerts.ComplaintThresholdPercent != nil {
+			cfg.ComplaintAlertThresholdPercent = *req.Alerts.ComplaintThresholdPercent
+		}
 	}
-	if req.LogRetentionDays != nil {
-		cfg.LogRetentionDays = *req.LogRetentionDays
-	}
-	if req.BounceAlertThresholdPercent != nil {
-		cfg.BounceAlertThresholdPercent = *req.BounceAlertThresholdPercent
-	}
-	if req.ComplaintAlertThresholdPercent != nil {
-		cfg.ComplaintAlertThresholdPercent = *req.ComplaintAlertThresholdPercent
-	}
-	if req.DomainRecheckIntervalHours != nil {
-		cfg.DomainRecheckIntervalHours = *req.DomainRecheckIntervalHours
-	}
-	if req.OnboardingCompleted != nil {
-		cfg.OnboardingCompleted = *req.OnboardingCompleted
+
+	if req.Domain != nil {
+		if req.Domain.RecheckIntervalHours != nil {
+			cfg.DomainRecheckIntervalHours = *req.Domain.RecheckIntervalHours
+		}
 	}
 
 	cfg.UpdatedAt = time.Now().UTC()
@@ -70,5 +83,5 @@ func (h *ConfigHandler) Update(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewConfigResponse(cfg))
+	return c.JSON(http.StatusOK, response.NewConfigResponse(cfg, h.oidc.DiscoveryURL, h.oidc.ClientID, h.oidc.ClientSecretSet))
 }

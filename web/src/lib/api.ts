@@ -1,6 +1,10 @@
 import ky, { type Options, type KyInstance, HTTPError } from "ky";
 import type { ApiError } from "@/types/api";
 
+// Guard to prevent multiple concurrent signOut calls when several
+// API requests return 401 at the same time.
+let signingOut = false;
+
 /**
  * Base ky instance for Senda API.
  * Uses Next.js rewrites — requests go to /api/v1/* which proxies to backend.
@@ -10,9 +14,19 @@ export const api = ky.create({
   timeout: 30_000,
   hooks: {
     afterResponse: [
-      async (_request, _options, response) => {
-        if (response.status === 401 && typeof window !== "undefined") {
-          window.location.href = "/login";
+      async (request, _options, response) => {
+        if (
+          response.status === 401 &&
+          typeof window !== "undefined" &&
+          request.headers.has("Authorization") &&
+          !signingOut
+        ) {
+          // Token expired or invalid — clear the Auth.js session before
+          // redirecting so the login page doesn't auto-redirect back
+          // (which would cause an infinite loop).
+          signingOut = true;
+          const { signOut } = await import("next-auth/react");
+          await signOut({ callbackUrl: "/login" });
         }
       },
     ],

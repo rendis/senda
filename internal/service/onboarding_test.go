@@ -54,6 +54,9 @@ func (m *mockMemberStoreOnboarding) AddRole(ctx context.Context, role *domain.Me
 	}
 	return nil
 }
+func (m *mockMemberStoreOnboarding) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
 func (m *mockMemberStoreOnboarding) RemoveRole(ctx context.Context, roleID uuid.UUID) error {
 	if m.removeRoleFn != nil {
 		return m.removeRoleFn(ctx, roleID)

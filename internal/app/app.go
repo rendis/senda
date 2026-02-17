@@ -16,6 +16,7 @@ import (
 	"github.com/senda-app/senda/internal/adapter/pgcache"
 	"github.com/senda-app/senda/internal/adapter/postgres"
 	"github.com/senda-app/senda/internal/adapter/river"
+	"github.com/senda-app/senda/internal/adapter/oidcauth"
 	smtpadapter "github.com/senda-app/senda/internal/adapter/smtp"
 	"github.com/senda-app/senda/internal/adapter/sns"
 	"github.com/senda-app/senda/internal/adapter/testauth"
@@ -130,16 +131,24 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		oidcVerifier = testauth.NewTestOIDCVerifier(cfg.OIDC.TestSecret)
 		logger.Info("using test OIDC verifier (HS256 JWT)")
 	} else {
-		// Real OIDC verifier — not yet implemented, will fail at runtime.
-		pool.Close()
-		return nil, fmt.Errorf("app: real OIDC verifier not yet implemented; set SENDA_OIDC_MODE=test for E2E")
+		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID)
+		if oidcErr != nil {
+			pool.Close()
+			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
+		}
+		oidcVerifier = realVerifier
+		logger.Info("using real OIDC verifier", "discovery_url", cfg.OIDC.DiscoveryURL)
 	}
 
 	// 11. HTTP handlers.
 	tenantH := handler.NewTenantHandler(tenantRepo, wsRepo)
 	workspaceH := handler.NewWorkspaceHandler(tenantRepo, wsRepo)
 	memberH := handler.NewMemberHandler(memberRepo)
-	configH := handler.NewConfigHandler(configRepo)
+	configH := handler.NewConfigHandler(configRepo, handler.OIDCInfo{
+		DiscoveryURL:    cfg.OIDC.DiscoveryURL,
+		ClientID:        cfg.OIDC.ClientID,
+		ClientSecretSet: cfg.OIDC.ClientSecret != "",
+	})
 	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo)
 	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo)
 	domainH := handler.NewDomainHTTPHandler(domainSvc, domainRepo, tenantRepo, wsRepo)

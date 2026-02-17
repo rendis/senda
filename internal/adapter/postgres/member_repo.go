@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/pkg/apperr"
 )
 
@@ -90,6 +91,51 @@ func (r *MemberRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Member,
 	}
 
 	return member, nil
+}
+
+func (r *MemberRepo) ListAll(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error) {
+	limit, afterID, err := ApplyPagination(opts)
+	if err != nil {
+		return nil, "", err
+	}
+
+	fetchLimit := limit + 1
+
+	var rows pgx.Rows
+	if afterID != nil {
+		rows, err = r.pool.Query(ctx,
+			`SELECT id, email, display_name, oidc_subject, oidc_issuer, created_at, updated_at
+			 FROM members
+			 WHERE id < @after_id
+			 ORDER BY id DESC
+			 LIMIT @limit`,
+			pgx.NamedArgs{"after_id": *afterID, "limit": fetchLimit},
+		)
+	} else {
+		rows, err = r.pool.Query(ctx,
+			`SELECT id, email, display_name, oidc_subject, oidc_issuer, created_at, updated_at
+			 FROM members
+			 ORDER BY id DESC
+			 LIMIT @limit`,
+			pgx.NamedArgs{"limit": fetchLimit},
+		)
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("listing members: %w", err)
+	}
+
+	members, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.Member])
+	if err != nil {
+		return nil, "", fmt.Errorf("collecting members: %w", err)
+	}
+
+	var nextCursor string
+	if len(members) > limit {
+		members = members[:limit]
+		nextCursor = EncodeCursor(members[limit-1].ID)
+	}
+
+	return members, nextCursor, nil
 }
 
 func (r *MemberRepo) CountAll(ctx context.Context) (int64, error) {

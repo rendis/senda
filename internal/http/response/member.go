@@ -30,6 +30,13 @@ type MemberWithRolesResponse struct {
 	Roles []MemberRoleResponse `json:"roles"`
 }
 
+// MemberListResponse is the paginated list of members with roles.
+type MemberListResponse struct {
+	Items      []MemberWithRolesResponse `json:"items"`
+	NextCursor string                    `json:"next_cursor,omitempty"`
+	HasMore    bool                      `json:"has_more"`
+}
+
 // NewMemberResponse maps a domain Member to a MemberResponse.
 func NewMemberResponse(m *domain.Member) MemberResponse {
 	return MemberResponse{

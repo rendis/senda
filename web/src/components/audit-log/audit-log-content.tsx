@@ -152,7 +152,7 @@ export function AuditLogContent() {
                 >
                   <TableCell>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {formatTimestamp(entry.timestamp)}
+                      {formatTimestamp(entry.created_at)}
                     </span>
                   </TableCell>
                   <TableCell>

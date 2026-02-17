@@ -63,6 +63,11 @@ func (s *TemplateTypeService) FindBySlugInScope(ctx context.Context, slug string
 	return s.store.FindTypeBySlugInScope(ctx, slug, wsID)
 }
 
+// ListTypes lists template types in a scope (nil wsID = global).
+func (s *TemplateTypeService) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error) {
+	return s.store.ListTypes(ctx, wsID, opts)
+}
+
 // isNotFoundErr returns true if err represents a "not found" condition,
 // checking both domain sentinel errors and apperr typed errors.
 func isNotFoundErr(err error) bool {

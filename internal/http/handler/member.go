@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/http/pagination"
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
@@ -21,6 +22,39 @@ type MemberHandler struct {
 // NewMemberHandler creates a new MemberHandler.
 func NewMemberHandler(ms port.MemberStore) *MemberHandler {
 	return &MemberHandler{store: ms}
+}
+
+// List handles GET /api/v1/manage/members (paginated, with roles).
+func (h *MemberHandler) List(c *echo.Context) error {
+	opts := pagination.ParseListOptions(c)
+	ctx := c.Request().Context()
+
+	members, nextCursor, err := h.store.ListAll(ctx, opts)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	items := make([]response.MemberWithRolesResponse, len(members))
+	for i, m := range members {
+		roles, err := h.store.GetRoles(ctx, m.ID)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		roleResponses := make([]response.MemberRoleResponse, len(roles))
+		for j, r := range roles {
+			roleResponses[j] = response.NewMemberRoleResponse(r)
+		}
+		items[i] = response.MemberWithRolesResponse{
+			MemberResponse: response.NewMemberResponse(m),
+			Roles:          roleResponses,
+		}
+	}
+
+	return c.JSON(http.StatusOK, response.MemberListResponse{
+		Items:      items,
+		NextCursor: nextCursor,
+		HasMore:    nextCursor != "",
+	})
 }
 
 // Create handles POST /api/v1/manage/members.

@@ -254,6 +254,9 @@ func (m *mockTemplateStoreSend) GetLocale(ctx context.Context, versionID uuid.UU
 	}
 	return nil, domain.ErrNotFound
 }
+func (m *mockTemplateStoreSend) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+	return nil, "", nil
+}
 
 type mockInjectorStoreSend struct {
 	listDefinitionsInChainFn func(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
+	"github.com/senda-app/senda/internal/http/pagination"
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
@@ -118,25 +119,36 @@ func (h *TemplateTypeHandler) get(c *echo.Context, workspaceID *uuid.UUID) error
 }
 
 // List handles GET /tenants/:tenant_code/workspaces/:workspace_code/template-types.
-// TODO: Requires port.TemplateStore.ListTypesByScope(ctx, workspaceID, opts ListOptions) to be added.
-// Once the store interface is extended, this should list template types visible in the workspace scope.
 func (h *TemplateTypeHandler) List(c *echo.Context) error {
-	_, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	// TODO: Requires port.TemplateStore.ListTypesByScope(ctx, scope, cursor, limit)
-	return c.JSON(http.StatusNotImplemented, map[string]string{
-		"message": "template type listing not yet implemented",
-	})
+	return h.listTypes(c, &ws.ID)
 }
 
 // ListGlobal handles GET /global/template-types.
-// TODO: Requires port.TemplateStore.ListTypesByScope(ctx, nil, opts ListOptions) to be added.
 func (h *TemplateTypeHandler) ListGlobal(c *echo.Context) error {
-	// TODO: Requires port.TemplateStore.ListTypesByScope(ctx, scope, cursor, limit)
-	return c.JSON(http.StatusNotImplemented, map[string]string{
-		"message": "template type listing not yet implemented",
+	return h.listTypes(c, nil)
+}
+
+func (h *TemplateTypeHandler) listTypes(c *echo.Context, wsID *uuid.UUID) error {
+	opts := pagination.ParseListOptions(c)
+
+	types, nextCursor, err := h.svc.ListTypes(c.Request().Context(), wsID, opts)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	items := make([]response.TemplateTypeResponse, len(types))
+	for i, tt := range types {
+		items[i] = response.NewTemplateTypeResponse(tt)
+	}
+
+	return c.JSON(http.StatusOK, response.TemplateTypeListResponse{
+		Items:      items,
+		NextCursor: nextCursor,
+		HasMore:    nextCursor != "",
 	})
 }

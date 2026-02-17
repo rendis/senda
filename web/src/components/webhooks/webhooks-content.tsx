@@ -30,6 +30,7 @@ import {
   useDeleteWebhook,
   useTestWebhook,
 } from "@/hooks/use-webhooks";
+import { useScope } from "@/hooks/use-scope";
 import { truncate } from "@/lib/utils";
 import type { Webhook, WebhookEventType } from "@/types/webhooks";
 
@@ -61,6 +62,22 @@ function EventBadge({ event }: { event: WebhookEventType }) {
 }
 
 export function WebhooksContent() {
+  const scope = useScope();
+
+  if (scope.level !== "workspace") {
+    return (
+      <EmptyState
+        icon={WebhookIcon}
+        title="Select a workspace"
+        description="Webhooks are workspace-scoped. Select a workspace from the sidebar to manage webhooks."
+      />
+    );
+  }
+
+  return <WebhooksTable />;
+}
+
+function WebhooksTable() {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useWebhooks();
   const createMutation = useCreateWebhook();

@@ -22,9 +22,11 @@ type TemplateTypeResponse struct {
 	UpdatedAt      string           `json:"updated_at"`
 }
 
-// TemplateTypeListResponse is the JSON response for a list of template types.
+// TemplateTypeListResponse is the JSON response for a paginated list of template types.
 type TemplateTypeListResponse struct {
-	Items []TemplateTypeResponse `json:"items"`
+	Items      []TemplateTypeResponse `json:"items"`
+	NextCursor string                 `json:"next_cursor,omitempty"`
+	HasMore    bool                   `json:"has_more"`
 }
 
 // NewTemplateTypeResponse maps a domain TemplateType to a TemplateTypeResponse.
