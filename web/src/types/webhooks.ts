@@ -1,5 +1,3 @@
-import type { WebhookStatus } from "./api";
-
 /** Webhook event types */
 export type WebhookEventType =
   | "email.sent"
@@ -38,4 +36,6 @@ export interface WebhookTestResult {
   id: string;
   test_delivery_id: string;
   status: string;
+  status_code?: number;
+  latency_ms?: number;
 }
