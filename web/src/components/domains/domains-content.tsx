@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import {
   Globe,
   Plus,
@@ -70,10 +71,11 @@ function DomainsTable() {
     isFetchingNextPage,
   } = useDomainList(scopedPath);
 
-  const { data: domainDetail, isLoading: detailLoading } = useDomainDetail(
+  const { data: domainDetail, isLoading: rawDetailLoading } = useDomainDetail(
     scopedPath,
     selectedDomainId ?? ""
   );
+  const detailLoading = useMinimumLoading(rawDetailLoading);
 
   const registerDomain = useRegisterDomain(scopedPath);
   const deleteDomain = useDeleteDomain(scopedPath);
@@ -111,11 +113,13 @@ function DomainsTable() {
             <Skeleton className="h-32 w-full" />
           </div>
         ) : domainDetail ? (
-          <DomainDetail
-            domain={domainDetail}
-            onVerify={() => verifyDomain.mutate(domainDetail.id)}
-            verifying={verifyDomain.isPending}
-          />
+          <div className="animate-in fade-in duration-300">
+            <DomainDetail
+              domain={domainDetail}
+              onVerify={() => verifyDomain.mutate(domainDetail.id)}
+              verifying={verifyDomain.isPending}
+            />
+          </div>
         ) : null}
       </div>
     );

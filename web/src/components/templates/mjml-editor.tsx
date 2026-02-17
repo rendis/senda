@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,11 +48,12 @@ export function MjmlEditor() {
   const templateId = searchParams.get("templateId") ?? "";
   const versionId = searchParams.get("versionId") ?? "";
 
-  const { data: version, isLoading } = useTemplateVersion(
+  const { data: version, isLoading: rawLoading } = useTemplateVersion(
     scopedPath,
     templateId,
     versionId
   );
+  const isLoading = useMinimumLoading(rawLoading);
 
   const saveMutation = useSaveTemplateVersion(
     scopedPath,
@@ -184,7 +186,7 @@ export function MjmlEditor() {
   const isDraft = version.status === "draft";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header bar */}
       <div className="flex items-center justify-between h-14 px-6 border-b bg-card shrink-0">
         <div className="flex items-center gap-3">

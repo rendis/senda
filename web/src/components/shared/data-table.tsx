@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -45,6 +46,7 @@ export function DataTable<TData, TValue>({
   emptyState,
   onRowClick,
 }: DataTableProps<TData, TValue>) {
+  const showLoading = useMinimumLoading(loading);
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const table = useReactTable({
@@ -56,16 +58,16 @@ export function DataTable<TData, TValue>({
     state: { sorting },
   });
 
-  if (loading) {
+  if (showLoading) {
     return <DataTableSkeleton columnCount={columns.length} />;
   }
 
   if (data.length === 0 && emptyState) {
-    return <>{emptyState}</>;
+    return <div className="animate-in fade-in duration-300">{emptyState}</div>;
   }
 
   return (
-    <div>
+    <div className="animate-in fade-in duration-300">
       <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>

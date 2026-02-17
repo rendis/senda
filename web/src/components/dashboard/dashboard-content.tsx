@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { Mail, Send, CheckCircle, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { useDashboardStats, type DateRange } from "@/hooks/use-dashboard-stats";
@@ -25,7 +26,8 @@ export function DashboardContent() {
   const [range, setRange] = useState<DateRange>("7d");
   const scope = useScope();
   const scopedPath = useScopedPath();
-  const { data, isLoading, error, refetch } = useDashboardStats(scopedPath, range);
+  const { data, isLoading: rawLoading, error, refetch } = useDashboardStats(scopedPath, range);
+  const isLoading = useMinimumLoading(rawLoading);
 
   useEffect(() => {
     if (error) toast.error("Failed to load dashboard stats");
@@ -141,7 +143,7 @@ export function DashboardContent() {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-7 animate-in fade-in duration-300">
       {/* Content Header */}
       <div className="flex items-center justify-between">
         <div>

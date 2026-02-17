@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { useForm } from "react-hook-form";
 import { Save, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -47,7 +48,8 @@ function SettingsFormSkeleton() {
 
 export function SettingsContent() {
   const scope = useScope();
-  const { data, isLoading, error } = useSettings();
+  const { data, isLoading: rawLoading, error } = useSettings();
+  const isLoading = useMinimumLoading(rawLoading);
   const updateSettings = useUpdateSettings();
 
   const { register, handleSubmit, reset } = useForm<SettingsFormValues>();
@@ -113,7 +115,7 @@ export function SettingsContent() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8 animate-in fade-in duration-300">
       {/* OIDC Section — read only */}
       <SettingsSection title="OIDC Configuration">
         <div className="flex flex-col gap-3">

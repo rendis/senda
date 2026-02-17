@@ -167,27 +167,38 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
             </div>
           </div>
 
-          {/* Scrollable list */}
-          <div className="h-[320px] overflow-y-auto border-t">
-            {view === "tenants" ? (
-              <TenantsView
-                search={debouncedSearch}
-                onSelectGlobal={() => navigateTo("/global")}
-                onSelectTenant={handleTenantClick}
-                currentLevel={level}
-              />
-            ) : selectedTenant ? (
-              <WorkspacesView
-                tenantCode={selectedTenant.code}
-                search={debouncedSearch}
-                onSelectWorkspace={(w) =>
-                  navigateTo(
-                    `/t/${selectedTenant.code}/w/${w.code}`
-                  )
-                }
-                currentWorkspaceCode={workspaceCode}
-              />
-            ) : null}
+          {/* Scrollable list with slide transition */}
+          <div className="h-[320px] overflow-hidden border-t">
+            <div
+              className={cn(
+                "flex h-full transition-transform duration-200 ease-in-out",
+                view === "workspaces" && "-translate-x-1/2"
+              )}
+              style={{ width: "200%" }}
+            >
+              <div className="w-1/2 overflow-y-auto h-full">
+                <TenantsView
+                  search={debouncedSearch}
+                  onSelectGlobal={() => navigateTo("/global")}
+                  onSelectTenant={handleTenantClick}
+                  currentLevel={level}
+                />
+              </div>
+              <div className="w-1/2 overflow-y-auto h-full">
+                {selectedTenant && (
+                  <WorkspacesView
+                    tenantCode={selectedTenant.code}
+                    search={debouncedSearch}
+                    onSelectWorkspace={(w) =>
+                      navigateTo(
+                        `/t/${selectedTenant.code}/w/${w.code}`
+                      )
+                    }
+                    currentWorkspaceCode={workspaceCode}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

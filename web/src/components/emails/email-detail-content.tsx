@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { useParams } from "next/navigation";
 import { ChevronRight, Braces, Puzzle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -90,9 +91,10 @@ function CollapsibleJson({ icon: Icon, label, data }: CollapsibleJsonProps) {
 
 export function EmailDetailContent() {
   const params = useParams<{ trackingId: string }>();
-  const { data: email, isLoading, error, refetch } = useEmailDetail(
+  const { data: email, isLoading: rawLoading, error, refetch } = useEmailDetail(
     params.trackingId
   );
+  const isLoading = useMinimumLoading(rawLoading);
 
   useEffect(() => {
     if (error) toast.error("Failed to load email details");
@@ -118,7 +120,7 @@ export function EmailDetailContent() {
   if (!email) return null;
 
   return (
-    <div className="flex gap-8">
+    <div className="flex gap-8 animate-in fade-in duration-300">
       {/* Left column */}
       <div className="flex-1 flex flex-col gap-6 min-w-0">
         {/* Status + Recipient */}

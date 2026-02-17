@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { Database, ArrowLeft } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
@@ -49,8 +50,9 @@ function InjectorsTable() {
 
   const {
     data: detail,
-    isLoading: detailLoading,
+    isLoading: rawDetailLoading,
   } = useInjectorDetail(scopedPath, selectedInjector ?? "");
+  const detailLoading = useMinimumLoading(rawDetailLoading);
 
   const setValues = useSetInjectorValues(scopedPath, selectedInjector ?? "");
   const deleteOverride = useDeleteInjectorOverride(
@@ -77,7 +79,7 @@ function InjectorsTable() {
         {detailLoading ? (
           <InjectorDetailSkeleton />
         ) : detail ? (
-          <>
+          <div className="animate-in fade-in duration-300">
             <div className="flex items-center gap-4">
               <h2
                 className="text-xl font-semibold"
@@ -115,7 +117,7 @@ function InjectorsTable() {
                   );
                 })}
             </div>
-          </>
+          </div>
         ) : null}
       </div>
     );

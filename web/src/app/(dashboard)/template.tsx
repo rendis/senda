@@ -5,5 +5,5 @@ export default function DashboardTemplate({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="animate-in fade-in duration-200">{children}</div>;
+  return <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">{children}</div>;
 }
