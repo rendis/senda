@@ -24,3 +24,9 @@ func resolveWorkspace(c *echo.Context, ts port.TenantStore, ws port.WorkspaceSto
 
 	return workspace, nil
 }
+
+// resolveTenant looks up a tenant by :tenant_code path param.
+func resolveTenant(c *echo.Context, ts port.TenantStore) (*domain.Tenant, error) {
+	tenantCode := c.Param("tenant_code")
+	return ts.GetByCode(c.Request().Context(), tenantCode)
+}

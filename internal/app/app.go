@@ -81,6 +81,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	webhookRepo := postgres.NewWebhookRepo(pool)
 	suppressionRepo := postgres.NewSuppressionRepo(pool)
 	auditRepo := postgres.NewAuditRepo(pool)
+	dashboardRepo := postgres.NewDashboardRepo(pool)
 	configRepo := postgres.NewGlobalConfigRepo(pool)
 
 	// 6. Resolution engine.
@@ -151,6 +152,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	webhookH := handler.NewWebhookHandler(webhookRepo, webhookSvc, tenantRepo, wsRepo)
 	onboardingH := handler.NewOnboardingHandler(onboardingSvc, oidcVerifier)
 	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
+	dashboardH := handler.NewDashboardHandler(dashboardRepo, auditRepo, tenantRepo, wsRepo)
 
 	// 12. SES webhook handler (only for SES mode, skip in SMTP/test mode).
 	var sesOpts []sendahttp.ServerOption
@@ -187,6 +189,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithWebhookHandler(webhookH),
 		sendahttp.WithOnboardingHandler(onboardingH),
 		sendahttp.WithAPIKeyHandler(apiKeyH),
+		sendahttp.WithDashboardHandler(dashboardH),
 	}
 	opts = append(opts, sesOpts...)
 

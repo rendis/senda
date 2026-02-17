@@ -17,4 +17,5 @@ var (
 	_ port.SuppressionStore  = (*SuppressionRepo)(nil)
 	_ port.AuditLogStore     = (*AuditRepo)(nil)
 	_ port.WebhookStore      = (*WebhookRepo)(nil)
+	_ port.DashboardStore    = (*DashboardRepo)(nil)
 )

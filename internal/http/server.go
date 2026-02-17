@@ -67,6 +67,9 @@ type Server struct {
 
 	// HT-27 handler (API Keys).
 	apiKeyHandler *handler.APIKeyHandler
+
+	// Dashboard handler.
+	dashboardHandler *handler.DashboardHandler
 }
 
 // ServerOption configures optional Server dependencies.
@@ -235,6 +238,13 @@ func WithAPIKeyHandler(h *handler.APIKeyHandler) ServerOption {
 	}
 }
 
+// WithDashboardHandler sets the DashboardHandler for dashboard stats routes.
+func WithDashboardHandler(h *handler.DashboardHandler) ServerOption {
+	return func(s *Server) {
+		s.dashboardHandler = h
+	}
+}
+
 // NewServer creates a configured Echo server with middleware and routes.
 func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *Server {
 	e := echo.New()
@@ -311,6 +321,11 @@ func (s *Server) registerRoutes() {
 			mgmt.GET("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			mgmt.PUT("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			mgmt.DELETE("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.SoftDelete, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+		}
+
+		// Tenant dashboard stats.
+		if s.dashboardHandler != nil {
+			mgmt.GET("/tenants/:tenant_code/dashboard-stats", s.dashboardHandler.StatsTenant, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 		}
 
 		// Members (superadmin).
@@ -407,6 +422,11 @@ func (s *Server) registerRoutes() {
 			if s.auditHandler != nil {
 				ws.GET("/audit-log", s.auditHandler.Query, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			}
+
+			// Dashboard stats.
+			if s.dashboardHandler != nil {
+				ws.GET("/dashboard-stats", s.dashboardHandler.Stats, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
 		}
 
 		// Global resources (superadmin only).
@@ -447,6 +467,11 @@ func (s *Server) registerRoutes() {
 			// Global audit log (HT-22).
 			if s.auditHandler != nil {
 				global.GET("/audit-log", s.auditHandler.QueryGlobal)
+			}
+
+			// Global dashboard stats.
+			if s.dashboardHandler != nil {
+				global.GET("/dashboard-stats", s.dashboardHandler.StatsGlobal)
 			}
 		}
 	}
