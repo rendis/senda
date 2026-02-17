@@ -20,6 +20,9 @@ var (
 	ErrNoPublishedVersion   = errors.New("no published version")
 	ErrDomainNotVerified    = errors.New("domain not verified")
 
+	// Domain errors (HT-12)
+	ErrDomainNotFound = errors.New("domain not found")
+
 	// Pagination errors (HT-19)
 	ErrInvalidCursor = errors.New("invalid cursor")
 )

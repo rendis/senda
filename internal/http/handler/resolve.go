@@ -1,0 +1,26 @@
+package handler
+
+import (
+	"github.com/labstack/echo/v5"
+	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
+)
+
+// resolveWorkspace looks up a workspace by :tenant_code and :workspace_code path params.
+func resolveWorkspace(c *echo.Context, ts port.TenantStore, ws port.WorkspaceStore) (*domain.Workspace, error) {
+	tenantCode := c.Param("tenant_code")
+	wsCode := c.Param("workspace_code")
+	ctx := c.Request().Context()
+
+	tenant, err := ts.GetByCode(ctx, tenantCode)
+	if err != nil {
+		return nil, err
+	}
+
+	workspace, err := ws.GetByTenantAndCode(ctx, tenant.ID, wsCode)
+	if err != nil {
+		return nil, err
+	}
+
+	return workspace, nil
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/senda-app/senda/internal/http/middleware"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/internal/service"
 )
 
 // Server wraps the Echo instance with application configuration and logger.
@@ -38,6 +39,12 @@ type Server struct {
 	workspaceHandler *handler.WorkspaceHandler
 	memberHandler    *handler.MemberHandler
 	configHandler    *handler.ConfigHandler
+
+	// HT-20 handlers.
+	injectorHandler *handler.InjectorHandler
+	adapterHandler  *handler.AdapterHandler
+	domainHandler   *handler.DomainHTTPHandler
+	domainService   *service.DomainService
 }
 
 // ServerOption configures optional Server dependencies.
@@ -105,6 +112,34 @@ func WithMemberHandler(h *handler.MemberHandler) ServerOption {
 func WithConfigHandler(h *handler.ConfigHandler) ServerOption {
 	return func(s *Server) {
 		s.configHandler = h
+	}
+}
+
+// WithInjectorHandler sets the InjectorHandler for injector CRUD routes.
+func WithInjectorHandler(h *handler.InjectorHandler) ServerOption {
+	return func(s *Server) {
+		s.injectorHandler = h
+	}
+}
+
+// WithAdapterHandler sets the AdapterHandler for adapter CRUD routes.
+func WithAdapterHandler(h *handler.AdapterHandler) ServerOption {
+	return func(s *Server) {
+		s.adapterHandler = h
+	}
+}
+
+// WithDomainHandler sets the DomainHTTPHandler for domain CRUD routes.
+func WithDomainHandler(h *handler.DomainHTTPHandler) ServerOption {
+	return func(s *Server) {
+		s.domainHandler = h
+	}
+}
+
+// WithDomainService sets the DomainService for domain operations.
+func WithDomainService(svc *service.DomainService) ServerOption {
+	return func(s *Server) {
+		s.domainService = svc
 	}
 }
 
@@ -182,6 +217,56 @@ func (s *Server) registerRoutes() {
 		if s.configHandler != nil {
 			mgmt.GET("/config", s.configHandler.Get, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 			mgmt.PUT("/config", s.configHandler.Update, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
+		}
+
+		// Workspace-scoped resources (injectors, adapters, domains).
+		if s.injectorHandler != nil || s.adapterHandler != nil || s.domainHandler != nil {
+			ws := mgmt.Group("/tenants/:tenant_code/workspaces/:workspace_code")
+
+			if s.injectorHandler != nil {
+				ws.POST("/injectors", s.injectorHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/injectors/:name", s.injectorHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.PUT("/injectors/:name/values", s.injectorHandler.SetValues, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+			}
+			if s.adapterHandler != nil {
+				ws.GET("/adapters", s.adapterHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/adapters", s.adapterHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/adapters/:id", s.adapterHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.PUT("/adapters/:id", s.adapterHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/adapters/:id", s.adapterHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+			if s.domainHandler != nil {
+				ws.GET("/domains", s.domainHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/domains", s.domainHandler.Register, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/domains/:id", s.domainHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/domains/:id/verify", s.domainHandler.VerifyNow, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/domains/:id", s.domainHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+		}
+
+		// Global resources (superadmin only).
+		if s.injectorHandler != nil || s.adapterHandler != nil || s.domainHandler != nil {
+			global := mgmt.Group("/global", middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
+
+			if s.injectorHandler != nil {
+				global.POST("/injectors", s.injectorHandler.CreateGlobal)
+				global.GET("/injectors", s.injectorHandler.ListGlobal)
+				global.GET("/injectors/:name", s.injectorHandler.GetGlobal)
+			}
+			if s.adapterHandler != nil {
+				global.GET("/adapters", s.adapterHandler.ListGlobal)
+				global.POST("/adapters", s.adapterHandler.CreateGlobal)
+				global.GET("/adapters/:id", s.adapterHandler.GetGlobal)
+				global.PUT("/adapters/:id", s.adapterHandler.UpdateGlobal)
+				global.DELETE("/adapters/:id", s.adapterHandler.SoftDeleteGlobal)
+			}
+			if s.domainHandler != nil {
+				global.GET("/domains", s.domainHandler.ListGlobal)
+				global.POST("/domains", s.domainHandler.RegisterGlobal)
+				global.GET("/domains/:id", s.domainHandler.GetGlobal)
+				global.DELETE("/domains/:id", s.domainHandler.SoftDeleteGlobal)
+			}
 		}
 	}
 }
