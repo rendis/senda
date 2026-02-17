@@ -194,13 +194,99 @@ Documentation lives in `docs/`:
 
 > Historical versions (PRD v1–v4, INITIAL_SPECT) live in `docs/archive/`.
 
-### UI/UX Design
+### UI/UX Design — Pencil MCP (OBLIGATORIO)
 
-El diseño base de la aplicación está en `senda_desing.pen` (raíz del proyecto), creado con [Pencil](https://www.pencil.dev/).
+El diseño base de la aplicación está en `senda_desing.pen` (raíz del proyecto), creado con [Pencil](https://www.pencil.dev/). Documentación oficial: https://docs.pencil.dev/
 
-**Acceso via MCP:** Pencil expone un MCP server que permite leer componentes, screens y assets del diseño directamente desde Claude Code. Documentación oficial: https://docs.pencil.dev/
+**REGLA: SIEMPRE usar Pencil MCP para interactuar con el diseño. NUNCA parsear el .pen como JSON.**
 
-**Cuándo usarlo:** Al implementar HTs de la capa API/frontend (E5, E6) que requieran alinearse con el diseño — consultar el `.pen` para nombres de componentes, layouts, y flujos de pantalla definidos por el diseñador.
+Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude Code se conecta automáticamente y tiene acceso a todas las herramientas.
+
+#### Herramientas MCP disponibles (USAR TODAS)
+
+**Diseño — `batch_design`:**
+- Crear, modificar, manipular elementos de diseño
+- Operaciones: insert, copy, update, replace, move, delete
+- Generar y colocar imágenes
+- **Uso obligatorio** para cualquier modificación al .pen
+
+**Lectura — `batch_get`:**
+- Leer componentes y jerarquía del diseño
+- Buscar elementos por patrones
+- Inspeccionar estructura de componentes
+- **Uso obligatorio** antes de implementar cualquier pantalla (leer el frame primero)
+
+**Screenshots — `get_screenshot`:**
+- Renderizar previews del diseño desde Pencil
+- **Uso obligatorio** para Gate 1 del DoD: comparar screenshot de la app vs screenshot de Pencil
+
+**Layout — `snapshot_layout`:**
+- Analizar estructura del layout
+- Detectar problemas de posicionamiento
+- Encontrar elementos superpuestos
+- **Usar** para verificar pixel-perfect después de implementar
+
+**Editor — `get_editor_state`:**
+- Contexto actual del editor
+- Información de selección
+- Detalles del archivo activo
+
+**Variables — `get_variables` / `set_variables`:**
+- Leer design tokens (colores, spacing, typography)
+- Actualizar valores de tema
+- Sincronizar con CSS/Tailwind
+- **Uso obligatorio** para extraer tokens del Design System y mapearlos a Tailwind config
+
+#### Flujo de trabajo con Pencil MCP
+
+```
+1. LEER diseño:
+   batch_get → leer frame de la pantalla a implementar
+   get_variables → extraer tokens (colores, spacing, typography)
+   get_screenshot → capturar imagen de referencia del diseño
+
+2. IMPLEMENTAR:
+   Generar componentes React + Tailwind alineados al diseño
+   Usar tokens extraídos en paso 1 para colores/spacing exactos
+
+3. VALIDAR (Gate 1 — DoD):
+   get_screenshot → capturar diseño de Pencil
+   Comparar vs screenshot de la app corriendo (npm run dev)
+   snapshot_layout → verificar estructura y posicionamiento
+   Si hay drift → corregir en CÓDIGO, no en Pencil
+
+4. ITERAR si hay problemas:
+   batch_design → ajustar diseño solo si el diseñador lo aprueba
+   set_variables → sincronizar tokens si cambiaron
+```
+
+#### Operaciones avanzadas
+
+**Batch operations** para consistencia:
+```
+"Verificar que todos los botones usan la variable de color primario"
+"Actualizar todos los headings para usar la escala tipográfica"
+"Aplicar grid de 8px a todos los elementos"
+```
+
+**Sincronización código ↔ diseño:**
+```
+"Importar el Design System desde el Tailwind config a Pencil"
+"Actualizar componentes React para matchear los diseños de Pencil"
+"Sincronizar variables de tipografía entre CSS y Pencil"
+```
+
+**Generación de código desde diseño:**
+```
+"Generar código React para este componente"
+"Crear Tailwind config desde estas variables de Pencil"
+```
+
+#### Troubleshooting
+
+- **MCP no conecta:** Verificar que Pencil esté corriendo y el .pen abierto
+- **Herramientas no aparecen:** Reiniciar Pencil y Claude Code
+- **Cambios inesperados:** Ser más específico en prompts, pedir explicación antes de aplicar
 
 ---
 
