@@ -38,7 +38,7 @@ func (r Role) Level() int {
 type Member struct {
 	ID          uuid.UUID
 	Email       string
-	Name        *string
+	DisplayName *string
 	OIDCSubject *string
 	OIDCIssuer  *string
 	CreatedAt   time.Time
@@ -53,6 +53,7 @@ type MemberRole struct {
 	TenantID    *uuid.UUID
 	WorkspaceID *uuid.UUID
 	CreatedAt   time.Time
+	CreatedBy   *uuid.UUID
 }
 
 type ScopeType string

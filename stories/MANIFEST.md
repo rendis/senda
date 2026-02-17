@@ -1,7 +1,7 @@
 # Senda — Story Manifest
 
 > Auto-actualizar este archivo al mover stories entre directorios.
-> Última actualización: 2026-02-16
+> Última actualización: 2026-02-17
 
 ---
 
@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 16 | HT-08 to HT-12, HT-15, HT-16, HT-18 to HT-25, HT-27 |
+| Backlog | 14 | HT-10 to HT-12, HT-15, HT-16, HT-18 to HT-25, HT-27 |
 | In Progress | 0 | — |
-| Done | 11 | HT-01, HT-02, HT-03, HT-04, HT-05, HT-06, HT-07, HT-13, HT-14, HT-17, HT-26 |
+| Done | 13 | HT-01, HT-02, HT-03, HT-04, HT-05, HT-06, HT-07, HT-08, HT-09, HT-13, HT-14, HT-17, HT-26 |
 | Blocked | 0 | — |
 
-**Progress: 11 / 27 (41%)**
+**Progress: 13 / 27 (48%)**
 
 ---
 
@@ -29,8 +29,8 @@
 | HT-05 | Domain Models + Error Types | HT-01 | B | done |
 | HT-06 | Port Interfaces (Contratos) | HT-05 | B | done |
 | HT-07 | PG Stores — Tenants, Workspaces, Config | HT-03, HT-05, HT-06 | B | done |
-| HT-08 | PG Stores — Injectors, Adapters, Domains, Templates | HT-04, HT-07 | B | backlog |
-| HT-09 | PG Stores — Members, API Keys, Emails, Audit, etc. | HT-07 | B | backlog |
+| HT-08 | PG Stores — Injectors, Adapters, Domains, Templates | HT-04, HT-07 | B | done |
+| HT-09 | PG Stores — Members, API Keys, Emails, Audit, etc. | HT-07 | B | done |
 | HT-10 | ChainResolver + InjectorMerger | HT-06, HT-08 | B | backlog |
 | HT-11 | TemplateResolver + AdapterResolver | HT-10 | B | backlog |
 | HT-12 | DomainResolver + Cache Invalidation | HT-10, HT-11 | B | backlog |
@@ -121,7 +121,7 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 | Epic | Stories | Done | % |
 |------|---------|------|---|
 | E1 — Foundation | HT-01, HT-02, HT-03, HT-04 | 4 | 100% |
-| E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 3 | 60% |
+| E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 5 | 100% |
 | E3 — Resolution Engine | HT-10, HT-11, HT-12 | 0 | 0% |
 | E4 — Send Flow | HT-13, HT-14, HT-15, HT-16 | 2 | 50% |
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 1 | 17% |
@@ -133,5 +133,5 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-08** — PG Stores: Injectors, Adapters, Domains, Templates *(deps: HT-04, HT-07 done)*
-- **HT-09** — PG Stores: Members, API Keys, Emails, Audit, etc. *(dep: HT-07 done)*
+- **HT-10** — ChainResolver + InjectorMerger *(deps: HT-06, HT-08 done)*
+- **HT-18** — Auth Middleware (OIDC + API Keys) *(deps: HT-09, HT-17 done)*

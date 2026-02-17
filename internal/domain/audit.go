@@ -34,6 +34,5 @@ type AuditLog struct {
 	ScopeType   ScopeType
 	Changes     map[string]any
 	Metadata    map[string]any
-	IPAddress   string
 	CreatedAt   time.Time
 }

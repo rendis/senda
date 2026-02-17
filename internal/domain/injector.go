@@ -28,20 +28,19 @@ type InjectorDefinition struct {
 }
 
 type InjectorField struct {
-	ID           uuid.UUID
-	DefinitionID uuid.UUID
-	FieldName    string
-	FieldType    InjectorFieldType
-	IsRequired   bool
-	DefaultValue *string
-	Description  *string
-	SortOrder    int
+	ID                   uuid.UUID
+	InjectorDefinitionID uuid.UUID
+	FieldName            string
+	FieldType            InjectorFieldType
+	Description          *string
+	Position             int
 }
 
 type InjectorValue struct {
-	ID          uuid.UUID
-	FieldID     uuid.UUID
-	WorkspaceID *uuid.UUID // scope where value is set
-	Value       string     // stored as text, cast by field type
-	UpdatedAt   time.Time
+	ID                   uuid.UUID
+	InjectorDefinitionID uuid.UUID
+	FieldName            string
+	WorkspaceID          *uuid.UUID // scope where value is set
+	Value                string     // stored as JSONB in DB
+	UpdatedAt            time.Time
 }

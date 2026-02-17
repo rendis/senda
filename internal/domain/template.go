@@ -29,11 +29,9 @@ type TemplateType struct {
 
 type Template struct {
 	ID             uuid.UUID
-	WorkspaceID    *uuid.UUID // nil = global
 	TemplateTypeID uuid.UUID
-	Slug           string
-	Name           string
-	IsDisabled     bool // kill switch
+	WorkspaceID    *uuid.UUID // nil = global
+	IsDisabled     bool       // kill switch
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      *time.Time
@@ -45,14 +43,14 @@ type TemplateVersion struct {
 	VersionNumber int
 	Status        VersionStatus
 	Subject       string
-	PreviewText   *string
-	FromEmail     string
+	PreviewText   string
 	FromName      string
+	FromEmail     string
 	ReplyTo       *string
-	BodyMJML      string // MJML source
-	EditorData    map[string]any // JSONB editor state
+	BodyMJML      string         // MJML source
 	DefaultLocale string
-	CreatedBy     *uuid.UUID // member who created the version
+	EditorData    map[string]any // JSONB editor state
+	CreatedBy     *uuid.UUID     // member who created the version
 	PublishedAt   *time.Time
 	ArchivedAt    *time.Time
 	CreatedAt     time.Time
@@ -60,14 +58,14 @@ type TemplateVersion struct {
 }
 
 type TemplateVersionLocale struct {
-	ID          uuid.UUID
-	VersionID   uuid.UUID
-	Locale      string // e.g., "es", "pt-BR"
-	Subject     *string
-	PreviewText *string
-	FromName    *string
-	BodyMJML    *string // nil = use default body
-	EditorData  map[string]any
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                uuid.UUID
+	TemplateVersionID uuid.UUID
+	Locale            string // e.g., "es", "pt-BR"
+	Subject           *string
+	PreviewText       *string
+	FromName          *string
+	BodyMJML          *string // nil = use default body
+	EditorData        map[string]any
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

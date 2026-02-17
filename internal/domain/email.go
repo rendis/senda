@@ -40,7 +40,7 @@ type Email struct {
 	Locale            *string
 	Status            EmailStatus
 	AdapterID         uuid.UUID
-	ProviderMsgID     *string
+	ProviderMessageID *string
 	VariablesSnapshot map[string]any
 	InjectorsSnapshot map[string]map[string]any
 	BodyMJML          string // MJML source snapshot (rendered with variables before compile)
@@ -57,4 +57,5 @@ type EmailEvent struct {
 	EventType  EmailStatus
 	OccurredAt time.Time
 	Metadata   map[string]any
+	CreatedAt  time.Time
 }
