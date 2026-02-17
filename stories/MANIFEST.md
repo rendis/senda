@@ -9,12 +9,12 @@
 
 | Status | Count | Stories |
 |--------|-------|---------|
-| Backlog | 14 | HT-10 to HT-12, HT-15, HT-16, HT-18 to HT-25, HT-27 |
+| Backlog | 12 | HT-11, HT-12, HT-15, HT-16, HT-19 to HT-25, HT-27 |
 | In Progress | 0 | — |
-| Done | 13 | HT-01, HT-02, HT-03, HT-04, HT-05, HT-06, HT-07, HT-08, HT-09, HT-13, HT-14, HT-17, HT-26 |
+| Done | 15 | HT-01 to HT-10, HT-13, HT-14, HT-17, HT-18, HT-26 |
 | Blocked | 0 | — |
 
-**Progress: 13 / 27 (48%)**
+**Progress: 15 / 27 (56%)**
 
 ---
 
@@ -31,7 +31,7 @@
 | HT-07 | PG Stores — Tenants, Workspaces, Config | HT-03, HT-05, HT-06 | B | done |
 | HT-08 | PG Stores — Injectors, Adapters, Domains, Templates | HT-04, HT-07 | B | done |
 | HT-09 | PG Stores — Members, API Keys, Emails, Audit, etc. | HT-07 | B | done |
-| HT-10 | ChainResolver + InjectorMerger | HT-06, HT-08 | B | backlog |
+| HT-10 | ChainResolver + InjectorMerger | HT-06, HT-08 | B | done |
 | HT-11 | TemplateResolver + AdapterResolver | HT-10 | B | backlog |
 | HT-12 | DomainResolver + Cache Invalidation | HT-10, HT-11 | B | backlog |
 | HT-13 | PG Cache + Token Bucket Rate Limiter | HT-03 | A | done |
@@ -39,7 +39,7 @@
 | HT-15 | SendService — Orchestration Core | HT-10, HT-11, HT-12, HT-13, HT-14 | D | backlog |
 | HT-16 | River Workers (Send, Verify, Webhook) | HT-13, HT-14, HT-15 | D | backlog |
 | HT-17 | Echo v5 Server + Base Middleware | HT-02 | C | done |
-| HT-18 | Auth Middleware (OIDC + API Keys) | HT-09, HT-17 | C | backlog |
+| HT-18 | Auth Middleware (OIDC + API Keys) | HT-09, HT-17 | C | done |
 | HT-19 | CRUD Handlers — Tenants, Workspaces, Members | HT-07, HT-17, HT-18 | C | backlog |
 | HT-20 | CRUD Handlers — Injectors, Adapters, Domains | HT-08, HT-14, HT-17, HT-18 | C | backlog |
 | HT-21 | CRUD Handlers — Templates, Versions, Locales | HT-08, HT-14, HT-17, HT-18 | C | backlog |
@@ -122,9 +122,9 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 |------|---------|------|---|
 | E1 — Foundation | HT-01, HT-02, HT-03, HT-04 | 4 | 100% |
 | E2 — Core Domain | HT-05, HT-06, HT-07, HT-08, HT-09 | 5 | 100% |
-| E3 — Resolution Engine | HT-10, HT-11, HT-12 | 0 | 0% |
+| E3 — Resolution Engine | HT-10, HT-11, HT-12 | 1 | 33% |
 | E4 — Send Flow | HT-13, HT-14, HT-15, HT-16 | 2 | 50% |
-| E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 1 | 17% |
+| E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 2 | 33% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 1 | 20% |
 
 ---
@@ -133,5 +133,9 @@ HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 
 > Stories whose ALL dependencies are in `done/`:
 
-- **HT-10** — ChainResolver + InjectorMerger *(deps: HT-06, HT-08 done)*
-- **HT-18** — Auth Middleware (OIDC + API Keys) *(deps: HT-09, HT-17 done)*
+- **HT-11** — TemplateResolver + AdapterResolver *(deps: HT-10 done)*
+- **HT-19** — CRUD Handlers: Tenants, Workspaces, Members *(deps: HT-07, HT-17, HT-18 done)*
+- **HT-20** — CRUD Handlers: Injectors, Adapters, Domains *(deps: HT-08, HT-14, HT-17, HT-18 done)*
+- **HT-21** — CRUD Handlers: Templates, Versions, Locales *(deps: HT-08, HT-14, HT-17, HT-18 done)*
+- **HT-25** — Onboarding Flow *(deps: HT-07, HT-09, HT-17, HT-18 done)*
+- **HT-27** — API Keys Service + Management *(deps: HT-09, HT-17, HT-18 done)*
