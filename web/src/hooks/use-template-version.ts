@@ -122,7 +122,7 @@ export function usePreviewMjml(scopedPath: string, templateId: string) {
     mutationFn: (bodyMjml: string) =>
       api
         .post(`${scopedPath}/templates/${templateId}/preview-mjml`, {
-          json: { body_mjml: bodyMjml },
+          json: { mjml: bodyMjml },
         })
         .json<MjmlPreviewResponse>(),
   });
