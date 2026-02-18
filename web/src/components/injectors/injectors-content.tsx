@@ -95,7 +95,7 @@ function InjectorsTable() {
               </p>
             )}
             <div className="flex flex-col gap-4">
-              {detail.fields
+              {(detail.fields ?? [])
                 .sort((a, b) => a.position - b.position)
                 .map((field) => {
                   const resolution = detail.values[field.field_name];
@@ -157,7 +157,7 @@ function InjectorsTable() {
       enableSorting: false,
       cell: ({ row }) => (
         <span className="font-mono text-xs text-muted-foreground">
-          {row.original.fields.length} fields
+          {row.original.fields?.length ?? 0} fields
         </span>
       ),
     },

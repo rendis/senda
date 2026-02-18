@@ -1,19 +1,21 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import type { Template } from "@/types/templates";
 
 export function useTemplatesByType(scopedPath: string, typeSlug: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["templates", scopedPath, typeSlug],
     queryFn: () =>
       api
         .get(`${scopedPath}/template-types/${typeSlug}/templates`)
-        .json<Template[]>(),
-    enabled: !!typeSlug,
+        .json<{ items: Template[] }>()
+        .then((r) => r.items),
+    enabled: ready && !!typeSlug,
   });
 }
 

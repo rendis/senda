@@ -49,6 +49,7 @@ function getUserInitials(name?: string | null, email?: string | null): string {
   if (name) {
     return name
       .split(" ")
+      .filter(Boolean)
       .map((w) => w[0])
       .join("")
       .toUpperCase()

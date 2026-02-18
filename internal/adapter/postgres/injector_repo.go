@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/pkg/apperr"
@@ -38,9 +37,8 @@ func (r *InjectorRepo) CreateDefinition(ctx context.Context, def *domain.Injecto
 	)
 
 	if err := row.Scan(&def.CreatedAt, &def.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("injector definition %q already exists in this scope", def.Name)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting injector definition: %w", err)
 	}
@@ -120,9 +118,8 @@ func (r *InjectorRepo) CreateField(ctx context.Context, field *domain.InjectorFi
 		},
 	)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("field %q already exists in this definition", field.FieldName)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting injector field: %w", err)
 	}

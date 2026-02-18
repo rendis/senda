@@ -38,6 +38,11 @@ func (s *TemplateService) CreateTemplate(ctx context.Context, templateTypeID uui
 	return tpl, nil
 }
 
+// ListByType returns templates for a given template type and scope.
+func (s *TemplateService) ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.Template, string, error) {
+	return s.store.ListByType(ctx, typeID, wsID, opts)
+}
+
 // CreateVersion creates a new draft version for a template.
 // The version number is determined by counting existing versions + 1.
 //
@@ -78,6 +83,16 @@ func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUI
 	}
 
 	return ver, nil
+}
+
+// GetVersionByID retrieves a single template version by its ID.
+func (s *TemplateService) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
+	return s.store.GetVersionByID(ctx, versionID)
+}
+
+// UpdateVersion updates a draft template version.
+func (s *TemplateService) UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
+	return s.store.UpdateVersion(ctx, ver)
 }
 
 // PublishVersion promotes a draft version to published, archiving any previously published version.

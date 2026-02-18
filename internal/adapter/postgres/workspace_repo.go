@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
@@ -42,9 +41,8 @@ func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error 
 	)
 
 	if err := row.Scan(&ws.CreatedAt, &ws.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("workspace with code %q already exists for this tenant", ws.Code)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting workspace: %w", err)
 	}

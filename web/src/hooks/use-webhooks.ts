@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { useScopedPath } from "@/hooks/use-scope";
 import type { PaginatedResponse } from "@/types/api";
@@ -14,6 +14,7 @@ import type {
 
 export function useWebhooks() {
   const api = useApi();
+  const ready = useApiReady();
   const scopedPath = useScopedPath();
   const path = `${scopedPath}/webhooks`;
 
@@ -23,6 +24,7 @@ export function useWebhooks() {
       api
         .get(path, { searchParams: cursor ? { cursor } : {} })
         .json<PaginatedResponse<Webhook>>(),
+    enabled: ready,
   });
 }
 

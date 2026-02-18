@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +10,10 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/config"
+	"github.com/senda-app/senda/pkg/apperr"
 )
 
 // Connect creates a new pgxpool.Pool from the given DatabaseConfig.
@@ -73,6 +76,34 @@ func RunMigrations(dbURL string, migrationsPath string) error {
 	}
 
 	return nil
+}
+
+// classifyPgError maps known PostgreSQL constraint-violation error codes to
+// typed AppErrors. Returns nil when the error is not a recognised PG error.
+func classifyPgError(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return nil
+	}
+	switch pgErr.Code {
+	case "23505": // unique_violation
+		return apperr.Conflict("%s", pgErr.Detail)
+	case "23503": // foreign_key_violation
+		return apperr.BadRequest("referenced resource does not exist: %s", pgErr.Detail)
+	case "23502": // not_null_violation
+		return apperr.BadRequest("missing required field: %s", pgErr.ColumnName)
+	default:
+		return nil
+	}
+}
+
+// coalesceJSON returns m if non-nil, otherwise an empty map. Prevents NULL on
+// JSONB NOT NULL columns when the caller doesn't supply a value.
+func coalesceJSON(m map[string]any) map[string]any {
+	if m == nil {
+		return map[string]any{}
+	}
+	return m
 }
 
 // RunMigrationsDown reverts all migrations from the given path.

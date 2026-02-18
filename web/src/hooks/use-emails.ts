@@ -1,7 +1,7 @@
 "use client";
 
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { useScopedPath } from "@/hooks/use-scope";
 import type { Email, EmailFilters } from "@/types/emails";
 import type { PaginatedResponse } from "@/types/api";
@@ -10,6 +10,7 @@ const LIMIT = 25;
 
 export function useEmails(filters: EmailFilters) {
   const api = useApi();
+  const ready = useApiReady();
   const scopedPath = useScopedPath();
 
   const searchParams = new URLSearchParams();
@@ -34,6 +35,7 @@ export function useEmails(filters: EmailFilters) {
 
   return usePaginatedQuery<Email>({
     queryKey: ["emails", scopedPath, filterKey],
+    enabled: ready,
     fetcher: (cursor?: string) => {
       const params = new URLSearchParams(searchParams);
       if (cursor) params.set("cursor", cursor);

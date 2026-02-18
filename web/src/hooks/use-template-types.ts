@@ -1,13 +1,14 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { TemplateType } from "@/types/templates";
 import type { PaginatedResponse } from "@/types/api";
 
 export function useTemplateTypes(scopedPath: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return usePaginatedQuery<TemplateType>({
     queryKey: ["template-types", scopedPath],
@@ -17,17 +18,19 @@ export function useTemplateTypes(scopedPath: string) {
           searchParams: cursor ? { cursor, limit: 50 } : { limit: 50 },
         })
         .json<PaginatedResponse<TemplateType>>(),
+    enabled: ready,
   });
 }
 
 export function useTemplateType(scopedPath: string, slug: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["template-type", scopedPath, slug],
     queryFn: () =>
       api.get(`${scopedPath}/template-types/${slug}`).json<TemplateType>(),
-    enabled: !!slug,
+    enabled: ready && !!slug,
   });
 }
 

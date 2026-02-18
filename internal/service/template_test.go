@@ -71,11 +71,17 @@ func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.Templ
 	}
 	return nil
 }
+func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, nil
+}
 func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
 	if m.getPublishedVersionFn != nil {
 		return m.getPublishedVersionFn(ctx, templateID)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) UpdateVersion(_ context.Context, _ *domain.TemplateVersion) error {
+	return nil
 }
 func (m *mockTemplateStore) Publish(ctx context.Context, versionID uuid.UUID) error {
 	if m.publishFn != nil {
@@ -100,6 +106,9 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 		return m.getLocaleFn(ctx, versionID, locale)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Template, string, error) {
+	return nil, "", nil
 }
 func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
 	return nil, "", nil

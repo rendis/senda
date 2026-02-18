@@ -96,6 +96,13 @@ func NewTemplateResponse(t *domain.Template) TemplateResponse {
 	return resp
 }
 
+// TemplateListResponse is the JSON response for a paginated list of templates.
+type TemplateListResponse struct {
+	Items      []TemplateResponse `json:"items"`
+	NextCursor string             `json:"next_cursor,omitempty"`
+	HasMore    bool               `json:"has_more"`
+}
+
 // --- Template Version ---
 
 // TemplateVersionResponse is the JSON response for a template version.
@@ -110,6 +117,7 @@ type TemplateVersionResponse struct {
 	FromEmail     string           `json:"from_email"`
 	ReplyTo       *string          `json:"reply_to,omitempty"`
 	DefaultLocale string           `json:"default_locale"`
+	BodyMJML      string           `json:"body_mjml"`
 	EditorData    *json.RawMessage `json:"editor_data,omitempty"`
 	CreatedBy     *string          `json:"created_by,omitempty"`
 	PublishedAt   *string          `json:"published_at,omitempty"`
@@ -135,6 +143,7 @@ func NewTemplateVersionResponse(v *domain.TemplateVersion) TemplateVersionRespon
 		FromEmail:     v.FromEmail,
 		ReplyTo:       v.ReplyTo,
 		DefaultLocale: v.DefaultLocale,
+		BodyMJML:      v.BodyMJML,
 		CreatedAt:     formatTime(v.CreatedAt),
 		UpdatedAt:     formatTime(v.UpdatedAt),
 	}

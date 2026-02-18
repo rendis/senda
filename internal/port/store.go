@@ -58,11 +58,14 @@ type TemplateStore interface {
 	// Templates
 	CreateTemplate(ctx context.Context, tpl *domain.Template) error
 	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
+	ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts ListOptions) ([]*domain.Template, string, error)
 	ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
 
 	// Versions
 	CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error
+	GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
+	UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error
 	Publish(ctx context.Context, versionID uuid.UUID) error // archives previous published
 	ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 

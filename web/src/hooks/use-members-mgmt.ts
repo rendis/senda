@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { PaginatedResponse } from "@/types/api";
 import type {
@@ -12,6 +12,7 @@ import type {
 
 export function useMembers() {
   const api = useApi();
+  const ready = useApiReady();
   const path = "manage/members";
 
   return usePaginatedQuery<MemberWithRoles>({
@@ -20,6 +21,7 @@ export function useMembers() {
       api
         .get(path, { searchParams: cursor ? { cursor } : {} })
         .json<PaginatedResponse<MemberWithRoles>>(),
+    enabled: ready,
   });
 }
 

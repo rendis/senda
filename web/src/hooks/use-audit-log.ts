@@ -1,12 +1,13 @@
 "use client";
 
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { useScopedPath } from "@/hooks/use-scope";
 import type { AuditLogEntry, AuditLogFilters } from "@/types/audit-log";
 
 export function useAuditLog(filters: AuditLogFilters = {}) {
   const api = useApi();
+  const ready = useApiReady();
   const scopedPath = useScopedPath();
 
   const searchParams: Record<string, string> = { limit: "25" };
@@ -24,5 +25,6 @@ export function useAuditLog(filters: AuditLogFilters = {}) {
           searchParams: { ...searchParams, ...(cursor ? { cursor } : {}) },
         })
         .json(),
+    enabled: ready,
   });
 }

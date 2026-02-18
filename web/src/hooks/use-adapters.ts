@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { PaginatedResponse } from "@/types/api";
 import type {
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 export function useAdapterList(scopedPath: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return usePaginatedQuery<Adapter>({
     queryKey: ["adapters", scopedPath],
@@ -24,16 +25,18 @@ export function useAdapterList(scopedPath: string) {
         .get(`${scopedPath}/adapters${qs ? `?${qs}` : ""}`)
         .json<PaginatedResponse<Adapter>>();
     },
+    enabled: ready,
   });
 }
 
 export function useAdapterDetail(scopedPath: string, id: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["adapter", scopedPath, id],
     queryFn: () => api.get(`${scopedPath}/adapters/${id}`).json<Adapter>(),
-    enabled: !!id,
+    enabled: ready && !!id,
   });
 }
 

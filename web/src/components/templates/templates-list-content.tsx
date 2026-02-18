@@ -11,7 +11,8 @@ import {
   useCreateTemplateVersion,
   usePublishVersion,
 } from "@/hooks/use-template-version";
-import { useTemplatesByType } from "@/hooks/use-templates";
+import { useTemplatesByType, useCreateTemplate } from "@/hooks/use-templates";
+import { useApi } from "@/hooks/use-api";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -49,39 +50,56 @@ export function TemplatesListContent() {
     scopedPath,
     templateId
   );
+  const api = useApi();
+  const createTemplate = useCreateTemplate(scopedPath);
   const createVersion = useCreateTemplateVersion(scopedPath, templateId);
 
   const [publishTarget, setPublishTarget] = useState<TemplateVersion | null>(
     null
   );
 
-  function buildEditPath(versionId: string) {
+  function buildEditPath(tplId: string, versionId: string) {
     switch (scope.level) {
       case "global":
-        return `/global/templates/${slug}/edit?templateId=${templateId}&versionId=${versionId}`;
+        return `/global/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
       case "tenant":
-        return `/t/${scope.tenantCode}/templates/${slug}/edit?templateId=${templateId}&versionId=${versionId}`;
+        return `/t/${scope.tenantCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
       case "workspace":
-        return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}/edit?templateId=${templateId}&versionId=${versionId}`;
+        return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
     }
   }
 
-
   async function handleCreateVersion() {
-    if (!templateId) {
-      toast.error("No template found for this type");
+    if (!templateType) {
+      toast.error("Template type not loaded");
       return;
     }
     try {
-      const version = await createVersion.mutateAsync({
-        subject: `${templateType?.name ?? slug} — New Draft`,
+      // Auto-create template if none exists for this type
+      let tplId = templateId;
+      if (!tplId) {
+        const newTemplate = await createTemplate.mutateAsync({
+          template_type_id: templateType.id,
+        });
+        tplId = newTemplate.id;
+      }
+
+      // Use API directly with the resolved tplId (hook may have stale templateId)
+      const versionData = {
+        subject: `${templateType.name ?? slug} — New Draft`,
         from_name: "Senda",
         from_email: "no-reply@example.com",
         body_mjml: DEFAULT_MJML,
         default_locale: "en",
-      });
+      };
+      const version = tplId === templateId
+        ? await createVersion.mutateAsync(versionData)
+        : await api
+            .post(`${scopedPath}/templates/${tplId}/versions`, { json: versionData })
+            .json<TemplateVersion>();
+
       toast.success("Draft version created");
-      router.push(buildEditPath(version.id));
+      router.push(buildEditPath(tplId, version.id));
     } catch {
       toast.error("Failed to create version");
     }
@@ -165,7 +183,7 @@ export function TemplatesListContent() {
           <DropdownMenuContent align="end">
             {row.original.status === "draft" && (
               <DropdownMenuItem
-                onClick={() => router.push(buildEditPath(row.original.id))}
+                onClick={() => router.push(buildEditPath(templateId, row.original.id))}
               >
                 Edit
               </DropdownMenuItem>
@@ -177,7 +195,7 @@ export function TemplatesListContent() {
             )}
             {row.original.status === "published" && (
               <DropdownMenuItem
-                onClick={() => router.push(buildEditPath(row.original.id))}
+                onClick={() => router.push(buildEditPath(templateId, row.original.id))}
               >
                 View
               </DropdownMenuItem>

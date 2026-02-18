@@ -37,8 +37,14 @@ func (m *mockTemplateStore) ResolveTemplate(ctx context.Context, typeID uuid.UUI
 func (m *mockTemplateStore) CreateVersion(_ context.Context, _ *domain.TemplateVersion) error {
 	return nil
 }
+func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, nil
+}
 func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
 	return m.getPublishedVersion(ctx, templateID)
+}
+func (m *mockTemplateStore) UpdateVersion(_ context.Context, _ *domain.TemplateVersion) error {
+	return nil
 }
 func (m *mockTemplateStore) Publish(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) ListVersions(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersion, error) {
@@ -49,6 +55,9 @@ func (m *mockTemplateStore) SetLocale(_ context.Context, _ *domain.TemplateVersi
 }
 func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error) {
 	return m.getLocale(ctx, versionID, locale)
+}
+func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Template, string, error) {
+	return nil, "", nil
 }
 func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
 	return nil, "", nil

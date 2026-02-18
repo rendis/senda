@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
@@ -48,9 +47,8 @@ func (r *DomainRepo) Create(ctx context.Context, d *domain.Domain) error {
 	)
 
 	if err := row.Scan(&d.CreatedAt, &d.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("domain %q already exists in this scope", d.DomainName)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting domain: %w", err)
 	}

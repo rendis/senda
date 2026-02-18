@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
@@ -38,9 +37,8 @@ func (r *TenantRepo) Create(ctx context.Context, tenant *domain.Tenant) error {
 	)
 
 	if err := row.Scan(&tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("tenant with code %q already exists", tenant.Code)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting tenant: %w", err)
 	}

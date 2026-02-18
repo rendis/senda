@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
@@ -38,14 +37,13 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 			"description":     tt.Description,
 			"workspace_id":    tt.WorkspaceID,
 			"adapter_id":      tt.AdapterID,
-			"variable_schema": tt.VariableSchema,
+			"variable_schema": coalesceJSON(tt.VariableSchema),
 		},
 	)
 
 	if err := row.Scan(&tt.CreatedAt, &tt.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("template type %q already exists in this scope", tt.Slug)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting template type: %w", err)
 	}
@@ -202,9 +200,8 @@ func (r *TemplateRepo) CreateTemplate(ctx context.Context, tpl *domain.Template)
 	)
 
 	if err := row.Scan(&tpl.CreatedAt, &tpl.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("template for this type already exists in this scope")
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting template: %w", err)
 	}
@@ -231,6 +228,74 @@ func (r *TemplateRepo) GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, 
 	}
 
 	return scanTemplate(row)
+}
+
+func (r *TemplateRepo) ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.Template, string, error) {
+	limit, afterID, err := ApplyPagination(opts)
+	if err != nil {
+		return nil, "", err
+	}
+
+	fetchLimit := limit + 1
+
+	var rows pgx.Rows
+	if wsID == nil {
+		if afterID != nil {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				 FROM templates
+				 WHERE template_type_id = @type_id AND workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"type_id": typeID, "after_id": *afterID, "limit": fetchLimit},
+			)
+		} else {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				 FROM templates
+				 WHERE template_type_id = @type_id AND workspace_id IS NULL AND deleted_at IS NULL
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"type_id": typeID, "limit": fetchLimit},
+			)
+		}
+	} else {
+		if afterID != nil {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				 FROM templates
+				 WHERE template_type_id = @type_id AND workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"type_id": typeID, "workspace_id": *wsID, "after_id": *afterID, "limit": fetchLimit},
+			)
+		} else {
+			rows, err = r.pool.Query(ctx,
+				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				 FROM templates
+				 WHERE template_type_id = @type_id AND workspace_id = @workspace_id AND deleted_at IS NULL
+				 ORDER BY id DESC
+				 LIMIT @limit`,
+				pgx.NamedArgs{"type_id": typeID, "workspace_id": *wsID, "limit": fetchLimit},
+			)
+		}
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("listing templates by type: %w", err)
+	}
+
+	templates, err := pgx.CollectRows(rows, scanTemplateRow)
+	if err != nil {
+		return nil, "", fmt.Errorf("collecting templates: %w", err)
+	}
+
+	var nextCursor string
+	if len(templates) > limit {
+		templates = templates[:limit]
+		nextCursor = EncodeCursor(templates[limit-1].ID)
+	}
+
+	return templates, nextCursor, nil
 }
 
 func (r *TemplateRepo) ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error) {
@@ -309,6 +374,49 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r *TemplateRepo) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, template_id, version_number, status, subject, preview_text,
+		        from_name, from_email, reply_to, body_mjml, default_locale,
+		        editor_data, created_by, published_at, archived_at, created_at, updated_at
+		 FROM template_versions
+		 WHERE id = @id`,
+		pgx.NamedArgs{"id": versionID},
+	)
+
+	return scanTemplateVersion(row)
+}
+
+func (r *TemplateRepo) UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE template_versions
+		 SET subject = @subject, preview_text = @preview_text,
+		     from_name = @from_name, from_email = @from_email, reply_to = @reply_to,
+		     body_mjml = @body_mjml, default_locale = @default_locale,
+		     editor_data = @editor_data, updated_at = now()
+		 WHERE id = @id AND status = 'draft'`,
+		pgx.NamedArgs{
+			"id":             ver.ID,
+			"subject":        ver.Subject,
+			"preview_text":   ver.PreviewText,
+			"from_name":      ver.FromName,
+			"from_email":     ver.FromEmail,
+			"reply_to":       ver.ReplyTo,
+			"body_mjml":      ver.BodyMJML,
+			"default_locale": ver.DefaultLocale,
+			"editor_data":    ver.EditorData,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("updating template version: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template version not found or not in draft status")
 	}
 
 	return nil
@@ -478,6 +586,19 @@ func scanTemplateType(row pgx.Row) (*domain.TemplateType, error) {
 		return nil, fmt.Errorf("scanning template type: %w", err)
 	}
 	return &tt, nil
+}
+
+// scanTemplateRow is a pgx.RowToFunc for use with pgx.CollectRows.
+func scanTemplateRow(row pgx.CollectableRow) (*domain.Template, error) {
+	var t domain.Template
+	err := row.Scan(
+		&t.ID, &t.TemplateTypeID, &t.WorkspaceID, &t.IsDisabled,
+		&t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scanning template row: %w", err)
+	}
+	return &t, nil
 }
 
 func scanTemplate(row pgx.Row) (*domain.Template, error) {

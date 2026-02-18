@@ -67,6 +67,9 @@ func (m *mockTemplateStore) GetByTypeAndScope(ctx context.Context, typeID uuid.U
 	}
 	return nil, nil
 }
+func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Template, string, error) {
+	return nil, "", nil
+}
 func (m *mockTemplateStore) ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error) {
 	if m.resolveTemplateFn != nil {
 		return m.resolveTemplateFn(ctx, typeID, chain)
@@ -79,11 +82,17 @@ func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.Templ
 	}
 	return nil
 }
+func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, nil
+}
 func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
 	if m.getPublishedVersionFn != nil {
 		return m.getPublishedVersionFn(ctx, templateID)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) UpdateVersion(_ context.Context, _ *domain.TemplateVersion) error {
+	return nil
 }
 func (m *mockTemplateStore) Publish(ctx context.Context, versionID uuid.UUID) error {
 	if m.publishFn != nil {

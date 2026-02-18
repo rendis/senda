@@ -144,7 +144,7 @@ export function EmailDetailContent() {
 
         {/* Error section for bounced/failed */}
         {(email.status === "bounced" || email.status === "failed") &&
-          email.events.some(
+          email.events?.some(
             (e) =>
               (e.event_type === "bounced" || e.event_type === "failed") &&
               e.metadata
@@ -153,7 +153,7 @@ export function EmailDetailContent() {
               <h3 className="text-sm font-semibold text-red-800 mb-2">
                 Error Details
               </h3>
-              {email.events
+              {(email.events ?? [])
                 .filter(
                   (e) =>
                     (e.event_type === "bounced" || e.event_type === "failed") &&
@@ -176,7 +176,7 @@ export function EmailDetailContent() {
         {/* Timeline */}
         <div className="rounded-lg border bg-card p-6">
           <h3 className="text-sm font-semibold font-[Sora] mb-4">Timeline</h3>
-          <EmailStatusTimeline events={email.events} />
+          <EmailStatusTimeline events={email.events ?? []} />
         </div>
 
         {/* Snapshots */}

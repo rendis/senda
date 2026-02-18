@@ -127,10 +127,22 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 
 	// 10. OIDC verifier.
 	var oidcVerifier port.OIDCVerifier
-	if cfg.OIDC.Mode == "test" {
+	switch cfg.OIDC.Mode {
+	case "test":
 		oidcVerifier = testauth.NewTestOIDCVerifier(cfg.OIDC.TestSecret)
 		logger.Info("using test OIDC verifier (HS256 JWT)")
-	} else {
+	case "dual":
+		// Dual mode: try real OIDC first (Keycloak), fall back to test HS256.
+		// Used in E2E so both the frontend (Keycloak tokens) and test suite (HS256) work.
+		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID)
+		if oidcErr != nil {
+			pool.Close()
+			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
+		}
+		testVerifier := testauth.NewTestOIDCVerifier(cfg.OIDC.TestSecret)
+		oidcVerifier = testauth.NewChainVerifier(realVerifier, testVerifier)
+		logger.Info("using dual OIDC verifier (real + test fallback)", "discovery_url", cfg.OIDC.DiscoveryURL)
+	default:
 		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID)
 		if oidcErr != nil {
 			pool.Close()

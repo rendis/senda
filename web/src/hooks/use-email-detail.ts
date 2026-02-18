@@ -1,12 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { useScopedPath } from "@/hooks/use-scope";
 import type { EmailDetail } from "@/types/emails";
 
 export function useEmailDetail(trackingId: string) {
   const api = useApi();
+  const ready = useApiReady();
   const scopedPath = useScopedPath();
 
   return useQuery({
@@ -15,6 +16,6 @@ export function useEmailDetail(trackingId: string) {
       api
         .get(`${scopedPath}/emails/${trackingId}`)
         .json<EmailDetail>(),
-    enabled: !!trackingId,
+    enabled: ready && !!trackingId,
   });
 }

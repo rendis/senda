@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { PaginatedResponse } from "@/types/api";
 import type {
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 export function useInjectorList(scopedPath: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return usePaginatedQuery<InjectorDefinition>({
     queryKey: ["injectors", scopedPath],
@@ -24,17 +25,19 @@ export function useInjectorList(scopedPath: string) {
         .get(`${scopedPath}/injectors${qs ? `?${qs}` : ""}`)
         .json<PaginatedResponse<InjectorDefinition>>();
     },
+    enabled: ready,
   });
 }
 
 export function useInjectorDetail(scopedPath: string, name: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["injector", scopedPath, name],
     queryFn: () =>
       api.get(`${scopedPath}/injectors/${name}`).json<InjectorWithValues>(),
-    enabled: !!name,
+    enabled: ready && !!name,
   });
 }
 

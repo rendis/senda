@@ -217,7 +217,23 @@ func validate(cfg *Config) error {
 	}
 
 	// OIDC validation depends on mode.
-	if cfg.OIDC.Mode != "test" {
+	switch cfg.OIDC.Mode {
+	case "test":
+		if cfg.OIDC.TestSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"test\""))
+		}
+	case "dual":
+		// Dual mode needs both real OIDC fields AND the test secret.
+		if cfg.OIDC.DiscoveryURL == "" {
+			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is \"dual\""))
+		}
+		if cfg.OIDC.ClientID == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is \"dual\""))
+		}
+		if cfg.OIDC.TestSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"dual\""))
+		}
+	default: // "oidc" or any other value → require real OIDC fields.
 		if cfg.OIDC.DiscoveryURL == "" {
 			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is %q", cfg.OIDC.Mode))
 		}
@@ -226,10 +242,6 @@ func validate(cfg *Config) error {
 		}
 		if cfg.OIDC.ClientSecret == "" {
 			errs = append(errs, fmt.Errorf("oidc.client_secret is required when mode is %q", cfg.OIDC.Mode))
-		}
-	} else {
-		if cfg.OIDC.TestSecret == "" {
-			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"test\""))
 		}
 	}
 

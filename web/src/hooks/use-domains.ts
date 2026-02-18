@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { PaginatedResponse } from "@/types/api";
 import type { Domain, RegisterDomainRequest } from "@/types/domains";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 export function useDomainList(scopedPath: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return usePaginatedQuery<Domain>({
     queryKey: ["domains", scopedPath],
@@ -20,16 +21,18 @@ export function useDomainList(scopedPath: string) {
         .get(`${scopedPath}/domains${qs ? `?${qs}` : ""}`)
         .json<PaginatedResponse<Domain>>();
     },
+    enabled: ready,
   });
 }
 
 export function useDomainDetail(scopedPath: string, id: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["domain", scopedPath, id],
     queryFn: () => api.get(`${scopedPath}/domains/${id}`).json<Domain>(),
-    enabled: !!id,
+    enabled: ready && !!id,
   });
 }
 

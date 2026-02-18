@@ -359,6 +359,7 @@ func (s *Server) registerRoutes() {
 				ws.GET("/adapters/:id", s.adapterHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.PUT("/adapters/:id", s.adapterHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/adapters/:id", s.adapterHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/adapters/:id/test", s.adapterHandler.TestConnection, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			}
 			if s.domainHandler != nil {
 				ws.GET("/domains", s.domainHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -377,15 +378,19 @@ func (s *Server) registerRoutes() {
 
 			// Templates + versions + locales (HT-21).
 			if s.templateHandler != nil {
+				ws.GET("/template-types/:slug/templates", s.templateHandler.ListByTemplateType, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates", s.templateHandler.CreateTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions", s.templateHandler.ListVersions, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
-				ws.POST("/templates/:template_id/versions/:version_id/locales", s.templateHandler.SetLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 			}
 
 			// API keys (HT-27).
@@ -445,6 +450,7 @@ func (s *Server) registerRoutes() {
 				global.GET("/adapters/:id", s.adapterHandler.GetGlobal)
 				global.PUT("/adapters/:id", s.adapterHandler.UpdateGlobal)
 				global.DELETE("/adapters/:id", s.adapterHandler.SoftDeleteGlobal)
+				global.POST("/adapters/:id/test", s.adapterHandler.TestConnectionGlobal)
 			}
 			if s.domainHandler != nil {
 				global.GET("/domains", s.domainHandler.ListGlobal)
@@ -462,7 +468,22 @@ func (s *Server) registerRoutes() {
 
 			// Global templates (HT-21).
 			if s.templateHandler != nil {
+				global.GET("/template-types/:slug/templates", s.templateHandler.ListByTemplateTypeGlobal)
 				global.POST("/templates", s.templateHandler.CreateTemplateGlobal)
+				// Version CRUD — handlers operate on template_id directly, no workspace needed.
+				global.GET("/templates/:template_id/versions", s.templateHandler.ListVersions)
+				global.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion)
+				global.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion)
+				global.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion)
+				global.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion)
+				// Locale CRUD.
+				global.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale)
+				global.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale)
+				global.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale)
+				global.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale)
+				// Preview.
+				global.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML)
+				global.POST("/templates/:template_id/test-send", s.templateHandler.TestSend)
 			}
 
 			// Global audit log (HT-22).

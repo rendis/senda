@@ -20,7 +20,7 @@ interface AdapterTypeBadgeProps {
 }
 
 export function AdapterTypeBadge({ type, className }: AdapterTypeBadgeProps) {
-  const config = typeConfig[type];
+  const config = typeConfig[type] ?? { label: type, textColor: "text-gray-700", bgColor: "bg-gray-100" };
 
   return (
     <span

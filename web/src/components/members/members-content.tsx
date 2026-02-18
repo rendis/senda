@@ -70,7 +70,7 @@ function MembersTable() {
     ? allMembers.filter(
         (m) =>
           m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.display_name.toLowerCase().includes(searchQuery.toLowerCase())
+          m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : allMembers;
 
@@ -126,7 +126,7 @@ function MembersTable() {
       size: 160,
       enableSorting: false,
       cell: ({ row }) => {
-        const primaryRole = row.original.roles[0];
+        const primaryRole = row.original.roles?.[0];
         return primaryRole ? (
           <RoleBadge role={primaryRole.role} />
         ) : (
@@ -140,7 +140,7 @@ function MembersTable() {
       size: 100,
       enableSorting: false,
       cell: ({ row }) => {
-        const primaryRole = row.original.roles[0];
+        const primaryRole = row.original.roles?.[0];
         return primaryRole ? (
           <MemberScopeBadge scope={primaryRole.scope_type} />
         ) : (
@@ -168,7 +168,7 @@ function MembersTable() {
                 <ShieldPlus className="h-4 w-4" />
                 Add Role
               </DropdownMenuItem>
-              {member.roles.map((role) => (
+              {(member.roles ?? []).map((role) => (
                 <DropdownMenuItem
                   key={role.id}
                   variant="destructive"

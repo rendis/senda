@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useApiReady } from "@/hooks/use-api";
 import type {
   TemplateVersion,
   TemplateLocale,
@@ -12,14 +12,16 @@ import type {
 
 export function useTemplateVersions(scopedPath: string, templateId: string) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["template-versions", scopedPath, templateId],
     queryFn: () =>
       api
         .get(`${scopedPath}/templates/${templateId}/versions`)
-        .json<TemplateVersion[]>(),
-    enabled: !!templateId,
+        .json<{ items: TemplateVersion[] }>()
+        .then((r) => r.items),
+    enabled: ready && !!templateId,
   });
 }
 
@@ -29,6 +31,7 @@ export function useTemplateVersion(
   versionId: string
 ) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: ["template-version", scopedPath, templateId, versionId],
@@ -36,7 +39,7 @@ export function useTemplateVersion(
       api
         .get(`${scopedPath}/templates/${templateId}/versions/${versionId}`)
         .json<TemplateVersion>(),
-    enabled: !!templateId && !!versionId,
+    enabled: ready && !!templateId && !!versionId,
   });
 }
 
@@ -145,6 +148,7 @@ export function useTemplateLocale(
   locale: string
 ) {
   const api = useApi();
+  const ready = useApiReady();
 
   return useQuery({
     queryKey: [
@@ -160,7 +164,7 @@ export function useTemplateLocale(
           `${scopedPath}/templates/${templateId}/versions/${versionId}/locales/${locale}`
         )
         .json<TemplateLocale>(),
-    enabled: !!templateId && !!versionId && !!locale,
+    enabled: ready && !!templateId && !!versionId && !!locale,
   });
 }
 
@@ -182,7 +186,7 @@ export function useSaveTemplateLocale(
     }) =>
       api
         .put(
-          `${scopedPath}/templates/${templateId}/versions/${versionId}/locales`,
+          `${scopedPath}/templates/${templateId}/versions/${versionId}/locales/${data.locale}`,
           { json: data }
         )
         .json<TemplateLocale>(),

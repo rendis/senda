@@ -39,9 +39,8 @@ func (r *MemberRepo) Create(ctx context.Context, member *domain.Member) error {
 	)
 
 	if err := row.Scan(&member.CreatedAt, &member.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperr.Conflict("member with email %q already exists", member.Email)
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
 		}
 		return fmt.Errorf("inserting member: %w", err)
 	}
@@ -164,14 +163,12 @@ func (r *MemberRepo) AddRole(ctx context.Context, role *domain.MemberRole) error
 	)
 
 	if err := row.Scan(&role.CreatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			switch pgErr.Code {
-			case "23505":
-				return apperr.Conflict("duplicate role assignment")
-			case "23514":
-				return apperr.Validation("invalid role/scope combination")
-			}
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" {
+			return apperr.Validation("invalid role/scope combination")
 		}
 		return fmt.Errorf("inserting member role: %w", err)
 	}

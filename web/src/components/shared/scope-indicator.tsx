@@ -39,7 +39,7 @@ interface ScopeIndicatorProps {
 }
 
 export function ScopeIndicator({ scope, label, className }: ScopeIndicatorProps) {
-  const config = scopeConfig[scope];
+  const config = scopeConfig[scope] ?? scopeConfig.global;
   const Icon = config.icon;
 
   return (

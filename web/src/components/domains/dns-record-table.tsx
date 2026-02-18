@@ -28,7 +28,7 @@ export function DnsRecordTable({ records }: DnsRecordTableProps) {
     }
   }
 
-  if (records.length === 0) {
+  if (!records || records.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         No DNS records generated yet.
@@ -54,7 +54,7 @@ export function DnsRecordTable({ records }: DnsRecordTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.map((record, idx) => (
+          {(records ?? []).map((record, idx) => (
             <TableRow key={idx}>
               <TableCell className="font-mono text-xs font-medium">
                 {record.type}

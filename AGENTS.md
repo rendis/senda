@@ -1,4 +1,4 @@
-# Senda — Claude Code Entry Point
+# Senda — Code Agents Entry Point
 
 ## Project Overview
 
@@ -14,7 +14,7 @@ Senda is an open-source email orchestration platform built with Go + PostgreSQL 
 
 ### Al iniciar cada sesión:
 
-1. **Lee este archivo** (`CLAUDE.md`) — ya lo estás haciendo
+1. **Lee este archivo** (`AGENTS.md`) — ya lo estás haciendo
 2. **Revisa el estado actual:**
    ```bash
    ls stories/in-progress/    # ¿Hay algo a medio hacer?
@@ -56,7 +56,7 @@ Implementa HT-01. Lee la story y las secciones §9 y §18 del TECH_SPEC.
 
 ## Teams de Trabajo (paralelización)
 
-El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. Cada team es una sesión de Claude Code con un perfil y contexto optimizado para su track.
+El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. Cada team tiene un perfil y contexto optimizado para su track.
 
 ### Team Definitions
 
@@ -96,7 +96,7 @@ El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. 
 - **Spec focus:** DESIGN_BRIEF (§3 a §8), PRD (§5 User Stories US-36 a US-45)
 - **Stack:** Next.js 16, TypeScript 5, Tailwind v4, shadcn/ui, TanStack Query 5, TanStack Table 9, React Hook Form 7, Zod 4, Auth.js v5, ky, Monaco Editor, Lucide React, Sileo
 - **Diseño:** `senda_desing.pen` — leer SIEMPRE via Pencil MCP, NUNCA parsear el .pen como JSON
-- **Flujo:** Pencil MCP lee frame → Claude genera componente React + Tailwind → verificar pixel-perfect → iterar en Pencil si hay drift
+- **Flujo:** Pencil MCP lee frame → Agent genera componente React + Tailwind → verificar pixel-perfect → iterar en Pencil si hay drift
 - **Bloqueado por:** HT-37 (QA Gate) — el frontend NO comienza hasta que el backend esté 100% testeado
 
 **Team QA** — Track F (Quality Assurance + Security)
@@ -165,14 +165,14 @@ S18      HT-35 (webhooks + API keys + members)
 
 ```
 Sos el Team Infra. Tu perfil es DevOps/Platform Engineer.
-Lee CLAUDE.md, revisa stories/done/ y stories/in-progress/,
+Lee AGENTS.md, revisa stories/done/ y stories/in-progress/,
 y continúa con la siguiente HT de tu track (A).
 Solo trabajá en HTs asignadas a tu team.
 ```
 
 ```
 Sos el Team QA. Tu perfil es QA Engineer / Pentester.
-Lee CLAUDE.md y HT-37. Verificá que TODOS los backend HTs estén en done/.
+Lee AGENTS.md y HT-37. Verificá que TODOS los backend HTs estén en done/.
 Tu trabajo es romper el sistema, no confirmar que funciona.
 Levantá el stack E2E completo y ejecutá la batería de tests.
 ```
@@ -200,38 +200,44 @@ El diseño base de la aplicación está en `senda_desing.pen` (raíz del proyect
 
 **REGLA: SIEMPRE usar Pencil MCP para interactuar con el diseño. NUNCA parsear el .pen como JSON.**
 
-Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude Code se conecta automáticamente y tiene acceso a todas las herramientas.
+Pencil expone un MCP server local que corre cuando Pencil está abierto. El Agent de codigo se conecta automáticamente y tiene acceso a todas las herramientas.
 
 #### Herramientas MCP disponibles (USAR TODAS)
 
 **Diseño — `batch_design`:**
+
 - Crear, modificar, manipular elementos de diseño
 - Operaciones: insert, copy, update, replace, move, delete
 - Generar y colocar imágenes
 - **Uso obligatorio** para cualquier modificación al .pen
 
 **Lectura — `batch_get`:**
+
 - Leer componentes y jerarquía del diseño
 - Buscar elementos por patrones
 - Inspeccionar estructura de componentes
 - **Uso obligatorio** antes de implementar cualquier pantalla (leer el frame primero)
 
 **Screenshots — `get_screenshot`:**
+
 - Renderizar previews del diseño desde Pencil
 - **Uso obligatorio** para Gate 1 del DoD: comparar screenshot de la app vs screenshot de Pencil
 
 **Layout — `snapshot_layout`:**
+
 - Analizar estructura del layout
 - Detectar problemas de posicionamiento
 - Encontrar elementos superpuestos
 - **Usar** para verificar pixel-perfect después de implementar
 
 **Editor — `get_editor_state`:**
+
 - Contexto actual del editor
 - Información de selección
 - Detalles del archivo activo
 
 **Variables — `get_variables` / `set_variables`:**
+
 - Leer design tokens (colores, spacing, typography)
 - Actualizar valores de tema
 - Sincronizar con CSS/Tailwind
@@ -263,6 +269,7 @@ Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude 
 #### Operaciones avanzadas
 
 **Batch operations** para consistencia:
+
 ```
 "Verificar que todos los botones usan la variable de color primario"
 "Actualizar todos los headings para usar la escala tipográfica"
@@ -270,6 +277,7 @@ Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude 
 ```
 
 **Sincronización código ↔ diseño:**
+
 ```
 "Importar el Design System desde el Tailwind config a Pencil"
 "Actualizar componentes React para matchear los diseños de Pencil"
@@ -277,6 +285,7 @@ Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude 
 ```
 
 **Generación de código desde diseño:**
+
 ```
 "Generar código React para este componente"
 "Crear Tailwind config desde estas variables de Pencil"
@@ -285,7 +294,6 @@ Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude 
 #### Troubleshooting
 
 - **MCP no conecta:** Verificar que Pencil esté corriendo y el .pen abierto
-- **Herramientas no aparecen:** Reiniciar Pencil y Claude Code
 - **Cambios inesperados:** Ser más específico en prompts, pedir explicación antes de aplicar
 
 ---
@@ -296,7 +304,7 @@ Pencil expone un MCP server local que corre cuando Pencil está abierto. Claude 
 
 ```
 senda/
-├── CLAUDE.md              ← You are here (entry point)
+├── AGENTS.md              ← You are here (entry point)
 ├── stories/
 │   ├── MANIFEST.md        ← Dependency graph + status overview
 │   ├── backlog/           ← Stories not yet started
@@ -416,6 +424,7 @@ go vet ./...              # No issues
 4. **REIMPLEMENTAR** — si el approach es fundamentalmente incorrecto, reescribir desde cero
 
 **Anti-patrones prohibidos:**
+
 - Agregar `if err != nil { // ignore }` para "saltar" un error
 - Wrappear código roto en try/catch o recover para que "no falle"
 - Copiar-pegar código que no se entiende completamente
@@ -424,6 +433,7 @@ go vet ./...              # No issues
 - Acumular TODO/FIXME sin resolverlos antes de marcar done
 
 **Lo correcto:**
+
 - Si un test falla → el código de producción está mal, no el test (salvo que el test esté mal escrito)
 - Si un approach no funciona después de 2 intentos → replantear el diseño
 - Si no se entiende por qué algo falla → leer la spec de nuevo antes de tocar código
@@ -434,6 +444,7 @@ go vet ./...              # No issues
 **Feature-first:** Cada HT frontend es una feature vertical completa (UI + hooks + API calls + estado + empty states). No se construyen capas horizontales aisladas.
 
 **Reutilización obligatoria:**
+
 1. **Antes de crear un componente** → verificar si ya existe en `components/shared/` o en el Design System (HT-28)
 2. **Si un componente se usa en 2+ features** → extraerlo a `components/shared/` con props genéricas
 3. **Patrones compartidos predefinidos** (creados en HT-28):

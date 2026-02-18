@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/http/pagination"
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
@@ -67,6 +68,134 @@ func (h *TemplateHandler) createTemplate(c *echo.Context, workspaceID *uuid.UUID
 	}
 
 	return c.JSON(http.StatusCreated, response.NewTemplateResponse(tpl))
+}
+
+// ListByTemplateType handles GET .../template-types/:slug/templates.
+func (h *TemplateHandler) ListByTemplateType(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return h.listByTemplateType(c, &ws.ID)
+}
+
+// ListByTemplateTypeGlobal handles GET /global/template-types/:slug/templates.
+func (h *TemplateHandler) ListByTemplateTypeGlobal(c *echo.Context) error {
+	return h.listByTemplateType(c, nil)
+}
+
+func (h *TemplateHandler) listByTemplateType(c *echo.Context, wsID *uuid.UUID) error {
+	slugParam := c.Param("slug")
+
+	tt, err := h.store.FindTypeBySlugInScope(c.Request().Context(), slugParam, wsID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	opts := pagination.ParseListOptions(c)
+
+	templates, nextCursor, err := h.svc.ListByType(c.Request().Context(), tt.ID, wsID, opts)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	items := make([]response.TemplateResponse, len(templates))
+	for i, tpl := range templates {
+		items[i] = response.NewTemplateResponse(tpl)
+	}
+
+	return c.JSON(http.StatusOK, response.TemplateListResponse{
+		Items:      items,
+		NextCursor: nextCursor,
+		HasMore:    nextCursor != "",
+	})
+}
+
+// GetVersion handles GET .../templates/:template_id/versions/:version_id.
+func (h *TemplateHandler) GetVersion(c *echo.Context) error {
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+
+	ver, err := h.svc.GetVersionByID(c.Request().Context(), versionID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, response.NewTemplateVersionResponse(ver))
+}
+
+// UpdateVersion handles PUT .../templates/:template_id/versions/:version_id.
+func (h *TemplateHandler) UpdateVersion(c *echo.Context) error {
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+
+	var req request.CreateVersionRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	ver, err := h.svc.GetVersionByID(c.Request().Context(), versionID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	if ver.Status != domain.VersionStatusDraft {
+		return response.WriteError(c, http.StatusConflict, "CONFLICT", "only draft versions can be updated")
+	}
+
+	if req.Subject != "" {
+		ver.Subject = req.Subject
+	}
+	if req.PreviewText != "" {
+		ver.PreviewText = req.PreviewText
+	}
+	if req.FromName != "" {
+		ver.FromName = req.FromName
+	}
+	if req.FromEmail != "" {
+		ver.FromEmail = req.FromEmail
+	}
+	if req.ReplyTo != nil {
+		ver.ReplyTo = req.ReplyTo
+	}
+	if req.BodyMJML != "" {
+		ver.BodyMJML = req.BodyMJML
+	}
+	if req.DefaultLocale != "" {
+		ver.DefaultLocale = req.DefaultLocale
+	}
+	if len(req.EditorData) > 0 {
+		var editorData map[string]any
+		if err := json.Unmarshal(req.EditorData, &editorData); err != nil {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+				response.FieldError{Field: "editor_data", Message: "must be valid JSON"},
+			)
+		}
+		ver.EditorData = editorData
+	}
+
+	if err := h.svc.UpdateVersion(c.Request().Context(), ver); err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	// Re-fetch to get updated_at from DB.
+	updated, err := h.svc.GetVersionByID(c.Request().Context(), versionID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, response.NewTemplateVersionResponse(updated))
+}
+
+// TestSend handles POST .../templates/:template_id/test-send.
+// Stub — returns 501 until real SendService integration is built.
+func (h *TemplateHandler) TestSend(c *echo.Context) error {
+	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "test send not yet available")
 }
 
 // ListVersions handles GET .../templates/:template_id/versions.

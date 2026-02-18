@@ -184,7 +184,7 @@ function WebhooksTable() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
-          {row.original.events.map((evt) => (
+          {(row.original.events ?? []).map((evt) => (
             <EventBadge key={evt} event={evt} />
           ))}
         </div>

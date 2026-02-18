@@ -250,6 +250,18 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 	return c.NoContent(http.StatusNoContent)
 }
 
+// TestConnection handles POST .../adapters/:id/test (workspace scope).
+// Stub — returns 501 until real adapter connectivity check is built.
+func (h *AdapterHandler) TestConnection(c *echo.Context) error {
+	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "adapter connection test not yet available")
+}
+
+// TestConnectionGlobal handles POST /global/adapters/:id/test.
+// Stub — returns 501 until real adapter connectivity check is built.
+func (h *AdapterHandler) TestConnectionGlobal(c *echo.Context) error {
+	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "adapter connection test not yet available")
+}
+
 func isValidAdapterType(t string) bool {
 	switch domain.AdapterType(t) {
 	case domain.AdapterTypeSES, domain.AdapterTypeGmail:
