@@ -152,7 +152,17 @@
       "saving": "Saving...",
       "saved": "Saved",
       "error": "Error saving"
-    }
+    },
+    "collapseAll": "Collapse all",
+    "expandAll": "Expand all",
+    "addBlock": "Add block",
+    "blockLabel": "Block label",
+    "blockContent": "Content",
+    "blockHeight": "Height",
+    "blockNoProperties": "No properties",
+    "blockListType": "List type",
+    "variableHintEvent": "Event variable",
+    "variableHintInjector": "Injector variable"
   },
   "scopeSwitcher": {
     "globalScope": "Global",

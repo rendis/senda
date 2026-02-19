@@ -69,6 +69,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { CreateTemplateVersionRequest } from "@/types/templates";
 import type { InjectorDefinition, InjectorWithValues } from "@/types/injectors";
@@ -196,16 +197,7 @@ type BuilderDocument = {
   blocks: BuilderBlock[];
 };
 
-const defaultBlockLabel: Record<BuilderBlockType, string> = {
-  text: "Text",
-  button: "Button",
-  image: "Image",
-  divider: "Divider",
-  spacer: "Spacer",
-  banner: "Banner",
-  video: "Video",
-  list: "List",
-};
+// defaultBlockLabel is now built inside MjmlEditor using t() for i18n
 
 type EditorMode = "visual" | "code";
 
@@ -1642,6 +1634,19 @@ function makeVariableToken(name: string, category: "event" | "injector") {
 }
 
 export function MjmlEditor() {
+  const t = useTranslations("editor");
+
+  const defaultBlockLabel: Record<BuilderBlockType, string> = {
+    text: t("blocks.text"),
+    button: t("blocks.button"),
+    image: t("blocks.image"),
+    divider: t("blocks.divider"),
+    spacer: t("blocks.spacer"),
+    banner: t("blocks.banner"),
+    video: t("blocks.video"),
+    list: t("blocks.list"),
+  };
+
   const router = useRouter();
   const scope = useScope();
   const scopedPath = useScopedPath();
@@ -1788,7 +1793,7 @@ export function MjmlEditor() {
         id: `event-${name}`,
         token: makeVariableToken(name, "event"),
         label: name,
-        hint: "Variable de evento",
+        hint: t("variableHintEvent"),
         category: "event",
       }));
   }, [templateTypeQuery.data]);
@@ -1887,7 +1892,7 @@ export function MjmlEditor() {
                 id: `${injectorName}-${field.field_name}`,
                 token,
                 label: `${injectorName}.${field.field_name}`,
-                hint: field.description || "Variable de injector",
+                hint: field.description || t("variableHintInjector"),
                 category: "injector",
               });
             }
@@ -3471,7 +3476,7 @@ export function MjmlEditor() {
                     ) : (
                       <ChevronRight className="h-3 w-3 text-muted-foreground" />
                     )}
-                    <h4 className="text-xs font-semibold text-muted-foreground">Bloques</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground">{t("blocks.label")}</h4>
                   </button>
                   {blocksOpen && (
                     <div className="grid grid-cols-2 gap-2">
@@ -3482,7 +3487,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("text")}
                         className="h-8"
                       >
-                        <Type className="h-3.5 w-3.5 mr-1" /> Texto
+                        <Type className="h-3.5 w-3.5 mr-1" /> {t("blocks.text")}
                       </Button>
                       <Button
                         size="sm"
@@ -3491,7 +3496,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("button")}
                         className="h-8"
                       >
-                        Botón
+                        {t("blocks.button")}
                       </Button>
                       <Button
                         size="sm"
@@ -3500,7 +3505,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("image")}
                         className="h-8"
                       >
-                        <ImageIcon className="h-3.5 w-3.5 mr-1" /> Imagen
+                        <ImageIcon className="h-3.5 w-3.5 mr-1" /> {t("blocks.image")}
                       </Button>
                       <Button
                         size="sm"
@@ -3509,7 +3514,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("divider")}
                         className="h-8"
                       >
-                        <Minus className="h-3.5 w-3.5 mr-1" /> Divider
+                        <Minus className="h-3.5 w-3.5 mr-1" /> {t("blocks.divider")}
                       </Button>
                       <Button
                         size="sm"
@@ -3518,7 +3523,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("spacer")}
                         className="h-8"
                       >
-                        <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
+                        <Grip className="h-3.5 w-3.5 mr-1" /> {t("blocks.spacer")}
                       </Button>
                       <Button
                         size="sm"
@@ -3527,7 +3532,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("banner")}
                         className="h-8"
                       >
-                        <LayoutTemplate className="h-3.5 w-3.5 mr-1" /> Banner
+                        <LayoutTemplate className="h-3.5 w-3.5 mr-1" /> {t("blocks.banner")}
                       </Button>
                       <Button
                         size="sm"
@@ -3536,7 +3541,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("video")}
                         className="h-8"
                       >
-                        <Play className="h-3.5 w-3.5 mr-1" /> Video
+                        <Play className="h-3.5 w-3.5 mr-1" /> {t("blocks.video")}
                       </Button>
                       <Button
                         size="sm"
@@ -3545,7 +3550,7 @@ export function MjmlEditor() {
                         onClick={() => addBlock("list")}
                         className="h-8"
                       >
-                        <List className="h-3.5 w-3.5 mr-1" /> Lista
+                        <List className="h-3.5 w-3.5 mr-1" /> {t("blocks.list")}
                       </Button>
                     </div>
                   )}
@@ -3583,7 +3588,7 @@ export function MjmlEditor() {
                       <Input
                         value={injectorSearch}
                         onChange={(e) => setInjectorSearch(e.target.value)}
-                        placeholder="Buscar..."
+                        placeholder={t("searchPlaceholder")}
                         className="h-7 pl-7 text-xs"
                       />
                     </div>
@@ -3642,7 +3647,7 @@ export function MjmlEditor() {
                           );
                         })}
                         {filteredGroups.length === 0 && (
-                          <p className="text-xs text-muted-foreground py-1">Sin resultados</p>
+                          <p className="text-xs text-muted-foreground py-1">{t("noResults")}</p>
                         )}
                       </div>
                     </TooltipProvider>
@@ -3659,19 +3664,19 @@ export function MjmlEditor() {
                       type="button"
                       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
                       onClick={expandAllBlocks}
-                      title="Expand all"
+                      title={t("expandAll")}
                     >
                       <ChevronsUpDown className="h-3 w-3" />
-                      Expand
+                      {t("expandAll")}
                     </button>
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
                       onClick={collapseAllBlocks}
-                      title="Collapse all"
+                      title={t("collapseAll")}
                     >
                       <ChevronsDownUp className="h-3 w-3" />
-                      Collapse
+                      {t("collapseAll")}
                     </button>
                   </div>
                 )}
@@ -3776,7 +3781,7 @@ export function MjmlEditor() {
                                   }
                                   onDragEnd={handleBlockDragEnd}
                                   onClick={(event) => event.stopPropagation()}
-                                  title="Reordenar bloque"
+                                  title={t("reorderBlock")}
                                 >
                                   <GripVertical className="h-3.5 w-3.5" />
                                 </button>
@@ -3829,7 +3834,7 @@ export function MjmlEditor() {
 
                             {block.type === "button" && (
                               <>
-                                <Label className="text-xs">Contenido</Label>
+                                <Label className="text-xs">{t("blockContent")}</Label>
                                 <div className="mt-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
                                   <div
                                     ref={(node) => {
@@ -3842,7 +3847,7 @@ export function MjmlEditor() {
                                     contentEditable={isDraft}
                                     suppressContentEditableWarning
                                     className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
-                                    data-placeholder="Texto"
+                                    data-placeholder={t("textPlaceholder")}
                                     onInput={(event) =>
                                       handleBlockEditorInput(block.id, event.currentTarget)
                                     }
@@ -3915,7 +3920,7 @@ export function MjmlEditor() {
 
                             {block.type === "spacer" ? (
                               <>
-                                <Label className="text-xs">Altura</Label>
+                                <Label className="text-xs">{t("blockHeight")}</Label>
                                 <Input
                                   type="number"
                                   min={0}
@@ -3935,7 +3940,7 @@ export function MjmlEditor() {
 
                             {block.type === "divider" ? (
                               <div className="text-xs text-muted-foreground">
-                                Sin propiedades
+                                {t("blockNoProperties")}
                               </div>
                             ) : null}
 
@@ -4163,7 +4168,7 @@ export function MjmlEditor() {
                             {block.type === "list" && (
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs">Tipo de lista</Label>
+                                  <Label className="text-xs">{t("blockListType")}</Label>
                                   <select
                                     value={block.listType}
                                     onChange={(ev) => updateListBlock(block.id, "listType", ev.target.value)}

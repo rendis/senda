@@ -138,7 +138,7 @@
       "text": "Texto",
       "button": "Botón",
       "image": "Imagen",
-      "divider": "Divider",
+      "divider": "Divisor",
       "spacer": "Espaciado",
       "banner": "Banner",
       "video": "Video",
@@ -152,7 +152,17 @@
       "saving": "Guardando...",
       "saved": "Guardado",
       "error": "Error al guardar"
-    }
+    },
+    "collapseAll": "Contraer todo",
+    "expandAll": "Expandir todo",
+    "addBlock": "Agregar bloque",
+    "blockLabel": "Etiqueta del bloque",
+    "blockContent": "Contenido",
+    "blockHeight": "Altura",
+    "blockNoProperties": "Sin propiedades",
+    "blockListType": "Tipo de lista",
+    "variableHintEvent": "Variable de evento",
+    "variableHintInjector": "Variable de injector"
   },
   "scopeSwitcher": {
     "globalScope": "Global",

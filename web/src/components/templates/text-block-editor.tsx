@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontSize, Color, FontFamily } from "@tiptap/extension-text-style";
@@ -95,11 +96,13 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
       onChange,
       align,
       disabled = false,
-      placeholder = "Texto",
+      placeholder,
       onFocus,
     },
     ref,
   ) {
+  const t = useTranslations("editor");
+  const effectivePlaceholder = placeholder ?? t("textPlaceholder");
   const [colorOpen, setColorOpen] = useState(false);
   const [customColor, setCustomColor] = useState("");
   const isInternalUpdate = useRef(false);
@@ -149,6 +152,7 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
     editorProps: {
       attributes: {
         class: "min-h-6 w-full outline-none text-sm",
+        "data-placeholder": effectivePlaceholder,
       },
       handleDrop: (view, event) => {
         const raw = event.dataTransfer?.getData(VARIABLE_DND_MIME);
