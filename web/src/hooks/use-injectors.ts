@@ -8,6 +8,7 @@ import type {
   InjectorDefinition,
   InjectorWithValues,
   SetInjectorValuesRequest,
+  CreateInjectorRequest,
 } from "@/types/injectors";
 import { toast } from "sonner";
 
@@ -38,6 +39,25 @@ export function useInjectorDetail(scopedPath: string, name: string) {
     queryFn: () =>
       api.get(`${scopedPath}/injectors/${name}`).json<InjectorWithValues>(),
     enabled: ready && !!name,
+  });
+}
+
+export function useCreateInjector(scopedPath: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateInjectorRequest) =>
+      api
+        .post(`${scopedPath}/injectors`, { json: data })
+        .json<InjectorDefinition>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
+      toast.success("Injector created");
+    },
+    onError: () => {
+      toast.error("Failed to create injector");
+    },
   });
 }
 

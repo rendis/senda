@@ -47,3 +47,18 @@ export interface InjectorWithValues extends InjectorDefinition {
 export interface SetInjectorValuesRequest {
   values: Record<string, unknown>;
 }
+
+/** Request field for creating an injector */
+export interface CreateInjectorFieldRequest {
+  field_name: string;
+  field_type: InjectorFieldType;
+  description?: string;
+  position: number;
+}
+
+/** Request body for POST /injectors */
+export interface CreateInjectorRequest {
+  name: string;
+  description?: string;
+  fields: CreateInjectorFieldRequest[];
+}

@@ -2,22 +2,25 @@
 
 import { useState } from "react";
 import { useMinimumLoading } from "@/hooks/use-minimum-loading";
-import { Database, ArrowLeft } from "lucide-react";
+import { Database, ArrowLeft, Plus } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useInjectorList,
   useInjectorDetail,
   useSetInjectorValues,
   useDeleteInjectorOverride,
+  useCreateInjector,
 } from "@/hooks/use-injectors";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { InjectorFieldEditor } from "./injector-field-editor";
+import { InjectorForm } from "./injector-form";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { InjectorDefinition } from "@/types/injectors";
+import type { InjectorDefinition, CreateInjectorRequest } from "@/types/injectors";
 
 export function InjectorsContent() {
   const scope = useScope();
@@ -39,6 +42,7 @@ function InjectorsTable() {
   const scope = useScope();
   const scopedPath = useScopedPath();
   const [selectedInjector, setSelectedInjector] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const {
     data: listData,
@@ -47,6 +51,8 @@ function InjectorsTable() {
     fetchNextPage,
     isFetchingNextPage,
   } = useInjectorList(scopedPath);
+
+  const createInjector = useCreateInjector(scopedPath);
 
   const {
     data: detail,
@@ -60,7 +66,16 @@ function InjectorsTable() {
     selectedInjector ?? ""
   );
 
-  const items = listData?.pages.flatMap((p) => p.items) ?? [];
+  const allItems = listData?.pages.flatMap((p) => p.items) ?? [];
+  const items = search
+    ? allItems.filter((a) =>
+        a.name.toLowerCase().includes(search.toLowerCase())
+      )
+    : allItems;
+
+  async function handleCreate(data: CreateInjectorRequest) {
+    await createInjector.mutateAsync(data);
+  }
 
   // Detail view
   if (selectedInjector) {
@@ -164,21 +179,54 @@ function InjectorsTable() {
   ];
 
   return (
-    <DataTable
-      columns={listColumns}
-      data={items}
-      loading={listLoading}
-      hasMore={hasNextPage}
-      onLoadMore={() => fetchNextPage()}
-      loadingMore={isFetchingNextPage}
-      emptyState={
-        <EmptyState
-          icon={Database}
-          title="No injectors defined"
-          description="Injectors provide dynamic values to your templates. They are configured at the global level."
+    <div className="flex flex-col gap-6">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <Input
+          placeholder="Search injectors..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-[280px]"
         />
-      }
-    />
+        <InjectorForm
+          trigger={
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Injector
+            </Button>
+          }
+          onSubmit={handleCreate}
+        />
+      </div>
+
+      {/* Table */}
+      <DataTable
+        columns={listColumns}
+        data={items}
+        loading={listLoading}
+        hasMore={hasNextPage}
+        onLoadMore={() => fetchNextPage()}
+        loadingMore={isFetchingNextPage}
+        emptyState={
+          <EmptyState
+            icon={Database}
+            title="No injectors defined"
+            description="Injectors provide dynamic values to your templates."
+            action={
+              <InjectorForm
+                trigger={
+                  <Button className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Injector
+                  </Button>
+                }
+                onSubmit={handleCreate}
+              />
+            }
+          />
+        }
+      />
+    </div>
   );
 }
 
