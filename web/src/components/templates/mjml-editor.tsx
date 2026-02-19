@@ -1926,10 +1926,12 @@ export function MjmlEditor() {
 
   async function handleDeleteLocale(locale: string) {
     try {
-      await deleteLocaleMutation.mutateAsync(locale);
+      // Switch away BEFORE delete to prevent autosave from re-creating the locale.
       if (activeLocale === locale) {
-        handleSwitchLocale("default");
+        activeLocaleRef.current = "default";
+        setActiveLocale("default");
       }
+      await deleteLocaleMutation.mutateAsync(locale);
     } catch {
       toast.error(`Failed to delete locale ${locale}`);
     }
