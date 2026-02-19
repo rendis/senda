@@ -38,6 +38,7 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
+import { TextBlockEditor, type TextBlockEditorHandle } from "./text-block-editor";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useTemplateVersion,
@@ -48,6 +49,8 @@ import {
 import { useTemplateType } from "@/hooks/use-template-types";
 import { useInjectorList } from "@/hooks/use-injectors";
 import { useApi } from "@/hooks/use-api";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { SaveStatusIndicator } from "@/components/templates/save-status-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { TestSendModal } from "@/components/templates/test-send-modal";
 import { Button } from "@/components/ui/button";
@@ -92,8 +95,8 @@ type BuilderSegment =
 type BuilderTextBlock = {
   id: string;
   type: "text";
-  segments: BuilderSegment[];
-  align: "left" | "center" | "right";
+  content: string;
+  align: "left" | "center" | "right" | "justify";
 };
 
 type BuilderButtonBlock = {
@@ -749,7 +752,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
       {
         id: nowId(),
         type: "text",
-        segments: [createTextSegment("Drag content here")],
+        content: "",
         align: "left" as const,
       },
     ],
@@ -770,69 +773,58 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
       if (!isRecord(item)) return null;
       const id =
         typeof item.id === "string" && item.id.trim() ? item.id : nowId();
-      const align = (() => {
-        const candidate = (item as { align?: unknown }).align;
-        return candidate === "left" || candidate === "center" || candidate === "right"
-          ? candidate
+      const alignRaw = (item as { align?: unknown }).align;
+      const alignFull: "left" | "center" | "right" | "justify" =
+        alignRaw === "left" || alignRaw === "center" || alignRaw === "right" || alignRaw === "justify"
+          ? alignRaw
           : "left";
-      })();
+      // Button/image blocks don't support justify
+      const align: "left" | "center" | "right" =
+        alignFull === "justify" ? "left" : alignFull;
 
       if (item.type === "text") {
+        // New format: content is HTML string
+        if (typeof (item as { content?: unknown }).content === "string") {
+          return {
+            id,
+            type: "text",
+            content: (item as { content: string }).content,
+            align: alignFull,
+          };
+        }
+
+        // Legacy format: convert segments to plain text HTML
         if (Array.isArray((item as { segments?: unknown }).segments)) {
           const incomingSegments = (
             (item as { segments?: unknown }).segments as unknown[]
           ).filter((segment): segment is BuilderSegment => isRecord(segment));
-          const sanitized = incomingSegments
+          const html = incomingSegments
             .map((segment) => {
-              if (
-                segment.kind === "text" &&
-                typeof segment.id === "string" &&
-                typeof segment.text === "string"
-              ) {
-                return {
-                  kind: "text",
-                  id: segment.id,
-                  text: segment.text,
-                } as BuilderSegment;
+              if (segment.kind === "text" && typeof segment.text === "string") {
+                return segment.text.replace(/\n/g, "<br>");
               }
-              if (
-                segment.kind === "token" &&
-                typeof segment.id === "string" &&
-                typeof segment.token === "string"
-              ) {
-                return {
-                  kind: "token",
-                  id: segment.id,
-                  token: normalizeVariableToken(segment.token),
-                  label:
-                    typeof segment.label === "string"
-                      ? segment.label
-                      : segment.token,
-                  category:
-                    segment.category === "injector" ? "injector" : "event",
-                };
+              if (segment.kind === "token" && typeof segment.token === "string") {
+                const token = normalizeVariableToken(segment.token);
+                const category = segment.category === "injector" ? "injector" : "event";
+                const label = typeof segment.label === "string" ? segment.label : token;
+                return `<span data-variable-token="${token}" data-category="${category}">${label}</span>`;
               }
-              return null;
+              return "";
             })
-            .filter((segment): segment is BuilderSegment => segment !== null);
-          const uniqueSegments = ensureUniqueSegmentIds(sanitized);
+            .join("");
           return {
             id,
             type: "text",
-            segments: uniqueSegments.length ? uniqueSegments : [createTextSegment("")],
-            align,
+            content: html ? `<p>${html}</p>` : "",
+            align: alignFull,
           };
         }
 
-        const legacyContent =
-          typeof (item as { content?: unknown }).content === "string"
-            ? ((item as { content?: unknown }).content as string)
-            : "";
         return {
           id,
           type: "text",
-          segments: ensureUniqueSegmentIds(parseContentToSegments(legacyContent)),
-          align,
+          content: "",
+          align: alignFull,
         };
       }
       if (item.type === "button") {
@@ -1061,7 +1053,14 @@ function collectEventVariablesFromSchema(schema: unknown): string[] {
   return normalized;
 }
 
-function parseMjmlAlign(value: string | null): "left" | "center" | "right" {
+function parseMjmlAlign(value: string | null): "left" | "center" | "right" | "justify" {
+  if (value === "center" || value === "right" || value === "left" || value === "justify") {
+    return value;
+  }
+  return "left";
+}
+
+function parseMjmlAlignNarrow(value: string | null): "left" | "center" | "right" {
   if (value === "center" || value === "right" || value === "left") {
     return value;
   }
@@ -1086,6 +1085,24 @@ function stripMjmlInlineTags(raw: string) {
   return decodeMjmlEntities(withoutTags).trim();
 }
 
+/** Convert {{event.x}} / {{injector.x}} in HTML to TipTap VariableToken spans */
+function mjmlVarsToTiptapHtml(html: string): string {
+  return html.replace(/\{\{([^}]+)\}\}/g, (_match, rawToken: string) => {
+    const token = normalizeVariableToken(rawToken.trim());
+    const category = guessSegmentCategory(token);
+    const label = token;
+    return `<span data-variable-token="${token}" data-category="${category}">${label}</span>`;
+  });
+}
+
+/** Convert TipTap VariableToken spans back to {{token}} placeholders for MJML */
+function tiptapHtmlToMjmlVars(html: string): string {
+  return html.replace(
+    /<span[^>]*data-variable-token="([^"]*)"[^>]*>[^<]*<\/span>/g,
+    (_match, token: string) => `{{${token}}}`,
+  );
+}
+
 function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
   if (!rawMjml.trim()) {
     return null;
@@ -1108,12 +1125,11 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
       const tag = child.tagName.toLowerCase();
 
       if (tag === "mj-text") {
+        const rawInner = child.innerHTML ?? "";
         blocks.push({
           id: nowId(),
           type: "text",
-          segments: ensureUniqueSegmentIds(
-            parseContentToSegments(stripMjmlInlineTags(child.innerHTML ?? ""))
-          ),
+          content: mjmlVarsToTiptapHtml(decodeMjmlEntities(rawInner)),
           align: parseMjmlAlign(child.getAttribute("align")),
         });
         continue;
@@ -1126,7 +1142,7 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
           type: "button",
           segments: ensureUniqueSegmentIds(parseContentToSegments(content || "Button")),
           href: child.getAttribute("href") || "#",
-          align: parseMjmlAlign(child.getAttribute("align")),
+          align: parseMjmlAlignNarrow(child.getAttribute("align")),
         });
         continue;
       }
@@ -1138,7 +1154,7 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
           src: child.getAttribute("src") || "",
           alt: child.getAttribute("alt") || undefined,
           width: child.getAttribute("width") || undefined,
-          align: parseMjmlAlign(child.getAttribute("align")),
+          align: parseMjmlAlignNarrow(child.getAttribute("align")),
         });
         continue;
       }
@@ -1177,8 +1193,11 @@ function buildTemplateMjml(document: BuilderDocument) {
   const blocks = document.blocks
       .map((block) => {
       switch (block.type) {
-        case "text":
-          return `<mj-text>${renderSegmentsToText(block.segments).trim() || " "}</mj-text>`;
+        case "text": {
+          const inner = tiptapHtmlToMjmlVars(block.content).trim() || " ";
+          const alignAttr = block.align !== "left" ? ` align="${block.align}"` : "";
+          return `<mj-text${alignAttr}>${inner}</mj-text>`;
+        }
         case "button":
           return `<mj-button href="${block.href || "#"}">${renderSegmentsToText(
             block.segments
@@ -1283,6 +1302,7 @@ export function MjmlEditor() {
   const layoutSplitRef = useRef<HTMLDivElement | null>(null);
   const previewPanelWrapRef = useRef<HTMLDivElement | null>(null);
   const blockEditorRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const textBlockEditorRefs = useRef<Record<string, TextBlockEditorHandle | null>>({});
   const previewStageRef = useRef<HTMLDivElement | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewObserverCleanupRef = useRef<(() => void) | null>(null);
@@ -1319,6 +1339,32 @@ export function MjmlEditor() {
   });
 
   const isDraft = version?.status === "draft";
+
+  const autoSave = useAutoSave({
+    getPayload: () => {
+      const formData = getValues();
+      const bodyPayload =
+        editorMode === "visual"
+          ? builderDocument
+            ? buildTemplateMjml(builderDocument)
+            : codeMjml
+          : codeMjml;
+      return {
+        subject: formData.subject,
+        preview_text: formData.preview_text || undefined,
+        from_name: formData.from_name,
+        reply_to: formData.reply_to || undefined,
+        body_mjml: bodyPayload,
+        default_locale: version?.default_locale ?? "en",
+        ...(editorMode === "visual" && builderDocument
+          ? { editor_data: builderDocument }
+          : {}),
+      };
+    },
+    saveFn: (data) => saveMutation.mutateAsync(data),
+    enabled: isDraft,
+    debounceMs: 2000,
+  });
 
   const eventVariableTokens = useMemo<TemplateVariable[]>(() => {
     const raw = templateTypeQuery.data?.variable_schema;
@@ -1598,7 +1644,8 @@ export function MjmlEditor() {
     }
 
     for (const block of builderDocument.blocks) {
-      if (block.type !== "text" && block.type !== "button") {
+      // Only sync button blocks via contentEditable; text blocks use TipTap
+      if (block.type !== "button") {
         continue;
       }
 
@@ -1812,43 +1859,15 @@ export function MjmlEditor() {
     if (editorMode === "visual") {
       triggerPreview(nextCode);
     }
+    autoSave.scheduleSave();
   }
 
   function handleCodeChange(value: string) {
     setCodeOverride(value);
     triggerPreview(value);
+    autoSave.scheduleSave();
   }
 
-  function handleSaveDraft() {
-    const formData = getValues();
-
-    const bodyPayload =
-      editorMode === "visual"
-        ? (builderDocument ? buildTemplateMjml(builderDocument) : codeMjml)
-        : codeMjml;
-
-    const body: CreateTemplateVersionRequest = {
-      subject: formData.subject,
-      preview_text: formData.preview_text || undefined,
-      from_name: formData.from_name,
-      reply_to: formData.reply_to || undefined,
-      body_mjml: bodyPayload,
-      default_locale: version?.default_locale ?? "en",
-    };
-
-    if (editorMode === "visual" && builderDocument) {
-      body.editor_data = builderDocument;
-    }
-
-    saveMutation
-      .mutateAsync(body)
-      .then(() => {
-        toast.success("Draft saved");
-      })
-      .catch(() => {
-        toast.error("Failed to save draft");
-      });
-  }
 
   function handlePublish() {
     publishMutation
@@ -1887,7 +1906,7 @@ export function MjmlEditor() {
       newBlock = {
         id,
         type: "text",
-        segments: [createTextSegment("")],
+        content: "",
         align: "left",
       };
     } else if (type === "button") {
@@ -1938,7 +1957,7 @@ export function MjmlEditor() {
           {
             id: nowId(),
             type: "text",
-            segments: [createTextSegment("")],
+            content: "",
             align: "left",
           },
         ],
@@ -1958,16 +1977,16 @@ export function MjmlEditor() {
     }
   }
 
-  function getTextLikeBlockSegments(blockId: string) {
+  function getButtonBlockSegments(blockId: string) {
     if (!builderDocument) return;
     const block = builderDocument.blocks.find((candidate) => candidate.id === blockId);
-    if (!block || (block.type !== "text" && block.type !== "button")) {
+    if (!block || block.type !== "button") {
       return null;
     }
     return block.segments;
   }
 
-  function updateTextLikeBlockSegments(
+  function updateButtonBlockSegments(
     blockId: string,
     nextSegments: BuilderSegment[],
     nextCaretUnitOffset?: number
@@ -1984,7 +2003,7 @@ export function MjmlEditor() {
         unitOffset: clampedCaret,
       };
     }
-    const current = getTextLikeBlockSegments(blockId);
+    const current = getButtonBlockSegments(blockId);
     if (current && segmentsMeaningfullyEqual(current, normalized)) {
       if (typeof nextCaretUnitOffset === "number") {
         const editor = blockEditorRefs.current[blockId];
@@ -1998,7 +2017,7 @@ export function MjmlEditor() {
     updateBuilderDocument({
       ...builderDocument,
       blocks: builderDocument.blocks.map((block) => {
-        if (block.id !== blockId || (block.type !== "text" && block.type !== "button")) {
+        if (block.id !== blockId || block.type !== "button") {
           return block;
         }
         return {
@@ -2009,12 +2028,31 @@ export function MjmlEditor() {
     });
   }
 
-  function handleBlockEditorInput(blockId: string, editor: HTMLDivElement) {
-    const parsed = parseSegmentsFromEditorNode(editor);
-    updateTextLikeBlockSegments(blockId, parsed);
+  function updateTextBlock(
+    blockId: string,
+    html: string,
+    newAlign?: "left" | "center" | "right" | "justify"
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "text") return block;
+        return {
+          ...block,
+          content: html,
+          ...(newAlign !== undefined && { align: newAlign }),
+        };
+      }),
+    });
   }
 
-  function insertVariableIntoEditor(
+  function handleBlockEditorInput(blockId: string, editor: HTMLDivElement) {
+    const parsed = parseSegmentsFromEditorNode(editor);
+    updateButtonBlockSegments(blockId, parsed);
+  }
+
+  function insertVariableIntoButtonEditor(
     blockId: string,
     editor: HTMLDivElement,
     variable: TemplateVariable
@@ -2035,7 +2073,7 @@ export function MjmlEditor() {
     if (!nextSegments.length) {
       return false;
     }
-    updateTextLikeBlockSegments(blockId, nextSegments, selection.start + 1);
+    updateButtonBlockSegments(blockId, nextSegments, selection.start + 1);
     return true;
   }
 
@@ -2045,32 +2083,48 @@ export function MjmlEditor() {
   ) {
     if (!builderDocument || !isDraft) return;
 
-    const targetId =
-      builderDocument.blocks.find((block) => block.id === blockId)?.id ??
+    const targetBlock =
+      builderDocument.blocks.find((block) => block.id === blockId) ??
       builderDocument.blocks.find(
         (block) => block.type === "text" || block.type === "button"
-      )?.id ??
-      builderDocument.blocks[0]?.id;
+      ) ??
+      builderDocument.blocks[0];
 
-    if (!targetId) return;
+    if (!targetBlock) return;
+    const targetId = targetBlock.id;
 
     setSelectedBlockId(targetId);
 
-    const editor = blockEditorRefs.current[targetId];
-    if (editor && insertVariableIntoEditor(targetId, editor, variable)) {
+    const token = normalizeVariableToken(variable.token);
+    if (!token) return;
+
+    // Text blocks: use TipTap editor ref
+    if (targetBlock.type === "text") {
+      const tiptapRef = textBlockEditorRefs.current[targetId];
+      if (tiptapRef) {
+        tiptapRef.insertVariable({
+          token,
+          label: variable.label,
+          category: variable.category,
+        });
+      }
       return;
     }
 
-    const token = normalizeVariableToken(variable.token);
-    if (!token) return;
+    // Button blocks: use contentEditable segment approach
+    const editor = blockEditorRefs.current[targetId];
+    if (editor && insertVariableIntoButtonEditor(targetId, editor, variable)) {
+      return;
+    }
+
     const tokenSegment = createTokenSegment(token, variable.category, variable.label);
-    const currentSegments = getTextLikeBlockSegments(targetId);
+    const currentSegments = getButtonBlockSegments(targetId);
     if (!currentSegments) return;
     const end = countSegmentsUnits(currentSegments);
     const nextSegments = replaceSegmentsUnitRange(currentSegments, end, end, [
       tokenSegment,
     ]);
-    updateTextLikeBlockSegments(targetId, nextSegments, end + 1);
+    updateButtonBlockSegments(targetId, nextSegments, end + 1);
   }
 
   function handleBlockEditorTokenClick(event: ReactMouseEvent<HTMLElement>) {
@@ -2134,7 +2188,7 @@ export function MjmlEditor() {
       deleteEnd,
       []
     );
-    updateTextLikeBlockSegments(blockId, nextSegments, deleteStart);
+    updateButtonBlockSegments(blockId, nextSegments, deleteStart);
   }
 
   function handleBlockEditorCopyOrCut(
@@ -2179,7 +2233,7 @@ export function MjmlEditor() {
         selectionRange.end,
         []
       );
-      updateTextLikeBlockSegments(blockId, nextSegments, selectionRange.start);
+      updateButtonBlockSegments(blockId, nextSegments, selectionRange.start);
     }
   }
 
@@ -2215,7 +2269,7 @@ export function MjmlEditor() {
     );
     const nextCaret =
       selectionRange.start + countSegmentsUnits(insertedSegments);
-    updateTextLikeBlockSegments(blockId, nextSegments, nextCaret);
+    updateButtonBlockSegments(blockId, nextSegments, nextCaret);
   }
 
   function handleBlockEditorDragOver(
@@ -2258,7 +2312,7 @@ export function MjmlEditor() {
     if (!variable) {
       return;
     }
-    insertVariableIntoEditor(blockId, editor, variable);
+    insertVariableIntoButtonEditor(blockId, editor, variable);
     setSelectedBlockId(blockId);
   }
 
@@ -2562,15 +2616,23 @@ export function MjmlEditor() {
             </div>
 
             {isDraft && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSaveDraft}
-                disabled={saveMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-1.5" />
-                Save Draft
-              </Button>
+              <>
+                <SaveStatusIndicator
+                  status={autoSave.status}
+                  lastSavedAt={autoSave.lastSavedAt}
+                  error={autoSave.error}
+                  onRetry={() => autoSave.save()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => autoSave.save()}
+                  disabled={autoSave.status === "saving"}
+                >
+                  <Save className="h-4 w-4 mr-1.5" />
+                  Save
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
@@ -2592,200 +2654,204 @@ export function MjmlEditor() {
 
       <div ref={layoutSplitRef} className="flex flex-1 overflow-hidden">
         {/* Left: editor */}
-        <div className="flex flex-col flex-1 border-r min-w-0">
-          {editorMode === "visual" ? (
-            <div className="flex h-full">
-              <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r p-3 overflow-auto bg-muted/20`}>
-                {/* === Variables (event) === */}
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-muted-foreground">Variables</h4>
-                  <MousePointer className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-                <div className="mt-3 space-y-2">
-                  {templateVariables.length > 0 ? (
-                    templateVariables
-                      .filter((item) => item.category === "event")
-                      .map((item) => (
-                        <button
-                          type="button"
-                          key={item.id}
-                          className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                          draggable
-                          onDragStart={(event) => onVariableCardDragStart(event, item)}
-                          onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                          disabled={!isDraft}
-                        >
-                          <div className="font-mono text-[11px] truncate">{item.label}</div>
-                          <div className="text-muted-foreground text-[10px]">{item.hint}</div>
-                        </button>
-                      ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No event variables yet</p>
-                  )}
-                </div>
-
-                {/* === Blocks (collapsible) === */}
-                <button
-                  type="button"
-                  className="flex items-center gap-1 mt-4 mb-2 w-full text-left"
-                  onClick={() => setBlocksOpen((prev) => !prev)}
-                >
-                  {blocksOpen ? (
-                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  )}
-                  <h4 className="text-xs font-semibold text-muted-foreground">Bloques</h4>
-                </button>
-                {blocksOpen && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isDraft}
-                      onClick={() => addBlock("text")}
-                      className="h-8"
-                    >
-                      <Type className="h-3.5 w-3.5 mr-1" /> Texto
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isDraft}
-                      onClick={() => addBlock("button")}
-                      className="h-8"
-                    >
-                      Botón
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isDraft}
-                      onClick={() => addBlock("image")}
-                      className="h-8"
-                    >
-                      <ImageIcon className="h-3.5 w-3.5 mr-1" /> Imagen
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isDraft}
-                      onClick={() => addBlock("divider")}
-                      className="h-8"
-                    >
-                      <Minus className="h-3.5 w-3.5 mr-1" /> Divider
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isDraft}
-                      onClick={() => addBlock("spacer")}
-                      className="h-8 col-span-2"
-                    >
-                      <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
-                    </Button>
-                  </div>
+        <div className="flex flex-col flex-1 border-r min-w-0 overflow-hidden" style={{ minWidth: MIN_PANEL_WIDTH }}>
+          <div className="flex flex-1 min-h-0">
+            <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r p-3 overflow-auto bg-muted/20`}>
+              {/* === Variables (event) === */}
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-muted-foreground">Variables</h4>
+                <MousePointer className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <div className="mt-3 space-y-2">
+                {templateVariables.length > 0 ? (
+                  templateVariables
+                    .filter((item) => item.category === "event")
+                    .map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                        draggable={editorMode === "visual"}
+                        onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
+                        onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                        disabled={!isDraft}
+                      >
+                        <div className="font-mono text-[11px] truncate">{item.label}</div>
+                        <div className="text-muted-foreground text-[10px]">{item.hint}</div>
+                      </button>
+                    ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">No event variables yet</p>
                 )}
-
-                {/* === Injectors (grouped, collapsible, searchable) === */}
-                {injectorVariableTokens.length > 0 && (() => {
-                  const searchLower = injectorSearch.toLowerCase();
-                  const grouped = injectorVariableTokens.reduce<Record<string, TemplateVariable[]>>((acc, item) => {
-                    const injectorName = item.label.split(".")[0];
-                    if (!acc[injectorName]) acc[injectorName] = [];
-                    acc[injectorName].push(item);
-                    return acc;
-                  }, {});
-                  const filteredGroups = Object.entries(grouped)
-                    .map(([name, items]) => {
-                      if (!searchLower) return { name, items };
-                      const filtered = items.filter(
-                        (item) =>
-                          item.label.toLowerCase().includes(searchLower) ||
-                          item.token.toLowerCase().includes(searchLower)
-                      );
-                      if (filtered.length > 0) return { name, items: filtered };
-                      if (name.toLowerCase().includes(searchLower)) return { name, items };
-                      return null;
-                    })
-                    .filter(Boolean) as { name: string; items: TemplateVariable[] }[];
-
-                  return (
-                    <>
-                      <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Injectors</h4>
-                      <div className="relative mb-2">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                        <Input
-                          value={injectorSearch}
-                          onChange={(e) => setInjectorSearch(e.target.value)}
-                          placeholder="Buscar..."
-                          className="h-7 pl-7 text-xs"
-                        />
-                      </div>
-                      <TooltipProvider>
-                        <div className="space-y-1">
-                          {filteredGroups.map(({ name, items }) => {
-                            const isOpen = injectorSearch ? true : (injectorGroupsOpen[name] ?? false);
-                            return (
-                              <div key={name}>
-                                <button
-                                  type="button"
-                                  className="flex items-center gap-1 w-full text-left py-1"
-                                  onClick={() =>
-                                    setInjectorGroupsOpen((prev) => ({
-                                      ...prev,
-                                      [name]: !(prev[name] ?? false),
-                                    }))
-                                  }
-                                >
-                                  {isOpen ? (
-                                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                                  ) : (
-                                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                  )}
-                                  <span className="font-mono text-[11px] font-medium truncate">{name}</span>
-                                  <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{items.length}</span>
-                                </button>
-                                {isOpen && (
-                                  <div className="space-y-1.5 pl-4 mt-1">
-                                    {items.map((item) => {
-                                      const fieldName = item.label.split(".").slice(1).join(".");
-                                      return (
-                                        <Tooltip key={item.id}>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              type="button"
-                                              className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                                              draggable
-                                              onDragStart={(event) => onVariableCardDragStart(event, item)}
-                                              onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                                              disabled={!isDraft}
-                                            >
-                                              <div className="font-mono text-[11px] truncate">{fieldName}</div>
-                                            </button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="right">
-                                            <p className="font-mono font-semibold text-[11px]">{item.label}</p>
-                                            {item.hint && <p className="text-[10px] opacity-80">{item.hint}</p>}
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {filteredGroups.length === 0 && (
-                            <p className="text-xs text-muted-foreground py-1">Sin resultados</p>
-                          )}
-                        </div>
-                      </TooltipProvider>
-                    </>
-                  );
-                })()}
               </div>
 
+              {/* === Blocks (collapsible, visual mode only) === */}
+              {editorMode === "visual" && (
+                <>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 mt-4 mb-2 w-full text-left"
+                    onClick={() => setBlocksOpen((prev) => !prev)}
+                  >
+                    {blocksOpen ? (
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    )}
+                    <h4 className="text-xs font-semibold text-muted-foreground">Bloques</h4>
+                  </button>
+                  {blocksOpen && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("text")}
+                        className="h-8"
+                      >
+                        <Type className="h-3.5 w-3.5 mr-1" /> Texto
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("button")}
+                        className="h-8"
+                      >
+                        Botón
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("image")}
+                        className="h-8"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5 mr-1" /> Imagen
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("divider")}
+                        className="h-8"
+                      >
+                        <Minus className="h-3.5 w-3.5 mr-1" /> Divider
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("spacer")}
+                        className="h-8 col-span-2"
+                      >
+                        <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* === Injectors (grouped, collapsible, searchable) === */}
+              {injectorVariableTokens.length > 0 && (() => {
+                const searchLower = injectorSearch.toLowerCase();
+                const grouped = injectorVariableTokens.reduce<Record<string, TemplateVariable[]>>((acc, item) => {
+                  const injectorName = item.label.split(".")[0];
+                  if (!acc[injectorName]) acc[injectorName] = [];
+                  acc[injectorName].push(item);
+                  return acc;
+                }, {});
+                const filteredGroups = Object.entries(grouped)
+                  .map(([name, items]) => {
+                    if (!searchLower) return { name, items };
+                    const filtered = items.filter(
+                      (item) =>
+                        item.label.toLowerCase().includes(searchLower) ||
+                        item.token.toLowerCase().includes(searchLower)
+                    );
+                    if (filtered.length > 0) return { name, items: filtered };
+                    if (name.toLowerCase().includes(searchLower)) return { name, items };
+                    return null;
+                  })
+                  .filter(Boolean) as { name: string; items: TemplateVariable[] }[];
+
+                return (
+                  <>
+                    <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Injectors</h4>
+                    <div className="relative mb-2">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <Input
+                        value={injectorSearch}
+                        onChange={(e) => setInjectorSearch(e.target.value)}
+                        placeholder="Buscar..."
+                        className="h-7 pl-7 text-xs"
+                      />
+                    </div>
+                    <TooltipProvider>
+                      <div className="space-y-1">
+                        {filteredGroups.map(({ name, items }) => {
+                          const isOpen = injectorSearch ? true : (injectorGroupsOpen[name] ?? false);
+                          return (
+                            <div key={name}>
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 w-full text-left py-1"
+                                onClick={() =>
+                                  setInjectorGroupsOpen((prev) => ({
+                                    ...prev,
+                                    [name]: !(prev[name] ?? false),
+                                  }))
+                                }
+                              >
+                                {isOpen ? (
+                                  <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                                <span className="font-mono text-[11px] font-medium truncate">{name}</span>
+                                <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{items.length}</span>
+                              </button>
+                              {isOpen && (
+                                <div className="space-y-1.5 pl-4 mt-1">
+                                  {items.map((item) => {
+                                    const fieldName = item.label.split(".").slice(1).join(".");
+                                    return (
+                                      <Tooltip key={item.id}>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                                            draggable={editorMode === "visual"}
+                                            onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
+                                            onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                                            disabled={!isDraft}
+                                          >
+                                            <div className="font-mono text-[11px] truncate">{fieldName}</div>
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right">
+                                          <p className="font-mono font-semibold text-[11px]">{item.label}</p>
+                                          {item.hint && <p className="text-[10px] opacity-80">{item.hint}</p>}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {filteredGroups.length === 0 && (
+                          <p className="text-xs text-muted-foreground py-1">Sin resultados</p>
+                        )}
+                      </div>
+                    </TooltipProvider>
+                  </>
+                );
+              })()}
+            </div>
+
+            {editorMode === "visual" ? (
               <div className="flex-1 overflow-auto p-4">
                 {builderDocument ? (
                   <div className="space-y-2">
@@ -2891,7 +2957,24 @@ export function MjmlEditor() {
                               ) : null}
                             </div>
 
-                            {(block.type === "text" || block.type === "button") && (
+                            {block.type === "text" && (
+                              <TextBlockEditor
+                                ref={(handle) => {
+                                  if (handle) {
+                                    textBlockEditorRefs.current[block.id] = handle;
+                                  } else {
+                                    delete textBlockEditorRefs.current[block.id];
+                                  }
+                                }}
+                                content={block.content}
+                                onChange={(html, newAlign) => updateTextBlock(block.id, html, newAlign)}
+                                align={block.align}
+                                disabled={!isDraft}
+                                onFocus={() => setSelectedBlockId(block.id)}
+                              />
+                            )}
+
+                            {block.type === "button" && (
                               <>
                                 <Label className="text-xs">Contenido</Label>
                                 <div className="mt-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
@@ -3032,18 +3115,18 @@ export function MjmlEditor() {
                   </div>
                 ) : null}
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-1 min-h-0">
-              <div className="flex-1 border-b">
-                <MonacoEditorWrapper
-                  value={codeMjml}
-                  onChange={handleCodeChange}
-                  readOnly={!isDraft}
-                />
+            ) : (
+              <div className="relative flex-1 min-w-0">
+                <div className="absolute inset-0">
+                  <MonacoEditorWrapper
+                    value={codeMjml}
+                    onChange={handleCodeChange}
+                    readOnly={!isDraft}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="border-t bg-card p-4 shrink-0">
             <h4 className="text-sm font-semibold mb-3">Metadata</h4>
@@ -3100,12 +3183,13 @@ export function MjmlEditor() {
         {/* Right panel */}
         <div
           ref={previewPanelWrapRef}
-          className="relative flex shrink-0 min-w-0"
+          className="relative flex min-w-0"
           style={{
-            width:
+            flex:
               previewSplitMode === "ratio"
-                ? `calc(50% + ${PANEL_RESIZER_WIDTH / 2}px)`
-                : `${previewPanelWidthPx + PANEL_RESIZER_WIDTH}px`,
+                ? "1 1 0%"
+                : `0 1 ${previewPanelWidthPx + PANEL_RESIZER_WIDTH}px`,
+            minWidth: MIN_PANEL_WIDTH,
           }}
         >
           <button
