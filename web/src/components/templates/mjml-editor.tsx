@@ -37,6 +37,8 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Search,
   Play,
   List,
@@ -98,6 +100,7 @@ type BuilderSegment =
 
 type BuilderTextBlock = {
   id: string;
+  label?: string;
   type: "text";
   content: string;
   align: "left" | "center" | "right" | "justify";
@@ -105,6 +108,7 @@ type BuilderTextBlock = {
 
 type BuilderButtonBlock = {
   id: string;
+  label?: string;
   type: "button";
   segments: BuilderSegment[];
   href: string;
@@ -113,6 +117,7 @@ type BuilderButtonBlock = {
 
 type BuilderImageBlock = {
   id: string;
+  label?: string;
   type: "image";
   src: string;
   alt?: string;
@@ -122,17 +127,20 @@ type BuilderImageBlock = {
 
 type BuilderDividerBlock = {
   id: string;
+  label?: string;
   type: "divider";
 };
 
 type BuilderSpacerBlock = {
   id: string;
+  label?: string;
   type: "spacer";
   height: number;
 };
 
 type BuilderBannerBlock = {
   id: string;
+  label?: string;
   type: "banner";
   backgroundUrl: string;
   backgroundColor: string;
@@ -149,6 +157,7 @@ type BuilderBannerBlock = {
 
 type BuilderVideoBlock = {
   id: string;
+  label?: string;
   type: "video";
   videoUrl: string;
   thumbnailUrl: string;
@@ -165,6 +174,7 @@ type ListItem = {
 
 type BuilderListBlock = {
   id: string;
+  label?: string;
   type: "list";
   listType: "bullet" | "number" | "letter-upper" | "letter-lower" | "roman";
   items: ListItem[];
@@ -184,6 +194,17 @@ type BuilderBlock =
 type BuilderDocument = {
   version: number;
   blocks: BuilderBlock[];
+};
+
+const defaultBlockLabel: Record<BuilderBlockType, string> = {
+  text: "Text",
+  button: "Button",
+  image: "Image",
+  divider: "Divider",
+  spacer: "Spacer",
+  banner: "Banner",
+  video: "Video",
+  list: "List",
 };
 
 type EditorMode = "visual" | "code";
@@ -882,6 +903,10 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
       if (!isRecord(item)) return null;
       const id =
         typeof item.id === "string" && item.id.trim() ? item.id : nowId();
+      const label =
+        typeof (item as { label?: unknown }).label === "string" && (item as { label?: string }).label!.trim()
+          ? (item as { label: string }).label
+          : undefined;
       const alignRaw = (item as { align?: unknown }).align;
       const alignFull: "left" | "center" | "right" | "justify" =
         alignRaw === "left" || alignRaw === "center" || alignRaw === "right" || alignRaw === "justify"
@@ -896,6 +921,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
         if (typeof (item as { content?: unknown }).content === "string") {
           return {
             id,
+            label,
             type: "text",
             content: (item as { content: string }).content,
             align: alignFull,
@@ -923,6 +949,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
             .join("");
           return {
             id,
+            label,
             type: "text",
             content: html ? `<p>${html}</p>` : "",
             align: alignFull,
@@ -931,6 +958,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
 
         return {
           id,
+          label,
           type: "text",
           content: "",
           align: alignFull,
@@ -983,6 +1011,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
             typeof item.href === "string" && item.href.trim() ? item.href : "#";
           return {
             id,
+            label,
             type: "button",
             segments: uniqueSegments.length
               ? uniqueSegments
@@ -999,6 +1028,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
         const href = typeof item.href === "string" ? item.href : "#";
         return {
           id,
+          label,
           type: "button",
           segments: ensureUniqueSegmentIds(parseContentToSegments(legacyContent)),
           href,
@@ -1013,22 +1043,23 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
           typeof item.width === "string" && item.width.trim()
             ? item.width
             : undefined;
-        return { id, type: "image", src, alt, width, align };
+        return { id, label, type: "image", src, alt, width, align };
       }
       if (item.type === "divider") {
-        return { id, type: "divider" };
+        return { id, label, type: "divider" };
       }
       if (item.type === "spacer") {
         const height = normalizeSpacerHeight(
           (item as { height?: unknown }).height,
           20
         );
-        return { id, type: "spacer", height };
+        return { id, label, type: "spacer", height };
       }
       if (item.type === "banner") {
         const raw = item as Record<string, unknown>;
         return {
           id,
+          label,
           type: "banner",
           backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
           backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#333333",
@@ -1066,6 +1097,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
         const raw = item as Record<string, unknown>;
         return {
           id,
+          label,
           type: "video",
           videoUrl: typeof raw.videoUrl === "string" ? raw.videoUrl : "",
           thumbnailUrl: typeof raw.thumbnailUrl === "string" ? raw.thumbnailUrl : "",
@@ -1114,6 +1146,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
 
         return {
           id,
+          label,
           type: "list",
           listType,
           items: (() => {
@@ -1667,6 +1700,7 @@ export function MjmlEditor() {
   );
   const [codeOverride, setCodeOverride] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [previewSplitMode, setPreviewSplitMode] =
     useState<PreviewSplitMode>("ratio");
   const [previewPanelWidthPx, setPreviewPanelWidthPx] = useState<number>(
@@ -2275,6 +2309,35 @@ export function MjmlEditor() {
       case "workspace":
         return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`;
     }
+  }
+
+  function toggleBlockCollapsed(blockId: string) {
+    setCollapsedBlocks((prev) => ({ ...prev, [blockId]: !prev[blockId] }));
+  }
+
+  function collapseAllBlocks() {
+    if (!builderDocument) return;
+    const next: Record<string, boolean> = {};
+    for (const b of builderDocument.blocks) next[b.id] = true;
+    setCollapsedBlocks(next);
+  }
+
+  function expandAllBlocks() {
+    setCollapsedBlocks({});
+  }
+
+  function updateBlockLabel(blockId: string, label: string) {
+    if (!builderDocument) return;
+    const trimmed = label.trim();
+    const block = builderDocument.blocks.find((b) => b.id === blockId);
+    if (!block) return;
+    const isDefault = !trimmed || trimmed === defaultBlockLabel[block.type];
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((b) =>
+        b.id === blockId ? { ...b, label: isDefault ? undefined : trimmed } : b
+      ),
+    });
   }
 
   function addBlock(type: BuilderBlockType) {
@@ -3590,6 +3653,28 @@ export function MjmlEditor() {
 
             {editorMode === "visual" ? (
               <div className="flex-1 overflow-auto p-4">
+                {builderDocument && builderDocument.blocks.length > 0 && (
+                  <div className="flex justify-end gap-1 mb-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+                      onClick={expandAllBlocks}
+                      title="Expand all"
+                    >
+                      <ChevronsUpDown className="h-3 w-3" />
+                      Expand
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+                      onClick={collapseAllBlocks}
+                      title="Collapse all"
+                    >
+                      <ChevronsDownUp className="h-3 w-3" />
+                      Collapse
+                    </button>
+                  </div>
+                )}
                 {builderDocument ? (
                   <div className="space-y-2">
                     {builderDocument.blocks.map((block, index) => {
@@ -3665,11 +3750,26 @@ export function MjmlEditor() {
                             }}
                             onClick={() => setSelectedBlockId(block.id)}
                           >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 flex-1">
                                 <button
                                   type="button"
-                                  className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted cursor-grab active:cursor-grabbing"
+                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleBlockCollapsed(block.id);
+                                  }}
+                                  title={collapsedBlocks[block.id] ? "Expand block" : "Collapse block"}
+                                >
+                                  {collapsedBlocks[block.id] ? (
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted cursor-grab active:cursor-grabbing"
                                   draggable={isDraft}
                                   onDragStart={(event) =>
                                     onBlockHandleDragStart(event, block.id)
@@ -3680,13 +3780,28 @@ export function MjmlEditor() {
                                 >
                                   <GripVertical className="h-3.5 w-3.5" />
                                 </button>
-                                {block.type}
+                                <input
+                                  key={block.id}
+                                  type="text"
+                                  className="bg-transparent border-none outline-none text-xs text-muted-foreground min-w-0 flex-1 px-0.5 rounded hover:bg-muted/50 focus:bg-muted/50 focus:text-foreground"
+                                  defaultValue={block.label || defaultBlockLabel[block.type]}
+                                  onBlur={(ev) => updateBlockLabel(block.id, ev.target.value)}
+                                  onKeyDown={(ev) => {
+                                    if (ev.key === "Enter") ev.currentTarget.blur();
+                                    if (ev.key === "Escape") {
+                                      ev.currentTarget.value = block.label || defaultBlockLabel[block.type];
+                                      ev.currentTarget.blur();
+                                    }
+                                  }}
+                                  onClick={(ev) => ev.stopPropagation()}
+                                  readOnly={!isDraft}
+                                />
                               </div>
                               {isDraft ? (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 px-2"
+                                  className="h-7 px-2 shrink-0"
                                   onClick={() => removeBlock(block.id)}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -3694,6 +3809,7 @@ export function MjmlEditor() {
                               ) : null}
                             </div>
 
+                            {!collapsedBlocks[block.id] && (<>
                             {block.type === "text" && (
                               <TextBlockEditor
                                 ref={(handle) => {
@@ -4199,6 +4315,7 @@ export function MjmlEditor() {
                                 </div>
                               </div>
                             )}
+                            </>)}
                           </div>
                         </div>
                       );
