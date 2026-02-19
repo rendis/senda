@@ -43,6 +43,10 @@ import { cn } from "@/lib/utils";
 
 const VARIABLE_DND_MIME = "application/x-senda-variable";
 
+const DEFAULT_FONT_FAMILY = "Arial, sans-serif";
+const DEFAULT_FONT_SIZE = "14";
+const DEFAULT_COLOR = "#000000";
+
 const FONT_SIZES = ["12", "14", "16", "18", "20", "24", "28", "32", "36", "48"];
 
 const EMAIL_SAFE_FONTS = [
@@ -126,6 +130,14 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
     immediatelyRender: false,
     content,
     editable: !disabled,
+    onCreate: ({ editor }) => {
+      if (editor.isEmpty) {
+        editor.chain()
+          .setFontFamily(DEFAULT_FONT_FAMILY)
+          .setFontSize(`${DEFAULT_FONT_SIZE}px`)
+          .run();
+      }
+    },
     onUpdate: ({ editor }) => {
       isInternalUpdate.current = true;
       onChange(editor.getHTML());
@@ -222,9 +234,9 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
   if (!editor) return null;
 
   const ts = editor.getAttributes("textStyle");
-  const currentFontFamily = ts?.fontFamily || "";
-  const currentFontSize = ts?.fontSize ? String(parseInt(ts.fontSize)) : "";
-  const currentColor = ts?.color || "#000000";
+  const currentFontFamily = ts?.fontFamily || DEFAULT_FONT_FAMILY;
+  const currentFontSize = ts?.fontSize ? String(parseInt(ts.fontSize)) : DEFAULT_FONT_SIZE;
+  const currentColor = ts?.color || DEFAULT_COLOR;
   const currentAlign: TextBlockAlign =
     editor.isActive({ textAlign: "center" }) ? "center"
     : editor.isActive({ textAlign: "right" }) ? "right"
@@ -479,7 +491,7 @@ function ToolbarButton({
           type="button"
           className={cn(
             "inline-flex h-7 w-7 items-center justify-center rounded-sm text-sm hover:bg-accent",
-            active && "bg-accent text-accent-foreground",
+            active && "bg-primary/15 text-primary",
           )}
           onMouseDown={(e) => {
             e.preventDefault();
