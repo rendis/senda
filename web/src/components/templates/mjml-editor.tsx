@@ -34,6 +34,9 @@ import {
   Minus,
   Grip,
   Plus,
+  ChevronDown,
+  ChevronRight,
+  Search,
 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
@@ -51,6 +54,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import type { CreateTemplateVersionRequest } from "@/types/templates";
 import type { InjectorDefinition, InjectorWithValues } from "@/types/injectors";
@@ -1242,6 +1251,9 @@ export function MjmlEditor() {
   const [injectorVariableTokens, setInjectorVariableTokens] = useState<
     TemplateVariable[]
   >([]);
+  const [blocksOpen, setBlocksOpen] = useState(true);
+  const [injectorGroupsOpen, setInjectorGroupsOpen] = useState<Record<string, boolean>>({});
+  const [injectorSearch, setInjectorSearch] = useState("");
 
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const [previewHtml, setPreviewHtml] = useState("");
@@ -2584,11 +2596,11 @@ export function MjmlEditor() {
           {editorMode === "visual" ? (
             <div className="flex h-full">
               <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r p-3 overflow-auto bg-muted/20`}>
+                {/* === Variables (event) === */}
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-semibold text-muted-foreground">Variables</h4>
                   <MousePointer className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
-
                 <div className="mt-3 space-y-2">
                   {templateVariables.length > 0 ? (
                     templateVariables
@@ -2603,10 +2615,7 @@ export function MjmlEditor() {
                           onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
                           disabled={!isDraft}
                         >
-                          <div className="font-mono text-[11px] truncate flex items-center">
-                            <Plus className="h-3 w-3 mr-1.5 text-muted-foreground" />
-                            {item.label}
-                          </div>
+                          <div className="font-mono text-[11px] truncate">{item.label}</div>
                           <div className="text-muted-foreground text-[10px]">{item.hint}</div>
                         </button>
                       ))
@@ -2615,79 +2624,166 @@ export function MjmlEditor() {
                   )}
                 </div>
 
-                {injectorVariableTokens.length > 0 ? (
-                  <>
-                    <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Injectors</h4>
-                    <div className="space-y-2">
-                      {injectorVariableTokens.map((item) => (
-                        <button
-                          type="button"
-                          key={item.id}
-                          className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                          draggable
-                          onDragStart={(event) => onVariableCardDragStart(event, item)}
-                          onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                          disabled={!isDraft}
-                        >
-                          <div className="font-mono text-[11px] truncate flex items-center">
-                            <Plus className="h-3 w-3 mr-1.5 text-muted-foreground" />
-                            {item.label}
-                          </div>
-                          <div className="text-muted-foreground text-[10px]">{item.hint}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : null}
+                {/* === Blocks (collapsible) === */}
+                <button
+                  type="button"
+                  className="flex items-center gap-1 mt-4 mb-2 w-full text-left"
+                  onClick={() => setBlocksOpen((prev) => !prev)}
+                >
+                  {blocksOpen ? (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                  <h4 className="text-xs font-semibold text-muted-foreground">Bloques</h4>
+                </button>
+                {blocksOpen && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!isDraft}
+                      onClick={() => addBlock("text")}
+                      className="h-8"
+                    >
+                      <Type className="h-3.5 w-3.5 mr-1" /> Texto
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!isDraft}
+                      onClick={() => addBlock("button")}
+                      className="h-8"
+                    >
+                      Botón
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!isDraft}
+                      onClick={() => addBlock("image")}
+                      className="h-8"
+                    >
+                      <ImageIcon className="h-3.5 w-3.5 mr-1" /> Imagen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!isDraft}
+                      onClick={() => addBlock("divider")}
+                      className="h-8"
+                    >
+                      <Minus className="h-3.5 w-3.5 mr-1" /> Divider
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!isDraft}
+                      onClick={() => addBlock("spacer")}
+                      className="h-8 col-span-2"
+                    >
+                      <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
+                    </Button>
+                  </div>
+                )}
 
-                <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Bloques</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!isDraft}
-                    onClick={() => addBlock("text")}
-                    className="h-8"
-                  >
-                    <Type className="h-3.5 w-3.5 mr-1" /> Texto
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!isDraft}
-                    onClick={() => addBlock("button")}
-                    className="h-8"
-                  >
-                    Botón
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!isDraft}
-                    onClick={() => addBlock("image")}
-                    className="h-8"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 mr-1" /> Imagen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!isDraft}
-                    onClick={() => addBlock("divider")}
-                    className="h-8"
-                  >
-                    <Minus className="h-3.5 w-3.5 mr-1" /> Divider
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!isDraft}
-                    onClick={() => addBlock("spacer")}
-                    className="h-8 col-span-2"
-                  >
-                    <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
-                  </Button>
-                </div>
+                {/* === Injectors (grouped, collapsible, searchable) === */}
+                {injectorVariableTokens.length > 0 && (() => {
+                  const searchLower = injectorSearch.toLowerCase();
+                  const grouped = injectorVariableTokens.reduce<Record<string, TemplateVariable[]>>((acc, item) => {
+                    const injectorName = item.label.split(".")[0];
+                    if (!acc[injectorName]) acc[injectorName] = [];
+                    acc[injectorName].push(item);
+                    return acc;
+                  }, {});
+                  const filteredGroups = Object.entries(grouped)
+                    .map(([name, items]) => {
+                      if (!searchLower) return { name, items };
+                      const filtered = items.filter(
+                        (item) =>
+                          item.label.toLowerCase().includes(searchLower) ||
+                          item.token.toLowerCase().includes(searchLower)
+                      );
+                      if (filtered.length > 0) return { name, items: filtered };
+                      if (name.toLowerCase().includes(searchLower)) return { name, items };
+                      return null;
+                    })
+                    .filter(Boolean) as { name: string; items: TemplateVariable[] }[];
+
+                  return (
+                    <>
+                      <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Injectors</h4>
+                      <div className="relative mb-2">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                        <Input
+                          value={injectorSearch}
+                          onChange={(e) => setInjectorSearch(e.target.value)}
+                          placeholder="Buscar..."
+                          className="h-7 pl-7 text-xs"
+                        />
+                      </div>
+                      <TooltipProvider>
+                        <div className="space-y-1">
+                          {filteredGroups.map(({ name, items }) => {
+                            const isOpen = injectorSearch ? true : (injectorGroupsOpen[name] ?? false);
+                            return (
+                              <div key={name}>
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 w-full text-left py-1"
+                                  onClick={() =>
+                                    setInjectorGroupsOpen((prev) => ({
+                                      ...prev,
+                                      [name]: !(prev[name] ?? false),
+                                    }))
+                                  }
+                                >
+                                  {isOpen ? (
+                                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  )}
+                                  <span className="font-mono text-[11px] font-medium truncate">{name}</span>
+                                  <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{items.length}</span>
+                                </button>
+                                {isOpen && (
+                                  <div className="space-y-1.5 pl-4 mt-1">
+                                    {items.map((item) => {
+                                      const fieldName = item.label.split(".").slice(1).join(".");
+                                      return (
+                                        <Tooltip key={item.id}>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                                              draggable
+                                              onDragStart={(event) => onVariableCardDragStart(event, item)}
+                                              onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                                              disabled={!isDraft}
+                                            >
+                                              <div className="font-mono text-[11px] truncate">{fieldName}</div>
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="right">
+                                            <p className="font-mono font-semibold text-[11px]">{item.label}</p>
+                                            {item.hint && <p className="text-[10px] opacity-80">{item.hint}</p>}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {filteredGroups.length === 0 && (
+                            <p className="text-xs text-muted-foreground py-1">Sin resultados</p>
+                          )}
+                        </div>
+                      </TooltipProvider>
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="flex-1 overflow-auto p-4">
