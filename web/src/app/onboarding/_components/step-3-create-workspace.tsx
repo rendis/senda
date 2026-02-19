@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,6 +35,7 @@ export function Step3CreateWorkspace({
   tenantCode,
   onSuccess,
 }: Step3CreateWorkspaceProps) {
+  const t = useTranslations("onboarding.createWorkspace");
   const [submitting, setSubmitting] = useState(false);
   const codeManuallyEdited = useRef(false);
 
@@ -61,7 +63,7 @@ export function Step3CreateWorkspace({
           json: { code: values.code, name: values.name },
         })
         .json();
-      toast.success("Workspace creado exitosamente");
+      toast.success(t("successToast"));
       onSuccess(values.code, tenantCode);
     } catch (error) {
       if (error instanceof HTTPError && error.response.status === 409) {
@@ -79,7 +81,7 @@ export function Step3CreateWorkspace({
           }
         }
       } else {
-        toast.error(apiError.error.message || "Error al crear el workspace");
+        toast.error(apiError.error.message || t("errorToast"));
       }
     } finally {
       setSubmitting(false);
@@ -90,11 +92,10 @@ export function Step3CreateWorkspace({
     <>
       <div className="flex flex-col items-center gap-2">
         <h1 className="text-[22px] font-bold text-foreground">
-          Paso 3: Crear primer Workspace
+          {t("title")}
         </h1>
         <p className="w-[380px] text-center text-sm leading-relaxed text-muted-foreground">
-          Un workspace es tu espacio de trabajo donde gestionas templates,
-          injectors y envíos.
+          {t("subtitle")}
         </p>
       </div>
 
@@ -111,11 +112,11 @@ export function Step3CreateWorkspace({
               htmlFor="workspace-name"
               className="text-[13px] font-medium"
             >
-              Nombre del Workspace
+              {t("nameLabel")}
             </Label>
             <Input
               id="workspace-name"
-              placeholder="Producción"
+              placeholder={t("namePlaceholder")}
               {...form.register("name")}
             />
             {form.formState.errors.name && (
@@ -130,11 +131,11 @@ export function Step3CreateWorkspace({
               htmlFor="workspace-code"
               className="text-[13px] font-medium"
             >
-              Código (slug)
+              {t("workspaceCode")}
             </Label>
             <Input
               id="workspace-code"
-              placeholder="produccion"
+              placeholder={t("workspaceCodePlaceholder")}
               {...form.register("code", {
                 onChange: () => {
                   codeManuallyEdited.current = true;
@@ -159,7 +160,7 @@ export function Step3CreateWorkspace({
           ) : (
             <LayoutGrid className="h-4 w-4" />
           )}
-          Crear Workspace
+          {submitting ? t("creating") : t("create")}
         </Button>
       </form>
     </>

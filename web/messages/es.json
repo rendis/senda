@@ -101,28 +101,32 @@
   "onboarding": {
     "welcome": {
       "title": "Bienvenido a Senda",
-      "subtitle": "Configura tu plataforma de email en 3 simples pasos.",
-      "connectOidc": "Conectar con tu proveedor OIDC"
+      "subtitle": "Vamos a configurarte. Primero, conecta tu proveedor de identidad.",
+      "connectOidc": "Conectar proveedor OIDC"
     },
     "createTenant": {
-      "title": "Paso 2: Crear primer Tenant",
-      "subtitle": "Un tenant agrupa workspaces y configuraciones de tu organización.",
-      "tenantName": "Nombre del Tenant",
-      "tenantNamePlaceholder": "Mi Organización",
+      "title": "Crea tu organización",
+      "subtitle": "Una organización agrupa tus workspaces y miembros.",
+      "namePlaceholder": "Mi Organización",
+      "nameLabel": "Nombre de la organización",
+      "create": "Crear organización",
+      "creating": "Creando...",
+      "back": "Atrás",
       "tenantCode": "Código (slug)",
       "tenantCodePlaceholder": "mi-organizacion",
-      "submit": "Crear Tenant",
       "successToast": "Tenant creado exitosamente",
       "errorToast": "Error al crear el tenant"
     },
     "createWorkspace": {
-      "title": "Paso 3: Crear primer Workspace",
-      "subtitle": "Un workspace es tu espacio de trabajo donde gestionas templates, injectors y envíos.",
-      "workspaceName": "Nombre del Workspace",
-      "workspaceNamePlaceholder": "Producción",
+      "title": "Crea tu primer workspace",
+      "subtitle": "Un workspace es donde gestionas emails, plantillas y más.",
+      "namePlaceholder": "Mi Workspace",
+      "nameLabel": "Nombre del workspace",
+      "create": "Crear workspace",
+      "creating": "Creando...",
+      "back": "Atrás",
       "workspaceCode": "Código (slug)",
-      "workspaceCodePlaceholder": "produccion",
-      "submit": "Crear Workspace",
+      "workspaceCodePlaceholder": "mi-workspace",
       "successToast": "Workspace creado exitosamente",
       "errorToast": "Error al crear el workspace"
     }

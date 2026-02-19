@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,6 +34,7 @@ export function Step2CreateTenant({
   idToken,
   onSuccess,
 }: Step2CreateTenantProps) {
+  const t = useTranslations("onboarding.createTenant");
   const [submitting, setSubmitting] = useState(false);
   const codeManuallyEdited = useRef(false);
 
@@ -60,7 +62,7 @@ export function Step2CreateTenant({
           json: { tenant_code: values.code, tenant_name: values.name },
         })
         .json<OnboardingSetupResponse>();
-      toast.success("Tenant creado exitosamente");
+      toast.success(t("successToast"));
       onSuccess(values.code);
     } catch (error) {
       if (error instanceof HTTPError && error.response.status === 409) {
@@ -78,7 +80,7 @@ export function Step2CreateTenant({
           }
         }
       } else {
-        toast.error(apiError.error.message || "Error al crear el tenant");
+        toast.error(apiError.error.message || t("errorToast"));
       }
     } finally {
       setSubmitting(false);
@@ -89,10 +91,10 @@ export function Step2CreateTenant({
     <>
       <div className="flex flex-col items-center gap-2">
         <h1 className="text-[22px] font-bold text-foreground">
-          Paso 2: Crear primer Tenant
+          {t("title")}
         </h1>
         <p className="w-[380px] text-center text-sm leading-relaxed text-muted-foreground">
-          Un tenant agrupa workspaces y configuraciones de tu organización.
+          {t("subtitle")}
         </p>
       </div>
 
@@ -106,11 +108,11 @@ export function Step2CreateTenant({
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="tenant-name" className="text-[13px] font-medium">
-              Nombre del Tenant
+              {t("nameLabel")}
             </Label>
             <Input
               id="tenant-name"
-              placeholder="Mi Organización"
+              placeholder={t("namePlaceholder")}
               {...form.register("name")}
             />
             {form.formState.errors.name && (
@@ -122,11 +124,11 @@ export function Step2CreateTenant({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="tenant-code" className="text-[13px] font-medium">
-              Código (slug)
+              {t("tenantCode")}
             </Label>
             <Input
               id="tenant-code"
-              placeholder="mi-organizacion"
+              placeholder={t("tenantCodePlaceholder")}
               {...form.register("code", {
                 onChange: () => {
                   codeManuallyEdited.current = true;
@@ -151,7 +153,7 @@ export function Step2CreateTenant({
           ) : (
             <Building className="h-4 w-4" />
           )}
-          Crear Tenant
+          {submitting ? t("creating") : t("create")}
         </Button>
       </form>
     </>
