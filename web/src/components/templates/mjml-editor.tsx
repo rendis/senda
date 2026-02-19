@@ -43,6 +43,7 @@ import {
   Play,
   List,
   LayoutTemplate,
+  X,
 } from "lucide-react";
 import { TextBlockEditor, type TextBlockEditorHandle } from "./text-block-editor";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
@@ -51,6 +52,10 @@ import {
   useSaveTemplateVersion,
   usePublishVersion,
   usePreviewMjml,
+  useTemplateVersionLocales,
+  useTemplateLocale,
+  useSaveTemplateLocale,
+  useDeleteTemplateLocale,
 } from "@/hooks/use-template-version";
 import { useTemplateType } from "@/hooks/use-template-types";
 import { useInjectorList } from "@/hooks/use-injectors";
@@ -69,6 +74,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { CreateTemplateVersionRequest } from "@/types/templates";
@@ -1694,7 +1704,20 @@ export function MjmlEditor() {
   const [previewFrameUrl, setPreviewFrameUrl] = useState("");
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showTestSend, setShowTestSend] = useState(false);
-  const [activeLocale, setActiveLocale] = useState("default");
+  const [activeLocale, setActiveLocale] = useState<string>("default");
+  const activeLocaleRef = useRef(activeLocale);
+  useEffect(() => { activeLocaleRef.current = activeLocale; }, [activeLocale]);
+  const [addLocaleOpen, setAddLocaleOpen] = useState(false);
+  const localeListQuery = useTemplateVersionLocales(scopedPath, templateId, versionId);
+  const existingLocales = localeListQuery.data ?? [];
+  const localeContentQuery = useTemplateLocale(
+    scopedPath,
+    templateId,
+    versionId,
+    activeLocale === "default" ? "" : activeLocale
+  );
+  const saveLocaleMutation = useSaveTemplateLocale(scopedPath, templateId, versionId);
+  const deleteLocaleMutation = useDeleteTemplateLocale(scopedPath, templateId, versionId);
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(
     null
@@ -1739,6 +1762,7 @@ export function MjmlEditor() {
   const {
     register,
     getValues,
+    reset,
     formState: { errors },
   } = useForm<MetadataForm>({
     resolver: zodResolver(metadataSchema),
@@ -1780,10 +1804,136 @@ export function MjmlEditor() {
           : {}),
       };
     },
-    saveFn: (data) => saveMutation.mutateAsync(data),
+    saveFn: (data) => {
+      if (activeLocaleRef.current === "default") {
+        return saveMutation.mutateAsync(data);
+      }
+      // Save to locale endpoint
+      return saveLocaleMutation.mutateAsync({
+        locale: activeLocaleRef.current,
+        subject: data.subject || undefined,
+        preview_text: data.preview_text || undefined,
+        from_name: data.from_name || undefined,
+        body_mjml: data.body_mjml,
+        ...(data.editor_data ? { editor_data: data.editor_data as Record<string, unknown> } : {}),
+      });
+    },
     enabled: isDraft,
     debounceMs: 2000,
   });
+
+  async function handleSwitchLocale(locale: string) {
+    if (locale === activeLocale) return;
+    // Flush pending save
+    await autoSave.save();
+    setActiveLocale(locale);
+    activeLocaleRef.current = locale;
+  }
+
+  useEffect(() => {
+    if (!version) return;
+
+    if (activeLocale === "default") {
+      // Restore default version content
+      const hasEditorData = Boolean(
+        version.editor_data && Object.keys(version.editor_data).length > 0
+      );
+      const parsed =
+        (hasEditorData
+          ? normalizeBuilderDocument(version.editor_data)
+          : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
+        normalizeBuilderDocument(version.editor_data);
+      if (parsed) setBuilderDocument(parsed);
+      const code = version.body_mjml ?? "";
+      setCodeOverride(code);
+      if (code) triggerPreview(code);
+      // Reset form to version values
+      reset({
+        subject: version.subject,
+        preview_text: version.preview_text ?? "",
+        from_name: version.from_name,
+        reply_to: version.reply_to ?? "",
+      });
+      return;
+    }
+
+    // Non-default locale
+    const localeData = localeContentQuery.data;
+    if (localeData) {
+      const hasEditorData = Boolean(
+        localeData.editor_data && Object.keys(localeData.editor_data as object).length > 0
+      );
+      const parsed = hasEditorData
+        ? normalizeBuilderDocument(localeData.editor_data)
+        : parseBuilderDocumentFromMjml(localeData.body_mjml ?? version.body_mjml ?? "");
+      if (parsed) setBuilderDocument(parsed);
+      const code = localeData.body_mjml ?? version.body_mjml ?? "";
+      setCodeOverride(code);
+      if (code) triggerPreview(code);
+      reset({
+        subject: localeData.subject ?? version.subject,
+        preview_text: localeData.preview_text ?? version.preview_text ?? "",
+        from_name: localeData.from_name ?? version.from_name,
+        reply_to: version.reply_to ?? "",
+      });
+    } else if (!localeContentQuery.isLoading) {
+      // 404 or first load - use default content as starting point
+      const hasEditorData = Boolean(
+        version.editor_data && Object.keys(version.editor_data).length > 0
+      );
+      const parsed =
+        (hasEditorData
+          ? normalizeBuilderDocument(version.editor_data)
+          : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
+        normalizeBuilderDocument(version.editor_data);
+      if (parsed) setBuilderDocument(parsed);
+      const code = version.body_mjml ?? "";
+      setCodeOverride(code);
+      if (code) triggerPreview(code);
+      reset({
+        subject: version.subject,
+        preview_text: version.preview_text ?? "",
+        from_name: version.from_name,
+        reply_to: version.reply_to ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLocale, localeContentQuery.data, localeContentQuery.isLoading]);
+
+  async function handleAddLocale(locale: string) {
+    setAddLocaleOpen(false);
+    const formData = getValues();
+    const bodyPayload =
+      editorMode === "visual"
+        ? builderDocument
+          ? buildTemplateMjml(builderDocument)
+          : codeOverride
+        : codeOverride;
+    try {
+      await saveLocaleMutation.mutateAsync({
+        locale,
+        subject: formData.subject || undefined,
+        preview_text: formData.preview_text || undefined,
+        from_name: formData.from_name || undefined,
+        body_mjml: bodyPayload,
+      });
+      await localeListQuery.refetch();
+      handleSwitchLocale(locale);
+    } catch {
+      toast.error(`Failed to create locale ${locale}`);
+    }
+  }
+
+  async function handleDeleteLocale(locale: string) {
+    try {
+      await deleteLocaleMutation.mutateAsync(locale);
+      if (activeLocale === locale) {
+        handleSwitchLocale("default");
+      }
+    } catch {
+      toast.error(`Failed to delete locale ${locale}`);
+    }
+  }
 
   const eventVariableTokens = useMemo<TemplateVariable[]>(() => {
     const raw = templateTypeQuery.data?.variable_schema;
@@ -3355,17 +3505,67 @@ export function MjmlEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center rounded-md border h-8 overflow-hidden">
+            <div className="flex items-center gap-1 rounded-md border bg-background h-8 px-1">
               <button
-                className={`px-2 h-full font-mono text-[11px] font-medium ${
+                type="button"
+                className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
                   activeLocale === "default"
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
-                onClick={() => setActiveLocale("default")}
+                onClick={() => handleSwitchLocale("default")}
               >
                 {version.default_locale}
               </button>
+
+              {existingLocales.map((loc) => (
+                <div key={loc.locale} className="relative group flex items-center">
+                  <button
+                    type="button"
+                    className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
+                      activeLocale === loc.locale
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                    onClick={() => handleSwitchLocale(loc.locale)}
+                  >
+                    {loc.locale}
+                  </button>
+                  {isDraft && (
+                    <button
+                      type="button"
+                      className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-destructive text-destructive-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteLocale(loc.locale);
+                      }}
+                      title={`Remove ${loc.locale}`}
+                    >
+                      <X className="h-2 w-2" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {isDraft && (
+                <Popover open={addLocaleOpen} onOpenChange={setAddLocaleOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-6 w-6 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-56 p-2">
+                    <AddLocalePopover
+                      existingLocales={[version.default_locale, ...existingLocales.map((l) => l.locale)]}
+                      onAdd={handleAddLocale}
+                      isAdding={saveLocaleMutation.isPending}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             <div className="flex items-center gap-1 rounded-md border bg-background">
@@ -4404,14 +4604,16 @@ export function MjmlEditor() {
                   </span>
                 )}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-medium">Reply-To</Label>
-                <Input
-                  {...register("reply_to")}
-                  className="h-8 text-sm"
-                  readOnly={!isDraft}
-                />
-              </div>
+              {activeLocale === "default" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs font-medium">Reply-To</Label>
+                  <Input
+                    {...register("reply_to")}
+                    className="h-8 text-sm"
+                    readOnly={!isDraft}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -4555,6 +4757,66 @@ function MonacoEditorWrapper({
       }}
       className="h-full"
     />
+  );
+}
+
+function AddLocalePopover({
+  existingLocales,
+  onAdd,
+  isAdding,
+}: {
+  existingLocales: string[];
+  onAdd: (locale: string) => void;
+  isAdding: boolean;
+}) {
+  const [input, setInput] = useState("");
+  const COMMON_LOCALES = [
+    "es", "fr", "de", "pt", "pt-BR", "it", "nl", "pl", "ru", "ja", "zh",
+    "zh-TW", "ko", "ar", "tr", "sv", "da", "fi", "nb", "cs", "ro", "hu",
+  ];
+  const available = COMMON_LOCALES.filter((l) => !existingLocales.includes(l));
+  const filtered = input.trim()
+    ? available.filter((l) => l.toLowerCase().startsWith(input.toLowerCase()))
+    : available;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Input
+        placeholder="e.g. es, pt-BR"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        className="h-7 text-xs font-mono"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && input.trim() && !existingLocales.includes(input.trim())) {
+            onAdd(input.trim());
+          }
+        }}
+        autoFocus
+      />
+      <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+        {filtered.map((l) => (
+          <button
+            key={l}
+            type="button"
+            disabled={isAdding}
+            className="px-1.5 py-0.5 rounded border text-[11px] font-mono text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
+            onClick={() => onAdd(l)}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      {input.trim() && !existingLocales.includes(input.trim()) && !COMMON_LOCALES.includes(input.trim()) && (
+        <button
+          type="button"
+          disabled={isAdding}
+          onClick={() => onAdd(input.trim())}
+          className="text-xs text-muted-foreground hover:text-foreground text-left"
+        >
+          Add &quot;{input.trim()}&quot; as custom locale
+        </button>
+      )}
+    </div>
   );
 }
 

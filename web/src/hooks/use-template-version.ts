@@ -183,6 +183,7 @@ export function useSaveTemplateLocale(
       preview_text?: string;
       from_name?: string;
       body_mjml?: string;
+      editor_data?: Record<string, unknown>;
     }) =>
       api
         .put(
@@ -193,6 +194,53 @@ export function useSaveTemplateLocale(
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["template-locale", scopedPath, templateId, versionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["template-locales", scopedPath, templateId, versionId],
+      });
+    },
+  });
+}
+
+export function useTemplateVersionLocales(
+  scopedPath: string,
+  templateId: string,
+  versionId: string
+) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return useQuery({
+    queryKey: ["template-locales", scopedPath, templateId, versionId],
+    queryFn: () =>
+      api
+        .get(
+          `${scopedPath}/templates/${templateId}/versions/${versionId}/locales`
+        )
+        .json<{ items: TemplateLocale[] }>()
+        .then((r) => r.items),
+    enabled: ready && !!templateId && !!versionId,
+  });
+}
+
+export function useDeleteTemplateLocale(
+  scopedPath: string,
+  templateId: string,
+  versionId: string
+) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (locale: string) =>
+      api
+        .delete(
+          `${scopedPath}/templates/${templateId}/versions/${versionId}/locales/${locale}`
+        )
+        .json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["template-locales", scopedPath, templateId, versionId],
       });
     },
   });
