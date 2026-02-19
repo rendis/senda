@@ -85,7 +85,8 @@
     "members": "Miembros",
     "apiKeys": "API Keys",
     "auditLog": "Registro de Auditoría",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "help": "Ayuda"
   },
   "login": {
     "title": "Senda",

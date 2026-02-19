@@ -1,42 +1,48 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Bell } from "lucide-react";
 
-const pathToTitle: Record<string, string> = {
-  "": "Dashboard",
-  "/emails": "Emails",
-  "/templates": "Templates",
-  "/injectors": "Injectors",
-  "/adapters": "Adapters",
-  "/domains": "Domains",
-  "/webhooks": "Webhooks",
-  "/members": "Members",
-  "/api-keys": "API Keys",
-  "/audit-log": "Audit Log",
-  "/settings": "Settings",
-};
+export function AppHeader() {
+  const pathname = usePathname();
+  const t = useTranslations("nav");
 
-function getPageTitle(pathname: string): string {
+  const pathToTitle: Record<string, string> = {
+    "": t("dashboard"),
+    "/emails": t("emails"),
+    "/templates": t("templates"),
+    "/injectors": t("injectors"),
+    "/adapters": t("adapters"),
+    "/domains": t("domains"),
+    "/webhooks": t("webhooks"),
+    "/members": t("members"),
+    "/api-keys": t("apiKeys"),
+    "/audit-log": t("auditLog"),
+    "/settings": t("settings"),
+  };
+
   // Strip scope prefix: /global, /t/[code], /t/[code]/w/[code]
   const stripped = pathname
     .replace(/^\/global/, "")
     .replace(/^\/t\/[^/]+(\/w\/[^/]+)?/, "");
 
   // Exact match first
-  if (stripped in pathToTitle) return pathToTitle[stripped];
+  let title = pathToTitle[stripped];
 
-  // Match by prefix (e.g. /emails/123 → "Emails")
-  for (const [key, title] of Object.entries(pathToTitle)) {
-    if (key && stripped.startsWith(key)) return title;
+  if (!title) {
+    // Match by prefix (e.g. /emails/123 → "Emails")
+    for (const [key, value] of Object.entries(pathToTitle)) {
+      if (key && stripped.startsWith(key)) {
+        title = value;
+        break;
+      }
+    }
   }
 
-  return "Dashboard";
-}
-
-export function AppHeader() {
-  const pathname = usePathname();
-  const title = getPageTitle(pathname);
+  if (!title) {
+    title = t("dashboard");
+  }
 
   return (
     <header className="flex items-center justify-between h-14 px-8 border-b bg-card">

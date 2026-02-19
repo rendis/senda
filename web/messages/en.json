@@ -85,7 +85,8 @@
     "members": "Members",
     "apiKeys": "API Keys",
     "auditLog": "Audit Log",
-    "settings": "Settings"
+    "settings": "Settings",
+    "help": "Help"
   },
   "login": {
     "title": "Senda",

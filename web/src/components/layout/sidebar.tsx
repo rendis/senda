@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Mail,
@@ -23,27 +24,15 @@ import {
 import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
+import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
-
-const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "" },
-  { label: "Emails", icon: Mail, href: "/emails" },
-  { label: "Templates", icon: FileText, href: "/templates" },
-  { label: "Injectors", icon: Database, href: "/injectors" },
-  { label: "Adapters", icon: Plug, href: "/adapters" },
-  { label: "Domains", icon: Globe, href: "/domains" },
-  { label: "Webhooks", icon: Webhook, href: "/webhooks" },
-  { label: "Members", icon: Users, href: "/members" },
-  { label: "API Keys", icon: Key, href: "/api-keys" },
-  { label: "Audit Log", icon: ScrollText, href: "/audit-log" },
-  { label: "Settings", icon: Settings, href: "/settings" },
-] as const;
 
 function getUserInitials(name?: string | null, email?: string | null): string {
   if (name) {
@@ -66,6 +55,21 @@ export function AppSidebar() {
   const { level, tenantCode, workspaceCode } = useScope();
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
+  const t = useTranslations("nav");
+
+  const navItems = [
+    { label: t("dashboard"), icon: LayoutDashboard, href: "" },
+    { label: t("emails"), icon: Mail, href: "/emails" },
+    { label: t("templates"), icon: FileText, href: "/templates" },
+    { label: t("injectors"), icon: Database, href: "/injectors" },
+    { label: t("adapters"), icon: Plug, href: "/adapters" },
+    { label: t("domains"), icon: Globe, href: "/domains" },
+    { label: t("webhooks"), icon: Webhook, href: "/webhooks" },
+    { label: t("members"), icon: Users, href: "/members" },
+    { label: t("apiKeys"), icon: Key, href: "/api-keys" },
+    { label: t("auditLog"), icon: ScrollText, href: "/audit-log" },
+    { label: t("settings"), icon: Settings, href: "/settings" },
+  ];
 
   // Build base path for current scope
   let basePath = "/global";
@@ -118,7 +122,7 @@ export function AppSidebar() {
 
             return (
               <Link
-                key={item.label}
+                key={item.href}
                 href={href}
                 className={cn(
                   "flex items-center gap-2.5 px-3 h-9 rounded-md text-[13px] transition-colors",
@@ -140,7 +144,7 @@ export function AppSidebar() {
         {/* Help */}
         <button className="flex items-center gap-2.5 px-3 h-9 rounded-md text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-white transition-colors">
           <CircleHelp className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>Help</span>}
+          {!collapsed && <span>{t("help")}</span>}
         </button>
 
         {/* Divider */}
@@ -176,6 +180,10 @@ export function AppSidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuItem asChild>
+                <LocaleSwitcher />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => signOut({ callbackUrl: "/login" })}
               >
