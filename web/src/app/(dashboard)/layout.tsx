@@ -61,7 +61,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-page">
       <AppSidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0">
         <AppHeader />
         <main className="flex-1">{children}</main>
       </div>
