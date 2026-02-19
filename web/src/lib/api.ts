@@ -14,16 +14,29 @@ export const api = ky.create({
   timeout: 30_000,
   hooks: {
     afterResponse: [
-      async (request, _options, response) => {
+      async (request, _options, response, state) => {
         if (
           response.status === 401 &&
           typeof window !== "undefined" &&
           request.headers.has("Authorization") &&
           !signingOut
         ) {
-          // Token expired or invalid — clear the Auth.js session before
-          // redirecting so the login page doesn't auto-redirect back
-          // (which would cause an infinite loop).
+          // First 401 — attempt silent token refresh via next-auth session.
+          if (state.retryCount === 0) {
+            const { getSession } = await import("next-auth/react");
+            const session = await getSession();
+
+            if (session?.idToken && !session.error) {
+              const headers = new Headers(request.headers);
+              headers.set("Authorization", `Bearer ${session.idToken}`);
+              return ky.retry({
+                request: new Request(request, { headers }),
+                code: "TOKEN_REFRESHED",
+              });
+            }
+          }
+
+          // Refresh failed or retry also returned 401 — sign out.
           signingOut = true;
           const { signOut } = await import("next-auth/react");
           await signOut({ callbackUrl: "/login" });
