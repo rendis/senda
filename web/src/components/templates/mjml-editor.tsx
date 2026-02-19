@@ -1510,7 +1510,9 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
 function renderColumnBlockToMjml(block: BuilderBlock): string {
   switch (block.type) {
     case "text": {
-      const inner = tiptapHtmlToMjmlVars(block.content).trim() || " ";
+      // Replace &quot; with ' so gomjml output doesn't produce unescaped "
+      // inside style="..." attributes (breaks font-family: "Courier New" etc.)
+      const inner = tiptapHtmlToMjmlVars(block.content).replace(/&quot;/g, "'").trim() || " ";
       const alignAttr = block.align !== "left" ? ` align="${block.align}"` : "";
       return `<mj-text${alignAttr}>${inner}</mj-text>`;
     }
@@ -2216,28 +2218,6 @@ export function MjmlEditor() {
 
   function handlePreviewIframeLoad(event: ReactSyntheticEvent<HTMLIFrameElement>) {
     bindIframeSizeObserver(event.currentTarget, previewObserverCleanupRef);
-    // DEBUG: inspect iframe font rendering
-    try {
-      const iframeDoc = event.currentTarget.contentDocument;
-      if (iframeDoc) {
-        const allSpans = iframeDoc.querySelectorAll('span[style]');
-        allSpans.forEach((span, i) => {
-          const style = span.getAttribute('style') || '';
-          if (style.includes('font-family')) {
-            const computed = iframeDoc.defaultView?.getComputedStyle(span);
-            console.log(`[font-debug] span[${i}] style="${style}"`);
-            console.log(`[font-debug] span[${i}] computed=${computed?.fontFamily}`);
-          }
-        });
-        // Log the raw HTML of the mj-text content area
-        const textDiv = iframeDoc.querySelector('div[style*="font-family"]');
-        if (textDiv) {
-          console.log('[font-debug] text div innerHTML:', textDiv.innerHTML);
-        }
-      }
-    } catch (e) {
-      console.log('[font-debug] error:', e);
-    }
   }
 
   const codeMjml = version ? codeOverride : "";

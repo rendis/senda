@@ -47,13 +47,11 @@ const FONT_SIZES = ["12", "14", "16", "18", "20", "24", "28", "32", "36", "48"];
 
 const EMAIL_SAFE_FONTS = [
   { label: "Arial", value: "Arial, sans-serif" },
-  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
+  { label: "Trebuchet MS", value: "'Trebuchet MS', Helvetica, sans-serif" },
   { label: "Georgia", value: "Georgia, serif" },
   { label: "Times New Roman", value: "'Times New Roman', Times, serif" },
   { label: "Courier New", value: "'Courier New', Courier, monospace" },
-  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
-  { label: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
-  { label: "Trebuchet MS", value: "'Trebuchet MS', Helvetica, sans-serif" },
 ];
 
 const COLOR_PALETTE = [
