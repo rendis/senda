@@ -3215,7 +3215,7 @@ export function MjmlEditor() {
                     className="relative overflow-hidden rounded-md border border-border/60 bg-white"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewStageSize.height > 0 ? Math.min(previewScaledHeight, previewStageSize.height) : previewScaledHeight}px`,
+                      height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
                     }}
                   >
                     <iframe
@@ -3238,7 +3238,7 @@ export function MjmlEditor() {
                     className="flex items-center justify-center text-sm text-muted-foreground rounded-md border bg-white"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewStageSize.height > 0 ? Math.min(previewScaledHeight, previewStageSize.height) : previewScaledHeight}px`,
+                      height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
                     }}
                   >
                     {previewMutation.isPending
