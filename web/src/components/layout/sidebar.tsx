@@ -56,6 +56,7 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations("nav");
+  const tCommon = useTranslations("common");
 
   const navItems = [
     { label: t("dashboard"), icon: LayoutDashboard, href: "" },
@@ -188,7 +189,7 @@ export function AppSidebar() {
                 onClick={() => signOut({ callbackUrl: "/login" })}
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign out
+                {tCommon("signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
