@@ -151,7 +151,13 @@
     "saveStatus": {
       "saving": "Guardando...",
       "saved": "Guardado",
-      "error": "Error al guardar"
+      "unsaved": "Sin guardar...",
+      "error": "Error al guardar",
+      "retry": "Reintentar",
+      "justNow": "ahora mismo",
+      "savedAgo": "Guardado {time}",
+      "secondsAgo": "hace {n}s",
+      "minutesAgo": "hace {n}m"
     },
     "collapseAll": "Contraer todo",
     "expandAll": "Expandir todo",

@@ -151,7 +151,13 @@
     "saveStatus": {
       "saving": "Saving...",
       "saved": "Saved",
-      "error": "Error saving"
+      "unsaved": "Unsaved...",
+      "error": "Save error",
+      "retry": "Retry",
+      "justNow": "just now",
+      "savedAgo": "Saved {time}",
+      "secondsAgo": "{n}s ago",
+      "minutesAgo": "{n}m ago"
     },
     "collapseAll": "Collapse all",
     "expandAll": "Expand all",

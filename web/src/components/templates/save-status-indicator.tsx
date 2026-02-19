@@ -2,6 +2,7 @@
 
 import { Check, AlertCircle, Loader2, Cloud } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AutoSaveStatus } from "@/hooks/use-auto-save";
@@ -12,17 +13,6 @@ export interface SaveStatusIndicatorProps {
   error: Error | null;
   onRetry?: () => void;
   className?: string;
-}
-
-function formatLastSaved(date: Date): string {
-  const diffMs = Date.now() - date.getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-
-  if (diffSeconds < 5) return "just now";
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 const easeOutCubic = [0.4, 0, 0.2, 1] as const;
@@ -105,18 +95,31 @@ export function SaveStatusIndicator({
   onRetry,
   className,
 }: SaveStatusIndicatorProps) {
+  const t = useTranslations("editor.saveStatus");
+
+  const formatLastSaved = (date: Date): string => {
+    const diffMs = Date.now() - date.getTime();
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+
+    if (diffSeconds < 5) return t("justNow");
+    if (diffSeconds < 60) return t("secondsAgo", { n: diffSeconds });
+    if (diffMinutes < 60) return t("minutesAgo", { n: diffMinutes });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
   const getTextContent = () => {
     switch (status) {
       case "idle":
-        return lastSavedAt ? `Saved ${formatLastSaved(lastSavedAt)}` : null;
+        return lastSavedAt ? t("savedAgo", { time: formatLastSaved(lastSavedAt) }) : null;
       case "pending":
-        return "Unsaved...";
+        return t("unsaved");
       case "saving":
-        return "Saving...";
+        return t("saving");
       case "saved":
-        return "Saved";
+        return t("saved");
       case "error":
-        return "Save error";
+        return t("error");
       default:
         return null;
     }
@@ -180,7 +183,7 @@ export function SaveStatusIndicator({
               className="h-5 px-1.5 text-xs text-destructive hover:text-destructive"
               onClick={onRetry}
             >
-              Retry
+              {t("retry")}
             </Button>
           </motion.div>
         )}
