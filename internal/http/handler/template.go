@@ -365,14 +365,43 @@ func (h *TemplateHandler) GetLocale(c *echo.Context) error {
 	return c.JSON(http.StatusOK, response.NewTemplateVersionLocaleResponse(loc))
 }
 
+// ListLocales handles GET .../templates/:template_id/versions/:version_id/locales.
+func (h *TemplateHandler) ListLocales(c *echo.Context) error {
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+
+	locales, err := h.svc.ListLocales(c.Request().Context(), versionID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	items := make([]response.TemplateVersionLocaleResponse, len(locales))
+	for i, loc := range locales {
+		items[i] = response.NewTemplateVersionLocaleResponse(loc)
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
 // DeleteLocale handles DELETE .../templates/:template_id/versions/:version_id/locales/:locale.
-// TODO: Requires port.TemplateStore.DeleteLocale(ctx, versionID, locale) to be added.
-// Once the store interface is extended, this should soft-delete or hard-delete the locale override.
-// Until then, returns 501 Not Implemented.
 func (h *TemplateHandler) DeleteLocale(c *echo.Context) error {
-	return c.JSON(http.StatusNotImplemented, map[string]string{
-		"message": "delete locale not yet implemented",
-	})
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+
+	locale := c.Param("locale")
+	if locale == "" {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "locale is required")
+	}
+
+	if err := h.svc.DeleteLocale(c.Request().Context(), versionID, locale); err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 // mapTemplateError maps template-specific domain errors to HTTP responses.

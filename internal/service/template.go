@@ -133,6 +133,16 @@ func (s *TemplateService) GetLocale(ctx context.Context, versionID uuid.UUID, lo
 	return s.store.GetLocale(ctx, versionID, locale)
 }
 
+// ListLocales returns all locale overrides for a template version.
+func (s *TemplateService) ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+	return s.store.ListLocales(ctx, versionID)
+}
+
+// DeleteLocale removes a locale override for a template version.
+func (s *TemplateService) DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error {
+	return s.store.DeleteLocale(ctx, versionID, locale)
+}
+
 // PreviewMJML compiles MJML into HTML for preview.
 func (s *TemplateService) PreviewMJML(ctx context.Context, mjml string) (string, error) {
 	return s.compiler.Compile(ctx, mjml)

@@ -439,7 +439,7 @@ func TestTemplateHandler_GetLocale_NotFound(t *testing.T) {
 	}
 }
 
-func TestTemplateHandler_DeleteLocale_NotImplemented(t *testing.T) {
+func TestTemplateHandler_DeleteLocale_Success(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 
 	e, _ := setupTemplateTest(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore)
@@ -450,8 +450,8 @@ func TestTemplateHandler_DeleteLocale_NotImplemented(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

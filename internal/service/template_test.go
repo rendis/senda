@@ -107,6 +107,12 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 	}
 	return nil, nil
 }
+func (m *mockTemplateStore) ListLocales(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+	return nil, nil
+}
+func (m *mockTemplateStore) DeleteLocale(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Template, string, error) {
 	return nil, "", nil
 }

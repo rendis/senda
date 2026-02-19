@@ -554,6 +554,42 @@ func (r *TemplateRepo) GetLocale(ctx context.Context, versionID uuid.UUID, local
 	return scanTemplateVersionLocale(row)
 }
 
+func (r *TemplateRepo) ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, template_version_id, locale, subject, preview_text, from_name,
+		        body_mjml, editor_data, created_at, updated_at
+		 FROM template_version_locales
+		 WHERE template_version_id = @version_id
+		 ORDER BY created_at ASC`,
+		pgx.NamedArgs{"version_id": versionID},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing template version locales: %w", err)
+	}
+
+	locales, err := pgx.CollectRows(rows, scanTemplateVersionLocaleRow)
+	if err != nil {
+		return nil, fmt.Errorf("collecting template version locales: %w", err)
+	}
+
+	return locales, nil
+}
+
+func (r *TemplateRepo) DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error {
+	tag, err := r.pool.Exec(ctx,
+		`DELETE FROM template_version_locales
+		 WHERE template_version_id = @version_id AND locale = @locale`,
+		pgx.NamedArgs{"version_id": versionID, "locale": locale},
+	)
+	if err != nil {
+		return fmt.Errorf("deleting template version locale: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template version locale not found")
+	}
+	return nil
+}
+
 // --- Scanners ---
 
 // scanTemplateTypeRow is a pgx.RowToFunc for use with pgx.CollectRows.
@@ -645,6 +681,21 @@ func scanTemplateVersionLocale(row pgx.Row) (*domain.TemplateVersionLocale, erro
 			return nil, apperr.NotFound("template version locale not found")
 		}
 		return nil, fmt.Errorf("scanning template version locale: %w", err)
+	}
+	return &l, nil
+}
+
+// scanTemplateVersionLocaleRow is a pgx.RowToFunc for use with pgx.CollectRows.
+func scanTemplateVersionLocaleRow(row pgx.CollectableRow) (*domain.TemplateVersionLocale, error) {
+	var l domain.TemplateVersionLocale
+	err := row.Scan(
+		&l.ID, &l.TemplateVersionID, &l.Locale,
+		&l.Subject, &l.PreviewText, &l.FromName,
+		&l.BodyMJML, &l.EditorData,
+		&l.CreatedAt, &l.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scanning template version locale row: %w", err)
 	}
 	return &l, nil
 }

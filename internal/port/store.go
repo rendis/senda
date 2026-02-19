@@ -72,6 +72,8 @@ type TemplateStore interface {
 	// Locales
 	SetLocale(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	GetLocale(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error)
+	DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error
 }
 
 // EmailStore manages email persistence and queries.

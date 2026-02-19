@@ -431,6 +431,7 @@ func (s *Server) registerRoutes() {
 				ws.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/templates/:template_id/versions/:version_id/locales", s.templateHandler.ListLocales, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -534,6 +535,7 @@ func (s *Server) registerRoutes() {
 				global.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion)
 				global.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion)
 				// Locale CRUD.
+				global.GET("/templates/:template_id/versions/:version_id/locales", s.templateHandler.ListLocales)
 				global.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale)
 				global.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale)
 				global.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale)
