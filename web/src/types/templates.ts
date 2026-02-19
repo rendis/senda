@@ -31,7 +31,6 @@ export interface TemplateVersion {
   subject: string;
   preview_text?: string;
   from_name: string;
-  from_email: string;
   reply_to?: string;
   body_mjml: string;
   default_locale: string;
@@ -58,7 +57,6 @@ export interface CreateTemplateVersionRequest {
   subject: string;
   preview_text?: string;
   from_name: string;
-  from_email: string;
   reply_to?: string;
   body_mjml: string;
   default_locale: string;

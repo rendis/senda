@@ -46,6 +46,10 @@ func (m *mockDashboardStore) GetRecentEmails(ctx context.Context, p port.Dashboa
 	return nil, nil
 }
 
+func (m *mockDashboardStore) GetTotalsByAdapter(_ context.Context, _ port.DashboardStatsParams) ([]port.DashboardAdapterTotals, error) {
+	return nil, nil
+}
+
 // --- Helpers ---
 
 func setupDashboardTest(ds port.DashboardStore, als port.AuditLogStore, ts port.TenantStore, ws port.WorkspaceStore) *echo.Echo {

@@ -40,6 +40,7 @@ export interface EmailDetail extends Email {
 export interface EmailFilters {
   status?: EmailStatus[];
   template_type?: string;
+  adapter_id?: string;
   since?: string;
   until?: string;
   search?: string;

@@ -53,7 +53,7 @@ func (s *TemplateService) ListByType(ctx context.Context, typeID uuid.UUID, wsID
 //   2. Use SELECT MAX(version_number) + 1 ... FOR UPDATE in a transaction.
 //   3. Add a UNIQUE(template_id, version_number) constraint and retry on conflict.
 // TODO: Implement one of the above strategies when moving to transactional store operations.
-func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUID, subject, previewText, fromName, fromEmail string, replyTo *string, bodyMJML, defaultLocale string, editorData map[string]any, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
+func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUID, subject, previewText, fromName string, replyTo *string, bodyMJML, defaultLocale string, editorData map[string]any, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
 	versions, err := s.store.ListVersions(ctx, templateID)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,6 @@ func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUI
 		Subject:       subject,
 		PreviewText:   previewText,
 		FromName:      fromName,
-		FromEmail:     fromEmail,
 		ReplyTo:       replyTo,
 		BodyMJML:      bodyMJML,
 		DefaultLocale: defaultLocale,

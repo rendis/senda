@@ -29,6 +29,45 @@ import type { TemplateVersion } from "@/types/templates";
 import { toast } from "sonner";
 import { useState } from "react";
 
+function createEditorId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function buildDefaultEditorData() {
+  return {
+    version: 1,
+    blocks: [
+      {
+        id: createEditorId(),
+        type: "text",
+        segments: [
+          {
+            kind: "text",
+            id: createEditorId(),
+            text: "Hello ",
+          },
+          {
+            kind: "token",
+            id: createEditorId(),
+            token: "user_name",
+            label: "user_name",
+            category: "event",
+          },
+          {
+            kind: "text",
+            id: createEditorId(),
+            text: "!",
+          },
+        ],
+        align: "left",
+      },
+    ],
+  };
+}
+
 export function TemplatesListContent() {
   const router = useRouter();
   const scope = useScope();
@@ -88,9 +127,9 @@ export function TemplatesListContent() {
       const versionData = {
         subject: `${templateType.name ?? slug} — New Draft`,
         from_name: "Senda",
-        from_email: "no-reply@example.com",
         body_mjml: DEFAULT_MJML,
         default_locale: "en",
+        editor_data: buildDefaultEditorData(),
       };
       const version = tplId === templateId
         ? await createVersion.mutateAsync(versionData)

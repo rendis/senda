@@ -13,8 +13,15 @@ type CreateAdapterRequest struct {
 
 // UpdateAdapterRequest is the request body for PUT adapters/:id.
 type UpdateAdapterRequest struct {
-	Name               *string          `json:"name"`
-	Config             *json.RawMessage `json:"config"`
-	IsDefault          *bool            `json:"is_default"`
-	RateLimitPerSecond *int             `json:"rate_limit_per_second"`
+	Name                 *string          `json:"name"`
+	Config               *json.RawMessage `json:"config"`
+	IsDefault            *bool            `json:"is_default"`
+	RateLimitPerSecond   *int             `json:"rate_limit_per_second"`
+	ConfigurationSetName *string          `json:"configuration_set_name,omitempty"`
+}
+
+// CreateManualIdentityRequest is the request body for POST adapters/:id/identities.
+type CreateManualIdentityRequest struct {
+	Identity    string  `json:"identity"`
+	DisplayName *string `json:"display_name,omitempty"`
 }

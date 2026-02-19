@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
@@ -25,20 +26,33 @@ var safeHeaderKeyRe = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 // SESAPI abstracts the SES v2 API for testability.
 type SESAPI interface {
 	SendEmail(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
+	ListEmailIdentities(ctx context.Context, params *sesv2.ListEmailIdentitiesInput, optFns ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error)
+	CreateConfigurationSet(ctx context.Context, params *sesv2.CreateConfigurationSetInput, optFns ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetOutput, error)
+	CreateConfigurationSetEventDestination(ctx context.Context, params *sesv2.CreateConfigurationSetEventDestinationInput, optFns ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetEventDestinationOutput, error)
 }
 
 // Adapter implements port.EmailSender using AWS SES v2.
 type Adapter struct {
-	client SESAPI
-	region string
+	client               SESAPI
+	region               string
+	configurationSetName string
 }
 
 // NewAdapter creates a new SES adapter from a pre-configured client.
-func NewAdapter(client SESAPI, region string) *Adapter {
-	return &Adapter{
-		client: client,
-		region: region,
+func NewAdapter(client SESAPI, region string, opts ...Option) *Adapter {
+	a := &Adapter{client: client, region: region}
+	for _, o := range opts {
+		o(a)
 	}
+	return a
+}
+
+// Option configures the SES adapter.
+type Option func(*Adapter)
+
+// WithConfigurationSet sets the SES Configuration Set name used for event tracking.
+func WithConfigurationSet(name string) Option {
+	return func(a *Adapter) { a.configurationSetName = name }
 }
 
 // NewAdapterFromConfig creates a new SES adapter using default AWS config.
@@ -75,6 +89,9 @@ func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, er
 		},
 		Destination: buildDestination(msg),
 	}
+	if a.configurationSetName != "" {
+		input.ConfigurationSetName = aws.String(a.configurationSetName)
+	}
 
 	output, err := a.client.SendEmail(ctx, input)
 	if err != nil {
@@ -99,8 +116,61 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-// Compile-time interface check.
+// ListIdentities fetches all sender identities from SES.
+func (a *Adapter) ListIdentities(ctx context.Context) ([]port.ProviderIdentity, error) {
+	var identities []port.ProviderIdentity
+	var nextToken *string
+
+	for {
+		output, err := a.client.ListEmailIdentities(ctx, &sesv2.ListEmailIdentitiesInput{
+			NextToken: nextToken,
+			PageSize:  aws.Int32(1000),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ses: list identities: %w", err)
+		}
+
+		for _, ident := range output.EmailIdentities {
+			pi := port.ProviderIdentity{
+				Identity:       aws.ToString(ident.IdentityName),
+				SendingEnabled: ident.SendingEnabled,
+			}
+
+			switch ident.IdentityType {
+			case types.IdentityTypeEmailAddress:
+				pi.IdentityType = "email"
+			case types.IdentityTypeDomain:
+				pi.IdentityType = "domain"
+			default:
+				pi.IdentityType = "domain"
+			}
+
+			switch ident.VerificationStatus {
+			case types.VerificationStatusSuccess:
+				pi.VerificationStatus = "verified"
+			case types.VerificationStatusPending, types.VerificationStatusTemporaryFailure, types.VerificationStatusNotStarted:
+				pi.VerificationStatus = "pending"
+			default:
+				pi.VerificationStatus = "failed"
+			}
+
+			identities = append(identities, pi)
+		}
+
+		nextToken = output.NextToken
+		if nextToken == nil {
+			break
+		}
+	}
+	return identities, nil
+}
+
+// ProviderName returns the provider identifier.
+func (a *Adapter) ProviderName() string { return "ses" }
+
+// Compile-time interface checks.
 var _ port.EmailSender = (*Adapter)(nil)
+var _ port.IdentityProvider = (*Adapter)(nil)
 
 // buildRawMessage constructs a RFC 5322 MIME message from an OutgoingEmail.
 func buildRawMessage(msg *port.OutgoingEmail) ([]byte, error) {

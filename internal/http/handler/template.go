@@ -157,9 +157,6 @@ func (h *TemplateHandler) UpdateVersion(c *echo.Context) error {
 	if req.FromName != "" {
 		ver.FromName = req.FromName
 	}
-	if req.FromEmail != "" {
-		ver.FromEmail = req.FromEmail
-	}
 	if req.ReplyTo != nil {
 		ver.ReplyTo = req.ReplyTo
 	}
@@ -232,9 +229,6 @@ func (h *TemplateHandler) CreateVersion(c *echo.Context) error {
 	if req.FromName == "" {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "from_name", Message: "is required"})
 	}
-	if req.FromEmail == "" {
-		fieldErrors = append(fieldErrors, response.FieldError{Field: "from_email", Message: "is required"})
-	}
 	if req.BodyMJML == "" {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "body_mjml", Message: "is required"})
 	}
@@ -255,7 +249,7 @@ func (h *TemplateHandler) CreateVersion(c *echo.Context) error {
 	}
 
 	ver, err := h.svc.CreateVersion(c.Request().Context(), templateID,
-		req.Subject, req.PreviewText, req.FromName, req.FromEmail,
+		req.Subject, req.PreviewText, req.FromName,
 		req.ReplyTo, req.BodyMJML, req.DefaultLocale, editorData, nil,
 	)
 	if err != nil {

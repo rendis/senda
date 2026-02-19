@@ -345,10 +345,10 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 
 	row := tx.QueryRow(ctx,
 		`INSERT INTO template_versions (id, template_id, version_number, status, subject, preview_text,
-		                                from_name, from_email, reply_to, body_mjml, default_locale,
+		                                from_name, reply_to, body_mjml, default_locale,
 		                                editor_data, created_by)
 		 VALUES (@id, @template_id, @version_number, @status, @subject, @preview_text,
-		         @from_name, @from_email, @reply_to, @body_mjml, @default_locale,
+		         @from_name, @reply_to, @body_mjml, @default_locale,
 		         @editor_data, @created_by)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
@@ -359,7 +359,6 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 			"subject":        ver.Subject,
 			"preview_text":   ver.PreviewText,
 			"from_name":      ver.FromName,
-			"from_email":     ver.FromEmail,
 			"reply_to":       ver.ReplyTo,
 			"body_mjml":      ver.BodyMJML,
 			"default_locale": ver.DefaultLocale,
@@ -382,7 +381,7 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 func (r *TemplateRepo) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, template_id, version_number, status, subject, preview_text,
-		        from_name, from_email, reply_to, body_mjml, default_locale,
+		        from_name, reply_to, body_mjml, default_locale,
 		        editor_data, created_by, published_at, archived_at, created_at, updated_at
 		 FROM template_versions
 		 WHERE id = @id`,
@@ -396,7 +395,7 @@ func (r *TemplateRepo) UpdateVersion(ctx context.Context, ver *domain.TemplateVe
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE template_versions
 		 SET subject = @subject, preview_text = @preview_text,
-		     from_name = @from_name, from_email = @from_email, reply_to = @reply_to,
+		     from_name = @from_name, reply_to = @reply_to,
 		     body_mjml = @body_mjml, default_locale = @default_locale,
 		     editor_data = @editor_data, updated_at = now()
 		 WHERE id = @id AND status = 'draft'`,
@@ -405,7 +404,6 @@ func (r *TemplateRepo) UpdateVersion(ctx context.Context, ver *domain.TemplateVe
 			"subject":        ver.Subject,
 			"preview_text":   ver.PreviewText,
 			"from_name":      ver.FromName,
-			"from_email":     ver.FromEmail,
 			"reply_to":       ver.ReplyTo,
 			"body_mjml":      ver.BodyMJML,
 			"default_locale": ver.DefaultLocale,
@@ -425,7 +423,7 @@ func (r *TemplateRepo) UpdateVersion(ctx context.Context, ver *domain.TemplateVe
 func (r *TemplateRepo) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, template_id, version_number, status, subject, preview_text,
-		        from_name, from_email, reply_to, body_mjml, default_locale,
+		        from_name, reply_to, body_mjml, default_locale,
 		        editor_data, created_by, published_at, archived_at, created_at, updated_at
 		 FROM template_versions
 		 WHERE template_id = @template_id AND status = 'published'`,
@@ -490,7 +488,7 @@ func (r *TemplateRepo) Publish(ctx context.Context, versionID uuid.UUID) error {
 func (r *TemplateRepo) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, template_id, version_number, status, subject, preview_text,
-		        from_name, from_email, reply_to, body_mjml, default_locale,
+		        from_name, reply_to, body_mjml, default_locale,
 		        editor_data, created_by, published_at, archived_at, created_at, updated_at
 		 FROM template_versions
 		 WHERE template_id = @template_id
@@ -620,7 +618,7 @@ func scanTemplateVersion(row pgx.Row) (*domain.TemplateVersion, error) {
 	var v domain.TemplateVersion
 	err := row.Scan(
 		&v.ID, &v.TemplateID, &v.VersionNumber, &v.Status,
-		&v.Subject, &v.PreviewText, &v.FromName, &v.FromEmail,
+		&v.Subject, &v.PreviewText, &v.FromName,
 		&v.ReplyTo, &v.BodyMJML, &v.DefaultLocale,
 		&v.EditorData, &v.CreatedBy,
 		&v.PublishedAt, &v.ArchivedAt, &v.CreatedAt, &v.UpdatedAt,

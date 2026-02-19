@@ -35,7 +35,6 @@ type CreateVersionRequest struct {
 	Subject       string          `json:"subject"`
 	PreviewText   string          `json:"preview_text"`
 	FromName      string          `json:"from_name"`
-	FromEmail     string          `json:"from_email"`
 	ReplyTo       *string         `json:"reply_to,omitempty"`
 	BodyMJML      string          `json:"body_mjml"`
 	DefaultLocale string          `json:"default_locale"`

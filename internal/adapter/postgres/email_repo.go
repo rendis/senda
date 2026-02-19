@@ -124,6 +124,20 @@ func (r *EmailRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status domai
 	return nil
 }
 
+func (r *EmailRepo) SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMessageID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE emails SET provider_message_id = @pmid, updated_at = now() WHERE id = @id`,
+		pgx.NamedArgs{"id": id, "pmid": providerMessageID},
+	)
+	if err != nil {
+		return fmt.Errorf("setting provider_message_id: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("email %s not found", id)
+	}
+	return nil
+}
+
 func (r *EmailRepo) UpdateRetry(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE emails SET retry_count = @retry_count, next_retry_at = @next_retry_at, updated_at = now()
@@ -205,6 +219,10 @@ func (r *EmailRepo) QueryByWorkspace(ctx context.Context, wsID uuid.UUID, filter
 	if filters.TemplateTypeSlug != nil {
 		where += ` AND template_type_slug = @template_type_slug`
 		args["template_type_slug"] = *filters.TemplateTypeSlug
+	}
+	if filters.AdapterID != nil {
+		where += ` AND adapter_id = @adapter_id`
+		args["adapter_id"] = *filters.AdapterID
 	}
 	if filters.Since != nil {
 		where += ` AND created_at >= @since`

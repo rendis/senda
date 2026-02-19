@@ -418,7 +418,6 @@ func TestTemplateRepo_CreateVersion(t *testing.T) {
 		Status:        domain.VersionStatusDraft,
 		Subject:       "Welcome!",
 		PreviewText:   "Check it out",
-		FromEmail:     "noreply@test.com",
 		FromName:      "Test",
 		BodyMJML:      "<mjml></mjml>",
 		DefaultLocale: "en",
@@ -447,8 +446,7 @@ func TestTemplateRepo_CreateVersion_AutoIncrement(t *testing.T) {
 			TemplateID:    tpl.ID,
 			Status:        domain.VersionStatusDraft,
 			Subject:       "Subject",
-			FromEmail:     "noreply@test.com",
-			BodyMJML:      "<mjml></mjml>",
+				BodyMJML:      "<mjml></mjml>",
 			DefaultLocale: "en",
 		}
 		if err := repo.CreateVersion(ctx, ver); err != nil {
@@ -472,7 +470,6 @@ func TestTemplateRepo_Publish(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "Publish Me",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml></mjml>",
 		DefaultLocale: "en",
 	}
@@ -511,7 +508,6 @@ func TestTemplateRepo_Publish_ArchivesPrevious(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "V1",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml>v1</mjml>",
 		DefaultLocale: "en",
 	}
@@ -527,7 +523,6 @@ func TestTemplateRepo_Publish_ArchivesPrevious(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "V2",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml>v2</mjml>",
 		DefaultLocale: "en",
 	}
@@ -587,8 +582,7 @@ func TestTemplateRepo_ListVersions(t *testing.T) {
 			TemplateID:    tpl.ID,
 			Status:        domain.VersionStatusDraft,
 			Subject:       "Subject",
-			FromEmail:     "noreply@test.com",
-			BodyMJML:      "<mjml></mjml>",
+				BodyMJML:      "<mjml></mjml>",
 			DefaultLocale: "en",
 		}
 		if err := repo.CreateVersion(ctx, ver); err != nil {
@@ -626,7 +620,6 @@ func TestTemplateRepo_SetLocale(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "Subject",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml></mjml>",
 		DefaultLocale: "en",
 	}
@@ -661,7 +654,6 @@ func TestTemplateRepo_SetLocale_Upsert(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "Subject",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml></mjml>",
 		DefaultLocale: "en",
 	}
@@ -713,7 +705,6 @@ func TestTemplateRepo_GetLocale(t *testing.T) {
 		TemplateID:    tpl.ID,
 		Status:        domain.VersionStatusDraft,
 		Subject:       "Subject",
-		FromEmail:     "noreply@test.com",
 		BodyMJML:      "<mjml></mjml>",
 		DefaultLocale: "en",
 	}

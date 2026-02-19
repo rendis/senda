@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/http/response"
@@ -113,6 +114,11 @@ func parseEmailFilters(c *echo.Context) port.EmailFilters {
 	}
 	if s := c.QueryParam("template_type"); s != "" {
 		f.TemplateTypeSlug = &s
+	}
+	if s := c.QueryParam("adapter_id"); s != "" {
+		if id, err := uuid.Parse(s); err == nil {
+			f.AdapterID = &id
+		}
 	}
 	if s := c.QueryParam("since"); s != "" {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {

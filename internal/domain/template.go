@@ -45,7 +45,6 @@ type TemplateVersion struct {
 	Subject       string
 	PreviewText   string
 	FromName      string
-	FromEmail     string
 	ReplyTo       *string
 	BodyMJML      string         // MJML source
 	DefaultLocale string

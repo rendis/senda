@@ -84,6 +84,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	auditRepo := postgres.NewAuditRepo(pool)
 	dashboardRepo := postgres.NewDashboardRepo(pool)
 	configRepo := postgres.NewGlobalConfigRepo(pool)
+	adapterIdentityRepo := postgres.NewAdapterIdentityRepo(pool)
 
 	// 6. Resolution engine.
 	chainResolver := resolution.NewChainResolver(wsRepo, cache)
@@ -102,7 +103,15 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	}
 
 	// 8. River workers.
-	sendWorker := river.NewSendWorker(emailRepo, domainRepo, aesCrypto, compiler, renderer, rateLimiter, emailSender)
+	var sendWorkerOpts []river.SendWorkerOption
+	if cfg.Tracking.BaseURL != "" {
+		sendWorkerOpts = append(sendWorkerOpts,
+			river.WithWorkspaceStore(wsRepo),
+			river.WithTrackingBaseURL(cfg.Tracking.BaseURL),
+		)
+		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)
+	}
+	sendWorker := river.NewSendWorker(emailRepo, domainRepo, aesCrypto, compiler, renderer, rateLimiter, emailSender, sendWorkerOpts...)
 	verifyWorker := river.NewVerifyWorker(domainRepo, nil)
 	webhookWorker := river.NewWebhookWorker(webhookRepo, nil)
 
@@ -115,8 +124,10 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	// 9. Services.
 	domainSvc := service.NewDomainService(domainRepo, aesCrypto, riverClient)
 	webhookSvc := service.NewWebhookService(webhookRepo, riverClient)
+	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, service.DefaultIdentityProviderFactory)
 	sendSvc := service.NewSendService(
 		templateResolver, injectorMerger, adapterResolver, domainResolver,
+		identitySvc,
 		emailRepo, suppressionRepo, riverClient, renderer,
 		tenantRepo, wsRepo,
 	)
@@ -172,21 +183,32 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	auditH := handler.NewAuditHandler(auditRepo, tenantRepo, wsRepo)
 	webhookH := handler.NewWebhookHandler(webhookRepo, webhookSvc, tenantRepo, wsRepo)
 	onboardingH := handler.NewOnboardingHandler(onboardingSvc, oidcVerifier)
+	identityH := handler.NewIdentityHandler(identitySvc, adapterIdentityRepo, tenantRepo, wsRepo)
+	// Tracking auto-provisioner (nil if no tracking base URL).
+	var trackingProvisioner *service.TrackingProvisioner
+	if cfg.Tracking.BaseURL != "" {
+		trackingProvisioner = service.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger)
+	}
+	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner)
 	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
 	dashboardH := handler.NewDashboardHandler(dashboardRepo, auditRepo, tenantRepo, wsRepo)
 
-	// 12. SES webhook handler (only for SES mode, skip in SMTP/test mode).
+	// 12. Event processor (shared by SES webhook + open-tracking pixel).
+	eventProcessor := service.NewEventProcessor(emailRepo, emailRepo, suppressionRepo, webhookSvc, logger)
+
+	// 13. SES webhook handler (only for SES mode, skip in SMTP/test mode).
 	var sesOpts []sendahttp.ServerOption
 	if cfg.SMTP.Host == "" {
-		// Production mode: wire SES webhook handler with EventProcessor.
-		eventProcessor := service.NewEventProcessor(emailRepo, emailRepo, suppressionRepo, webhookSvc, logger)
 		snsVerifier := sns.NewVerifier(&http.Client{})
 		snsConfirmer := handler.NewHTTPSubscriptionConfirmer(&http.Client{})
 		sesH := handler.NewSESWebhookHandler(eventProcessor, snsVerifier, snsConfirmer, logger)
 		sesOpts = append(sesOpts, sendahttp.WithSESWebhookHandler(sesH))
 	}
 
-	// 13. Assemble server.
+	// 14. Open-tracking handler.
+	trackingH := handler.NewTrackingHandler(emailRepo, eventProcessor, logger)
+
+	// 15. Assemble server.
 	opts := []sendahttp.ServerOption{
 		sendahttp.WithPinger(&dbPinger{pool: pool}),
 		sendahttp.WithAuthDeps(apiKeyRepo, memberRepo, oidcVerifier),
@@ -199,6 +221,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithConfigHandler(configH),
 		sendahttp.WithInjectorHandler(injectorH),
 		sendahttp.WithAdapterHandler(adapterH),
+		sendahttp.WithIdentityHandler(identityH),
 		sendahttp.WithDomainHandler(domainH),
 		sendahttp.WithDomainService(domainSvc),
 		sendahttp.WithTemplateTypeHandler(templateTypeH),
@@ -210,6 +233,8 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithWebhookHandler(webhookH),
 		sendahttp.WithOnboardingHandler(onboardingH),
 		sendahttp.WithAPIKeyHandler(apiKeyH),
+		sendahttp.WithAdapterSetupHandler(adapterSetupH),
+		sendahttp.WithTrackingHandler(trackingH),
 		sendahttp.WithDashboardHandler(dashboardH),
 	}
 	opts = append(opts, sesOpts...)

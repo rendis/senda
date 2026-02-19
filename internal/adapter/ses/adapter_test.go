@@ -29,6 +29,18 @@ func (m *mockSESClient) SendEmail(ctx context.Context, params *sesv2.SendEmailIn
 	}, nil
 }
 
+func (m *mockSESClient) ListEmailIdentities(_ context.Context, _ *sesv2.ListEmailIdentitiesInput, _ ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error) {
+	return &sesv2.ListEmailIdentitiesOutput{}, nil
+}
+
+func (m *mockSESClient) CreateConfigurationSet(_ context.Context, _ *sesv2.CreateConfigurationSetInput, _ ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetOutput, error) {
+	return &sesv2.CreateConfigurationSetOutput{}, nil
+}
+
+func (m *mockSESClient) CreateConfigurationSetEventDestination(_ context.Context, _ *sesv2.CreateConfigurationSetEventDestinationInput, _ ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetEventDestinationOutput, error) {
+	return &sesv2.CreateConfigurationSetEventDestinationOutput{}, nil
+}
+
 // --- Tests ---
 
 func TestAdapter_Name(t *testing.T) {

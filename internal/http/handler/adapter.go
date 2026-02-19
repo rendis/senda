@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -203,6 +204,11 @@ func (h *AdapterHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
 	if req.RateLimitPerSecond != nil {
 		adapter.RateLimitPerSecond = *req.RateLimitPerSecond
 	}
+	if req.ConfigurationSetName != nil {
+		if err := h.mergeConfigField(adapter, "configuration_set_name", *req.ConfigurationSetName); err != nil {
+			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+		}
+	}
 
 	adapter.UpdatedAt = time.Now().UTC()
 	if err := h.store.Update(ctx, adapter); err != nil {
@@ -260,6 +266,29 @@ func (h *AdapterHandler) TestConnection(c *echo.Context) error {
 // Stub — returns 501 until real adapter connectivity check is built.
 func (h *AdapterHandler) TestConnectionGlobal(c *echo.Context) error {
 	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "adapter connection test not yet available")
+}
+
+// mergeConfigField decrypts the adapter config, sets a field, and re-encrypts.
+func (h *AdapterHandler) mergeConfigField(adapter *domain.Adapter, key string, value any) error {
+	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
+	if err != nil {
+		return err
+	}
+	var cfgMap map[string]any
+	if err := json.Unmarshal(decrypted, &cfgMap); err != nil {
+		return err
+	}
+	cfgMap[key] = value
+	updated, err := json.Marshal(cfgMap)
+	if err != nil {
+		return err
+	}
+	encrypted, err := h.crypto.Encrypt(updated)
+	if err != nil {
+		return err
+	}
+	adapter.ConfigEncrypted = encrypted
+	return nil
 }
 
 func isValidAdapterType(t string) bool {

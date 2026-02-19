@@ -23,6 +23,11 @@ var (
 	// Domain errors (HT-12)
 	ErrDomainNotFound = errors.New("domain not found")
 
+	// Adapter identity errors
+	ErrNoDefaultIdentity  = errors.New("adapter has no default identity")
+	ErrIdentityNotFound   = errors.New("adapter identity not found")
+	ErrIdentityNotInDomain = errors.New("email not within adapter's verified domains")
+
 	// Pagination errors (HT-19)
 	ErrInvalidCursor = errors.New("invalid cursor")
 )

@@ -76,6 +76,7 @@ func (h *DashboardHandler) fetchAndRespond(c *echo.Context, params port.Dashboar
 		series       []port.DashboardTimePoint
 		recentEmails []port.DashboardRecentEmail
 		auditLogs    []*domain.AuditLog
+		byAdapter    []port.DashboardAdapterTotals
 	)
 
 	g, gCtx := errgroup.WithContext(ctx)
@@ -107,11 +108,17 @@ func (h *DashboardHandler) fetchAndRespond(c *echo.Context, params port.Dashboar
 		return nil
 	})
 
+	g.Go(func() error {
+		var err error
+		byAdapter, err = h.dashStore.GetTotalsByAdapter(gCtx, params)
+		return err
+	})
+
 	if err := g.Wait(); err != nil {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewDashboardStatsResponse(totals, series, recentEmails, auditLogs))
+	return c.JSON(http.StatusOK, response.NewDashboardStatsResponse(totals, series, recentEmails, auditLogs, byAdapter))
 }
 
 // parseDashboardParams extracts the time range from the ?range query parameter.

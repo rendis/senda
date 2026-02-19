@@ -121,3 +121,55 @@ func (r *DashboardRepo) GetRecentEmails(ctx context.Context, p port.DashboardSta
 
 	return emails, nil
 }
+
+func (r *DashboardRepo) GetTotalsByAdapter(ctx context.Context, p port.DashboardStatsParams) ([]port.DashboardAdapterTotals, error) {
+	args := pgx.NamedArgs{}
+
+	// Build WHERE with table-qualified column names (JOIN makes bare names ambiguous).
+	where := "e.adapter_id IS NOT NULL AND e.created_at >= @since AND e.created_at < @until"
+	args["since"] = p.Since
+	args["until"] = p.Until
+	if p.WorkspaceID != nil {
+		where += " AND e.workspace_id = @workspace_id"
+		args["workspace_id"] = *p.WorkspaceID
+	} else if p.TenantID != nil {
+		where += " AND e.tenant_id = @tenant_id"
+		args["tenant_id"] = *p.TenantID
+	}
+
+	query := fmt.Sprintf(
+		`SELECT e.adapter_id,
+		        COALESCE(a.name, 'unknown') AS adapter_name,
+		        COALESCE(a.adapter_type::text, 'unknown') AS adapter_type,
+		        count(*) FILTER (WHERE e.status IN ('sent','delivered','opened')) AS sent,
+		        count(*) FILTER (WHERE e.status IN ('delivered','opened')) AS delivered,
+		        count(*) FILTER (WHERE e.status = 'bounced') AS bounced,
+		        count(*) FILTER (WHERE e.status = 'complained') AS complained,
+		        count(*) FILTER (WHERE e.status = 'failed') AS failed
+		 FROM emails e
+		 LEFT JOIN adapters a ON a.id = e.adapter_id
+		 WHERE %s
+		 GROUP BY e.adapter_id, a.name, a.adapter_type
+		 ORDER BY sent DESC`, where,
+	)
+
+	rows, err := r.pool.Query(ctx, query, args)
+	if err != nil {
+		return nil, fmt.Errorf("querying dashboard totals by adapter: %w", err)
+	}
+
+	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (port.DashboardAdapterTotals, error) {
+		var at port.DashboardAdapterTotals
+		scanErr := row.Scan(
+			&at.AdapterID, &at.AdapterName, &at.AdapterType,
+			&at.Totals.Sent, &at.Totals.Delivered, &at.Totals.Bounced,
+			&at.Totals.Complained, &at.Totals.Failed,
+		)
+		return at, scanErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("collecting dashboard totals by adapter: %w", err)
+	}
+
+	return results, nil
+}

@@ -80,6 +80,7 @@ type EmailStore interface {
 	GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
 	UpdateRetry(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
+	SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMessageID string) error
 
 	AddEvent(ctx context.Context, event *domain.EmailEvent) error
 	GetEvents(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error)
@@ -134,6 +135,20 @@ type AdapterStore interface {
 
 	// ListByWorkspace returns adapters owned by a specific workspace (or global if nil).
 	ListByWorkspace(ctx context.Context, workspaceID *uuid.UUID, opts ListOptions) (*PageResult[domain.Adapter], error)
+}
+
+// AdapterIdentityStore manages adapter identity persistence.
+type AdapterIdentityStore interface {
+	Create(ctx context.Context, identity *domain.AdapterIdentity) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error)
+	Update(ctx context.Context, identity *domain.AdapterIdentity) error
+	Delete(ctx context.Context, id uuid.UUID) error // hard delete
+
+	ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error)
+	GetDefault(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
+	SetDefault(ctx context.Context, adapterID uuid.UUID, identityID uuid.UUID) error
+	UpsertBatch(ctx context.Context, adapterID uuid.UUID, identities []*domain.AdapterIdentity) error
+	DeleteStale(ctx context.Context, adapterID uuid.UUID, keepIdentities []string) error
 }
 
 // DomainStore manages domain persistence and verification state.
@@ -214,10 +229,11 @@ type PageResult[T any] struct {
 
 // EmailFilters for email query filtering.
 type EmailFilters struct {
-	Status         *domain.EmailStatus
+	Status           *domain.EmailStatus
 	TemplateTypeSlug *string
-	Since          *time.Time
-	Until          *time.Time
+	AdapterID        *uuid.UUID
+	Since            *time.Time
+	Until            *time.Time
 }
 
 // AuditFilter for audit log query filtering.

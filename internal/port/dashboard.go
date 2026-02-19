@@ -44,9 +44,18 @@ type DashboardRecentEmail struct {
 	CreatedAt        time.Time
 }
 
+// DashboardAdapterTotals holds aggregated email counts for a single adapter.
+type DashboardAdapterTotals struct {
+	AdapterID   uuid.UUID
+	AdapterName string
+	AdapterType string
+	Totals      DashboardTotals
+}
+
 // DashboardStore provides read-only access to email metrics for dashboard views.
 type DashboardStore interface {
 	GetTotals(ctx context.Context, p DashboardStatsParams) (*DashboardTotals, error)
 	GetTimeSeries(ctx context.Context, p DashboardStatsParams) ([]DashboardTimePoint, error)
 	GetRecentEmails(ctx context.Context, p DashboardStatsParams, limit int) ([]DashboardRecentEmail, error)
+	GetTotalsByAdapter(ctx context.Context, p DashboardStatsParams) ([]DashboardAdapterTotals, error)
 }

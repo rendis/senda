@@ -177,6 +177,69 @@ func (p *EventProcessor) Process(ctx context.Context, event *ProviderEvent) erro
 	return nil
 }
 
+// ProcessDirect handles an event for an email that has already been looked up.
+// Used by the open-tracking pixel where we already have the email from tracking_id.
+// Status is only updated if the email is in an eligible state (sent/delivered).
+func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email, event *ProviderEvent) error {
+	status, ok := mapEventToStatus(event.Type)
+	if !ok {
+		p.logger.WarnContext(ctx, "unknown provider event type",
+			"event_type", event.Type,
+			"email_id", email.ID,
+		)
+		return nil
+	}
+
+	// Only transition status for opens if email is sent or delivered.
+	// Don't overwrite bounced/complained/failed, and don't re-set opened.
+	if event.Type == EventOpened {
+		if email.Status == domain.StatusSent || email.Status == domain.StatusDelivered {
+			if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
+			return err
+		}
+	}
+
+	// Always record the event (every open gets logged).
+	metadata := buildEventMetadata(event)
+	metadata["source"] = "open_tracking_pixel"
+	emailEvent := &domain.EmailEvent{
+		ID:         uuid.Must(uuid.NewV7()),
+		EmailID:    email.ID,
+		EventType:  status,
+		OccurredAt: event.Timestamp,
+		Metadata:   metadata,
+		CreatedAt:  time.Now().UTC(),
+	}
+	if err := p.emailUpdater.AddEvent(ctx, emailEvent); err != nil {
+		return err
+	}
+
+	// Dispatch to workspace webhooks.
+	if p.webhookService != nil {
+		webhookPayload := map[string]any{
+			"email_id":    email.ID.String(),
+			"tracking_id": email.TrackingID,
+			"recipient":   email.RecipientEmail,
+			"status":      string(status),
+			"timestamp":   event.Timestamp.Format(time.RFC3339),
+		}
+		if err := p.webhookService.Dispatch(ctx, email.WorkspaceID, "email."+string(event.Type), webhookPayload); err != nil {
+			p.logger.ErrorContext(ctx, "failed to dispatch webhook",
+				"email_id", email.ID,
+				"event_type", event.Type,
+				"error", err,
+			)
+		}
+	}
+
+	return nil
+}
+
 // handleSuppression adds suppression entries for hard bounces and complaints.
 func (p *EventProcessor) handleSuppression(ctx context.Context, event *ProviderEvent, email *domain.Email) error {
 	switch event.Type {

@@ -7,11 +7,20 @@ import (
 
 // DashboardStatsResponse is the JSON response for the dashboard stats endpoint.
 type DashboardStatsResponse struct {
-	Totals         DashboardTotalsResp        `json:"totals"`
-	Rates          DashboardRatesResp         `json:"rates"`
-	TimeSeries     []DashboardTimePointResp   `json:"time_series"`
-	RecentEmails   []DashboardRecentEmailResp `json:"recent_emails"`
-	RecentActivity []DashboardActivityResp    `json:"recent_activity"`
+	Totals         DashboardTotalsResp         `json:"totals"`
+	Rates          DashboardRatesResp          `json:"rates"`
+	TimeSeries     []DashboardTimePointResp    `json:"time_series"`
+	RecentEmails   []DashboardRecentEmailResp  `json:"recent_emails"`
+	RecentActivity []DashboardActivityResp     `json:"recent_activity"`
+	ByAdapter      []DashboardAdapterTotalsResp `json:"by_adapter"`
+}
+
+// DashboardAdapterTotalsResp holds per-adapter email totals.
+type DashboardAdapterTotalsResp struct {
+	AdapterID   string              `json:"adapter_id"`
+	AdapterName string              `json:"adapter_name"`
+	AdapterType string              `json:"adapter_type"`
+	Totals      DashboardTotalsResp `json:"totals"`
 }
 
 // DashboardTotalsResp holds aggregated email counts.
@@ -64,6 +73,7 @@ func NewDashboardStatsResponse(
 	series []port.DashboardTimePoint,
 	recentEmails []port.DashboardRecentEmail,
 	auditLogs []*domain.AuditLog,
+	byAdapter []port.DashboardAdapterTotals,
 ) DashboardStatsResponse {
 	// Compute rates with zero-division guard.
 	var rates DashboardRatesResp
@@ -110,6 +120,23 @@ func NewDashboardStatsResponse(
 		}
 	}
 
+	// Map by-adapter breakdown.
+	adapterResp := make([]DashboardAdapterTotalsResp, len(byAdapter))
+	for i, at := range byAdapter {
+		adapterResp[i] = DashboardAdapterTotalsResp{
+			AdapterID:   at.AdapterID.String(),
+			AdapterName: at.AdapterName,
+			AdapterType: at.AdapterType,
+			Totals: DashboardTotalsResp{
+				Sent:       at.Totals.Sent,
+				Delivered:  at.Totals.Delivered,
+				Bounced:    at.Totals.Bounced,
+				Complained: at.Totals.Complained,
+				Failed:     at.Totals.Failed,
+			},
+		}
+	}
+
 	return DashboardStatsResponse{
 		Totals: DashboardTotalsResp{
 			Sent:       totals.Sent,
@@ -122,5 +149,6 @@ func NewDashboardStatsResponse(
 		TimeSeries:     tsResp,
 		RecentEmails:   emailResp,
 		RecentActivity: actResp,
+		ByAdapter:      adapterResp,
 	}
 }

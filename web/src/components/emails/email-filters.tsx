@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAdapterList } from "@/hooks/use-adapters";
+import { useScopedPath } from "@/hooks/use-scope";
 import type { EmailStatus } from "@/types/api";
 import type { EmailFilters as EmailFiltersType } from "@/types/emails";
 
@@ -50,6 +52,12 @@ interface EmailFiltersBarProps {
 export function EmailFiltersBar({ filters, onFiltersChange }: EmailFiltersBarProps) {
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [dateRange, setDateRange] = useState<DateRangeValue>("7d");
+  const scopedPath = useScopedPath();
+  const { data: adapterPages } = useAdapterList(scopedPath);
+  const adapters = useMemo(
+    () => adapterPages?.pages.flatMap((p) => p.items) ?? [],
+    [adapterPages]
+  );
 
   // Debounced search (300ms)
   useEffect(() => {
@@ -77,6 +85,16 @@ export function EmailFiltersBar({ filters, onFiltersChange }: EmailFiltersBarPro
       onFiltersChange({
         ...filters,
         template_type: value === "all" ? undefined : value,
+      });
+    },
+    [filters, onFiltersChange]
+  );
+
+  const handleAdapterChange = useCallback(
+    (value: string) => {
+      onFiltersChange({
+        ...filters,
+        adapter_id: value === "all" ? undefined : value,
       });
     },
     [filters, onFiltersChange]
@@ -135,6 +153,26 @@ export function EmailFiltersBar({ filters, onFiltersChange }: EmailFiltersBarPro
           <SelectItem value="all">All templates</SelectItem>
         </SelectContent>
       </Select>
+
+      {/* Adapter/Provider filter */}
+      {adapters.length > 0 && (
+        <Select
+          value={filters.adapter_id ?? "all"}
+          onValueChange={handleAdapterChange}
+        >
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue placeholder="Provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All providers</SelectItem>
+            {adapters.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name} ({a.adapter_type.toUpperCase()})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Date range */}
       <Select value={dateRange} onValueChange={handleDateRangeChange}>

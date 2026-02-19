@@ -20,6 +20,11 @@ type Config struct {
 	Crypto   CryptoConfig   `yaml:"crypto"`
 	SMTP     SMTPConfig     `yaml:"smtp"`
 	Log      LogConfig      `yaml:"log"`
+	Tracking TrackingConfig `yaml:"tracking"`
+}
+
+type TrackingConfig struct {
+	BaseURL string `yaml:"base_url" env:"SENDA_TRACKING_BASE_URL"`
 }
 
 type ServerConfig struct {

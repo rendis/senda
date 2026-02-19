@@ -91,6 +91,9 @@ func (m *mockEmailStoreSend) UpdateStatus(_ context.Context, _ uuid.UUID, _ doma
 func (m *mockEmailStoreSend) UpdateRetry(_ context.Context, _ uuid.UUID, _ int, _ *time.Time) error {
 	return nil
 }
+func (m *mockEmailStoreSend) SetProviderMessageID(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockEmailStoreSend) AddEvent(ctx context.Context, event *domain.EmailEvent) error {
 	m.events = append(m.events, event)
 	if m.addEventFn != nil {
@@ -307,6 +310,43 @@ func (m *mockInjectorStoreSend) GetValues(ctx context.Context, defID uuid.UUID, 
 	return nil, nil
 }
 
+type mockAdapterIdentityStoreSend struct {
+	getDefaultFn    func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
+	listByAdapterFn func(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error)
+}
+
+func (m *mockAdapterIdentityStoreSend) Create(_ context.Context, _ *domain.AdapterIdentity) error {
+	return nil
+}
+func (m *mockAdapterIdentityStoreSend) GetByID(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+	return nil, nil
+}
+func (m *mockAdapterIdentityStoreSend) Update(_ context.Context, _ *domain.AdapterIdentity) error {
+	return nil
+}
+func (m *mockAdapterIdentityStoreSend) Delete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockAdapterIdentityStoreSend) ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error) {
+	if m.listByAdapterFn != nil {
+		return m.listByAdapterFn(ctx, adapterID)
+	}
+	return nil, nil
+}
+func (m *mockAdapterIdentityStoreSend) GetDefault(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
+	if m.getDefaultFn != nil {
+		return m.getDefaultFn(ctx, adapterID)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockAdapterIdentityStoreSend) SetDefault(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
+func (m *mockAdapterIdentityStoreSend) UpsertBatch(_ context.Context, _ uuid.UUID, _ []*domain.AdapterIdentity) error {
+	return nil
+}
+func (m *mockAdapterIdentityStoreSend) DeleteStale(_ context.Context, _ uuid.UUID, _ []string) error {
+	return nil
+}
+
 type mockAdapterStoreSend struct {
 	getByIDFn func(ctx context.Context, id uuid.UUID) (*domain.Adapter, error)
 }
@@ -386,16 +426,17 @@ type sendTestFixture struct {
 	typeID      uuid.UUID
 	adapterID   uuid.UUID
 
-	tenantStore   *mockTenantStoreSend
-	wsStore       *mockWorkspaceStoreSend
-	emailStore    *mockEmailStoreSend
-	suppression   *mockSuppressionStoreSend
-	jq            *mockJobQueueSend
-	cache         *mockCacheSend
-	templateStore *mockTemplateStoreSend
-	injectorStore *mockInjectorStoreSend
-	adapterStore  *mockAdapterStoreSend
-	domainStore   *mockDomainStoreSend
+	tenantStore    *mockTenantStoreSend
+	wsStore        *mockWorkspaceStoreSend
+	emailStore     *mockEmailStoreSend
+	suppression    *mockSuppressionStoreSend
+	jq             *mockJobQueueSend
+	cache          *mockCacheSend
+	templateStore  *mockTemplateStoreSend
+	injectorStore  *mockInjectorStoreSend
+	adapterStore   *mockAdapterStoreSend
+	identityStore  *mockAdapterIdentityStoreSend
+	domainStore    *mockDomainStoreSend
 }
 
 // newSendFixture creates a fully wired test fixture with happy-path defaults.
@@ -471,7 +512,6 @@ func newSendFixture() *sendTestFixture {
 					Subject:       "Welcome {{ event.name }}",
 					PreviewText:   "Welcome to our platform",
 					FromName:      "{{ injector.brand.name }}",
-					FromEmail:     "hello@example.com",
 					BodyMJML:      "<mj-text>Hello {{ event.name }}</mj-text>",
 					DefaultLocale: "en",
 				}, nil
@@ -510,6 +550,23 @@ func newSendFixture() *sendTestFixture {
 		},
 	}
 
+	f.identityStore = &mockAdapterIdentityStoreSend{
+		getDefaultFn: func(_ context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
+			if adapterID == f.adapterID {
+				return &domain.AdapterIdentity{
+					ID:             uuid.Must(uuid.NewV7()),
+					AdapterID:      f.adapterID,
+					Identity:       "hello@example.com",
+					IdentityType:   domain.IdentityTypeEmail,
+					Status:         domain.IdentityStatusVerified,
+					SendingEnabled: true,
+					IsDefault:      true,
+					Source:         "manual",
+				}, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
 	f.emailStore = &mockEmailStoreSend{}
 	f.suppression = &mockSuppressionStoreSend{}
 	f.jq = &mockJobQueueSend{}
@@ -525,12 +582,14 @@ func (f *sendTestFixture) buildService() *service.SendService {
 	adapterResolver := resolution.NewAdapterResolver(f.adapterStore, f.cache)
 	domainResolver := resolution.NewDomainResolver(f.domainStore, chainResolver, f.cache)
 	renderer := service.NewVariableRenderer()
+	identitySvc := service.NewIdentityService(f.identityStore, f.adapterStore, nil, nil)
 
 	return service.NewSendService(
 		templateResolver,
 		injectorMerger,
 		adapterResolver,
 		domainResolver,
+		identitySvc,
 		f.emailStore,
 		f.suppression,
 		f.jq,
@@ -1064,5 +1123,21 @@ func TestSendService_PartialFailure_SomeRecipientsSucceed(t *testing.T) {
 	}
 	if resp.TrackingIDs[2].Status != "accepted" {
 		t.Fatalf("expected charlie's status 'accepted', got %q", resp.TrackingIDs[2].Status)
+	}
+}
+
+func TestSendService_NoDefaultIdentity(t *testing.T) {
+	f := newSendFixture()
+	f.identityStore.getDefaultFn = func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+		return nil, domain.ErrNotFound
+	}
+
+	svc := f.buildService()
+	_, err := svc.Send(context.Background(), f.happyRequest())
+	if err == nil {
+		t.Fatal("expected error when no default identity")
+	}
+	if !errors.Is(err, domain.ErrNoDefaultIdentity) {
+		t.Fatalf("expected ErrNoDefaultIdentity, got %v", err)
 	}
 }

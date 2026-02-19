@@ -114,7 +114,6 @@ type TemplateVersionResponse struct {
 	Subject       string           `json:"subject"`
 	PreviewText   string           `json:"preview_text"`
 	FromName      string           `json:"from_name"`
-	FromEmail     string           `json:"from_email"`
 	ReplyTo       *string          `json:"reply_to,omitempty"`
 	DefaultLocale string           `json:"default_locale"`
 	BodyMJML      string           `json:"body_mjml"`
@@ -140,7 +139,6 @@ func NewTemplateVersionResponse(v *domain.TemplateVersion) TemplateVersionRespon
 		Subject:       v.Subject,
 		PreviewText:   v.PreviewText,
 		FromName:      v.FromName,
-		FromEmail:     v.FromEmail,
 		ReplyTo:       v.ReplyTo,
 		DefaultLocale: v.DefaultLocale,
 		BodyMJML:      v.BodyMJML,

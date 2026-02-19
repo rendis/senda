@@ -56,6 +56,9 @@ func (m *mockEmailStore) UpdateRetry(ctx context.Context, id uuid.UUID, retryCou
 	}
 	return nil
 }
+func (m *mockEmailStore) SetProviderMessageID(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockEmailStore) AddEvent(ctx context.Context, event *domain.EmailEvent) error {
 	if m.addEventFn != nil {
 		return m.addEventFn(ctx, event)

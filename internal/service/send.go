@@ -48,6 +48,7 @@ type SendService struct {
 	injectorMerger   *resolution.InjectorMerger
 	adapterResolver  *resolution.AdapterResolver
 	domainResolver   *resolution.DomainResolver
+	identitySvc      *IdentityService
 	emailStore       port.EmailStore
 	suppression      port.SuppressionStore
 	queue            port.JobQueue
@@ -62,6 +63,7 @@ func NewSendService(
 	injectorMerger *resolution.InjectorMerger,
 	adapterResolver *resolution.AdapterResolver,
 	domainResolver *resolution.DomainResolver,
+	identitySvc *IdentityService,
 	emailStore port.EmailStore,
 	suppression port.SuppressionStore,
 	queue port.JobQueue,
@@ -74,6 +76,7 @@ func NewSendService(
 		injectorMerger:   injectorMerger,
 		adapterResolver:  adapterResolver,
 		domainResolver:   domainResolver,
+		identitySvc:      identitySvc,
 		emailStore:       emailStore,
 		suppression:      suppression,
 		queue:            queue,
@@ -123,8 +126,11 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 6. Resolve from_email and validate domain
-	fromEmail := resolveFromEmail(resolved)
+	// 6. Resolve from_email from adapter's default identity and validate domain
+	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.domainResolver.ValidateFromAddress(ctx, ws.ID, fromEmail); err != nil {
 		return nil, err
 	}
@@ -267,10 +273,16 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	return response, nil
 }
 
-// resolveFromEmail returns the from_email, preferring locale override if present.
-func resolveFromEmail(resolved *resolution.ResolvedTemplate) string {
-	// Version always has the default from_email
-	return resolved.Version.FromEmail
+// resolveFromEmail gets the from_email from the adapter's default identity.
+func (s *SendService) resolveFromEmail(ctx context.Context, adapter *domain.Adapter) (string, error) {
+	identity, err := s.identitySvc.GetDefault(ctx, adapter.ID)
+	if err != nil {
+		return "", fmt.Errorf("%w: adapter %s", domain.ErrNoDefaultIdentity, adapter.ID)
+	}
+	if identity.IdentityType != domain.IdentityTypeEmail {
+		return "", fmt.Errorf("%w: adapter %s default is a domain, not an email", domain.ErrNoDefaultIdentity, adapter.ID)
+	}
+	return identity.Identity, nil
 }
 
 // getLocalizedField returns the localized value for a field, falling back to version default.

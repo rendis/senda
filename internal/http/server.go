@@ -46,6 +46,12 @@ type Server struct {
 	domainHandler   *handler.DomainHTTPHandler
 	domainService   *service.DomainService
 
+	// Identity handler (adapter identities).
+	identityHandler *handler.IdentityHandler
+
+	// Adapter setup guide handler.
+	adapterSetupHandler *handler.AdapterSetupHandler
+
 	// HT-21 handlers (Templates).
 	templateTypeHandler *handler.TemplateTypeHandler
 	templateHandler     *handler.TemplateHandler
@@ -70,6 +76,9 @@ type Server struct {
 
 	// Dashboard handler.
 	dashboardHandler *handler.DashboardHandler
+
+	// Open-tracking handler (public, no auth).
+	trackingHandler *handler.TrackingHandler
 }
 
 // ServerOption configures optional Server dependencies.
@@ -151,6 +160,20 @@ func WithInjectorHandler(h *handler.InjectorHandler) ServerOption {
 func WithAdapterHandler(h *handler.AdapterHandler) ServerOption {
 	return func(s *Server) {
 		s.adapterHandler = h
+	}
+}
+
+// WithIdentityHandler sets the IdentityHandler for adapter identity routes.
+func WithIdentityHandler(h *handler.IdentityHandler) ServerOption {
+	return func(s *Server) {
+		s.identityHandler = h
+	}
+}
+
+// WithAdapterSetupHandler sets the AdapterSetupHandler for setup guide routes.
+func WithAdapterSetupHandler(h *handler.AdapterSetupHandler) ServerOption {
+	return func(s *Server) {
+		s.adapterSetupHandler = h
 	}
 }
 
@@ -245,6 +268,13 @@ func WithDashboardHandler(h *handler.DashboardHandler) ServerOption {
 	}
 }
 
+// WithTrackingHandler sets the TrackingHandler for open-tracking pixel routes.
+func WithTrackingHandler(h *handler.TrackingHandler) ServerOption {
+	return func(s *Server) {
+		s.trackingHandler = h
+	}
+}
+
 // NewServer creates a configured Echo server with middleware and routes.
 func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *Server {
 	e := echo.New()
@@ -281,6 +311,11 @@ func (s *Server) registerRoutes() {
 	})
 	s.echo.GET("/healthz", healthH.Health)
 	s.echo.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
+
+	// Open-tracking pixel — public, no auth.
+	if s.trackingHandler != nil {
+		s.echo.GET("/t/o/:tracking_id", s.trackingHandler.HandleOpen)
+	}
 
 	// Data-plane API group.
 	api := s.echo.Group("/api/v1")
@@ -360,6 +395,17 @@ func (s *Server) registerRoutes() {
 				ws.PUT("/adapters/:id", s.adapterHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/adapters/:id", s.adapterHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/test", s.adapterHandler.TestConnection, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				if s.adapterSetupHandler != nil {
+					ws.GET("/adapters/:id/setup-guide", s.adapterSetupHandler.SetupGuide, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+					ws.POST("/adapters/:id/auto-provision-tracking", s.adapterSetupHandler.AutoProvision, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				}
+			}
+			if s.identityHandler != nil {
+				ws.GET("/adapters/:id/identities", s.identityHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/adapters/:id/identities", s.identityHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/adapters/:id/identities/sync", s.identityHandler.Sync, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/adapters/:id/identities/:identity_id", s.identityHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/adapters/:id/identities/:identity_id/set-default", s.identityHandler.SetDefault, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 			if s.domainHandler != nil {
 				ws.GET("/domains", s.domainHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -451,6 +497,17 @@ func (s *Server) registerRoutes() {
 				global.PUT("/adapters/:id", s.adapterHandler.UpdateGlobal)
 				global.DELETE("/adapters/:id", s.adapterHandler.SoftDeleteGlobal)
 				global.POST("/adapters/:id/test", s.adapterHandler.TestConnectionGlobal)
+				if s.adapterSetupHandler != nil {
+					global.GET("/adapters/:id/setup-guide", s.adapterSetupHandler.SetupGuideGlobal)
+					global.POST("/adapters/:id/auto-provision-tracking", s.adapterSetupHandler.AutoProvisionGlobal)
+				}
+			}
+			if s.identityHandler != nil {
+				global.GET("/adapters/:id/identities", s.identityHandler.ListGlobal)
+				global.POST("/adapters/:id/identities", s.identityHandler.CreateGlobal)
+				global.POST("/adapters/:id/identities/sync", s.identityHandler.SyncGlobal)
+				global.DELETE("/adapters/:id/identities/:identity_id", s.identityHandler.DeleteGlobal)
+				global.POST("/adapters/:id/identities/:identity_id/set-default", s.identityHandler.SetDefaultGlobal)
 			}
 			if s.domainHandler != nil {
 				global.GET("/domains", s.domainHandler.ListGlobal)

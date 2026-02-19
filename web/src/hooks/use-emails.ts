@@ -30,6 +30,9 @@ export function useEmails(filters: EmailFilters) {
   if (filters.search) {
     searchParams.set("search", filters.search);
   }
+  if (filters.adapter_id) {
+    searchParams.set("adapter_id", filters.adapter_id);
+  }
 
   const filterKey = searchParams.toString();
 

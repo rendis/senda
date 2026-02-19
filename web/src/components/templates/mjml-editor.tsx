@@ -59,7 +59,6 @@ const metadataSchema = z.object({
   subject: z.string().min(1, { message: "Subject is required" }),
   preview_text: z.string().optional(),
   from_name: z.string().min(1, { message: "From name is required" }),
-  from_email: z.string().min(1, { message: "From email is required" }),
   reply_to: z.string().optional(),
 });
 
@@ -1053,6 +1052,118 @@ function collectEventVariablesFromSchema(schema: unknown): string[] {
   return normalized;
 }
 
+function parseMjmlAlign(value: string | null): "left" | "center" | "right" {
+  if (value === "center" || value === "right" || value === "left") {
+    return value;
+  }
+  return "left";
+}
+
+function decodeMjmlEntities(raw: string) {
+  return raw
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function stripMjmlInlineTags(raw: string) {
+  const withLineBreaks = raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n");
+  const withoutTags = withLineBreaks.replace(/<[^>]+>/g, "");
+  return decodeMjmlEntities(withoutTags).trim();
+}
+
+function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
+  if (!rawMjml.trim()) {
+    return null;
+  }
+
+  try {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(rawMjml, "text/xml");
+    if (xmlDoc.querySelector("parsererror")) {
+      return null;
+    }
+
+    const column = xmlDoc.getElementsByTagName("mj-column")[0];
+    if (!column) {
+      return null;
+    }
+
+    const blocks: BuilderBlock[] = [];
+    for (const child of Array.from(column.children)) {
+      const tag = child.tagName.toLowerCase();
+
+      if (tag === "mj-text") {
+        blocks.push({
+          id: nowId(),
+          type: "text",
+          segments: ensureUniqueSegmentIds(
+            parseContentToSegments(stripMjmlInlineTags(child.innerHTML ?? ""))
+          ),
+          align: parseMjmlAlign(child.getAttribute("align")),
+        });
+        continue;
+      }
+
+      if (tag === "mj-button") {
+        const content = stripMjmlInlineTags(child.innerHTML ?? "");
+        blocks.push({
+          id: nowId(),
+          type: "button",
+          segments: ensureUniqueSegmentIds(parseContentToSegments(content || "Button")),
+          href: child.getAttribute("href") || "#",
+          align: parseMjmlAlign(child.getAttribute("align")),
+        });
+        continue;
+      }
+
+      if (tag === "mj-image") {
+        blocks.push({
+          id: nowId(),
+          type: "image",
+          src: child.getAttribute("src") || "",
+          alt: child.getAttribute("alt") || undefined,
+          width: child.getAttribute("width") || undefined,
+          align: parseMjmlAlign(child.getAttribute("align")),
+        });
+        continue;
+      }
+
+      if (tag === "mj-divider") {
+        blocks.push({
+          id: nowId(),
+          type: "divider",
+        });
+        continue;
+      }
+
+      if (tag === "mj-spacer") {
+        blocks.push({
+          id: nowId(),
+          type: "spacer",
+          height: normalizeSpacerHeight(child.getAttribute("height"), 20),
+        });
+      }
+    }
+
+    if (!blocks.length) {
+      return null;
+    }
+
+    return {
+      version: 1,
+      blocks,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function buildTemplateMjml(document: BuilderDocument) {
   const blocks = document.blocks
       .map((block) => {
@@ -1185,14 +1296,12 @@ export function MjmlEditor() {
           subject: version.subject,
           preview_text: version.preview_text ?? "",
           from_name: version.from_name,
-          from_email: version.from_email,
           reply_to: version.reply_to ?? "",
         }
       : {
           subject: "",
           preview_text: "",
           from_name: "",
-          from_email: "",
           reply_to: "",
         },
   });
@@ -1203,40 +1312,13 @@ export function MjmlEditor() {
     const raw = templateTypeQuery.data?.variable_schema;
     const extracted = collectEventVariablesFromSchema(raw as unknown);
 
-    if (extracted.length > 0) {
-      const items: TemplateVariable[] = Array.from(new Set(extracted)).map((name) => ({
+    return Array.from(new Set(extracted)).map((name) => ({
         id: `event-${name}`,
         token: makeVariableToken(name, "event"),
         label: name,
         hint: "Variable de evento",
         category: "event",
       }));
-      return items;
-    }
-
-    return [
-      {
-        id: "event-user-name",
-        token: "event.user_name",
-        label: "event.user_name",
-        hint: "Variable de evento",
-        category: "event",
-      },
-      {
-        id: "event-user-email",
-        token: "event.user_email",
-        label: "event.user_email",
-        hint: "Variable de evento",
-        category: "event",
-      },
-      {
-        id: "event-order-id",
-        token: "event.order_id",
-        label: "event.order_id",
-        hint: "Variable de evento",
-        category: "event",
-      },
-    ];
   }, [templateTypeQuery.data]);
 
   const templateVariables = useMemo(() => {
@@ -1280,7 +1362,14 @@ export function MjmlEditor() {
       return;
     }
 
-    const parsed = normalizeBuilderDocument(version.editor_data);
+    const hasPersistedEditorData = Boolean(
+      version.editor_data && Object.keys(version.editor_data).length > 0
+    );
+    const parsed =
+      (hasPersistedEditorData
+        ? normalizeBuilderDocument(version.editor_data)
+        : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
+      normalizeBuilderDocument(version.editor_data);
     setBuilderDocument(parsed);
 
     const initialCode = version.body_mjml ?? "";
@@ -1730,7 +1819,6 @@ export function MjmlEditor() {
       subject: formData.subject,
       preview_text: formData.preview_text || undefined,
       from_name: formData.from_name,
-      from_email: formData.from_email,
       reply_to: formData.reply_to || undefined,
       body_mjml: bodyPayload,
       default_locale: version?.default_locale ?? "en",
@@ -2863,6 +2951,9 @@ export function MjmlEditor() {
 
           <div className="border-t bg-card p-4 shrink-0">
             <h4 className="text-sm font-semibold mb-3">Metadata</h4>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Used for email headers and inbox preview in real sends.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-medium">Subject</Label>

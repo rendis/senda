@@ -12,19 +12,22 @@ import (
 
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/internal/tracking"
 )
 
 // SendWorker processes email send jobs.
 type SendWorker struct {
 	goriver.WorkerDefaults[SendJobArgs]
 
-	emailStore  port.EmailStore
-	domainStore port.DomainStore
-	crypto      port.Crypto
-	compiler    port.TemplateCompiler
-	renderer    port.VariableRenderer
-	rateLimiter port.RateLimiter
-	sender      port.EmailSender
+	emailStore      port.EmailStore
+	domainStore     port.DomainStore
+	crypto          port.Crypto
+	compiler        port.TemplateCompiler
+	renderer        port.VariableRenderer
+	rateLimiter     port.RateLimiter
+	sender          port.EmailSender
+	wsStore         port.WorkspaceStore
+	trackingBaseURL string
 }
 
 // NewSendWorker creates a new send worker with all dependencies.
@@ -36,8 +39,9 @@ func NewSendWorker(
 	renderer port.VariableRenderer,
 	rateLimiter port.RateLimiter,
 	sender port.EmailSender,
+	opts ...SendWorkerOption,
 ) *SendWorker {
-	return &SendWorker{
+	w := &SendWorker{
 		emailStore:  emailStore,
 		domainStore: domainStore,
 		crypto:      crypto,
@@ -46,6 +50,23 @@ func NewSendWorker(
 		rateLimiter: rateLimiter,
 		sender:      sender,
 	}
+	for _, o := range opts {
+		o(w)
+	}
+	return w
+}
+
+// SendWorkerOption configures optional SendWorker dependencies.
+type SendWorkerOption func(*SendWorker)
+
+// WithWorkspaceStore sets the workspace store for open-tracking lookups.
+func WithWorkspaceStore(ws port.WorkspaceStore) SendWorkerOption {
+	return func(w *SendWorker) { w.wsStore = ws }
+}
+
+// WithTrackingBaseURL sets the base URL for open-tracking pixels.
+func WithTrackingBaseURL(url string) SendWorkerOption {
+	return func(w *SendWorker) { w.trackingBaseURL = url }
 }
 
 // Work processes a single email send job.
@@ -95,7 +116,15 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.failPermanently(ctx, email, fmt.Errorf("send: compile mjml: %w", err))
 	}
 
-	// 6. Build outgoing email.
+	// 6. Inject open-tracking pixel if workspace has it enabled.
+	if w.trackingBaseURL != "" && w.wsStore != nil {
+		ws, wsErr := w.wsStore.GetByID(ctx, email.WorkspaceID)
+		if wsErr == nil && ws.OpenTrackingEnabled {
+			bodyHTML = tracking.InjectOpenPixel(bodyHTML, w.trackingBaseURL, email.TrackingID)
+		}
+	}
+
+	// 7. Build outgoing email.
 	outgoing := &port.OutgoingEmail{
 		From:       port.EmailAddress{Name: email.FromName, Address: email.FromEmail},
 		To:         port.EmailAddress{Address: email.RecipientEmail},
@@ -116,20 +145,27 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		outgoing.ReplyTo = &port.EmailAddress{Address: *email.ReplyTo}
 	}
 
-	// 7. DKIM config: look up domain by from_email, decrypt private key.
+	// 8. DKIM config: look up domain by from_email, decrypt private key.
 	dkimCfg, err := w.resolveDKIM(ctx, email.FromEmail)
 	if err == nil && dkimCfg != nil {
 		outgoing.DKIMConfig = dkimCfg
 	}
 	// If DKIM resolution fails, send without DKIM (not a fatal error).
 
-	// 8. Send via provider adapter.
+	// 9. Send via provider adapter.
 	providerMsgID, err := w.sender.Send(ctx, outgoing)
 	if err != nil {
 		return w.handleSendError(ctx, email, job.Attempt, err)
 	}
 
-	// 9. Success: update status to sent, add event.
+	// 10. Persist provider message ID for webhook event matching.
+	if providerMsgID != "" {
+		if err := w.emailStore.SetProviderMessageID(ctx, email.ID, providerMsgID); err != nil {
+			slog.Error("send_worker: failed to set provider_message_id", "email_id", email.ID, "error", err)
+		}
+	}
+
+	// 11. Success: update status to sent, add event.
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent); err != nil {
 		return fmt.Errorf("send: update status to sent: %w", err)
 	}

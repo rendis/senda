@@ -119,6 +119,14 @@ export interface OnboardingSetupResponse {
   workspace: { id: string; code: string; name: string };
 }
 
+/** Per-adapter totals for dashboard breakdown */
+export interface DashboardAdapterTotals {
+  adapter_id: string;
+  adapter_name: string;
+  adapter_type: string;
+  totals: DashboardTotals;
+}
+
 /** Dashboard stats response from backend */
 export interface DashboardStats {
   totals: DashboardTotals;
@@ -126,6 +134,7 @@ export interface DashboardStats {
   time_series: DashboardTimeSeriesPoint[];
   recent_emails: DashboardRecentEmail[];
   recent_activity: DashboardActivityItem[];
+  by_adapter: DashboardAdapterTotals[];
 }
 
 export interface DashboardTotals {

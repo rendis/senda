@@ -11,6 +11,7 @@ type EmailResponse struct {
 	ExternalID        *string  `json:"external_id,omitempty"`
 	WorkspaceID       string   `json:"workspace_id"`
 	TenantID          string   `json:"tenant_id"`
+	AdapterID         string   `json:"adapter_id"`
 	TemplateTypeSlug  string   `json:"template_type_slug"`
 	TemplateRef       string   `json:"template_ref"`
 	RecipientEmail    string   `json:"recipient_email"`
@@ -60,6 +61,7 @@ func NewEmailResponse(e *domain.Email) EmailResponse {
 		ExternalID:        e.ExternalID,
 		WorkspaceID:       e.WorkspaceID.String(),
 		TenantID:          e.TenantID.String(),
+		AdapterID:         e.AdapterID.String(),
 		TemplateTypeSlug:  e.TemplateTypeSlug,
 		TemplateRef:       e.TemplateRef,
 		RecipientEmail:    e.RecipientEmail,

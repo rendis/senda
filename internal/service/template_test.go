@@ -195,7 +195,7 @@ func TestTemplateService_CreateVersion_Success(t *testing.T) {
 
 	replyTo := "reply@example.com"
 	ver, err := svc.CreateVersion(context.Background(), templateID,
-		"Welcome {{name}}", "Preview text", "Acme", "noreply@acme.com",
+		"Welcome {{name}}", "Preview text", "Acme",
 		&replyTo, "<mjml><mj-body></mj-body></mjml>", "en",
 		map[string]any{"editor": "v1"}, nil,
 	)
@@ -229,7 +229,7 @@ func TestTemplateService_CreateVersion_FirstVersion(t *testing.T) {
 	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
 
 	ver, err := svc.CreateVersion(context.Background(), uuid.Must(uuid.NewV7()),
-		"Subject", "Preview", "From", "from@test.com",
+		"Subject", "Preview", "From",
 		nil, "<mjml></mjml>", "en", nil, nil,
 	)
 	if err != nil {
@@ -250,7 +250,7 @@ func TestTemplateService_CreateVersion_ListError(t *testing.T) {
 	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
 
 	_, err := svc.CreateVersion(context.Background(), uuid.Must(uuid.NewV7()),
-		"Subject", "Preview", "From", "from@test.com",
+		"Subject", "Preview", "From",
 		nil, "<mjml></mjml>", "en", nil, nil,
 	)
 	if err == nil {

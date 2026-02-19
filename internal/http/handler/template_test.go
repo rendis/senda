@@ -225,8 +225,8 @@ func TestTemplateHandler_ListVersions_Success(t *testing.T) {
 		listVersionsFn: func(_ context.Context, id uuid.UUID) ([]*domain.TemplateVersion, error) {
 			if id == templateID {
 				return []*domain.TemplateVersion{
-					{ID: uuid.Must(uuid.NewV7()), TemplateID: templateID, VersionNumber: 1, Status: domain.VersionStatusPublished, Subject: "V1", FromEmail: "a@b.com", CreatedAt: now, UpdatedAt: now},
-					{ID: uuid.Must(uuid.NewV7()), TemplateID: templateID, VersionNumber: 2, Status: domain.VersionStatusDraft, Subject: "V2", FromEmail: "a@b.com", CreatedAt: now, UpdatedAt: now},
+					{ID: uuid.Must(uuid.NewV7()), TemplateID: templateID, VersionNumber: 1, Status: domain.VersionStatusPublished, Subject: "V1", CreatedAt: now, UpdatedAt: now},
+					{ID: uuid.Must(uuid.NewV7()), TemplateID: templateID, VersionNumber: 2, Status: domain.VersionStatusDraft, Subject: "V2", CreatedAt: now, UpdatedAt: now},
 				}, nil
 			}
 			return nil, nil

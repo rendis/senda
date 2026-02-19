@@ -10,6 +10,7 @@ import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { EmailBarChart, EmailBarChartSkeleton } from "@/components/dashboard/email-bar-chart";
 import { ActivityFeed, ActivityFeedSkeleton } from "@/components/dashboard/activity-feed";
 import { RecentEmailsTable, RecentEmailsTableSkeleton } from "@/components/dashboard/recent-emails-table";
+import { ProviderBreakdown } from "@/components/dashboard/provider-breakdown";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -193,6 +194,9 @@ export function DashboardContent() {
         <EmailBarChart data={data.time_series} range={range} />
         <ActivityFeed items={data.recent_activity} auditHref={auditHref} />
       </div>
+
+      {/* Provider Breakdown */}
+      <ProviderBreakdown adapters={data.by_adapter} />
 
       {/* Recent Emails Table */}
       <RecentEmailsTable
