@@ -36,7 +36,11 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Search,
+  Play,
+  List,
+  LayoutTemplate,
 } from "lucide-react";
 import { TextBlockEditor, type TextBlockEditorHandle } from "./text-block-editor";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
@@ -76,7 +80,7 @@ const metadataSchema = z.object({
 
 type MetadataForm = z.infer<typeof metadataSchema>;
 
-type BuilderBlockType = "text" | "button" | "image" | "divider" | "spacer";
+type BuilderBlockType = "text" | "button" | "image" | "divider" | "spacer" | "banner" | "video" | "list";
 
 type BuilderSegment =
   | {
@@ -127,12 +131,55 @@ type BuilderSpacerBlock = {
   height: number;
 };
 
+type BuilderBannerBlock = {
+  id: string;
+  type: "banner";
+  backgroundUrl: string;
+  backgroundColor: string;
+  mode: "fixed-height" | "fluid-height";
+  height: number;
+  segments: BuilderSegment[];
+  buttonText: string;
+  buttonHref: string;
+  buttonColor: string;
+  verticalAlign: "top" | "middle" | "bottom";
+  align: "left" | "center" | "right";
+  padding: number;
+};
+
+type BuilderVideoBlock = {
+  id: string;
+  type: "video";
+  videoUrl: string;
+  thumbnailUrl: string;
+  alt: string;
+  width: string;
+  align: "left" | "center" | "right";
+};
+
+type ListItem = {
+  id: string;
+  segments: BuilderSegment[];
+  children: ListItem[];
+};
+
+type BuilderListBlock = {
+  id: string;
+  type: "list";
+  listType: "bullet" | "number" | "letter-upper" | "letter-lower" | "roman";
+  items: ListItem[];
+  align: "left" | "center" | "right";
+};
+
 type BuilderBlock =
   | BuilderTextBlock
   | BuilderButtonBlock
   | BuilderImageBlock
   | BuilderDividerBlock
-  | BuilderSpacerBlock;
+  | BuilderSpacerBlock
+  | BuilderBannerBlock
+  | BuilderVideoBlock
+  | BuilderListBlock;
 
 type BuilderDocument = {
   version: number;
@@ -162,6 +209,7 @@ const DEFAULT_PREVIEW_DOCUMENT_SIZE: PreviewDocumentSize = {
 };
 const VARIABLE_DND_MIME = "application/x-senda-variable";
 const BLOCK_DND_MIME = "application/x-senda-block-id";
+const LIST_ITEM_DND_MIME = "application/x-senda-list-item";
 const CLIPBOARD_SEGMENTS_MIME = "application/x-senda-segments";
 const TOKEN_SEGMENT_KIND = "token";
 const TOKEN_CHIP_CLASSNAME =
@@ -675,6 +723,67 @@ function normalizeSpacerHeight(raw: unknown, fallback = 20) {
   return fallback;
 }
 
+function parseVerticalAlign(value: string | null): "top" | "middle" | "bottom" {
+  if (value === "top" || value === "middle" || value === "bottom") return value;
+  return "middle";
+}
+
+function listStyleTypeForListBlock(listType: BuilderListBlock["listType"]): string {
+  switch (listType) {
+    case "bullet": return "disc";
+    case "number": return "decimal";
+    case "letter-upper": return "upper-alpha";
+    case "letter-lower": return "lower-alpha";
+    case "roman": return "upper-roman";
+    default: return "disc";
+  }
+}
+
+function createListItem(text: string = ""): ListItem {
+  return {
+    id: nowId(),
+    segments: [createTextSegment(text)],
+    children: [],
+  };
+}
+
+function renderListItemsToHtml(
+  items: ListItem[],
+  listType: BuilderListBlock["listType"],
+  depth: number = 0
+): string {
+  const tag = listType === "bullet" ? "ul" : "ol";
+  const styleType = listStyleTypeForListBlock(listType);
+  const liHtml = items
+    .map((item) => {
+      const textContent = renderSegmentsToText(item.segments).trim() || "&nbsp;";
+      const nestedHtml =
+        item.children.length > 0
+          ? renderListItemsToHtml(item.children, listType, depth + 1)
+          : "";
+      return `<li>${textContent}${nestedHtml}</li>`;
+    })
+    .join("");
+  return `<${tag} style="list-style-type:${styleType};padding-left:${depth === 0 ? 0 : 20}px;margin:0;">${liHtml}</${tag}>`;
+}
+
+function extractVideoThumbnail(url: string): string {
+  if (!url) return "";
+  // YouTube: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+  const ytMatch = url.match(
+    /(?:youtube\.com\/(?:watch\?.*v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  if (ytMatch?.[1]) {
+    return `https://img.youtube.com/vi/${ytMatch[1]}/maxresdefault.jpg`;
+  }
+  // Vimeo: vimeo.com/ID
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch?.[1]) {
+    return `https://vumbnail.com/${vimeoMatch[1]}.jpg`;
+  }
+  return "";
+}
+
 function mergeAdjacentTextSegments(segments: BuilderSegment[]) {
   const merged: BuilderSegment[] = [];
 
@@ -916,6 +1025,104 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
         );
         return { id, type: "spacer", height };
       }
+      if (item.type === "banner") {
+        const raw = item as Record<string, unknown>;
+        return {
+          id,
+          type: "banner",
+          backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
+          backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#333333",
+          mode: raw.mode === "fixed-height" ? "fixed-height" : "fluid-height",
+          height: normalizeSpacerHeight(raw.height, 400),
+          segments: Array.isArray(raw.segments)
+            ? ensureUniqueSegmentIds(
+                (raw.segments as unknown[])
+                  .filter((s): s is BuilderSegment => isRecord(s))
+                  .map((s) => {
+                    if (s.kind === "text" && typeof s.text === "string")
+                      return { kind: "text" as const, id: typeof s.id === "string" ? s.id : nowId(), text: s.text };
+                    if (s.kind === "token" && typeof s.token === "string")
+                      return {
+                        kind: "token" as const,
+                        id: typeof s.id === "string" ? s.id : nowId(),
+                        token: normalizeVariableToken(s.token),
+                        label: typeof s.label === "string" ? s.label : s.token,
+                        category: s.category === "injector" ? "injector" as const : "event" as const,
+                      };
+                    return null;
+                  })
+                  .filter((s): s is BuilderSegment => s !== null)
+              )
+            : [createTextSegment("")],
+          buttonText: typeof raw.buttonText === "string" ? raw.buttonText : "",
+          buttonHref: typeof raw.buttonHref === "string" ? raw.buttonHref : "#",
+          buttonColor: typeof raw.buttonColor === "string" ? raw.buttonColor : "#ffffff",
+          verticalAlign: parseVerticalAlign(typeof raw.verticalAlign === "string" ? raw.verticalAlign : null),
+          align,
+          padding: normalizeSpacerHeight(raw.padding, 40),
+        };
+      }
+      if (item.type === "video") {
+        const raw = item as Record<string, unknown>;
+        return {
+          id,
+          type: "video",
+          videoUrl: typeof raw.videoUrl === "string" ? raw.videoUrl : "",
+          thumbnailUrl: typeof raw.thumbnailUrl === "string" ? raw.thumbnailUrl : "",
+          alt: typeof raw.alt === "string" ? raw.alt : "",
+          width: typeof raw.width === "string" ? raw.width : "",
+          align,
+        };
+      }
+      if (item.type === "list") {
+        const raw = item as Record<string, unknown>;
+        const validListTypes = ["bullet", "number", "letter-upper", "letter-lower", "roman"];
+        const listType: BuilderListBlock["listType"] =
+          typeof raw.listType === "string" && validListTypes.includes(raw.listType)
+            ? (raw.listType as BuilderListBlock["listType"])
+            : "bullet";
+
+        function normalizeListChildren(arr: unknown): ListItem[] {
+          if (!Array.isArray(arr)) return [];
+          return arr
+            .filter((i): i is Record<string, unknown> => isRecord(i))
+            .map((i): ListItem => ({
+              id: typeof i.id === "string" ? i.id : nowId(),
+              segments: Array.isArray(i.segments)
+                ? ensureUniqueSegmentIds(
+                    (i.segments as unknown[])
+                      .filter((s): s is BuilderSegment => isRecord(s))
+                      .map((s) => {
+                        if (s.kind === "text" && typeof s.text === "string")
+                          return { kind: "text" as const, id: typeof s.id === "string" ? s.id : nowId(), text: s.text };
+                        if (s.kind === "token" && typeof s.token === "string")
+                          return {
+                            kind: "token" as const,
+                            id: typeof s.id === "string" ? s.id : nowId(),
+                            token: normalizeVariableToken(s.token),
+                            label: typeof s.label === "string" ? s.label : s.token,
+                            category: s.category === "injector" ? "injector" as const : "event" as const,
+                          };
+                        return null;
+                      })
+                      .filter((s): s is BuilderSegment => s !== null)
+                  )
+                : [createTextSegment("")],
+              children: normalizeListChildren(i.children),
+            }));
+        }
+
+        return {
+          id,
+          type: "list",
+          listType,
+          items: (() => {
+            const parsed = normalizeListChildren(raw.items);
+            return parsed.length > 0 ? parsed : [createListItem("")];
+          })(),
+          align,
+        };
+      }
       return null;
     })
     .filter((b): b is BuilderBlock => Boolean(b));
@@ -945,42 +1152,35 @@ function variableToPlaceholder(rawToken: string) {
 function sanitizePreviewHtml(rawHtml: string) {
   if (!rawHtml) return "";
 
-  try {
-    const parser = new DOMParser();
-    const documentRef = parser.parseFromString(rawHtml, "text/html");
+  // String-based sanitization to avoid DOMParser→outerHTML round-trip which
+  // breaks double-quoted CSS values inside style attributes (e.g. font-family:
+  // "Courier New" gets truncated because outerHTML doesn't encode " as &quot;).
+  let html = rawHtml;
 
-    documentRef
-      .querySelectorAll(
-        "script, noscript, iframe, object, embed, link[rel='preload'][as='script']"
-      )
-      .forEach((element) => element.remove());
+  // Remove dangerous elements (with content)
+  html = html.replace(
+    /<(script|noscript|iframe|object|embed)\b[\s\S]*?<\/\1\s*>/gi,
+    ""
+  );
+  // Remove self-closing dangerous elements
+  html = html.replace(
+    /<(script|noscript|iframe|object|embed)\b[^>]*\/?>/gi,
+    ""
+  );
+  // Remove preload-script links
+  html = html.replace(
+    /<link\b[^>]*?rel\s*=\s*["']preload["'][^>]*?as\s*=\s*["']script["'][^>]*?\/?>/gi,
+    ""
+  );
+  // Remove event-handler attributes (on*)
+  html = html.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*')/gi, "");
+  // Remove javascript: URLs in src/href
+  html = html.replace(
+    /\s+(src|href|xlink:href)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi,
+    ""
+  );
 
-    documentRef.querySelectorAll("*").forEach((element) => {
-      for (const attribute of Array.from(element.attributes)) {
-        const attrName = attribute.name.toLowerCase();
-        const attrValue = attribute.value.trim().toLowerCase();
-
-        if (attrName.startsWith("on")) {
-          element.removeAttribute(attribute.name);
-          continue;
-        }
-
-        if (
-          (attrName === "src" || attrName === "href" || attrName === "xlink:href") &&
-          attrValue.startsWith("javascript:")
-        ) {
-          element.removeAttribute(attribute.name);
-        }
-      }
-    });
-
-    return `<!doctype html>\n${documentRef.documentElement.outerHTML}`;
-  } catch {
-    return rawHtml.replace(
-      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-      ""
-    );
-  }
+  return html;
 }
 
 function getPreviewScale(contentSize: PreviewDocumentSize, stage: PreviewStageSize) {
@@ -1102,6 +1302,161 @@ function tiptapHtmlToMjmlVars(html: string): string {
   );
 }
 
+function parseColumnChildToBlock(child: Element): BuilderBlock | null {
+  const tag = child.tagName.toLowerCase();
+
+  if (tag === "mj-text") {
+    const rawInner = child.innerHTML ?? "";
+    // Check if this is a list block (contains <ul> or <ol>)
+    if (/<[ou]l[\s>]/i.test(rawInner)) {
+      return parseMjTextListToBlock(child);
+    }
+    return {
+      id: nowId(),
+      type: "text",
+      content: mjmlVarsToTiptapHtml(decodeMjmlEntities(rawInner)),
+      align: parseMjmlAlign(child.getAttribute("align")),
+    };
+  }
+
+  if (tag === "mj-button") {
+    const content = stripMjmlInlineTags(child.innerHTML ?? "");
+    return {
+      id: nowId(),
+      type: "button",
+      segments: ensureUniqueSegmentIds(parseContentToSegments(content || "Button")),
+      href: child.getAttribute("href") || "#",
+      align: parseMjmlAlignNarrow(child.getAttribute("align")),
+    };
+  }
+
+  if (tag === "mj-image") {
+    const cssClass = child.getAttribute("css-class") || "";
+    if (cssClass.includes("senda-video")) {
+      return {
+        id: nowId(),
+        type: "video",
+        videoUrl: child.getAttribute("href") || "",
+        thumbnailUrl: child.getAttribute("src") || "",
+        alt: child.getAttribute("alt") || "",
+        width: child.getAttribute("width") || "",
+        align: parseMjmlAlignNarrow(child.getAttribute("align")),
+      };
+    }
+    return {
+      id: nowId(),
+      type: "image",
+      src: child.getAttribute("src") || "",
+      alt: child.getAttribute("alt") || undefined,
+      width: child.getAttribute("width") || undefined,
+      align: parseMjmlAlignNarrow(child.getAttribute("align")),
+    };
+  }
+
+  if (tag === "mj-divider") {
+    return { id: nowId(), type: "divider" };
+  }
+
+  if (tag === "mj-spacer") {
+    return {
+      id: nowId(),
+      type: "spacer",
+      height: normalizeSpacerHeight(child.getAttribute("height"), 20),
+    };
+  }
+
+  return null;
+}
+
+function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
+  let segments: BuilderSegment[] = [createTextSegment("")];
+  let buttonText = "";
+  let buttonHref = "#";
+  let buttonColor = "#ffffff";
+  let align: "left" | "center" | "right" = "center";
+
+  const textEl = element.getElementsByTagName("mj-text")[0];
+  if (textEl) {
+    segments = ensureUniqueSegmentIds(
+      parseContentToSegments(stripMjmlInlineTags(textEl.innerHTML ?? ""))
+    );
+    align = parseMjmlAlignNarrow(textEl.getAttribute("align"));
+  }
+
+  const btnEl = element.getElementsByTagName("mj-button")[0];
+  if (btnEl) {
+    buttonText = stripMjmlInlineTags(btnEl.innerHTML ?? "");
+    buttonHref = btnEl.getAttribute("href") || "#";
+    buttonColor = btnEl.getAttribute("background-color") || "#ffffff";
+  }
+
+  return {
+    id: nowId(),
+    type: "banner",
+    backgroundUrl: element.getAttribute("background-url") || "",
+    backgroundColor: element.getAttribute("background-color") || "#333333",
+    mode: element.getAttribute("mode") === "fixed-height" ? "fixed-height" : "fluid-height",
+    height: normalizeSpacerHeight(element.getAttribute("height"), 400),
+    segments,
+    buttonText,
+    buttonHref,
+    buttonColor,
+    verticalAlign: parseVerticalAlign(element.getAttribute("vertical-align")),
+    align,
+    padding: normalizeSpacerHeight(element.getAttribute("padding"), 40),
+  };
+}
+
+function parseMjTextListToBlock(element: Element): BuilderListBlock {
+  const rawInner = element.innerHTML ?? "";
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div>${rawInner}</div>`, "text/html");
+
+  const listEl = doc.querySelector("ul, ol");
+  const isOrdered = listEl?.tagName.toLowerCase() === "ol";
+  const styleType =
+    listEl?.getAttribute("style")?.match(/list-style-type:\s*([^;]+)/)?.[1]?.trim() || "";
+
+  let listType: BuilderListBlock["listType"] = "bullet";
+  if (isOrdered) {
+    if (styleType === "upper-alpha") listType = "letter-upper";
+    else if (styleType === "lower-alpha") listType = "letter-lower";
+    else if (styleType === "upper-roman") listType = "roman";
+    else listType = "number";
+  }
+
+  function parseListItems(parent: Element): ListItem[] {
+    const items: ListItem[] = [];
+    for (const li of Array.from(parent.children)) {
+      if (li.tagName.toLowerCase() !== "li") continue;
+      let textContent = "";
+      for (const node of Array.from(li.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          textContent += node.textContent || "";
+        }
+      }
+      const nestedList = li.querySelector("ul, ol");
+      const children = nestedList ? parseListItems(nestedList) : [];
+      items.push({
+        id: nowId(),
+        segments: ensureUniqueSegmentIds(parseContentToSegments(textContent.trim())),
+        children,
+      });
+    }
+    return items;
+  }
+
+  const items = listEl ? parseListItems(listEl) : [createListItem("")];
+
+  return {
+    id: nowId(),
+    type: "list",
+    listType,
+    items: items.length > 0 ? items : [createListItem("")],
+    align: parseMjmlAlignNarrow(element.getAttribute("align")),
+  };
+}
+
 function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
   if (!rawMjml.trim()) {
     return null;
@@ -1114,64 +1469,28 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
       return null;
     }
 
-    const column = xmlDoc.getElementsByTagName("mj-column")[0];
-    if (!column) {
+    const body = xmlDoc.getElementsByTagName("mj-body")[0];
+    if (!body) {
       return null;
     }
 
     const blocks: BuilderBlock[] = [];
-    for (const child of Array.from(column.children)) {
-      const tag = child.tagName.toLowerCase();
 
-      if (tag === "mj-text") {
-        const rawInner = child.innerHTML ?? "";
-        blocks.push({
-          id: nowId(),
-          type: "text",
-          content: mjmlVarsToTiptapHtml(decodeMjmlEntities(rawInner)),
-          align: parseMjmlAlign(child.getAttribute("align")),
-        });
+    for (const topChild of Array.from(body.children)) {
+      const topTag = topChild.tagName.toLowerCase();
+
+      if (topTag === "mj-hero") {
+        blocks.push(parseMjHeroToBlock(topChild));
         continue;
       }
 
-      if (tag === "mj-button") {
-        const content = stripMjmlInlineTags(child.innerHTML ?? "");
-        blocks.push({
-          id: nowId(),
-          type: "button",
-          segments: ensureUniqueSegmentIds(parseContentToSegments(content || "Button")),
-          href: child.getAttribute("href") || "#",
-          align: parseMjmlAlignNarrow(child.getAttribute("align")),
-        });
-        continue;
-      }
-
-      if (tag === "mj-image") {
-        blocks.push({
-          id: nowId(),
-          type: "image",
-          src: child.getAttribute("src") || "",
-          alt: child.getAttribute("alt") || undefined,
-          width: child.getAttribute("width") || undefined,
-          align: parseMjmlAlignNarrow(child.getAttribute("align")),
-        });
-        continue;
-      }
-
-      if (tag === "mj-divider") {
-        blocks.push({
-          id: nowId(),
-          type: "divider",
-        });
-        continue;
-      }
-
-      if (tag === "mj-spacer") {
-        blocks.push({
-          id: nowId(),
-          type: "spacer",
-          height: normalizeSpacerHeight(child.getAttribute("height"), 20),
-        });
+      if (topTag === "mj-section") {
+        const column = topChild.getElementsByTagName("mj-column")[0];
+        if (!column) continue;
+        for (const child of Array.from(column.children)) {
+          const parsed = parseColumnChildToBlock(child);
+          if (parsed) blocks.push(parsed);
+        }
       }
     }
 
@@ -1188,37 +1507,94 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
   }
 }
 
+function renderColumnBlockToMjml(block: BuilderBlock): string {
+  switch (block.type) {
+    case "text": {
+      const inner = tiptapHtmlToMjmlVars(block.content).trim() || " ";
+      const alignAttr = block.align !== "left" ? ` align="${block.align}"` : "";
+      return `<mj-text${alignAttr}>${inner}</mj-text>`;
+    }
+    case "button":
+      return `<mj-button href="${block.href || "#"}">${renderSegmentsToText(
+        block.segments
+      ).trim() || "Button"}</mj-button>`;
+    case "image":
+      return `\n<mj-image src="${block.src || ""}"${
+        block.width ? ` width="${block.width}"` : ""
+      }${block.alt ? ` alt="${block.alt}"` : ""} />`;
+    case "divider":
+      return "\n<mj-divider />";
+    case "spacer":
+      return `\n<mj-spacer height="${normalizeSpacerHeight(
+        block.height,
+        20
+      )}px" />`;
+    case "video": {
+      const href = block.videoUrl ? ` href="${block.videoUrl}"` : "";
+      const width = block.width ? ` width="${block.width}"` : "";
+      const alt = block.alt ? ` alt="${block.alt}"` : "";
+      return `\n<mj-image src="${block.thumbnailUrl || ""}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
+    }
+    case "list": {
+      const html = renderListItemsToHtml(block.items, block.listType);
+      return `\n<mj-text align="${block.align}">${html}</mj-text>`;
+    }
+    default:
+      return "";
+  }
+}
+
+function renderBannerToMjml(block: BuilderBannerBlock): string {
+  const modeAttr = ` mode="${block.mode}"`;
+  const heightAttr = block.mode === "fixed-height" ? ` height="${block.height}px"` : "";
+  const bgUrl = block.backgroundUrl ? ` background-url="${block.backgroundUrl}"` : "";
+  const bgColor = ` background-color="${block.backgroundColor}"`;
+  const vAlign = ` vertical-align="${block.verticalAlign}"`;
+  const padding = ` padding="${block.padding}px"`;
+  const textContent = renderSegmentsToText(block.segments).trim();
+  const textMjml = textContent
+    ? `\n        <mj-text align="${block.align}" color="#ffffff" font-size="20px">${textContent}</mj-text>`
+    : "";
+  const buttonMjml = block.buttonText
+    ? `\n        <mj-button href="${block.buttonHref || "#"}" background-color="${block.buttonColor}" align="${block.align}">${block.buttonText}</mj-button>`
+    : "";
+  return `\n    <mj-hero${modeAttr}${heightAttr}${bgUrl}${bgColor}${vAlign}${padding}>${textMjml}${buttonMjml}\n    </mj-hero>`;
+}
+
 function buildTemplateMjml(document: BuilderDocument) {
-  const blocks = document.blocks
-      .map((block) => {
-      switch (block.type) {
-        case "text": {
-          const inner = tiptapHtmlToMjmlVars(block.content).trim() || " ";
-          const alignAttr = block.align !== "left" ? ` align="${block.align}"` : "";
-          return `<mj-text${alignAttr}>${inner}</mj-text>`;
-        }
-        case "button":
-          return `<mj-button href="${block.href || "#"}">${renderSegmentsToText(
-            block.segments
-          ).trim() || "Button"}</mj-button>`;
-        case "image":
-          return `\n<mj-image src="${block.src || ""}"${
-            block.width ? ` width="${block.width}"` : ""
-          }${block.alt ? ` alt="${block.alt}"` : ""} />`;
-        case "divider":
-          return "\n<mj-divider />";
-        case "spacer":
-          return `\n<mj-spacer height="${normalizeSpacerHeight(
-            block.height,
-            20
-          )}px" />`;
-        default:
-          return "";
+  type BlockGroup =
+    | { kind: "column"; blocks: BuilderBlock[] }
+    | { kind: "hero"; block: BuilderBannerBlock };
+
+  const groups: BlockGroup[] = [];
+  let currentColumn: BuilderBlock[] = [];
+
+  for (const block of document.blocks) {
+    if (block.type === "banner") {
+      if (currentColumn.length > 0) {
+        groups.push({ kind: "column", blocks: currentColumn });
+        currentColumn = [];
       }
+      groups.push({ kind: "hero", block });
+    } else {
+      currentColumn.push(block);
+    }
+  }
+  if (currentColumn.length > 0) {
+    groups.push({ kind: "column", blocks: currentColumn });
+  }
+
+  const bodyContent = groups
+    .map((group) => {
+      if (group.kind === "hero") {
+        return renderBannerToMjml(group.block);
+      }
+      const columnBlocks = group.blocks.map(renderColumnBlockToMjml).join("");
+      return `\n    <mj-section>\n      <mj-column>${columnBlocks}\n      </mj-column>\n    </mj-section>`;
     })
     .join("");
 
-  return `<mjml>\n  <mj-body>\n    <mj-section>\n      <mj-column>${blocks}\n      </mj-column>\n    </mj-section>\n  </mj-body>\n</mjml>`;
+  return `<mjml>\n  <mj-body>${bodyContent}\n  </mj-body>\n</mjml>`;
 }
 
 function makeVariableToken(name: string, category: "event" | "injector") {
@@ -1298,6 +1674,8 @@ export function MjmlEditor() {
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [blockDropIndex, setBlockDropIndex] = useState<number | null>(null);
   const draggedBlockIdRef = useRef<string | null>(null);
+  const [draggedListItemId, setDraggedListItemId] = useState<string | null>(null);
+  const [listItemDropTarget, setListItemDropTarget] = useState<{ itemId: string; position: "before" | "after" } | null>(null);
   const layoutSplitRef = useRef<HTMLDivElement | null>(null);
   const previewPanelWrapRef = useRef<HTMLDivElement | null>(null);
   const blockEditorRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -1645,8 +2023,8 @@ export function MjmlEditor() {
     }
 
     for (const block of builderDocument.blocks) {
-      // Only sync button blocks via contentEditable; text blocks use TipTap
-      if (block.type !== "button") {
+      // Only sync segment-based blocks via contentEditable; text blocks use TipTap
+      if (block.type !== "button" && block.type !== "banner") {
         continue;
       }
 
@@ -1838,6 +2216,28 @@ export function MjmlEditor() {
 
   function handlePreviewIframeLoad(event: ReactSyntheticEvent<HTMLIFrameElement>) {
     bindIframeSizeObserver(event.currentTarget, previewObserverCleanupRef);
+    // DEBUG: inspect iframe font rendering
+    try {
+      const iframeDoc = event.currentTarget.contentDocument;
+      if (iframeDoc) {
+        const allSpans = iframeDoc.querySelectorAll('span[style]');
+        allSpans.forEach((span, i) => {
+          const style = span.getAttribute('style') || '';
+          if (style.includes('font-family')) {
+            const computed = iframeDoc.defaultView?.getComputedStyle(span);
+            console.log(`[font-debug] span[${i}] style="${style}"`);
+            console.log(`[font-debug] span[${i}] computed=${computed?.fontFamily}`);
+          }
+        });
+        // Log the raw HTML of the mj-text content area
+        const textDiv = iframeDoc.querySelector('div[style*="font-family"]');
+        if (textDiv) {
+          console.log('[font-debug] text div innerHTML:', textDiv.innerHTML);
+        }
+      }
+    } catch (e) {
+      console.log('[font-debug] error:', e);
+    }
   }
 
   const codeMjml = version ? codeOverride : "";
@@ -1931,6 +2331,44 @@ export function MjmlEditor() {
       newBlock = {
         id,
         type: "divider",
+      };
+    } else if (type === "banner") {
+      newBlock = {
+        id,
+        type: "banner",
+        backgroundUrl: "",
+        backgroundColor: "#333333",
+        mode: "fluid-height",
+        height: 400,
+        segments: [createTextSegment("Your headline here")],
+        buttonText: "",
+        buttonHref: "#",
+        buttonColor: "#ffffff",
+        verticalAlign: "middle",
+        align: "center",
+        padding: 40,
+      };
+    } else if (type === "video") {
+      newBlock = {
+        id,
+        type: "video",
+        videoUrl: "",
+        thumbnailUrl: "https://placehold.co/600x340",
+        alt: "Video thumbnail",
+        width: "100%",
+        align: "center",
+      };
+    } else if (type === "list") {
+      newBlock = {
+        id,
+        type: "list",
+        listType: "bullet",
+        items: [
+          createListItem("First item"),
+          createListItem("Second item"),
+          createListItem("Third item"),
+        ],
+        align: "left",
       };
     } else {
       newBlock = {
@@ -2050,10 +2488,15 @@ export function MjmlEditor() {
 
   function handleBlockEditorInput(blockId: string, editor: HTMLDivElement) {
     const parsed = parseSegmentsFromEditorNode(editor);
-    updateButtonBlockSegments(blockId, parsed);
+    const block = builderDocument?.blocks.find((b) => b.id === blockId);
+    if (block?.type === "banner") {
+      updateBannerBlockSegments(blockId, parsed);
+    } else {
+      updateButtonBlockSegments(blockId, parsed);
+    }
   }
 
-  function insertVariableIntoButtonEditor(
+  function insertVariableIntoSegmentEditor(
     blockId: string,
     editor: HTMLDivElement,
     variable: TemplateVariable
@@ -2074,7 +2517,12 @@ export function MjmlEditor() {
     if (!nextSegments.length) {
       return false;
     }
-    updateButtonBlockSegments(blockId, nextSegments, selection.start + 1);
+    const block = builderDocument?.blocks.find((b) => b.id === blockId);
+    if (block?.type === "banner") {
+      updateBannerBlockSegments(blockId, nextSegments, selection.start + 1);
+    } else {
+      updateButtonBlockSegments(blockId, nextSegments, selection.start + 1);
+    }
     return true;
   }
 
@@ -2087,7 +2535,7 @@ export function MjmlEditor() {
     const targetBlock =
       builderDocument.blocks.find((block) => block.id === blockId) ??
       builderDocument.blocks.find(
-        (block) => block.type === "text" || block.type === "button"
+        (block) => block.type === "text" || block.type === "button" || block.type === "banner"
       ) ??
       builderDocument.blocks[0];
 
@@ -2112,13 +2560,21 @@ export function MjmlEditor() {
       return;
     }
 
-    // Button blocks: use contentEditable segment approach
+    // Button / Banner blocks: use contentEditable segment approach
     const editor = blockEditorRefs.current[targetId];
-    if (editor && insertVariableIntoButtonEditor(targetId, editor, variable)) {
+    if (editor && insertVariableIntoSegmentEditor(targetId, editor, variable)) {
       return;
     }
 
     const tokenSegment = createTokenSegment(token, variable.category, variable.label);
+    if (targetBlock.type === "banner") {
+      const currentSegments = getBannerBlockSegments(targetId);
+      if (!currentSegments) return;
+      const end = countSegmentsUnits(currentSegments);
+      const nextSegments = replaceSegmentsUnitRange(currentSegments, end, end, [tokenSegment]);
+      updateBannerBlockSegments(targetId, nextSegments, end + 1);
+      return;
+    }
     const currentSegments = getButtonBlockSegments(targetId);
     if (!currentSegments) return;
     const end = countSegmentsUnits(currentSegments);
@@ -2189,7 +2645,12 @@ export function MjmlEditor() {
       deleteEnd,
       []
     );
-    updateButtonBlockSegments(blockId, nextSegments, deleteStart);
+    const targetBlock = builderDocument?.blocks.find((b) => b.id === blockId);
+    if (targetBlock?.type === "banner") {
+      updateBannerBlockSegments(blockId, nextSegments, deleteStart);
+    } else {
+      updateButtonBlockSegments(blockId, nextSegments, deleteStart);
+    }
   }
 
   function handleBlockEditorCopyOrCut(
@@ -2234,7 +2695,12 @@ export function MjmlEditor() {
         selectionRange.end,
         []
       );
-      updateButtonBlockSegments(blockId, nextSegments, selectionRange.start);
+      const targetBlock = builderDocument?.blocks.find((b) => b.id === blockId);
+      if (targetBlock?.type === "banner") {
+        updateBannerBlockSegments(blockId, nextSegments, selectionRange.start);
+      } else {
+        updateButtonBlockSegments(blockId, nextSegments, selectionRange.start);
+      }
     }
   }
 
@@ -2270,7 +2736,12 @@ export function MjmlEditor() {
     );
     const nextCaret =
       selectionRange.start + countSegmentsUnits(insertedSegments);
-    updateButtonBlockSegments(blockId, nextSegments, nextCaret);
+    const targetBlock = builderDocument?.blocks.find((b) => b.id === blockId);
+    if (targetBlock?.type === "banner") {
+      updateBannerBlockSegments(blockId, nextSegments, nextCaret);
+    } else {
+      updateButtonBlockSegments(blockId, nextSegments, nextCaret);
+    }
   }
 
   function handleBlockEditorDragOver(
@@ -2313,7 +2784,7 @@ export function MjmlEditor() {
     if (!variable) {
       return;
     }
-    insertVariableIntoButtonEditor(blockId, editor, variable);
+    insertVariableIntoSegmentEditor(blockId, editor, variable);
     setSelectedBlockId(blockId);
   }
 
@@ -2435,6 +2906,264 @@ export function MjmlEditor() {
         };
       }),
     });
+  }
+
+  function updateBannerBlock(
+    blockId: string,
+    key: keyof Omit<BuilderBannerBlock, "id" | "type" | "segments">,
+    value: string | number
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "banner") return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function getBannerBlockSegments(blockId: string) {
+    if (!builderDocument) return null;
+    const block = builderDocument.blocks.find((b) => b.id === blockId);
+    if (!block || block.type !== "banner") return null;
+    return block.segments;
+  }
+
+  function updateBannerBlockSegments(
+    blockId: string,
+    nextSegments: BuilderSegment[],
+    nextCaretUnitOffset?: number
+  ) {
+    if (!builderDocument) return;
+    const normalized = ensureUniqueSegmentIds(mergeAdjacentTextSegments(nextSegments));
+    if (typeof nextCaretUnitOffset === "number") {
+      const clampedCaret = Math.max(
+        0,
+        Math.min(nextCaretUnitOffset, countSegmentsUnits(normalized))
+      );
+      pendingCaretRestoreRef.current = {
+        blockId,
+        unitOffset: clampedCaret,
+      };
+    }
+    const current = getBannerBlockSegments(blockId);
+    if (current && segmentsMeaningfullyEqual(current, normalized)) {
+      if (typeof nextCaretUnitOffset === "number") {
+        const editor = blockEditorRefs.current[blockId];
+        if (editor) {
+          setEditorCaretByUnitOffset(editor, nextCaretUnitOffset);
+        }
+      }
+      pendingCaretRestoreRef.current = null;
+      return;
+    }
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "banner") return block;
+        return { ...block, segments: normalized };
+      }),
+    });
+  }
+
+  function updateVideoBlock(
+    blockId: string,
+    key: keyof Omit<BuilderVideoBlock, "id" | "type">,
+    value: string
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "video") return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateListBlock(
+    blockId: string,
+    key: "listType" | "align",
+    value: string
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "list") return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateListItems(blockId: string, items: ListItem[]) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "list") return block;
+        return { ...block, items };
+      }),
+    });
+  }
+
+  function addListItem(blockId: string, afterItemId?: string) {
+    if (!builderDocument) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    const newItem = createListItem("");
+    if (!afterItemId) {
+      updateListItems(blockId, [...block.items, newItem]);
+      return;
+    }
+
+    function insertAfter(items: ListItem[]): ListItem[] {
+      const result: ListItem[] = [];
+      for (const item of items) {
+        result.push({ ...item, children: insertAfter(item.children) });
+        if (item.id === afterItemId) {
+          result.push(newItem);
+        }
+      }
+      return result;
+    }
+    updateListItems(blockId, insertAfter(block.items));
+  }
+
+  function removeListItem(blockId: string, itemId: string) {
+    if (!builderDocument) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    function removeFromItems(items: ListItem[]): ListItem[] {
+      return items
+        .filter((item) => item.id !== itemId)
+        .map((item) => ({ ...item, children: removeFromItems(item.children) }));
+    }
+
+    const remaining = removeFromItems(block.items);
+    updateListItems(blockId, remaining.length > 0 ? remaining : [createListItem("")]);
+  }
+
+  function indentListItem(blockId: string, itemId: string) {
+    if (!builderDocument) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    function indentInItems(items: ListItem[]): ListItem[] {
+      const result: ListItem[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.id === itemId && i > 0) {
+          const prev = result[result.length - 1];
+          result[result.length - 1] = {
+            ...prev,
+            children: [...prev.children, item],
+          };
+        } else {
+          result.push({ ...item, children: indentInItems(item.children) });
+        }
+      }
+      return result;
+    }
+    updateListItems(blockId, indentInItems(block.items));
+  }
+
+  function outdentListItem(blockId: string, itemId: string) {
+    if (!builderDocument) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    function outdentInItems(items: ListItem[]): ListItem[] {
+      const result: ListItem[] = [];
+      for (const item of items) {
+        const targetIndex = item.children.findIndex((c) => c.id === itemId);
+        if (targetIndex >= 0) {
+          const before = item.children.slice(0, targetIndex);
+          const target = item.children[targetIndex];
+          const after = item.children.slice(targetIndex + 1);
+          result.push({ ...item, children: [...before, ...after] });
+          result.push({ ...target });
+        } else {
+          result.push({ ...item, children: outdentInItems(item.children) });
+        }
+      }
+      return result;
+    }
+    updateListItems(blockId, outdentInItems(block.items));
+  }
+
+  function updateListItemSegments(blockId: string, itemId: string, text: string) {
+    if (!builderDocument) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    const newSegments = parseContentToSegments(text);
+    function updateItem(items: ListItem[]): ListItem[] {
+      return items.map((i) =>
+        i.id === itemId
+          ? { ...i, segments: newSegments }
+          : { ...i, children: updateItem(i.children) }
+      );
+    }
+    updateListItems(blockId, updateItem(block.items));
+  }
+
+  function moveListItem(blockId: string, draggedItemId: string, targetItemId: string, position: "before" | "after") {
+    if (!builderDocument || !isDraft || draggedItemId === targetItemId) return;
+    const block = builderDocument.blocks.find(
+      (b) => b.id === blockId && b.type === "list"
+    );
+    if (!block || block.type !== "list") return;
+
+    // 1. Extract the dragged item from the tree
+    let extracted: ListItem | null = null;
+    function removeItem(items: ListItem[]): ListItem[] {
+      return items
+        .filter((item) => {
+          if (item.id === draggedItemId) {
+            extracted = item;
+            return false;
+          }
+          return true;
+        })
+        .map((item) => ({ ...item, children: removeItem(item.children) }));
+    }
+    const withoutDragged = removeItem(block.items);
+    if (!extracted) return;
+
+    // 2. Insert at the target position among its siblings
+    function insertAtTarget(items: ListItem[]): ListItem[] {
+      const result: ListItem[] = [];
+      for (const item of items) {
+        if (item.id === targetItemId) {
+          if (position === "before") {
+            result.push(extracted!);
+            result.push({ ...item, children: insertAtTarget(item.children) });
+          } else {
+            result.push({ ...item, children: insertAtTarget(item.children) });
+            result.push(extracted!);
+          }
+        } else {
+          result.push({ ...item, children: insertAtTarget(item.children) });
+        }
+      }
+      return result;
+    }
+    const reordered = insertAtTarget(withoutDragged);
+    updateListItems(blockId, reordered.length > 0 ? reordered : [createListItem("")]);
   }
 
   function onVariableCardDragStart(
@@ -2744,9 +3473,36 @@ export function MjmlEditor() {
                         variant="outline"
                         disabled={!isDraft}
                         onClick={() => addBlock("spacer")}
-                        className="h-8 col-span-2"
+                        className="h-8"
                       >
                         <Grip className="h-3.5 w-3.5 mr-1" /> Espaciado
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("banner")}
+                        className="h-8"
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5 mr-1" /> Banner
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("video")}
+                        className="h-8"
+                      >
+                        <Play className="h-3.5 w-3.5 mr-1" /> Video
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isDraft}
+                        onClick={() => addBlock("list")}
+                        className="h-8"
+                      >
+                        <List className="h-3.5 w-3.5 mr-1" /> Lista
                       </Button>
                     </div>
                   )}
@@ -2859,7 +3615,7 @@ export function MjmlEditor() {
                     {builderDocument.blocks.map((block, index) => {
                       const isActive = selectedBlockId === block.id;
                       const canReceiveVariable =
-                        block.type === "text" || block.type === "button";
+                        block.type === "text" || block.type === "button" || block.type === "banner";
 
                       return (
                         <div key={block.id} className="space-y-2">
@@ -3086,6 +3842,383 @@ export function MjmlEditor() {
                                 Sin propiedades
                               </div>
                             ) : null}
+
+                            {block.type === "banner" && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Background Image URL</Label>
+                                  <Input
+                                    value={block.backgroundUrl}
+                                    className="h-8 mt-1"
+                                    placeholder="https://example.com/hero.jpg"
+                                    onChange={(ev) => updateBannerBlock(block.id, "backgroundUrl", ev.target.value)}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <Label className="text-xs">Background Color</Label>
+                                    <Input
+                                      type="color"
+                                      value={block.backgroundColor}
+                                      className="h-8 mt-1 w-16"
+                                      onChange={(ev) => updateBannerBlock(block.id, "backgroundColor", ev.target.value)}
+                                      readOnly={!isDraft}
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <Label className="text-xs">Mode</Label>
+                                    <select
+                                      value={block.mode}
+                                      onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
+                                      disabled={!isDraft}
+                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="fluid-height">Fluid</option>
+                                      <option value="fixed-height">Fixed</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                {block.mode === "fixed-height" && (
+                                  <div>
+                                    <Label className="text-xs">Height (px)</Label>
+                                    <Input
+                                      type="number"
+                                      min={100}
+                                      value={block.height}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateBannerBlock(block.id, "height", Number.parseInt(ev.target.value, 10) || 400)}
+                                      readOnly={!isDraft}
+                                    />
+                                  </div>
+                                )}
+                                <div>
+                                  <Label className="text-xs">Overlay Text</Label>
+                                  <div className="mt-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                                    <div
+                                      ref={(node) => {
+                                        if (node) {
+                                          blockEditorRefs.current[block.id] = node;
+                                        } else {
+                                          delete blockEditorRefs.current[block.id];
+                                        }
+                                      }}
+                                      contentEditable={isDraft}
+                                      suppressContentEditableWarning
+                                      className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+                                      data-placeholder="Headline text..."
+                                      onInput={(event) =>
+                                        handleBlockEditorInput(block.id, event.currentTarget)
+                                      }
+                                      onKeyDown={(event) =>
+                                        handleBlockEditorKeyDown(block.id, event)
+                                      }
+                                      onClick={handleBlockEditorTokenClick}
+                                      onFocus={() => setSelectedBlockId(block.id)}
+                                      onCopy={(event) =>
+                                        handleBlockEditorCopyOrCut(block.id, event, "copy")
+                                      }
+                                      onCut={(event) =>
+                                        handleBlockEditorCopyOrCut(block.id, event, "cut")
+                                      }
+                                      onPaste={(event) => handleBlockEditorPaste(block.id, event)}
+                                      onDragOver={(event) =>
+                                        handleBlockEditorDragOver(block.id, event)
+                                      }
+                                      onDrop={(event) => handleBlockEditorDrop(block.id, event)}
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Button Text (optional)</Label>
+                                  <Input
+                                    value={block.buttonText}
+                                    className="h-8 mt-1"
+                                    placeholder="Leave empty for no button"
+                                    onChange={(ev) => updateBannerBlock(block.id, "buttonText", ev.target.value)}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                                {block.buttonText && (
+                                  <div className="flex gap-2">
+                                    <div className="flex-1">
+                                      <Label className="text-xs">Button URL</Label>
+                                      <Input
+                                        value={block.buttonHref}
+                                        className="h-8 mt-1"
+                                        onChange={(ev) => updateBannerBlock(block.id, "buttonHref", ev.target.value)}
+                                        readOnly={!isDraft}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs">Button Color</Label>
+                                      <Input
+                                        type="color"
+                                        value={block.buttonColor}
+                                        className="h-8 mt-1 w-16"
+                                        onChange={(ev) => updateBannerBlock(block.id, "buttonColor", ev.target.value)}
+                                        readOnly={!isDraft}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <Label className="text-xs">V. Align</Label>
+                                    <select
+                                      value={block.verticalAlign}
+                                      onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
+                                      disabled={!isDraft}
+                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="top">Top</option>
+                                      <option value="middle">Middle</option>
+                                      <option value="bottom">Bottom</option>
+                                    </select>
+                                  </div>
+                                  <div className="flex-1">
+                                    <Label className="text-xs">Padding (px)</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      value={block.padding}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateBannerBlock(block.id, "padding", Number.parseInt(ev.target.value, 10) || 0)}
+                                      readOnly={!isDraft}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === "video" && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Video URL</Label>
+                                  <Input
+                                    value={block.videoUrl}
+                                    className="h-8 mt-1"
+                                    placeholder="https://youtube.com/watch?v=..."
+                                    onChange={(ev) => {
+                                      if (!builderDocument) return;
+                                      const url = ev.target.value;
+                                      const thumb = extractVideoThumbnail(url);
+                                      updateBuilderDocument({
+                                        ...builderDocument,
+                                        blocks: builderDocument.blocks.map((b) => {
+                                          if (b.id !== block.id || b.type !== "video") return b;
+                                          return {
+                                            ...b,
+                                            videoUrl: url,
+                                            ...(thumb ? { thumbnailUrl: thumb } : {}),
+                                          };
+                                        }),
+                                      });
+                                    }}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Thumbnail URL</Label>
+                                  <Input
+                                    value={block.thumbnailUrl}
+                                    className="h-8 mt-1"
+                                    placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
+                                    onChange={(ev) => updateVideoBlock(block.id, "thumbnailUrl", ev.target.value)}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                                {block.thumbnailUrl && (
+                                  <div className="mt-1 rounded border overflow-hidden relative">
+                                    <img
+                                      src={block.thumbnailUrl}
+                                      alt={block.alt || "Video thumbnail"}
+                                      className="w-full h-auto"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+                                        <Play className="h-5 w-5 text-white ml-0.5" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <Label className="text-xs">Alt Text</Label>
+                                  <Input
+                                    value={block.alt}
+                                    className="h-8 mt-1"
+                                    onChange={(ev) => updateVideoBlock(block.id, "alt", ev.target.value)}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Width</Label>
+                                  <Input
+                                    value={block.width}
+                                    className="h-8 mt-1"
+                                    placeholder="100%"
+                                    onChange={(ev) => updateVideoBlock(block.id, "width", ev.target.value)}
+                                    readOnly={!isDraft}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === "list" && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Tipo de lista</Label>
+                                  <select
+                                    value={block.listType}
+                                    onChange={(ev) => updateListBlock(block.id, "listType", ev.target.value)}
+                                    disabled={!isDraft}
+                                    className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                  >
+                                    <option value="bullet">Bullets</option>
+                                    <option value="number">Numbers (1, 2, 3)</option>
+                                    <option value="letter-upper">Letters (A, B, C)</option>
+                                    <option value="letter-lower">Letters (a, b, c)</option>
+                                    <option value="roman">Roman (I, II, III)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Items</Label>
+                                  <div className="mt-1">
+                                    {(function renderItems(items: ListItem[], depth: number): React.ReactNode {
+                                      return items.map((item, idx) => {
+                                        const isDragging = draggedListItemId === item.id;
+                                        const isDropBefore = listItemDropTarget?.itemId === item.id && listItemDropTarget.position === "before";
+                                        const isDropAfter = listItemDropTarget?.itemId === item.id && listItemDropTarget.position === "after";
+
+                                        function handleListDragOver(ev: React.DragEvent<HTMLDivElement>) {
+                                          if (!ev.dataTransfer.types.includes(LIST_ITEM_DND_MIME)) return;
+                                          ev.preventDefault();
+                                          ev.stopPropagation();
+                                          ev.dataTransfer.dropEffect = "move";
+                                          const rect = ev.currentTarget.getBoundingClientRect();
+                                          const pos = ev.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                                          setListItemDropTarget({ itemId: item.id, position: pos });
+                                        }
+
+                                        function handleListDrop(ev: React.DragEvent<HTMLDivElement>) {
+                                          ev.preventDefault();
+                                          ev.stopPropagation();
+                                          const srcId = ev.dataTransfer.getData(LIST_ITEM_DND_MIME);
+                                          const pos = listItemDropTarget?.itemId === item.id ? listItemDropTarget.position : "after";
+                                          if (srcId && srcId !== item.id) {
+                                            moveListItem(block.id, srcId, item.id, pos);
+                                          }
+                                          setDraggedListItemId(null);
+                                          setListItemDropTarget(null);
+                                        }
+
+                                        return (
+                                        <div key={item.id} style={{ paddingLeft: `${depth * 16}px` }}>
+                                          <div
+                                            className={`relative flex items-center gap-1 rounded px-0.5 transition-opacity ${isDragging ? "opacity-30" : ""}`}
+                                            onDragOver={handleListDragOver}
+                                            onDragLeave={() => {
+                                              if (listItemDropTarget?.itemId === item.id) setListItemDropTarget(null);
+                                            }}
+                                            onDrop={handleListDrop}
+                                          >
+                                            {/* Drop indicator line */}
+                                            {isDropBefore && (
+                                              <div className="absolute -top-px left-0 right-0 h-0.5 bg-primary rounded pointer-events-none" />
+                                            )}
+                                            {isDropAfter && (
+                                              <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary rounded pointer-events-none" />
+                                            )}
+                                            {isDraft && (
+                                              <button
+                                                type="button"
+                                                className="h-5 w-4 inline-flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+                                                draggable
+                                                onDragStart={(ev) => {
+                                                  ev.stopPropagation();
+                                                  ev.dataTransfer.setData(LIST_ITEM_DND_MIME, item.id);
+                                                  ev.dataTransfer.effectAllowed = "move";
+                                                  setDraggedListItemId(item.id);
+                                                }}
+                                                onDragEnd={() => {
+                                                  setDraggedListItemId(null);
+                                                  setListItemDropTarget(null);
+                                                }}
+                                              >
+                                                <GripVertical className="h-3 w-3" />
+                                              </button>
+                                            )}
+                                            <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">
+                                              {block.listType === "bullet" ? "\u2022" : `${idx + 1}.`}
+                                            </span>
+                                            <Input
+                                              value={renderSegmentsToText(item.segments)}
+                                              className="h-7 text-xs flex-1"
+                                              onChange={(ev) =>
+                                                updateListItemSegments(block.id, item.id, ev.target.value)
+                                              }
+                                              readOnly={!isDraft}
+                                            />
+                                            {isDraft && (
+                                              <div className="flex items-center gap-0.5 shrink-0">
+                                                {idx > 0 && depth < 2 && (
+                                                  <button
+                                                    type="button"
+                                                    className="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                                                    onClick={() => indentListItem(block.id, item.id)}
+                                                    title="Indent"
+                                                  >
+                                                    <ChevronRight className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                                {depth > 0 && (
+                                                  <button
+                                                    type="button"
+                                                    className="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                                                    onClick={() => outdentListItem(block.id, item.id)}
+                                                    title="Outdent"
+                                                  >
+                                                    <ChevronLeft className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  className="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                                                  onClick={() => addListItem(block.id, item.id)}
+                                                  title="Add item below"
+                                                >
+                                                  <Plus className="h-3 w-3" />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted text-destructive"
+                                                  onClick={() => removeListItem(block.id, item.id)}
+                                                  title="Remove item"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                          {item.children.length > 0 && renderItems(item.children, depth + 1)}
+                                        </div>
+                                        );
+                                      });
+                                    })(block.items, 0)}
+                                  </div>
+                                  {isDraft && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 mt-2 w-full text-xs"
+                                      onClick={() => addListItem(block.id)}
+                                    >
+                                      <Plus className="h-3 w-3 mr-1" /> Add Item
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
