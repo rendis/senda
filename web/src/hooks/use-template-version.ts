@@ -232,15 +232,17 @@ export function useDeleteTemplateLocale(
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (locale: string) =>
-      api
-        .delete(
-          `${scopedPath}/templates/${templateId}/versions/${versionId}/locales/${locale}`
-        )
-        .json(),
+    mutationFn: async (locale: string) => {
+      await api.delete(
+        `${scopedPath}/templates/${templateId}/versions/${versionId}/locales/${locale}`
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["template-locales", scopedPath, templateId, versionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["template-locale", scopedPath, templateId, versionId],
       });
     },
   });

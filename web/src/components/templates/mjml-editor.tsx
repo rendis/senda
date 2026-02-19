@@ -1918,7 +1918,7 @@ export function MjmlEditor() {
         body_mjml: bodyPayload,
       });
       await localeListQuery.refetch();
-      handleSwitchLocale(locale);
+      await handleSwitchLocale(locale);
     } catch {
       toast.error(`Failed to create locale ${locale}`);
     }
