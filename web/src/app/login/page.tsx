@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { LogIn, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
+  const t = useTranslations("login");
   const { data: session, status } = useSession();
   const router = useRouter();
   const signingOut = useRef(false);
@@ -37,9 +39,9 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex flex-col items-center gap-2">
             <Send className="h-12 w-12 text-primary" />
-            <h1 className="text-[28px] font-bold text-foreground">Senda</h1>
+            <h1 className="text-[28px] font-bold text-foreground">{t("title")}</h1>
             <p className="text-sm text-muted-foreground">
-              Email Orchestration Platform
+              {t("subtitle")}
             </p>
           </div>
 
@@ -52,12 +54,12 @@ export default function LoginPage() {
             className="h-11 w-full gap-2.5 rounded-md text-sm font-medium"
           >
             <LogIn className="h-[18px] w-[18px]" />
-            Iniciar sesión con OIDC
+            {t("signInWithOidc")}
           </Button>
 
           {/* Footer */}
           <p className="w-[280px] text-center text-xs text-muted-foreground">
-            Al continuar, aceptas los Términos de Servicio
+            {t("termsNotice")}
           </p>
         </div>
       </div>

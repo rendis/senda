@@ -3,8 +3,10 @@
 import { signOut, useSession } from "next-auth/react";
 import { ShieldX, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 
 export default function AccessDeniedPage() {
+  const t = useTranslations("accessDenied");
   const { data: session } = useSession();
 
   return (
@@ -18,14 +20,12 @@ export default function AccessDeniedPage() {
 
           {/* Title */}
           <h1 className="text-2xl font-bold text-foreground">
-            Acceso Denegado
+            {t("title")}
           </h1>
 
           {/* Message */}
           <p className="w-[360px] text-center text-sm leading-relaxed text-muted-foreground">
-            Tu email ({session?.user?.email ?? "unknown"}) no está registrado
-            como miembro de ningún workspace. Contacta a tu administrador para
-            solicitar acceso.
+            {t("message", { email: session?.user?.email ?? "unknown" })}
           </p>
 
           {/* Divider */}
@@ -38,7 +38,7 @@ export default function AccessDeniedPage() {
             className="h-9 w-full gap-2 rounded-md text-[13px] font-medium"
           >
             <LogOut className="h-4 w-4" />
-            Cerrar Sesión
+            {t("signOut")}
           </Button>
         </div>
       </div>
