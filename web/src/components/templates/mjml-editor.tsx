@@ -985,13 +985,12 @@ function sanitizePreviewHtml(rawHtml: string) {
 
 function getPreviewScale(contentSize: PreviewDocumentSize, stage: PreviewStageSize) {
   const safeWidth = Math.max(1, contentSize.width);
-  const safeHeight = Math.max(1, contentSize.height);
-  if (stage.width <= 0 || stage.height <= 0) {
+  if (stage.width <= 0) {
     return 1;
   }
   return Math.max(
     MIN_PREVIEW_SCALE,
-    Math.min(1, stage.width / safeWidth, stage.height / safeHeight)
+    Math.min(1, stage.width / safeWidth)
   );
 }
 
@@ -1304,6 +1303,7 @@ export function MjmlEditor() {
   const blockEditorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const textBlockEditorRefs = useRef<Record<string, TextBlockEditorHandle | null>>({});
   const previewStageRef = useRef<HTMLDivElement | null>(null);
+  const previewStageObserverRef = useRef<ResizeObserver | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewObserverCleanupRef = useRef<(() => void) | null>(null);
   const [previewStageSize, setPreviewStageSize] = useState<PreviewStageSize>({
@@ -1615,12 +1615,14 @@ export function MjmlEditor() {
     };
   }, []);
 
-  useEffect(() => {
-    const node = previewStageRef.current;
-    if (!node || typeof ResizeObserver === "undefined") {
-      return;
+  const previewStageCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    previewStageRef.current = node;
+    // Tear down previous observer
+    if (previewStageObserverRef.current) {
+      previewStageObserverRef.current.disconnect();
+      previewStageObserverRef.current = null;
     }
-
+    if (!node || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       if (!rect) return;
@@ -1633,9 +1635,8 @@ export function MjmlEditor() {
         return { width, height };
       });
     });
-
     observer.observe(node);
-    return () => observer.disconnect();
+    previewStageObserverRef.current = observer;
   }, []);
 
   useLayoutEffect(() => {
@@ -2551,7 +2552,7 @@ export function MjmlEditor() {
   }
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300">
+    <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-300">
       {/* Header bar */}
       <div className="flex flex-col gap-2 px-6 py-3 border-b bg-card shrink-0">
         <div className="flex items-center justify-between h-14">
@@ -2654,7 +2655,7 @@ export function MjmlEditor() {
 
       <div ref={layoutSplitRef} className="flex flex-1 overflow-hidden">
         {/* Left: editor */}
-        <div className="flex flex-col flex-1 border-r min-w-0 overflow-hidden" style={{ minWidth: MIN_PANEL_WIDTH }}>
+        <div className="flex flex-col flex-1 border-r min-w-0 overflow-hidden">
           <div className="flex flex-1 min-h-0">
             <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r p-3 overflow-auto bg-muted/20`}>
               {/* === Variables (event) === */}
@@ -3189,7 +3190,6 @@ export function MjmlEditor() {
               previewSplitMode === "ratio"
                 ? "1 1 0%"
                 : `0 1 ${previewPanelWidthPx + PANEL_RESIZER_WIDTH}px`,
-            minWidth: MIN_PANEL_WIDTH,
           }}
         >
           <button
@@ -3207,15 +3207,15 @@ export function MjmlEditor() {
             </div>
             <div className="flex-1 bg-slate-100 p-6 overflow-hidden">
               <div
-                ref={previewStageRef}
-                className="flex h-full w-full items-center justify-center overflow-hidden"
+                ref={previewStageCallbackRef}
+                className="flex h-full w-full items-start justify-center overflow-hidden"
               >
                 {previewFrameUrl ? (
                   <div
                     className="relative overflow-hidden rounded-md border border-border/60 bg-white"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewScaledHeight}px`,
+                      height: `${previewStageSize.height > 0 ? Math.min(previewScaledHeight, previewStageSize.height) : previewScaledHeight}px`,
                     }}
                   >
                     <iframe
@@ -3238,7 +3238,7 @@ export function MjmlEditor() {
                     className="flex items-center justify-center text-sm text-muted-foreground rounded-md border bg-white"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewScaledHeight}px`,
+                      height: `${previewStageSize.height > 0 ? Math.min(previewScaledHeight, previewStageSize.height) : previewScaledHeight}px`,
                     }}
                   >
                     {previewMutation.isPending
