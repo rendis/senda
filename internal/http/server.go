@@ -79,6 +79,9 @@ type Server struct {
 
 	// Open-tracking handler (public, no auth).
 	trackingHandler *handler.TrackingHandler
+
+	// Media handler (public, no auth).
+	mediaHandler *handler.MediaHandler
 }
 
 // ServerOption configures optional Server dependencies.
@@ -275,6 +278,13 @@ func WithTrackingHandler(h *handler.TrackingHandler) ServerOption {
 	}
 }
 
+// WithMediaHandler sets the MediaHandler for public media utility routes.
+func WithMediaHandler(h *handler.MediaHandler) ServerOption {
+	return func(s *Server) {
+		s.mediaHandler = h
+	}
+}
+
 // NewServer creates a configured Echo server with middleware and routes.
 func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *Server {
 	e := echo.New()
@@ -315,6 +325,11 @@ func (s *Server) registerRoutes() {
 	// Open-tracking pixel — public, no auth.
 	if s.trackingHandler != nil {
 		s.echo.GET("/t/o/:tracking_id", s.trackingHandler.HandleOpen)
+	}
+
+	// Video thumbnail composite image — public, no auth.
+	if s.mediaHandler != nil {
+		s.echo.GET("/public/video-thumbnail", s.mediaHandler.HandleVideoThumbnail)
 	}
 
 	// Data-plane API group.

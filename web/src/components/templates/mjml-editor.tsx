@@ -807,6 +807,41 @@ function extractVideoThumbnail(url: string): string {
   return "";
 }
 
+const VIDEO_THUMBNAIL_PATH = "/public/video-thumbnail";
+
+/**
+ * Wraps a raw thumbnail URL in the backend video-thumbnail composite endpoint
+ * so the rendered email shows the thumbnail with a play-button overlay.
+ */
+function buildVideoThumbnailUrl(rawThumbnailUrl: string): string {
+  if (!rawThumbnailUrl) return "";
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+  return `${apiBase}${VIDEO_THUMBNAIL_PATH}?url=${encodeURIComponent(rawThumbnailUrl)}`;
+}
+
+/**
+ * Extracts the original thumbnail URL from a video-thumbnail composite endpoint
+ * URL, so the editor can round-trip the thumbnail URL correctly.
+ * If the src is not a composite URL, returns it as-is.
+ */
+function extractOriginalThumbnailUrl(src: string): string {
+  if (!src) return "";
+  try {
+    const u = new URL(src);
+    if (u.pathname === VIDEO_THUMBNAIL_PATH) {
+      return u.searchParams.get("url") || src;
+    }
+  } catch {
+    // Not a valid URL — might be a relative path or already a raw thumbnail URL.
+    if (src.includes(VIDEO_THUMBNAIL_PATH + "?url=")) {
+      const idx = src.indexOf("?url=");
+      return decodeURIComponent(src.slice(idx + 5));
+    }
+  }
+  return src;
+}
+
 function mergeAdjacentTextSegments(segments: BuilderSegment[]) {
   const merged: BuilderSegment[] = [];
 
@@ -1372,7 +1407,7 @@ function parseColumnChildToBlock(child: Element): BuilderBlock | null {
         id: nowId(),
         type: "video",
         videoUrl: child.getAttribute("href") || "",
-        thumbnailUrl: child.getAttribute("src") || "",
+        thumbnailUrl: extractOriginalThumbnailUrl(child.getAttribute("src") || ""),
         alt: child.getAttribute("alt") || "",
         width: child.getAttribute("width") || "",
         align: parseMjmlAlignNarrow(child.getAttribute("align")),
@@ -1570,7 +1605,10 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
       const href = block.videoUrl ? ` href="${block.videoUrl}"` : "";
       const width = block.width ? ` width="${block.width}"` : "";
       const alt = block.alt ? ` alt="${block.alt}"` : "";
-      return `\n<mj-image src="${block.thumbnailUrl || ""}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
+      const thumbSrc = block.thumbnailUrl
+        ? buildVideoThumbnailUrl(block.thumbnailUrl)
+        : "";
+      return `\n<mj-image src="${thumbSrc}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
     }
     case "list": {
       const html = renderListItemsToHtml(block.items, block.listType);
@@ -1695,7 +1733,10 @@ export function MjmlEditor() {
   const [injectorVariableTokens, setInjectorVariableTokens] = useState<
     TemplateVariable[]
   >([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [blocksOpen, setBlocksOpen] = useState(true);
+  const [variablesOpen, setVariablesOpen] = useState(true);
+  const [metadataOpen, setMetadataOpen] = useState(true);
   const [injectorGroupsOpen, setInjectorGroupsOpen] = useState<Record<string, boolean>>({});
   const [injectorSearch, setInjectorSearch] = useState("");
 
@@ -3636,41 +3677,26 @@ export function MjmlEditor() {
         {/* Left: editor */}
         <div className="flex flex-col flex-1 border-r min-w-0 overflow-hidden">
           <div className="flex flex-1 min-h-0">
-            <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r p-3 overflow-auto bg-muted/20`}>
-              {/* === Variables (event) === */}
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-semibold text-muted-foreground">Variables</h4>
-                <MousePointer className="h-3.5 w-3.5 text-muted-foreground" />
+            {sidebarOpen ? (
+            <div className={`shrink-0 ${DEFAULT_BLOCK_WIDTH} border-r overflow-auto bg-muted/20 flex flex-col`}>
+              <div className="flex items-center justify-between p-3 pb-0">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Panel</span>
+                <button
+                  type="button"
+                  className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+                  onClick={() => setSidebarOpen(false)}
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="mt-3 space-y-2">
-                {templateVariables.length > 0 ? (
-                  templateVariables
-                    .filter((item) => item.category === "event")
-                    .map((item) => (
-                      <button
-                        type="button"
-                        key={item.id}
-                        className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                        draggable={editorMode === "visual"}
-                        onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
-                        onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                        disabled={!isDraft}
-                      >
-                        <div className="font-mono text-[11px] truncate">{item.label}</div>
-                        <div className="text-muted-foreground text-[10px]">{item.hint}</div>
-                      </button>
-                    ))
-                ) : (
-                  <p className="text-xs text-muted-foreground">No event variables yet</p>
-                )}
-              </div>
-
+              <div className="p-3 pt-2 overflow-auto flex-1">
               {/* === Blocks (collapsible, visual mode only) === */}
               {editorMode === "visual" && (
                 <>
                   <button
                     type="button"
-                    className="flex items-center gap-1 mt-4 mb-2 w-full text-left"
+                    className="flex items-center gap-1 mb-2 w-full text-left"
                     onClick={() => setBlocksOpen((prev) => !prev)}
                   >
                     {blocksOpen ? (
@@ -3759,7 +3785,45 @@ export function MjmlEditor() {
                 </>
               )}
 
-              {/* === Injectors (grouped, collapsible, searchable) === */}
+              {/* === Variables & Injectors (collapsible) === */}
+              <button
+                type="button"
+                className="flex items-center gap-1 mt-4 mb-2 w-full text-left"
+                onClick={() => setVariablesOpen((prev) => !prev)}
+              >
+                {variablesOpen ? (
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                )}
+                <h4 className="text-xs font-semibold text-muted-foreground">Variables</h4>
+              </button>
+              {variablesOpen && (
+              <>
+              <div className="space-y-2">
+                {templateVariables.length > 0 ? (
+                  templateVariables
+                    .filter((item) => item.category === "event")
+                    .map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                        draggable={editorMode === "visual"}
+                        onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
+                        onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                        disabled={!isDraft}
+                      >
+                        <div className="font-mono text-[11px] truncate">{item.label}</div>
+                        <div className="text-muted-foreground text-[10px]">{item.hint}</div>
+                      </button>
+                    ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">No event variables yet</p>
+                )}
+              </div>
+
+              {/* === Injectors (grouped, searchable) === */}
               {injectorVariableTokens.length > 0 && (() => {
                 const searchLower = injectorSearch.toLowerCase();
                 const grouped = injectorVariableTokens.reduce<Record<string, TemplateVariable[]>>((acc, item) => {
@@ -3784,8 +3848,7 @@ export function MjmlEditor() {
 
                 return (
                   <>
-                    <h4 className="text-xs font-semibold text-muted-foreground mt-4 mb-2">Injectors</h4>
-                    <div className="relative mb-2">
+                    <div className="relative mt-3 mb-2">
                       <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                       <Input
                         value={injectorSearch}
@@ -3856,7 +3919,22 @@ export function MjmlEditor() {
                   </>
                 );
               })()}
+              </>
+              )}
+              </div>
             </div>
+            ) : (
+            <div className="shrink-0 w-8 border-r bg-muted/20 flex flex-col items-center pt-3">
+              <button
+                type="button"
+                className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+                onClick={() => setSidebarOpen(true)}
+                title="Expand sidebar"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            )}
 
             {editorMode === "visual" ? (
               <div className="flex-1 overflow-auto p-4">
@@ -4567,7 +4645,20 @@ export function MjmlEditor() {
           </div>
 
           <div className="border-t bg-card p-4 shrink-0">
-            <h4 className="text-sm font-semibold mb-3">Metadata</h4>
+            <button
+              type="button"
+              className="flex items-center gap-1 w-full text-left mb-1"
+              onClick={() => setMetadataOpen((prev) => !prev)}
+            >
+              {metadataOpen ? (
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+              )}
+              <h4 className="text-sm font-semibold">Metadata</h4>
+            </button>
+            {metadataOpen && (
+            <>
             <p className="mb-3 text-xs text-muted-foreground">
               Used for email headers and inbox preview in real sends.
             </p>
@@ -4617,6 +4708,8 @@ export function MjmlEditor() {
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
         </div>
 

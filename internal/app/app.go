@@ -208,6 +208,9 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	// 14. Open-tracking handler.
 	trackingH := handler.NewTrackingHandler(emailRepo, eventProcessor, logger)
 
+	// 14b. Media handler (video thumbnail composite).
+	mediaH := handler.NewMediaHandler(logger)
+
 	// 15. Assemble server.
 	opts := []sendahttp.ServerOption{
 		sendahttp.WithPinger(&dbPinger{pool: pool}),
@@ -235,6 +238,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithAPIKeyHandler(apiKeyH),
 		sendahttp.WithAdapterSetupHandler(adapterSetupH),
 		sendahttp.WithTrackingHandler(trackingH),
+		sendahttp.WithMediaHandler(mediaH),
 		sendahttp.WithDashboardHandler(dashboardH),
 	}
 	opts = append(opts, sesOpts...)
