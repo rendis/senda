@@ -51,9 +51,6 @@ export type EmailStatus =
 /** Template version statuses */
 export type TemplateVersionStatus = "draft" | "published" | "archived";
 
-/** Domain verification statuses */
-export type DomainStatus = "pending" | "verified" | "error";
-
 /** Webhook statuses */
 export type WebhookStatus = "active" | "disabled";
 

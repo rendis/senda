@@ -14,7 +14,6 @@ export function AppHeader() {
     "/templates": t("templates"),
     "/injectors": t("injectors"),
     "/adapters": t("adapters"),
-    "/domains": t("domains"),
     "/webhooks": t("webhooks"),
     "/members": t("members"),
     "/api-keys": t("apiKeys"),

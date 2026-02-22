@@ -17,7 +17,6 @@ import (
 	gm "google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
-	"github.com/senda-app/senda/internal/adapter/dkim"
 	"github.com/senda-app/senda/internal/port"
 )
 
@@ -91,14 +90,6 @@ func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, er
 	rawMsg, err := buildRawMessage(msg)
 	if err != nil {
 		return "", fmt.Errorf("gmail: build message: %w", err)
-	}
-
-	if msg.DKIMConfig != nil {
-		signed, signErr := dkim.Sign(rawMsg, msg.DKIMConfig.Domain, msg.DKIMConfig.Selector, msg.DKIMConfig.PrivateKey)
-		if signErr != nil {
-			return "", fmt.Errorf("gmail: dkim sign: %w", signErr)
-		}
-		rawMsg = signed
 	}
 
 	encoded := base64.URLEncoding.EncodeToString(rawMsg)

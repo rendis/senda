@@ -19,10 +19,8 @@ import (
 type SendWorker struct {
 	goriver.WorkerDefaults[SendJobArgs]
 
-	emailStore      port.EmailStore
-	domainStore     port.DomainStore
-	crypto          port.Crypto
-	compiler        port.TemplateCompiler
+	emailStore  port.EmailStore
+	compiler    port.TemplateCompiler
 	renderer        port.VariableRenderer
 	rateLimiter     port.RateLimiter
 	sender          port.EmailSender
@@ -33,8 +31,6 @@ type SendWorker struct {
 // NewSendWorker creates a new send worker with all dependencies.
 func NewSendWorker(
 	emailStore port.EmailStore,
-	domainStore port.DomainStore,
-	crypto port.Crypto,
 	compiler port.TemplateCompiler,
 	renderer port.VariableRenderer,
 	rateLimiter port.RateLimiter,
@@ -42,10 +38,8 @@ func NewSendWorker(
 	opts ...SendWorkerOption,
 ) *SendWorker {
 	w := &SendWorker{
-		emailStore:  emailStore,
-		domainStore: domainStore,
-		crypto:      crypto,
-		compiler:    compiler,
+		emailStore: emailStore,
+		compiler:   compiler,
 		renderer:    renderer,
 		rateLimiter: rateLimiter,
 		sender:      sender,
@@ -145,27 +139,20 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		outgoing.ReplyTo = &port.EmailAddress{Address: *email.ReplyTo}
 	}
 
-	// 8. DKIM config: look up domain by from_email, decrypt private key.
-	dkimCfg, err := w.resolveDKIM(ctx, email.FromEmail)
-	if err == nil && dkimCfg != nil {
-		outgoing.DKIMConfig = dkimCfg
-	}
-	// If DKIM resolution fails, send without DKIM (not a fatal error).
-
-	// 9. Send via provider adapter.
+	// 8. Send via provider adapter.
 	providerMsgID, err := w.sender.Send(ctx, outgoing)
 	if err != nil {
 		return w.handleSendError(ctx, email, job.Attempt, err)
 	}
 
-	// 10. Persist provider message ID for webhook event matching.
+	// 9. Persist provider message ID for webhook event matching.
 	if providerMsgID != "" {
 		if err := w.emailStore.SetProviderMessageID(ctx, email.ID, providerMsgID); err != nil {
 			slog.Error("send_worker: failed to set provider_message_id", "email_id", email.ID, "error", err)
 		}
 	}
 
-	// 11. Success: update status to sent, add event.
+	// 10. Success: update status to sent, add event.
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent); err != nil {
 		return fmt.Errorf("send: update status to sent: %w", err)
 	}
@@ -188,15 +175,6 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 func (w *SendWorker) NextRetry(job *goriver.Job[SendJobArgs]) time.Time {
 	backoff := time.Duration(60*(1<<uint(job.Attempt-1))) * time.Second
 	return time.Now().Add(backoff)
-}
-
-// resolveDKIM looks up the domain for the from_email and decrypts the DKIM key.
-// TODO: Requires port.DomainStore.GetVerifiedByDomainName(ctx, workspaceID, domainName)
-// Currently cannot resolve DKIM because GetPendingVerifications only returns pending domains.
-// This will be fixed when the port method is added.
-func (w *SendWorker) resolveDKIM(_ context.Context, _ string) (*port.DKIMConfig, error) {
-	slog.Warn("send_worker: DKIM signing skipped, GetVerifiedByDomainName not yet available")
-	return nil, nil
 }
 
 // handleSendError determines if an error is transient or permanent.
@@ -247,13 +225,4 @@ func isPermanentSendError(err error) bool {
 		}
 	}
 	return false
-}
-
-// extractDomain extracts the domain part from an email address.
-func extractDomain(email string) string {
-	parts := strings.SplitN(email, "@", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-	return parts[1]
 }

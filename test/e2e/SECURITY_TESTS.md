@@ -23,7 +23,7 @@ This document describes the comprehensive security test suite for the Senda emai
 | S07 | IDOR | A01:2021 – Access Control | CRITICAL | 6 | 5 UUIDs × 6 resources = 30 enumeration cases |
 | S08 | Rate Limit Bypass | A05:2021 – Resource Exhaustion | MEDIUM | 3 | 3 bypass techniques |
 | S09 | API Key Timing Attack | A02:2021 – Crypto Failures | MEDIUM | 1 | 3 timing measurements |
-| S10 | Cryptographic Validation | A02:2021 – Crypto Failures | CRITICAL | 4 | 4 crypto checks |
+| S10 | Cryptographic Validation | A02:2021 – Crypto Failures | CRITICAL | 3 | 3 crypto checks |
 | S11 | SMTP Header Injection | A03:2021 – Injection | HIGH | 2 | 6 header injection payloads |
 | S12 | Path Traversal | A01:2021 – Access Control | MEDIUM | 5 | 13 path traversal payloads × 5 fields = 65 cases |
 | **TOTAL** | | | | **55 sub-tests** | **~400+ attack payloads** |
@@ -279,13 +279,13 @@ ffffffff-ffff-ffff-ffff-ffffffffffff
 1. **API Key format** — all keys start with `snd_live_` or `snd_test_`
 2. **Adapter credentials not in plaintext** — GET /adapters should NOT return password/username in response body
 3. **Request ID unpredictable** — request IDs should not follow a sequential pattern
-4. **DKIM signature valid** — email signed with Ed25519, signature present in Mailpit
+
+**Note:** DKIM/SPF/DMARC are **not** tested at the application level. These protocols are handled natively by email providers (SES, Gmail, Sendgrid). Senda delegates email signing and domain authentication entirely to the delivery provider — implementing DKIM in the application would duplicate or conflict with provider signing. See README.md "Email Security" section for full rationale.
 
 **Protection mechanisms expected:**
 - All API Keys stored as SHA256 hash (raw never persisted)
 - Adapter credentials encrypted with AES-256-GCM
 - Request ID generation using crypto/rand (UUIDv7)
-- DKIM signing on all outgoing emails using Ed25519 keys
 
 ---
 

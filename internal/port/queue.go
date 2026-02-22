@@ -11,9 +11,6 @@ type JobQueue interface {
 	// EnqueueSend enqueues an email send job.
 	EnqueueSend(ctx context.Context, job *SendJob) error
 
-	// EnqueueDomainCheck enqueues a domain verification check.
-	EnqueueDomainCheck(ctx context.Context, domainID uuid.UUID) error
-
 	// EnqueueWebhook enqueues a webhook delivery.
 	EnqueueWebhook(ctx context.Context, job *WebhookJob) error
 }

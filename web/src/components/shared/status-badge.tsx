@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import type { EmailStatus, TemplateVersionStatus, DomainStatus, WebhookStatus } from "@/types/api";
+import type { EmailStatus, TemplateVersionStatus, WebhookStatus } from "@/types/api";
 
-type Status = EmailStatus | TemplateVersionStatus | DomainStatus | WebhookStatus | "revoked";
+type Status = EmailStatus | TemplateVersionStatus | WebhookStatus | "revoked";
 
 const statusConfig: Record<
   Status,
@@ -78,24 +78,6 @@ const statusConfig: Record<
     dotColor: "bg-status-draft",
     bgColor: "bg-status-draft-bg",
     textColor: "text-status-draft",
-  },
-  pending: {
-    label: "Pending",
-    dotColor: "bg-status-queued",
-    bgColor: "bg-status-queued-bg",
-    textColor: "text-status-queued",
-  },
-  verified: {
-    label: "Verified",
-    dotColor: "bg-status-delivered",
-    bgColor: "bg-status-delivered-bg",
-    textColor: "text-status-delivered",
-  },
-  error: {
-    label: "Error",
-    dotColor: "bg-status-bounced",
-    bgColor: "bg-status-bounced-bg",
-    textColor: "text-status-bounced",
   },
   active: {
     label: "Active",

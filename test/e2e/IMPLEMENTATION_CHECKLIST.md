@@ -98,10 +98,9 @@
 - [x] API Key format: snd_live_* or snd_test_* prefix
 - [x] Adapter credentials encryption (not plaintext)
 - [x] Request ID unpredictability (not sequential)
-- [x] DKIM signature validation (Ed25519)
-- [x] Mailpit integration: verify DKIM-Signature header
 - [x] Expectations: Proper crypto, no secrets in plaintext
 - [x] Severity: CRITICAL
+- **Note:** DKIM/SPF/DMARC validation is not tested at the application level — these protocols are handled natively by the delivery provider (SES, Gmail, Sendgrid). See README.md "Email Security" section.
 
 ### S11: SMTP Header Injection (A03 – Injection/Email)
 - [x] CRLF injection in from_name (\r\nBcc injection)
@@ -279,7 +278,6 @@ import (
 - [x] Constant-time comparison (timing variance <50ms)
 - [x] API key format validation
 - [x] Credential encryption (not plaintext)
-- [x] DKIM signature validation
 
 ---
 

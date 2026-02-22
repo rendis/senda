@@ -70,20 +70,13 @@ func (m *mockWebhookStore) GetActiveByWorkspace(ctx context.Context, workspaceID
 // --- Mock JobQueue ---
 
 type mockJobQueue struct {
-	enqueueSendFn        func(ctx context.Context, job *port.SendJob) error
-	enqueueDomainCheckFn func(ctx context.Context, domainID uuid.UUID) error
-	enqueueWebhookFn     func(ctx context.Context, job *port.WebhookJob) error
+	enqueueSendFn    func(ctx context.Context, job *port.SendJob) error
+	enqueueWebhookFn func(ctx context.Context, job *port.WebhookJob) error
 }
 
 func (m *mockJobQueue) EnqueueSend(ctx context.Context, job *port.SendJob) error {
 	if m.enqueueSendFn != nil {
 		return m.enqueueSendFn(ctx, job)
-	}
-	return nil
-}
-func (m *mockJobQueue) EnqueueDomainCheck(ctx context.Context, domainID uuid.UUID) error {
-	if m.enqueueDomainCheckFn != nil {
-		return m.enqueueDomainCheckFn(ctx, domainID)
 	}
 	return nil
 }

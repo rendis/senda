@@ -14,7 +14,6 @@ import (
 	"github.com/senda-app/senda/internal/http/middleware"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
 )
 
 // Server wraps the Echo instance with application configuration and logger.
@@ -43,8 +42,6 @@ type Server struct {
 	// HT-20 handlers.
 	injectorHandler *handler.InjectorHandler
 	adapterHandler  *handler.AdapterHandler
-	domainHandler   *handler.DomainHTTPHandler
-	domainService   *service.DomainService
 
 	// Identity handler (adapter identities).
 	identityHandler *handler.IdentityHandler
@@ -177,20 +174,6 @@ func WithIdentityHandler(h *handler.IdentityHandler) ServerOption {
 func WithAdapterSetupHandler(h *handler.AdapterSetupHandler) ServerOption {
 	return func(s *Server) {
 		s.adapterSetupHandler = h
-	}
-}
-
-// WithDomainHandler sets the DomainHTTPHandler for domain CRUD routes.
-func WithDomainHandler(h *handler.DomainHTTPHandler) ServerOption {
-	return func(s *Server) {
-		s.domainHandler = h
-	}
-}
-
-// WithDomainService sets the DomainService for domain operations.
-func WithDomainService(svc *service.DomainService) ServerOption {
-	return func(s *Server) {
-		s.domainService = svc
 	}
 }
 
@@ -422,14 +405,6 @@ func (s *Server) registerRoutes() {
 				ws.DELETE("/adapters/:id/identities/:identity_id", s.identityHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities/:identity_id/set-default", s.identityHandler.SetDefault, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
-			if s.domainHandler != nil {
-				ws.GET("/domains", s.domainHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
-				ws.POST("/domains", s.domainHandler.Register, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
-				ws.GET("/domains/:id", s.domainHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
-				ws.POST("/domains/:id/verify", s.domainHandler.VerifyNow, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
-				ws.DELETE("/domains/:id", s.domainHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
-			}
-
 			// Template types (HT-21).
 			if s.templateTypeHandler != nil {
 				ws.POST("/template-types", s.templateTypeHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
@@ -525,13 +500,6 @@ func (s *Server) registerRoutes() {
 				global.DELETE("/adapters/:id/identities/:identity_id", s.identityHandler.DeleteGlobal)
 				global.POST("/adapters/:id/identities/:identity_id/set-default", s.identityHandler.SetDefaultGlobal)
 			}
-			if s.domainHandler != nil {
-				global.GET("/domains", s.domainHandler.ListGlobal)
-				global.POST("/domains", s.domainHandler.RegisterGlobal)
-				global.GET("/domains/:id", s.domainHandler.GetGlobal)
-				global.DELETE("/domains/:id", s.domainHandler.SoftDeleteGlobal)
-			}
-
 			// Global template types (HT-21).
 			if s.templateTypeHandler != nil {
 				global.POST("/template-types", s.templateTypeHandler.CreateGlobal)

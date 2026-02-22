@@ -531,7 +531,7 @@ func WaitForMailpit(t *testing.T, timeout time.Duration) {
 	t.Fatalf("mailpit did not become reachable within %v", timeout)
 }
 
-// EnsureSetup runs onboarding + workspace + adapter + domain + template setup idempotently.
+// EnsureSetup runs onboarding + workspace + adapter + template setup idempotently.
 // Call this from any test suite that depends on base data (chaos, security, error flows).
 // Safe to call multiple times; skips already-created resources.
 func EnsureSetup(t *testing.T) {
@@ -571,12 +571,7 @@ func EnsureSetup(t *testing.T) {
 	})
 	resp.Body.Close()
 
-	// 4. Domain
-	resp = client.Post(wsPath+"/domains", DomainRequest{DomainName: TestDomain})
-	resp.Body.Close()
-	VerifyDomainInDB(t, TestDomain)
-
-	// 5. Template type
+	// 4. Template type
 	adapterID := ""
 	aResp := client.Get(wsPath + "/adapters")
 	defer aResp.Body.Close()
@@ -605,7 +600,7 @@ func EnsureSetup(t *testing.T) {
 	})
 	resp.Body.Close()
 
-	// 6. Template
+	// 5. Template
 	ttResp := client.Get(fmt.Sprintf("%s/template-types/%s", wsPath, TemplateTypeSlug))
 	defer ttResp.Body.Close()
 	var ttBody struct {
@@ -626,7 +621,7 @@ func EnsureSetup(t *testing.T) {
 		})
 		resp.Body.Close()
 
-		// 7. Version + publish (only if template created)
+		// 6. Version + publish (only if template created)
 		tplID := GetTemplateIDByTypeID(t, ttBody.ID)
 		if tplID != "" {
 			existingVID := GetLatestVersionID(t, tplID)
@@ -660,16 +655,3 @@ func EnsureSetup(t *testing.T) {
 	}
 }
 
-// VerifyDomainInDB directly sets a domain's status to 'verified' in the database.
-// This is necessary because E2E tests cannot perform real DNS verification.
-func VerifyDomainInDB(t *testing.T, domainName string) {
-	t.Helper()
-	conn := dbConn(t)
-	now := time.Now().UTC()
-	tag, err := conn.Exec(context.Background(),
-		"UPDATE domains SET status = 'verified', verified_at = $1, updated_at = $1 WHERE domain_name = $2 AND deleted_at IS NULL",
-		now, domainName,
-	)
-	require.NoError(t, err, "failed to verify domain %s in DB", domainName)
-	require.True(t, tag.RowsAffected() > 0, "no domain found with name %s to verify", domainName)
-}

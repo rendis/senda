@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements a 3-level hierarchy (Global → Tenant → Workspace) with inheritance chain resolution for templates, injectors, adapters, and domains.
+Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements a 3-level hierarchy (Global → Tenant → Workspace) with inheritance chain resolution for templates, injectors, and adapters.
 
-**Stack:** Go 1.22+, PostgreSQL 16 + pg_cron, Echo v5, River (queue), pgx v5, gomjml, go-msgauth, golang-migrate
+**Stack:** Go 1.25+, PostgreSQL 16 + pg_cron, Echo v5, River (queue), pgx v5, gomjml, golang-migrate
 
 **Architecture:** Hexagonal (Ports & Adapters), TDD mandatory, TestContainers for integration tests.
 
@@ -65,7 +65,7 @@ El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. 
 - **Perfil:** DevOps / Platform Engineer
 - **Expertise:** Docker, PostgreSQL, migrations, crypto, caching, rate limiting
 - **HTs:** HT-01 → HT-02 → HT-03 → HT-04 → HT-13 → HT-14
-- **Spec focus:** §3, §4, §5, §7, §9, §17, §18, §22, §23, §24
+- **Spec focus:** §3, §4, §5, §7, §9, §17, §18, §23, §24
 
 **Team Domain** — Track B (Core Domain + Resolution Engine)
 
@@ -500,6 +500,5 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 | §19     | Provider Event Ingestion           |
 | §20     | Onboarding Flow                    |
 | §21     | Observability                      |
-| §22     | DKIM Signing                       |
 | §23     | PG Cache                           |
 | §24     | Token Bucket Rate Limiting         |

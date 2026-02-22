@@ -88,41 +88,6 @@ func (m *mockEmailStore) QueryByExternalIDGlobal(ctx context.Context, externalID
 	return nil, "", nil
 }
 
-type mockDomainStore struct {
-	getByIDFn func(ctx context.Context, id uuid.UUID) (*domain.Domain, error)
-}
-
-func (m *mockDomainStore) Create(ctx context.Context, d *domain.Domain) error { return nil }
-func (m *mockDomainStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Domain, error) {
-	if m.getByIDFn != nil {
-		return m.getByIDFn(ctx, id)
-	}
-	return nil, domain.ErrNotFound
-}
-func (m *mockDomainStore) Update(ctx context.Context, d *domain.Domain) error  { return nil }
-func (m *mockDomainStore) SoftDelete(ctx context.Context, id uuid.UUID) error  { return nil }
-func (m *mockDomainStore) ListInChain(ctx context.Context, scopes []uuid.NullUUID) ([]*domain.Domain, error) {
-	return nil, nil
-}
-func (m *mockDomainStore) ListByWorkspace(ctx context.Context, workspaceID *uuid.UUID, opts port.ListOptions) (*port.PageResult[domain.Domain], error) {
-	return nil, nil
-}
-func (m *mockDomainStore) GetPendingVerifications(ctx context.Context, limit int) ([]*domain.Domain, error) {
-	return nil, nil
-}
-
-type mockCrypto struct {
-	decryptFn func(ciphertext []byte) ([]byte, error)
-}
-
-func (m *mockCrypto) Encrypt(plaintext []byte) ([]byte, error) { return plaintext, nil }
-func (m *mockCrypto) Decrypt(ciphertext []byte) ([]byte, error) {
-	if m.decryptFn != nil {
-		return m.decryptFn(ciphertext)
-	}
-	return ciphertext, nil
-}
-
 type mockCompiler struct {
 	compileFn func(ctx context.Context, mjml string) (string, error)
 }
@@ -207,14 +172,12 @@ func newTestEmail() *domain.Email {
 
 func newTestSendWorker(
 	emailStore *mockEmailStore,
-	domainStore *mockDomainStore,
-	crypto *mockCrypto,
 	compiler *mockCompiler,
 	renderer *mockRenderer,
 	rateLimiter *mockRateLimiter,
 	sender *mockSender,
 ) *SendWorker {
-	return NewSendWorker(emailStore, domainStore, crypto, compiler, renderer, rateLimiter, sender)
+	return NewSendWorker(emailStore, compiler, renderer, rateLimiter, sender)
 }
 
 func makeJob(args SendJobArgs, attempt int) *goriver.Job[SendJobArgs] {
@@ -239,7 +202,7 @@ func TestSendWorker_SuccessfulSend(t *testing.T) {
 		},
 	}
 	sender := &mockSender{}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
 	job := makeJob(SendJobArgs{
 		EmailID:    email.ID,
@@ -292,7 +255,7 @@ func TestSendWorker_EmailNotFound_CancelsJob(t *testing.T) {
 			return nil, domain.ErrNotFound
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
 
 	job := makeJob(SendJobArgs{TrackingID: "trk_nonexistent"}, 1)
 
@@ -320,7 +283,7 @@ func TestSendWorker_RateLimited_Snoozes(t *testing.T) {
 			return false, nil
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, rateLimiter, &mockSender{})
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, rateLimiter, &mockSender{})
 
 	job := makeJob(SendJobArgs{
 		TrackingID: email.TrackingID,
@@ -357,7 +320,7 @@ func TestSendWorker_RenderError_FailsPermanently(t *testing.T) {
 			return "", errors.New("render failed: missing variable")
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, renderer, &mockRateLimiter{}, &mockSender{})
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, renderer, &mockRateLimiter{}, &mockSender{})
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
@@ -396,7 +359,7 @@ func TestSendWorker_CompileError_FailsPermanently(t *testing.T) {
 			return "", errors.New("compile failed: invalid mjml")
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, compiler, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+	worker := newTestSendWorker(emailStore, compiler, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
@@ -423,7 +386,7 @@ func TestSendWorker_TransientSendError_Retries(t *testing.T) {
 			return "", errors.New("connection timeout")
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
@@ -456,7 +419,7 @@ func TestSendWorker_PermanentSendError_Cancels(t *testing.T) {
 			return "", errors.New("address not verified in SES")
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
@@ -484,7 +447,7 @@ func TestSendWorker_CCAndBCC(t *testing.T) {
 		},
 	}
 	sender := &mockSender{}
-	worker := newTestSendWorker(emailStore, &mockDomainStore{}, &mockCrypto{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
@@ -524,24 +487,6 @@ func TestSendWorker_NextRetry_ExponentialBackoff(t *testing.T) {
 		// Allow 1 second of tolerance.
 		if diff < tt.minDuration-time.Second || diff > tt.minDuration+time.Second {
 			t.Errorf("attempt %d: NextRetry diff = %v, want ~%v", tt.attempt, diff, tt.minDuration)
-		}
-	}
-}
-
-func TestExtractDomain(t *testing.T) {
-	tests := []struct {
-		email  string
-		domain string
-	}{
-		{"user@example.com", "example.com"},
-		{"admin@sub.domain.org", "sub.domain.org"},
-		{"invalid-email", ""},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		got := extractDomain(tt.email)
-		if got != tt.domain {
-			t.Errorf("extractDomain(%q) = %q, want %q", tt.email, got, tt.domain)
 		}
 	}
 }

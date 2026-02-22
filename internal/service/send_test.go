@@ -373,44 +373,14 @@ func (m *mockAdapterStoreSend) ListByWorkspace(_ context.Context, _ *uuid.UUID, 
 	return nil, nil
 }
 
-type mockDomainStoreSend struct {
-	listInChainFn func(ctx context.Context, scopes []uuid.NullUUID) ([]*domain.Domain, error)
-}
-
-func (m *mockDomainStoreSend) Create(_ context.Context, _ *domain.Domain) error { return nil }
-func (m *mockDomainStoreSend) GetByID(_ context.Context, _ uuid.UUID) (*domain.Domain, error) {
-	return nil, nil
-}
-func (m *mockDomainStoreSend) Update(_ context.Context, _ *domain.Domain) error  { return nil }
-func (m *mockDomainStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error   { return nil }
-func (m *mockDomainStoreSend) ListInChain(ctx context.Context, scopes []uuid.NullUUID) ([]*domain.Domain, error) {
-	if m.listInChainFn != nil {
-		return m.listInChainFn(ctx, scopes)
-	}
-	return nil, nil
-}
-func (m *mockDomainStoreSend) ListByWorkspace(_ context.Context, _ *uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.Domain], error) {
-	return nil, nil
-}
-func (m *mockDomainStoreSend) GetPendingVerifications(_ context.Context, _ int) ([]*domain.Domain, error) {
-	return nil, nil
-}
-
 type mockJobQueueSend struct {
-	enqueueSendFn        func(ctx context.Context, job *port.SendJob) error
-	enqueueDomainCheckFn func(ctx context.Context, domainID uuid.UUID) error
-	enqueueWebhookFn     func(ctx context.Context, job *port.WebhookJob) error
+	enqueueSendFn    func(ctx context.Context, job *port.SendJob) error
+	enqueueWebhookFn func(ctx context.Context, job *port.WebhookJob) error
 }
 
 func (m *mockJobQueueSend) EnqueueSend(ctx context.Context, job *port.SendJob) error {
 	if m.enqueueSendFn != nil {
 		return m.enqueueSendFn(ctx, job)
-	}
-	return nil
-}
-func (m *mockJobQueueSend) EnqueueDomainCheck(ctx context.Context, domainID uuid.UUID) error {
-	if m.enqueueDomainCheckFn != nil {
-		return m.enqueueDomainCheckFn(ctx, domainID)
 	}
 	return nil
 }
@@ -442,7 +412,6 @@ type sendTestFixture struct {
 	injectorStore  *mockInjectorStoreSend
 	adapterStore   *mockAdapterStoreSend
 	identityStore  *mockAdapterIdentityStoreSend
-	domainStore    *mockDomainStoreSend
 }
 
 // newSendFixture creates a fully wired test fixture with happy-path defaults.
@@ -545,17 +514,6 @@ func newSendFixture() *sendTestFixture {
 		},
 	}
 
-	f.domainStore = &mockDomainStoreSend{
-		listInChainFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.Domain, error) {
-			return []*domain.Domain{
-				{
-					DomainName: "example.com",
-					Status:     domain.DomainStatusVerified,
-				},
-			}, nil
-		},
-	}
-
 	f.identityStore = &mockAdapterIdentityStoreSend{
 		getDefaultFn: func(_ context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
 			if adapterID == f.adapterID {
@@ -586,7 +544,6 @@ func (f *sendTestFixture) buildService() *service.SendService {
 	templateResolver := resolution.NewTemplateResolver(f.templateStore, chainResolver)
 	injectorMerger := resolution.NewInjectorMerger(f.injectorStore, chainResolver)
 	adapterResolver := resolution.NewAdapterResolver(f.adapterStore, f.cache)
-	domainResolver := resolution.NewDomainResolver(f.domainStore, chainResolver, f.cache)
 	renderer := service.NewVariableRenderer()
 	identitySvc := service.NewIdentityService(f.identityStore, f.adapterStore, nil, nil)
 
@@ -594,7 +551,6 @@ func (f *sendTestFixture) buildService() *service.SendService {
 		templateResolver,
 		injectorMerger,
 		adapterResolver,
-		domainResolver,
 		identitySvc,
 		f.emailStore,
 		f.suppression,
@@ -894,22 +850,6 @@ func TestSendService_NoAdapterConfigured(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrNoAdapterConfigured) {
 		t.Fatalf("expected ErrNoAdapterConfigured, got %v", err)
-	}
-}
-
-func TestSendService_DomainNotVerified(t *testing.T) {
-	f := newSendFixture()
-	f.domainStore.listInChainFn = func(_ context.Context, _ []uuid.NullUUID) ([]*domain.Domain, error) {
-		return nil, nil
-	}
-
-	svc := f.buildService()
-	_, err := svc.Send(context.Background(), f.happyRequest())
-	if err == nil {
-		t.Fatal("expected error for unverified domain")
-	}
-	if !errors.Is(err, domain.ErrDomainNotVerified) {
-		t.Fatalf("expected ErrDomainNotVerified, got %v", err)
 	}
 }
 

@@ -80,7 +80,6 @@
     "templates": "Templates",
     "injectors": "Injectors",
     "adapters": "Adapters",
-    "domains": "Domains",
     "webhooks": "Webhooks",
     "members": "Members",
     "apiKeys": "API Keys",

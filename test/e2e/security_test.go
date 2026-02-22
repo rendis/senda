@@ -717,16 +717,6 @@ func TestS07_IDOR(t *testing.T) {
 		}
 	})
 
-	t.Run("nonexistent_domain_returns_404", func(t *testing.T) {
-		for _, uuid := range randomUUIDs {
-			resp := client.Get(wsPath + "/domains/" + uuid)
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusNotFound, resp.StatusCode,
-				"non-existent domain should return 404, got %d", resp.StatusCode)
-		}
-	})
-
 	t.Run("nonexistent_api_key_returns_404", func(t *testing.T) {
 		// No GET /api-keys/:id route exists; use DELETE /api-keys/:id to test IDOR.
 		for _, uuid := range randomUUIDs {
@@ -864,9 +854,9 @@ func TestS09_APIKeyTimingAttack(t *testing.T) {
 
 // TestS10_CryptographicValidation tests cryptographic implementations.
 // OWASP: A02:2021 - Cryptographic Failures
-// Target: DKIM signing, credential encryption, key prefix format
-// Expected: Signatures valid, credentials encrypted, keys prefixed correctly
-// Failure severity: CRITICAL - breaks email authentication
+// Target: credential encryption, key prefix format
+// Expected: credentials encrypted, keys prefixed correctly
+// Failure severity: CRITICAL - breaks credential security
 func TestS10_CryptographicValidation(t *testing.T) {
 	EnsureSetup(t)
 	client := NewTestClient(t)
@@ -933,48 +923,6 @@ func TestS10_CryptographicValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("dkim_signature_valid_ed25519", func(t *testing.T) {
-		mailpit := NewMailpitClient(t)
-		mailpit.ClearMessages()
-
-		// Create API key for sending (send endpoint requires API key, not JWT)
-		apiKey := createAPIKey(t, client, "dkim")
-		sendClient := NewTestClient(t)
-		sendClient.SetAPIKey(apiKey)
-
-		req := SendRequest{
-			Ref: sendRef(),
-			To:  []string{"dkim-test@example.com"},
-			Variables: map[string]interface{}{
-				"first_name":   "DKIM",
-				"company_name": "Test Corp",
-			},
-		}
-		resp := sendClient.Post("/api/v1/send", req)
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusCreated {
-			t.Skipf("send endpoint returned %d, skipping DKIM check", resp.StatusCode)
-		}
-
-		// Wait for email in Mailpit
-		mailpit.WaitForMessages(1, 10*time.Second)
-		messages := mailpit.GetMessages()
-
-		if len(messages) > 0 {
-			msg := mailpit.GetMessage(messages[0].ID)
-			// Verify DKIM-Signature header exists
-			dkimSignature := msg.Headers["Dkim-Signature"]
-			if len(dkimSignature) == 0 {
-				dkimSignature = msg.Headers["DKIM-Signature"]
-			}
-			if len(dkimSignature) > 0 {
-				t.Logf("DKIM-Signature present: %s", dkimSignature[0][:min(80, len(dkimSignature[0]))])
-			} else {
-				t.Log("DKIM-Signature header not present (DKIM may not be configured in test env)")
-			}
-		}
-	})
 }
 
 // TestS11_HeaderInjection tests SMTP header injection attacks.

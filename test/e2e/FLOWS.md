@@ -63,7 +63,7 @@ func TestF01_OnboardingComplete(t *testing.T) {
 
 **Location:** `happy_path_test.go::TestF02_SetupWorkspace()`
 
-**Objective:** Configure workspace infrastructure (injectors, adapter, domain)
+**Objective:** Configure workspace infrastructure (injectors, adapter)
 
 **HTTP Requests:**
 1. `POST /api/v1/manage/tenants/test-corp/workspaces/main/injectors`
@@ -74,13 +74,7 @@ func TestF01_OnboardingComplete(t *testing.T) {
    - Body: type="smtp", config with mailpit host/port
    - Expected: 201 Created or 409 Conflict
 
-3. `POST /api/v1/manage/tenants/test-corp/workspaces/main/domains`
-   - Body: domain_name, dkim_selector
-   - Expected: 201 Created
-   - Verify: domain_id in response
-
-4. `POST /api/v1/manage/tenants/test-corp/workspaces/main/domains/:id/verify`
-   - Expected: 200 OK or 422 (DNS not configured in test)
+**Note:** Domain registration and DKIM verification are not part of the application flow. Email authentication (SPF, DKIM, DMARC) is handled natively by the delivery provider. Senda validates sender identity through the provider's verification system (e.g., verified emails/domains in SES, OAuth scopes in Gmail).
 
 **Key Code:**
 ```go
@@ -95,10 +89,6 @@ func TestF02_SetupWorkspace(t *testing.T) {
     // Create SMTP adapter pointing to Mailpit
     adapterReq := AdapterRequest{Type: "smtp", Config: {"host": "mailpit"}}
     resp = client.Post(tenantPath+"/adapters", adapterReq)
-
-    // Register domain
-    domainReq := DomainRequest{DomainName: "mail.test.example.com"}
-    resp = client.Post(tenantPath+"/domains", domainReq)
 }
 ```
 
@@ -200,7 +190,6 @@ func TestF03_TemplateLifecycle(t *testing.T) {
    - Check: From = test from_email
    - Check: Subject contains expected text
    - Check: HTML body not empty
-   - Check: DKIM-Signature header present
 
 **Key Code:**
 ```go

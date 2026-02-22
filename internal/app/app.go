@@ -78,7 +78,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	templateRepo := postgres.NewTemplateRepo(pool)
 	injectorRepo := postgres.NewInjectorRepo(pool)
 	adapterRepo := postgres.NewAdapterRepo(pool)
-	domainRepo := postgres.NewDomainRepo(pool)
 	webhookRepo := postgres.NewWebhookRepo(pool)
 	suppressionRepo := postgres.NewSuppressionRepo(pool)
 	auditRepo := postgres.NewAuditRepo(pool)
@@ -91,7 +90,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	templateResolver := resolution.NewTemplateResolver(templateRepo, chainResolver)
 	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver)
 	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
-	domainResolver := resolution.NewDomainResolver(domainRepo, chainResolver, cache)
 
 	// 7. Email sender (SMTP for dev/E2E, SES for production).
 	var emailSender port.EmailSender
@@ -111,22 +109,20 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		)
 		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)
 	}
-	sendWorker := river.NewSendWorker(emailRepo, domainRepo, aesCrypto, compiler, renderer, rateLimiter, emailSender, sendWorkerOpts...)
-	verifyWorker := river.NewVerifyWorker(domainRepo, nil)
+	sendWorker := river.NewSendWorker(emailRepo, compiler, renderer, rateLimiter, emailSender, sendWorkerOpts...)
 	webhookWorker := river.NewWebhookWorker(webhookRepo, nil)
 
-	riverClient, err := river.NewClient(pool, sendWorker, verifyWorker, webhookWorker)
+	riverClient, err := river.NewClient(pool, sendWorker, webhookWorker)
 	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("app: river client: %w", err)
 	}
 
 	// 9. Services.
-	domainSvc := service.NewDomainService(domainRepo, aesCrypto, riverClient)
 	webhookSvc := service.NewWebhookService(webhookRepo, riverClient)
 	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, service.DefaultIdentityProviderFactory)
 	sendSvc := service.NewSendService(
-		templateResolver, injectorMerger, adapterResolver, domainResolver,
+		templateResolver, injectorMerger, adapterResolver,
 		identitySvc,
 		emailRepo, suppressionRepo, riverClient, renderer,
 		tenantRepo, wsRepo,
@@ -174,7 +170,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	})
 	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo)
 	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo)
-	domainH := handler.NewDomainHTTPHandler(domainSvc, domainRepo, tenantRepo, wsRepo)
 	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo)
 	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo)
 	sendH := handler.NewSendHandler(sendSvc)
@@ -225,8 +220,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithInjectorHandler(injectorH),
 		sendahttp.WithAdapterHandler(adapterH),
 		sendahttp.WithIdentityHandler(identityH),
-		sendahttp.WithDomainHandler(domainH),
-		sendahttp.WithDomainService(domainSvc),
 		sendahttp.WithTemplateTypeHandler(templateTypeH),
 		sendahttp.WithTemplateHandler(templateH),
 		sendahttp.WithSendHandler(sendH),

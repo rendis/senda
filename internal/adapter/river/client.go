@@ -33,20 +33,6 @@ func (a SendJobArgs) InsertOpts() goriver.InsertOpts {
 	}
 }
 
-// VerifyJobArgs are the args for the domain verification worker.
-type VerifyJobArgs struct {
-	DomainID uuid.UUID `json:"domain_id"`
-}
-
-func (VerifyJobArgs) Kind() string { return "verify_domain" }
-
-func (VerifyJobArgs) InsertOpts() goriver.InsertOpts {
-	return goriver.InsertOpts{
-		MaxAttempts: 3,
-		Queue:       "verify",
-	}
-}
-
 // WebhookJobArgs are the args for the webhook delivery worker.
 type WebhookJobArgs struct {
 	WebhookID  uuid.UUID `json:"webhook_id"`
@@ -72,16 +58,14 @@ type Client struct {
 
 // NewClient creates a new River client with workers registered.
 // Workers must be added before calling Start.
-func NewClient(pool *pgxpool.Pool, sendWorker *SendWorker, verifyWorker *VerifyWorker, webhookWorker *WebhookWorker) (*Client, error) {
+func NewClient(pool *pgxpool.Pool, sendWorker *SendWorker, webhookWorker *WebhookWorker) (*Client, error) {
 	workers := goriver.NewWorkers()
 	goriver.AddWorker(workers, sendWorker)
-	goriver.AddWorker(workers, verifyWorker)
 	goriver.AddWorker(workers, webhookWorker)
 
 	client, err := goriver.NewClient(riverpgxv5.New(pool), &goriver.Config{
 		Queues: map[string]goriver.QueueConfig{
 			"send":    {MaxWorkers: 50},
-			"verify":  {MaxWorkers: 5},
 			"webhook": {MaxWorkers: 20},
 		},
 		Workers:      workers,
@@ -119,17 +103,6 @@ func (c *Client) EnqueueSend(ctx context.Context, job *port.SendJob) error {
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("river: enqueue send: %w", err)
-	}
-	return nil
-}
-
-// EnqueueDomainCheck enqueues a domain verification job.
-func (c *Client) EnqueueDomainCheck(ctx context.Context, domainID uuid.UUID) error {
-	_, err := c.inner.Insert(ctx, VerifyJobArgs{
-		DomainID: domainID,
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("river: enqueue domain check: %w", err)
 	}
 	return nil
 }

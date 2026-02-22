@@ -47,7 +47,6 @@ type SendService struct {
 	templateResolver *resolution.TemplateResolver
 	injectorMerger   *resolution.InjectorMerger
 	adapterResolver  *resolution.AdapterResolver
-	domainResolver   *resolution.DomainResolver
 	identitySvc      *IdentityService
 	emailStore       port.EmailStore
 	suppression      port.SuppressionStore
@@ -62,7 +61,6 @@ func NewSendService(
 	templateResolver *resolution.TemplateResolver,
 	injectorMerger *resolution.InjectorMerger,
 	adapterResolver *resolution.AdapterResolver,
-	domainResolver *resolution.DomainResolver,
 	identitySvc *IdentityService,
 	emailStore port.EmailStore,
 	suppression port.SuppressionStore,
@@ -75,7 +73,6 @@ func NewSendService(
 		templateResolver: templateResolver,
 		injectorMerger:   injectorMerger,
 		adapterResolver:  adapterResolver,
-		domainResolver:   domainResolver,
 		identitySvc:      identitySvc,
 		emailStore:       emailStore,
 		suppression:      suppression,
@@ -88,7 +85,7 @@ func NewSendService(
 
 // Send orchestrates the full email send pipeline:
 // 1. Parse ref → 2. Resolve tenant/workspace → 3. Resolve template →
-// 4. Merge injectors → 5. Resolve adapter → 6. Validate domain →
+// 4. Merge injectors → 5. Resolve adapter → 6. Resolve from_email →
 // 7. Render fields → 8. Create emails → 9. Enqueue jobs
 func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse, error) {
 	// 1. Parse addressing ref (tenant:workspace:templateType)
@@ -126,12 +123,9 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 6. Resolve from_email from adapter's default identity and validate domain
+	// 6. Resolve from_email from adapter's default identity.
 	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.domainResolver.ValidateFromAddress(ctx, ws.ID, fromEmail); err != nil {
 		return nil, err
 	}
 

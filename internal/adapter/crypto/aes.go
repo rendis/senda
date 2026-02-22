@@ -20,7 +20,7 @@ const (
 
 	// hkdfSalt is a static deployment-wide salt for HKDF key derivation.
 	// Changing this value requires re-encrypting ALL existing encrypted data
-	// (adapter credentials, DKIM keys). Cryptographic isolation between
+	// (adapter credentials). Cryptographic isolation between
 	// environments is provided by the per-deployment master key, not this salt.
 	hkdfSalt = "senda-v1"
 )

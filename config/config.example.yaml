@@ -51,7 +51,7 @@ oidc:
   client_secret: "your-client-secret"
 
 crypto:
-  # Master key for AES-256-GCM encryption of adapter credentials and DKIM keys.
+  # Master key for AES-256-GCM encryption of adapter credentials.
   # Must be at least 32 characters. (required)
   # Env: SENDA_MASTER_KEY
   master_key: "change-me-to-a-secure-key-at-least-32-chars"

@@ -9,7 +9,6 @@ var (
 	_ port.GlobalConfigStore = (*GlobalConfigRepo)(nil)
 	_ port.InjectorStore     = (*InjectorRepo)(nil)
 	_ port.AdapterStore      = (*AdapterRepo)(nil)
-	_ port.DomainStore       = (*DomainRepo)(nil)
 	_ port.TemplateStore     = (*TemplateRepo)(nil)
 	_ port.MemberStore       = (*MemberRepo)(nil)
 	_ port.APIKeyStore       = (*APIKeyRepo)(nil)

@@ -151,7 +151,7 @@ func TestF01_OnboardingComplete(t *testing.T) {
 }
 
 // TestF02_SetupWorkspace verifies workspace setup:
-// Create workspace → create injectors → create adapter → register domain.
+// Create workspace → create injectors → create adapter.
 func TestF02_SetupWorkspace(t *testing.T) {
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
@@ -236,39 +236,6 @@ func TestF02_SetupWorkspace(t *testing.T) {
 			"expected 201 or 409, got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
 	})
 
-	t.Run("POST /domains register domain", func(t *testing.T) {
-		req := DomainRequest{
-			DomainName: TestDomain,
-		}
-
-		resp := client.Post(wp+"/domains", req)
-		defer resp.Body.Close()
-
-		// Production bug: duplicate resources may return 500 instead of 409.
-		// Accept 500 as "already exists" if the domain was registered in a prior run.
-		require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusConflict ||
-			resp.StatusCode == http.StatusInternalServerError,
-			"expected 201, 409, or 500 (known bug), got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
-
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: duplicate domain returns 500 instead of 409")
-		}
-
-		if resp.StatusCode == http.StatusCreated {
-			var respBody struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
-			}
-			ParseJSONResponse(t, resp, &respBody)
-			require.NotEmpty(t, respBody.ID)
-		}
-	})
-
-	t.Run("verify domain in DB for E2E send tests", func(t *testing.T) {
-		// E2E tests cannot perform real DNS verification, so we directly mark
-		// the domain as verified in the database to unblock send tests.
-		VerifyDomainInDB(t, TestDomain)
-	})
 }
 
 // TestF03_TemplateLifecycle verifies complete template lifecycle:

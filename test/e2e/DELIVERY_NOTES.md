@@ -69,7 +69,7 @@ MailpitSMTPPort = 1025
 **Request DTOs:**
 - OnboardingRequest, TemplateTypeRequest, CreateTemplateRequest, CreateVersionRequest
 - CreateLocaleRequest, SendRequest, InjectorRequest, SetInjectorValuesRequest
-- AdapterRequest, DomainRequest, APIKeyRequest, MemberRequest, WebhookRequest
+- AdapterRequest, APIKeyRequest, MemberRequest, WebhookRequest
 
 **Helper Functions:**
 - `SampleMJML()` — Sample MJML template for testing
@@ -206,7 +206,6 @@ ok  	github.com/senda-app/senda/test/e2e	15.234s
 **Management API — Resources:**
 - ✅ POST/PUT/GET /injectors, /injectors/:name/values
 - ✅ POST/GET /adapters
-- ✅ POST/GET /domains, /domains/:id/verify
 - ✅ POST/GET /template-types
 - ✅ POST/GET /templates
 - ✅ POST/GET /templates/:slug/versions

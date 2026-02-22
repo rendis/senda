@@ -341,61 +341,6 @@ func TestCRUD_Global_Adapter(t *testing.T) {
 	})
 }
 
-// ---------- Global Domains ----------
-
-func TestCRUD_Global_Domain(t *testing.T) {
-	c := ensureClient(t)
-	domainName := fmt.Sprintf("e2e-%d.global.example.com", time.Now().UnixNano()%100000)
-
-	var domainID string
-
-	t.Run("create", func(t *testing.T) {
-		resp := c.Post(globalPath()+"/domains", DomainRequest{DomainName: domainName})
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusCreated)
-
-		var body struct {
-			ID string `json:"id"`
-		}
-		ParseJSONResponse(t, resp, &body)
-		domainID = body.ID
-		require.NotEmpty(t, domainID)
-	})
-
-	t.Run("get", func(t *testing.T) {
-		if domainID == "" {
-			t.Skip("no domain created")
-		}
-		resp := c.Get(globalPath() + "/domains/" + domainID)
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusOK)
-	})
-
-	t.Run("list", func(t *testing.T) {
-		resp := c.Get(globalPath() + "/domains")
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusOK)
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		if domainID == "" {
-			t.Skip("no domain created")
-		}
-		resp := c.Delete(globalPath() + "/domains/" + domainID)
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusNoContent)
-	})
-
-	t.Run("get_after_delete", func(t *testing.T) {
-		if domainID == "" {
-			t.Skip("no domain created")
-		}
-		resp := c.Get(globalPath() + "/domains/" + domainID)
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusNotFound)
-	})
-}
-
 // ---------- Global Injectors ----------
 
 func TestCRUD_Global_Injector(t *testing.T) {
@@ -553,42 +498,6 @@ func TestCRUD_WS_Adapter_Update(t *testing.T) {
 
 	t.Run("delete_not_found", func(t *testing.T) {
 		resp := c.Delete(wsPath() + "/adapters/00000000-0000-0000-0000-000000000000")
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusNotFound)
-	})
-}
-
-// ---------- Workspace Domain Verify/Delete ----------
-
-func TestCRUD_WS_Domain_VerifyAndDelete(t *testing.T) {
-	c := ensureClient(t)
-	domainName := fmt.Sprintf("e2e-%d.ws.example.com", time.Now().UnixNano()%100000)
-
-	// Create
-	resp := c.Post(wsPath()+"/domains", DomainRequest{DomainName: domainName})
-	defer resp.Body.Close()
-	RequireStatus(t, resp, http.StatusCreated)
-
-	var created struct {
-		ID string `json:"id"`
-	}
-	ParseJSONResponse(t, resp, &created)
-
-	t.Run("verify", func(t *testing.T) {
-		resp := c.Post(wsPath()+"/domains/"+created.ID+"/verify", nil)
-		defer resp.Body.Close()
-		// Verify triggers DNS check — will likely fail in E2E but endpoint should return 200
-		require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, resp.StatusCode)
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		resp := c.Delete(wsPath() + "/domains/" + created.ID)
-		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusNoContent)
-	})
-
-	t.Run("delete_not_found", func(t *testing.T) {
-		resp := c.Delete(wsPath() + "/domains/00000000-0000-0000-0000-000000000000")
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusNotFound)
 	})

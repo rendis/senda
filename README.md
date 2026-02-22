@@ -4,15 +4,15 @@ Open-source email orchestration platform with multi-tenant hierarchy, template v
 
 ## What is Senda?
 
-Senda lets you manage transactional email across organizations with a 3-level hierarchy: **Global → Tenant → Workspace**. Templates, injectors, adapters, and domains inherit down the chain — configure once at the top, override where needed.
+Senda lets you manage transactional email across organizations with a 3-level hierarchy: **Global → Tenant → Workspace**. Templates, injectors, and adapters inherit down the chain — configure once at the top, override where needed.
 
 ### Key Features
 
 - **Multi-tenant hierarchy** — Global, Tenant, and Workspace scopes with inheritance chain resolution
 - **Template versioning** — Draft → Published → Archived lifecycle with locale support (i18n)
-- **Provider-agnostic** — Adapter system supports SES today, any provider tomorrow
+- **Provider-agnostic** — Adapter system supports SES, Gmail, SMTP; any provider tomorrow
 - **MJML-native** — Write responsive email templates in MJML, compiled to HTML at send time
-- **DKIM signing** — Automatic key generation, DNS record provisioning, and message signing
+- **Provider-managed security** — SPF, DKIM, and DMARC handled natively by email providers, not duplicated in application code
 - **Dual auth** — OIDC/JWT for humans (management plane), API Keys for machines (data plane)
 - **Webhook system** — Real-time event delivery with HMAC-SHA256 signatures
 - **Full audit trail** — Every mutation logged with actor, scope, and change diff
@@ -21,14 +21,13 @@ Senda lets you manage transactional email across organizations with a 3-level hi
 
 | Layer           | Technology              |
 | --------------- | ----------------------- |
-| Language        | Go 1.22+                |
+| Language        | Go 1.25+                |
 | Database        | PostgreSQL 16 + pg_cron |
 | HTTP            | Echo v5                 |
 | Queue           | River (PG-native)       |
 | DB Driver       | pgx v5                  |
 | Migrations      | golang-migrate          |
 | Email Templates | gomjml                  |
-| DKIM            | go-msgauth              |
 | Cache           | PG UNLOGGED tables      |
 | Rate Limiting   | PL/pgSQL token bucket   |
 
@@ -51,13 +50,12 @@ internal/
     ses/            → AWS SES email sender
     river/          → Background workers
     mjml/           → MJML → HTML compiler
-    dkim/           → DKIM signing + DNS records
     crypto/         → AES-256-GCM encryption
   http/
     handler/        → HTTP handlers
     middleware/      → Auth, RBAC, logging, metrics
 pkg/                → Shared utilities (apperr, slug, tracking)
-migrations/         → SQL migrations (19 files)
+migrations/         → SQL migrations
 config/             → YAML configuration
 ```
 
@@ -81,7 +79,7 @@ make test
 ### Prerequisites
 
 - Docker & Docker Compose
-- Go 1.22+ (for local development)
+- Go 1.25+ (for local development)
 - Make
 
 ## Configuration
@@ -115,7 +113,7 @@ Response: `{ "tracking_id": "snd_...", "status": "queued" }`
 
 ### Management (OIDC auth)
 
-All CRUD operations for tenants, workspaces, templates, adapters, domains, members, and webhooks are available under `/api/v1/` with OIDC Bearer token authentication and RBAC enforcement.
+All CRUD operations for tenants, workspaces, templates, adapters, members, and webhooks are available under `/api/v1/` with OIDC Bearer token authentication and RBAC enforcement.
 
 ## How it Works
 
@@ -124,11 +122,21 @@ All CRUD operations for tenants, workspaces, templates, adapters, domains, membe
 3. **Resolve template** — Find published version + locale fallback
 4. **Merge injectors** — Field-by-field merge across scopes
 5. **Resolve adapter** — Get provider credentials from template type
-6. **Validate domain** — Verify from_email domain is DKIM-verified
+6. **Validate identity** — Verify from_email is a verified sender identity in the provider
 7. **Check suppression** — Skip bounced/complained addresses
-8. **Compile & sign** — MJML → HTML, then DKIM sign
+8. **Compile** — MJML → HTML with variable rendering
 9. **Enqueue** — River job for async delivery with rate limiting
 10. **Deliver** — Worker sends via provider, tracks events
+
+### Email Security (SPF, DKIM, DMARC)
+
+Senda **does not** implement SPF, DKIM, or DMARC at the application layer. These protocols are handled natively by the delivery provider:
+
+- **SPF (Sender Policy Framework)** — DNS-level protocol. The provider's sending infrastructure is already authorized in their SPF records. No application code involved.
+- **DKIM (DomainKeys Identified Mail)** — The provider signs outgoing messages with their own DKIM keys and manages DNS records. Implementing DKIM in the app would conflict with or duplicate the provider's signing.
+- **DMARC (Domain-based Message Authentication)** — Policy enforcement configured via DNS. The domain owner sets the policy; providers align SPF and DKIM automatically.
+
+Senda validates sender authorization through the provider's **identity verification system** (verified emails/domains in SES, OAuth scopes in Gmail). If a from_email is not verified with the provider, the provider itself rejects the send attempt — no application-level domain validation needed.
 
 ## Development
 
@@ -148,7 +156,7 @@ TDD mandatory. Manual mocks (no frameworks). TestContainers for integration test
 
 ## Project Status
 
-🚧 **Under active development** — See [stories/MANIFEST.md](stories/MANIFEST.md) for current progress.
+Under active development — See [stories/MANIFEST.md](stories/MANIFEST.md) for current progress.
 
 ## License
 

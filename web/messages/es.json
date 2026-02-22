@@ -80,7 +80,6 @@
     "templates": "Plantillas",
     "injectors": "Injectors",
     "adapters": "Adaptadores",
-    "domains": "Dominios",
     "webhooks": "Webhooks",
     "members": "Miembros",
     "apiKeys": "API Keys",

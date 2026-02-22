@@ -3,7 +3,6 @@ export interface SystemSettings {
   oidc: OidcSettings;
   email_defaults: EmailDefaultSettings;
   alerts: AlertSettings;
-  domain: DomainSettings;
 }
 
 export interface OidcSettings {
@@ -23,13 +22,8 @@ export interface AlertSettings {
   complaint_threshold_percent: number;
 }
 
-export interface DomainSettings {
-  recheck_interval_hours: number;
-}
-
 /** Update settings request (partial) */
 export interface UpdateSettingsRequest {
   email_defaults?: Partial<EmailDefaultSettings>;
   alerts?: Partial<AlertSettings>;
-  domain?: Partial<DomainSettings>;
 }

@@ -239,33 +239,6 @@ func TestAdapter_Send_SESError(t *testing.T) {
 	}
 }
 
-func TestAdapter_Send_WithDKIM(t *testing.T) {
-	mock := &mockSESClient{}
-	adapter := NewAdapter(mock, "us-east-1")
-
-	msg := &port.OutgoingEmail{
-		From:    port.EmailAddress{Address: "from@example.com"},
-		To:      port.EmailAddress{Address: "to@example.com"},
-		Subject: "DKIM Test",
-		BodyHTML: "<p>test</p>",
-		DKIMConfig: &port.DKIMConfig{
-			Selector:   "senda",
-			Domain:     "example.com",
-			PrivateKey: []byte("invalid-pem"), // will cause DKIM sign to fail
-		},
-		TrackingID: "trk_dkim",
-	}
-
-	// DKIM with invalid key should return error.
-	_, err := adapter.Send(context.Background(), msg)
-	if err == nil {
-		t.Fatal("expected DKIM error with invalid key, got nil")
-	}
-	if !strings.Contains(err.Error(), "dkim") {
-		t.Errorf("error = %q, expected to contain 'dkim'", err.Error())
-	}
-}
-
 func TestBuildRawMessage_HTMLOnly(t *testing.T) {
 	msg := &port.OutgoingEmail{
 		From:       port.EmailAddress{Name: "Test", Address: "test@example.com"},

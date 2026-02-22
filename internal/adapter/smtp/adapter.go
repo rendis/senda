@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/senda-app/senda/internal/adapter/dkim"
 	"github.com/senda-app/senda/internal/port"
 )
 
@@ -37,14 +36,6 @@ func (a *Adapter) Send(_ context.Context, msg *port.OutgoingEmail) (string, erro
 	rawMsg, err := buildRawMessage(msg)
 	if err != nil {
 		return "", fmt.Errorf("smtp: build message: %w", err)
-	}
-
-	if msg.DKIMConfig != nil {
-		signed, signErr := dkim.Sign(rawMsg, msg.DKIMConfig.Domain, msg.DKIMConfig.Selector, msg.DKIMConfig.PrivateKey)
-		if signErr != nil {
-			return "", fmt.Errorf("smtp: dkim sign: %w", signErr)
-		}
-		rawMsg = signed
 	}
 
 	addr := fmt.Sprintf("%s:%d", a.host, a.port)

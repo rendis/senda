@@ -61,6 +61,26 @@ func (m *mockWebhookStore) GetActiveByWorkspace(ctx context.Context, workspaceID
 	return nil, nil
 }
 
+// --- Mock JobQueue for webhook tests ---
+
+type mockJobQueue struct {
+	enqueueSendFn    func(ctx context.Context, job *port.SendJob) error
+	enqueueWebhookFn func(ctx context.Context, job *port.WebhookJob) error
+}
+
+func (m *mockJobQueue) EnqueueSend(ctx context.Context, job *port.SendJob) error {
+	if m.enqueueSendFn != nil {
+		return m.enqueueSendFn(ctx, job)
+	}
+	return nil
+}
+func (m *mockJobQueue) EnqueueWebhook(ctx context.Context, job *port.WebhookJob) error {
+	if m.enqueueWebhookFn != nil {
+		return m.enqueueWebhookFn(ctx, job)
+	}
+	return nil
+}
+
 // --- Tests ---
 
 func TestWebhookService_Dispatch_EnqueuesMatchingWebhooks(t *testing.T) {

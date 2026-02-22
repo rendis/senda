@@ -93,13 +93,13 @@ Test data constants and DTOs:
 ---
 
 ### F02: Setup Workspace
-**Objective:** Configure workspace with injectors, adapter, and domain
+**Objective:** Configure workspace with injectors and adapter
 
 **Steps:**
 1. POST `/api/v1/manage/tenants/test-corp/workspaces/main/injectors` → 201 or 409
 2. POST `/api/v1/manage/tenants/test-corp/workspaces/main/adapters` (SMTP → Mailpit) → 201 or 409
-3. POST `/api/v1/manage/tenants/test-corp/workspaces/main/domains` → 201 or 409
-4. POST `/api/v1/manage/tenants/test-corp/workspaces/main/domains/:id/verify` → 200 or 422
+
+**Note:** Domain registration is not part of the application flow. Email authentication (SPF, DKIM, DMARC) is handled natively by the delivery provider. Sender identity is validated through the provider's verification system.
 
 **Files:** `happy_path_test.go::TestF02_SetupWorkspace()`
 
@@ -131,7 +131,6 @@ Test data constants and DTOs:
 2. Response contains tracking_id, status = "accepted"
 3. Poll GET `/api/v1/emails/:tracking_id` until status = "delivered" (max 5s)
 4. Query Mailpit `/api/v1/messages` → email arrived with correct recipient/subject
-5. Verify DKIM-Signature header present in message
 
 **Files:** `happy_path_test.go::TestF04_SendEmailSuccess()`
 

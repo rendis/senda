@@ -26,7 +26,6 @@ type OutgoingEmail struct {
 	BodyHTML   string            // Compiled from MJML (final HTML)
 	BodyText   string            // Plain text fallback
 	Headers    map[string]string
-	DKIMConfig *DKIMConfig       // For signing
 	TrackingID string
 }
 
@@ -34,11 +33,4 @@ type OutgoingEmail struct {
 type EmailAddress struct {
 	Name    string // Display name ("Acme Support")
 	Address string // Email ("support@acme.com")
-}
-
-// DKIMConfig holds the DKIM signing configuration for an outgoing email.
-type DKIMConfig struct {
-	Selector   string
-	Domain     string
-	PrivateKey []byte // Decrypted
 }

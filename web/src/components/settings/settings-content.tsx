@@ -21,7 +21,6 @@ interface SettingsFormValues {
   log_retention_days: number;
   bounce_threshold_percent: number;
   complaint_threshold_percent: number;
-  recheck_interval_hours: number;
 }
 
 function SettingsFormSkeleton() {
@@ -62,7 +61,6 @@ export function SettingsContent() {
         log_retention_days: data.email_defaults.log_retention_days,
         bounce_threshold_percent: data.alerts.bounce_threshold_percent,
         complaint_threshold_percent: data.alerts.complaint_threshold_percent,
-        recheck_interval_hours: data.domain.recheck_interval_hours,
       });
     }
   }, [data, reset]);
@@ -100,9 +98,6 @@ export function SettingsContent() {
       alerts: {
         bounce_threshold_percent: Number(values.bounce_threshold_percent),
         complaint_threshold_percent: Number(values.complaint_threshold_percent),
-      },
-      domain: {
-        recheck_interval_hours: Number(values.recheck_interval_hours),
       },
     };
 
@@ -201,20 +196,6 @@ export function SettingsContent() {
               className="h-9 text-[13px]"
             />
           </div>
-        </div>
-      </SettingsSection>
-
-      {/* Domain Section */}
-      <SettingsSection title="Domain">
-        <div className="w-[300px] space-y-1.5">
-          <Label className="text-[13px] font-medium">
-            Recheck Interval (hours)
-          </Label>
-          <Input
-            type="number"
-            {...register("recheck_interval_hours", { valueAsNumber: true })}
-            className="h-9 text-[13px]"
-          />
         </div>
       </SettingsSection>
 

@@ -28,17 +28,13 @@ const (
 	TemplateSlug     = "welcome-v1"
 	TemplateTypeName = "Welcome Email"
 
-	// Domain
-	TestDomain      = "mail.test.example.com"
+	// From address (provider validates identity)
 	TestFromEmail   = "noreply@mail.test.example.com"
 	TestFromName    = "Test Corp"
 
 	// Adapter type — DB only supports "ses" or "gmail"; actual delivery uses bootstrap SMTP adapter.
 	AdapterType     = "ses"
 	AdapterName     = "E2E Test Adapter"
-
-	// DKIM selector
-	DKIMSelector     = "default"
 
 	// API Key reference
 	APIKeyName       = "test-key"
@@ -146,11 +142,6 @@ type AdapterRequest struct {
 	Config             map[string]interface{} `json:"config"`
 	IsDefault          bool                   `json:"is_default,omitempty"`
 	RateLimitPerSecond int                    `json:"rate_limit_per_second,omitempty"`
-}
-
-// DomainRequest is the request structure for registering a domain.
-type DomainRequest struct {
-	DomainName string `json:"domain_name"`
 }
 
 // APIKeyRequest is the request structure for creating an API key.

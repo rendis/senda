@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS domains;
+DROP TYPE IF EXISTS domain_status;

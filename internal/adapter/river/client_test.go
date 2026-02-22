@@ -31,24 +31,6 @@ func TestSendJobArgs_InsertOpts(t *testing.T) {
 	}
 }
 
-func TestVerifyJobArgs_Kind(t *testing.T) {
-	args := VerifyJobArgs{}
-	if got := args.Kind(); got != "verify_domain" {
-		t.Errorf("Kind() = %q, want %q", got, "verify_domain")
-	}
-}
-
-func TestVerifyJobArgs_InsertOpts(t *testing.T) {
-	args := VerifyJobArgs{}
-	opts := args.InsertOpts()
-	if opts.MaxAttempts != 3 {
-		t.Errorf("MaxAttempts = %d, want 3", opts.MaxAttempts)
-	}
-	if opts.Queue != "verify" {
-		t.Errorf("Queue = %q, want %q", opts.Queue, "verify")
-	}
-}
-
 func TestWebhookJobArgs_Kind(t *testing.T) {
 	args := WebhookJobArgs{}
 	if got := args.Kind(); got != "deliver_webhook" {
@@ -71,7 +53,6 @@ func TestWebhookJobArgs_InsertOpts(t *testing.T) {
 func TestJobArgsInterfaces(t *testing.T) {
 	// All job args must implement river.JobArgs.
 	var _ goriver.JobArgs = SendJobArgs{}
-	var _ goriver.JobArgs = VerifyJobArgs{}
 	var _ goriver.JobArgs = WebhookJobArgs{}
 }
 

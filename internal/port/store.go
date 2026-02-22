@@ -153,23 +153,6 @@ type AdapterIdentityStore interface {
 	DeleteStale(ctx context.Context, adapterID uuid.UUID, keepIdentities []string) error
 }
 
-// DomainStore manages domain persistence and verification state.
-type DomainStore interface {
-	Create(ctx context.Context, d *domain.Domain) error
-	GetByID(ctx context.Context, id uuid.UUID) (*domain.Domain, error)
-	Update(ctx context.Context, d *domain.Domain) error
-	SoftDelete(ctx context.Context, id uuid.UUID) error
-
-	// ListInChain returns all domains visible in the resolution chain.
-	ListInChain(ctx context.Context, scopes []uuid.NullUUID) ([]*domain.Domain, error)
-
-	// ListByWorkspace returns domains owned by a specific workspace (or global if nil).
-	ListByWorkspace(ctx context.Context, workspaceID *uuid.UUID, opts ListOptions) (*PageResult[domain.Domain], error)
-
-	// GetPendingVerifications returns domains needing DNS re-check.
-	GetPendingVerifications(ctx context.Context, limit int) ([]*domain.Domain, error)
-}
-
 // WebhookStore manages webhook endpoint persistence.
 type WebhookStore interface {
 	Create(ctx context.Context, wh *domain.Webhook) error

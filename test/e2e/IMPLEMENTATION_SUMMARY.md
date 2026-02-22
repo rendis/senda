@@ -82,7 +82,6 @@ TestDomain           = "mail.test.example.com"
 TestFromEmail        = "noreply@mail.test.example.com"
 MailpitSMTPHost      = "mailpit"
 MailpitSMTPPort      = 1025
-DKIMSelector         = "default"
 ```
 
 #### Request DTOs
@@ -95,7 +94,6 @@ DKIMSelector         = "default"
 - `InjectorRequest` — Injector definition with fields
 - `SetInjectorValuesRequest` — Field value assignment
 - `AdapterRequest` — Adapter configuration (SMTP, SES, etc.)
-- `DomainRequest` — Domain registration with DKIM
 - `APIKeyRequest` — API key creation
 - `MemberRequest` — Member invitation with roles
 - `WebhookRequest` — Webhook registration
@@ -120,7 +118,7 @@ DKIMSelector         = "default"
 
 #### F02: TestF02_SetupWorkspace
 - **Objective:** Configure workspace infrastructure
-- **Steps:** Create injectors → adapter (SMTP) → domain → verify domain
+- **Steps:** Create injectors → adapter (SMTP)
 - **Assertions:** All return 201 or 409 (conflict OK if exists)
 - **Lines:** ~60
 
@@ -132,8 +130,8 @@ DKIMSelector         = "default"
 
 #### F04: TestF04_SendEmailSuccess
 - **Objective:** Send with delivery verification
-- **Steps:** POST /send → 202, poll status until "delivered", verify in Mailpit, check DKIM
-- **Assertions:** Email arrives with correct to/from/subject, DKIM header present
+- **Steps:** POST /send → 202, poll status until "delivered", verify in Mailpit
+- **Assertions:** Email arrives with correct to/from/subject
 - **Lines:** ~90
 
 #### F05: TestF05_BatchSend
@@ -251,8 +249,6 @@ DKIMSelector         = "default"
 - ✅ PUT /api/v1/manage/tenants/:code/workspaces/:code/injectors/:name/values — Set values (F08)
 - ✅ GET /api/v1/manage/tenants/:code/workspaces/:code/injectors/:name — Get injector (F08)
 - ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/adapters — Create adapter (F02)
-- ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/domains — Register domain (F02)
-- ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/domains/:id/verify — Verify domain (F02)
 - ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/template-types — Create type (F03, F10)
 - ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/templates — Create template (F03, F10)
 - ✅ POST /api/v1/manage/tenants/:code/workspaces/:code/templates/:slug/versions — Create version (F03, F10)
@@ -386,7 +382,7 @@ Total:             1,453 lines of real, executable Go code
 | # | Function | Focus | Key Assertions |
 |---|----------|-------|-----------------|
 | F01 | TestF01_OnboardingComplete | Onboarding | tenant_id, status pending |
-| F02 | TestF02_SetupWorkspace | Infrastructure | injector, adapter, domain setup |
+| F02 | TestF02_SetupWorkspace | Infrastructure | injector, adapter setup |
 | F03 | TestF03_TemplateLifecycle | Template versioning | type → version → publish → archive |
 | F04 | TestF04_SendEmailSuccess | Send & delivery | 202 accepted, delivered status, Mailpit email |
 | F05 | TestF05_BatchSend | Batch processing | 50 recipients, all delivered |

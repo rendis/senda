@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 
-	"github.com/senda-app/senda/internal/adapter/dkim"
 	"github.com/senda-app/senda/internal/port"
 )
 
@@ -70,15 +69,6 @@ func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, er
 	rawMsg, err := buildRawMessage(msg)
 	if err != nil {
 		return "", fmt.Errorf("ses: build raw message: %w", err)
-	}
-
-	// DKIM sign if config is provided.
-	if msg.DKIMConfig != nil {
-		signed, signErr := dkim.Sign(rawMsg, msg.DKIMConfig.Domain, msg.DKIMConfig.Selector, msg.DKIMConfig.PrivateKey)
-		if signErr != nil {
-			return "", fmt.Errorf("ses: dkim sign: %w", signErr)
-		}
-		rawMsg = signed
 	}
 
 	input := &sesv2.SendEmailInput{

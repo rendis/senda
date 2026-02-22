@@ -138,131 +138,6 @@ func TestE02_NoAdapterConfigured(t *testing.T) {
 		"no new emails should have been sent for missing adapter")
 }
 
-// TestE03_UnverifiedDomain verifies that sending with an unverified domain returns an error.
-// Setup: register domain but DON'T verify -> create template using that domain ->
-// POST /send -> expect 4xx with message about unverified domain.
-func TestE03_UnverifiedDomain(t *testing.T) {
-	EnsureSetup(t)
-	client := NewTestClient(t)
-	client.LoginAs(SuperadminEmail)
-
-	wsPath := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s", TenantCode, WorkspaceCode)
-	mailpit := NewMailpitClient(t)
-
-	// Register domain but DON'T verify it
-	unverifiedDomain := fmt.Sprintf("unverified-%d.test.example.com", time.Now().UnixNano())
-	domainReq := DomainRequest{
-		DomainName: unverifiedDomain,
-	}
-	domainResp := client.Post(wsPath+"/domains", domainReq)
-	defer domainResp.Body.Close()
-	RequireStatus(t, domainResp, http.StatusCreated)
-
-	// Create template type
-	ttSlug := fmt.Sprintf("unverified-domain-type-%d", time.Now().UnixNano())
-	templateTypeReq := TemplateTypeRequest{
-		Slug:        ttSlug,
-		Name:        "Unverified Domain Type",
-		Description: "Testing unverified domain",
-		VariableSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"name": map[string]interface{}{"type": "string"},
-			},
-		},
-	}
-	ttResp := client.Post(wsPath+"/template-types", templateTypeReq)
-	defer ttResp.Body.Close()
-	RequireStatus(t, ttResp, http.StatusCreated)
-
-	var ttData struct {
-		ID string `json:"id"`
-	}
-	ParseJSONResponse(t, ttResp, &ttData)
-
-	// Create template
-	tplSlug := fmt.Sprintf("unverified-domain-tpl-%d", time.Now().UnixNano())
-	tplResp := client.Post(wsPath+"/templates", CreateTemplateRequest{
-		TemplateTypeID: ttData.ID,
-		Slug:           tplSlug,
-		Name:           "Unverified Domain Template",
-		Description:    "Template using unverified domain",
-	})
-	defer tplResp.Body.Close()
-	RequireStatus(t, tplResp, http.StatusCreated)
-
-	var tplData struct {
-		ID string `json:"id"`
-	}
-	ParseJSONResponse(t, tplResp, &tplData)
-
-	// Create version with unverified domain (using :template_id UUID)
-	verResp := client.Post(fmt.Sprintf("%s/templates/%s/versions", wsPath, tplData.ID), CreateVersionRequest{
-		Subject:     "Test Subject",
-		PreviewText: "Test Preview",
-		FromEmail:     fmt.Sprintf("noreply@%s", unverifiedDomain),
-		FromName:      TestFromName,
-		BodyMJML:      "<mj-text>Hello {{name}}</mj-text>",
-		DefaultLocale: "en",
-	})
-	defer verResp.Body.Close()
-	RequireStatus(t, verResp, http.StatusCreated)
-
-	var verData struct {
-		ID string `json:"id"`
-	}
-	ParseJSONResponse(t, verResp, &verData)
-
-	// Publish version (using :template_id/:version_id UUIDs)
-	pubResp := client.Post(fmt.Sprintf("%s/templates/%s/versions/%s/publish", wsPath, tplData.ID, verData.ID), nil)
-	defer pubResp.Body.Close()
-	RequireStatus(t, pubResp, http.StatusNoContent)
-
-	// Create API key for sending
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("unverdomain-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
-	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
-	}
-
-	sendClient := NewTestClient(t)
-	sendClient.SetAPIKey(apiKeyValue)
-
-	uniqueRecipient := fmt.Sprintf("e03-unverified-%d@test.example.com", time.Now().UnixNano())
-	sendResp := sendClient.Post("/api/v1/send", SendRequest{
-		Ref: fmt.Sprintf("%s:%s:%s", TenantCode, WorkspaceCode, ttSlug),
-		To:  []string{uniqueRecipient},
-		Variables: map[string]interface{}{
-			"name": "John",
-		},
-	})
-	defer sendResp.Body.Close()
-
-	// Should get 4xx error for unverified domain
-	require.True(t, sendResp.StatusCode >= 400 && sendResp.StatusCode < 500,
-		"expected 4xx error for unverified domain, got %d: %s", sendResp.StatusCode, ReadResponseBody(t, sendResp))
-
-	// Verify no email was sent to this recipient (Mailpit may have messages from other async workers)
-	time.Sleep(2 * time.Second)
-	msgs := mailpit.SearchMessages("to:" + uniqueRecipient)
-	require.Empty(t, msgs, "no emails should have been sent to %s for unverified domain", uniqueRecipient)
-}
-
 // TestE04_RateLimitExceeded verifies rate limiting returns 429.
 // Setup: send rapid burst of requests exceeding rate limit -> expect 429 with Retry-After header.
 func TestE04_RateLimitExceeded(t *testing.T) {
@@ -808,7 +683,7 @@ func TestE11_SuppressedEmail(t *testing.T) {
 
 // TestE12_SoftDeleteCascade verifies soft delete makes resources inaccessible.
 // Note: The server does not expose a DELETE endpoint for templates directly.
-// Only adapters (DELETE /adapters/:id), domains (DELETE /domains/:id),
+// Only adapters (DELETE /adapters/:id),
 // tenants (DELETE /tenants/:tc), and workspaces (DELETE /tenants/:tc/workspaces/:wc)
 // have soft delete routes. This test uses adapter soft delete instead.
 func TestE12_SoftDeleteCascade(t *testing.T) {
