@@ -20,6 +20,9 @@ coverage.out
 coverage.html
 *.coverprofile
 
+# Claude Code
+.claude/
+
 # IDE
 .idea/
 .vscode/
