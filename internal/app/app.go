@@ -124,6 +124,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	sendSvc := service.NewSendService(
 		templateResolver, injectorMerger, adapterResolver,
 		identitySvc,
+		rateLimiter,
 		emailRepo, suppressionRepo, riverClient, renderer,
 		tenantRepo, wsRepo,
 	)

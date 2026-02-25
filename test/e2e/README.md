@@ -214,6 +214,32 @@ Test data constants and DTOs:
 
 ## Running the Tests
 
+### Release Gate (Deterministic)
+
+The backend release gate uses only deterministic suites:
+
+```bash
+make test-e2e
+```
+
+This target runs:
+
+- `TestCore*`
+- `TestCRUD*`
+- `TestE*`
+- `TestF*`
+- `TestS*`
+
+### Chaos (Non-Blocking)
+
+Chaos/resilience checks are explicitly non-blocking for release:
+
+```bash
+make test-e2e-chaos
+```
+
+`TestC*` failures must be investigated, but do not block the deterministic release gate.
+
 ### Prerequisites
 
 1. **Senda Backend Running**

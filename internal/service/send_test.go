@@ -398,6 +398,25 @@ func (m *mockJobQueueSend) EnqueueWebhook(ctx context.Context, job *port.Webhook
 	return nil
 }
 
+type mockRateLimiterSend struct {
+	tryAcquireFn func(ctx context.Context, adapterID uuid.UUID) (bool, error)
+	syncBucketFn func(ctx context.Context, adapterID uuid.UUID, maxPerSecond int) error
+}
+
+func (m *mockRateLimiterSend) TryAcquire(ctx context.Context, adapterID uuid.UUID) (bool, error) {
+	if m.tryAcquireFn != nil {
+		return m.tryAcquireFn(ctx, adapterID)
+	}
+	return true, nil
+}
+
+func (m *mockRateLimiterSend) SyncBucket(ctx context.Context, adapterID uuid.UUID, maxPerSecond int) error {
+	if m.syncBucketFn != nil {
+		return m.syncBucketFn(ctx, adapterID, maxPerSecond)
+	}
+	return nil
+}
+
 // --- Helper to build a complete test fixture ---
 
 type sendTestFixture struct {
@@ -414,6 +433,7 @@ type sendTestFixture struct {
 	emailStore    *mockEmailStoreSend
 	suppression   *mockSuppressionStoreSend
 	jq            *mockJobQueueSend
+	rateLimiter   *mockRateLimiterSend
 	cache         *mockCacheSend
 	templateStore *mockTemplateStoreSend
 	injectorStore *mockInjectorStoreSend
@@ -541,6 +561,7 @@ func newSendFixture() *sendTestFixture {
 	f.emailStore = &mockEmailStoreSend{}
 	f.suppression = &mockSuppressionStoreSend{}
 	f.jq = &mockJobQueueSend{}
+	f.rateLimiter = &mockRateLimiterSend{}
 	f.cache = newMockCacheSend()
 
 	return f
@@ -559,6 +580,7 @@ func (f *sendTestFixture) buildService() *service.SendService {
 		injectorMerger,
 		adapterResolver,
 		identitySvc,
+		f.rateLimiter,
 		f.emailStore,
 		f.suppression,
 		f.jq,
@@ -857,6 +879,59 @@ func TestSendService_NoAdapterConfigured(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrNoAdapterConfigured) {
 		t.Fatalf("expected ErrNoAdapterConfigured, got %v", err)
+	}
+}
+
+func TestSendService_RateLimited(t *testing.T) {
+	f := newSendFixture()
+	var enqueuedJobs []*port.SendJob
+	f.jq.enqueueSendFn = func(_ context.Context, job *port.SendJob) error {
+		enqueuedJobs = append(enqueuedJobs, job)
+		return nil
+	}
+	f.rateLimiter.tryAcquireFn = func(_ context.Context, adapterID uuid.UUID) (bool, error) {
+		if adapterID != f.adapterID {
+			t.Fatalf("expected adapter ID %s, got %s", f.adapterID, adapterID)
+		}
+		return false, nil
+	}
+
+	svc := f.buildService()
+	resp, err := svc.Send(context.Background(), f.happyRequest())
+	if err == nil {
+		t.Fatal("expected rate limit error")
+	}
+	if !errors.Is(err, domain.ErrRateLimited) {
+		t.Fatalf("expected ErrRateLimited, got %v", err)
+	}
+	if resp != nil {
+		t.Fatalf("expected nil response, got %+v", resp)
+	}
+	if len(f.emailStore.emails) != 0 {
+		t.Fatalf("expected 0 emails created when rate limited, got %d", len(f.emailStore.emails))
+	}
+	if len(enqueuedJobs) != 0 {
+		t.Fatalf("expected 0 jobs enqueued when rate limited, got %d", len(enqueuedJobs))
+	}
+}
+
+func TestSendService_RateLimiterError(t *testing.T) {
+	f := newSendFixture()
+	rateLimiterErr := errors.New("rate limiter unavailable")
+	f.rateLimiter.tryAcquireFn = func(_ context.Context, _ uuid.UUID) (bool, error) {
+		return false, rateLimiterErr
+	}
+
+	svc := f.buildService()
+	_, err := svc.Send(context.Background(), f.happyRequest())
+	if err == nil {
+		t.Fatal("expected error when rate limiter fails")
+	}
+	if !errors.Is(err, rateLimiterErr) {
+		t.Fatalf("expected wrapped rate limiter error, got %v", err)
+	}
+	if len(f.emailStore.emails) != 0 {
+		t.Fatalf("expected 0 emails created when rate limiter fails, got %d", len(f.emailStore.emails))
 	}
 }
 

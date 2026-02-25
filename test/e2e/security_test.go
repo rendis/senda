@@ -76,10 +76,8 @@ func TestS01_SQLInjection(t *testing.T) {
 			resp := client.Get(emailsPath + "?cursor=" + url.QueryEscape(payload))
 			defer resp.Body.Close()
 
-			if resp.StatusCode == http.StatusInternalServerError {
-				t.Logf("PRODUCTION BUG: cursor parameter SQL injection payload causes 500 (unvalidated cursor passed to query): %s", payload)
-				continue
-			}
+			require.NotEqual(t, http.StatusInternalServerError, resp.StatusCode,
+				"cursor payload must never trigger 500: %s", payload)
 
 			require.True(t, resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusOK,
 				"unexpected status %d for cursor payload: %s", resp.StatusCode, payload)
@@ -594,27 +592,7 @@ func TestS06_MassAssignment(t *testing.T) {
 	})
 
 	t.Run("send_with_extra_fields", func(t *testing.T) {
-		// Create API key for send
-		var apiKeyValue string
-		{
-			req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("mass-%d", time.Now().UnixNano())}
-			resp := client.Post(wsPath+"/api-keys", req)
-			defer resp.Body.Close()
-			if resp.StatusCode == http.StatusCreated {
-				var body struct {
-					Key   string `json:"key"`
-					Token string `json:"token"`
-				}
-				ParseJSONResponse(t, resp, &body)
-				apiKeyValue = body.Key
-				if apiKeyValue == "" {
-					apiKeyValue = body.Token
-				}
-			}
-		}
-		if apiKeyValue == "" {
-			t.Skip("could not create API key")
-		}
+		_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "mass")
 
 		sendClient := NewTestClient(t)
 		sendClient.SetAPIKey(apiKeyValue)
@@ -641,8 +619,8 @@ func TestS06_MassAssignment(t *testing.T) {
 		req := map[string]interface{}{
 			"name":         fmt.Sprintf("mass-key-%d", time.Now().UnixNano()),
 			"workspace_id": "other-workspace-uuid", // Should be ignored
-			"permissions":  []string{"admin"},       // Should be ignored
-			"expires_at":   "2099-12-31",            // Should be ignored
+			"permissions":  []string{"admin"},      // Should be ignored
+			"expires_at":   "2099-12-31",           // Should be ignored
 		}
 		resp := client.Post(wsPath+"/api-keys", req)
 		defer resp.Body.Close()
@@ -935,29 +913,8 @@ func TestS11_HeaderInjection(t *testing.T) {
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
-	wsPath := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s", TenantCode, WorkspaceCode)
-
 	// Create API key for send tests
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("header-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
-	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
-	}
+	_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "header")
 
 	headerInjectionPayloads := []struct {
 		field    string
@@ -1128,4 +1085,3 @@ func TestS12_PathTraversal(t *testing.T) {
 			"URL path traversal should return 400/404, got %d", resp.StatusCode)
 	})
 }
-

@@ -25,27 +25,7 @@ func wsPath() string {
 // createAPIKey creates an API key and returns its value.
 func createAPIKey(t *testing.T, client *TestClient, suffix string) string {
 	t.Helper()
-	req := APIKeyRequest{
-		Name: APIKeyNamePrefix + fmt.Sprintf("%s-%d", suffix, time.Now().UnixNano()),
-	}
-
-	resp := client.Post(wsPath()+"/api-keys", req)
-	defer resp.Body.Close()
-
-	RequireStatus(t, resp, http.StatusCreated)
-
-	var body struct {
-		ID    string `json:"id"`
-		Key   string `json:"key"`
-		Token string `json:"token"`
-	}
-	ParseJSONResponse(t, resp, &body)
-
-	key := body.Key
-	if key == "" {
-		key = body.Token
-	}
-	require.NotEmpty(t, key, "API key value required")
+	_, key := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, suffix)
 	return key
 }
 
@@ -153,6 +133,7 @@ func TestF01_OnboardingComplete(t *testing.T) {
 // TestF02_SetupWorkspace verifies workspace setup:
 // Create workspace → create injectors → create adapter.
 func TestF02_SetupWorkspace(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -241,6 +222,7 @@ func TestF02_SetupWorkspace(t *testing.T) {
 // TestF03_TemplateLifecycle verifies complete template lifecycle:
 // Create type (with adapter_id) → create template → draft version → add locales → publish.
 func TestF03_TemplateLifecycle(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -280,14 +262,6 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 
 			resp := client.Post(wp+"/template-types", req)
 			defer resp.Body.Close()
-
-			if resp.StatusCode == http.StatusNotFound {
-				// PRODUCTION BUG: TemplateTypeService.Create returns 404 because
-				// FindTypeBySlugInScope uses apperr.NotFound which does not match
-				// domain.ErrNotFound in the `err != domain.ErrNotFound` check.
-				t.Log("PRODUCTION BUG: template type creation returns 404 (apperr vs domain error mismatch)")
-				t.FailNow()
-			}
 
 			require.Equal(t, http.StatusCreated, resp.StatusCode,
 				"expected 201, got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
@@ -340,9 +314,7 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 	var versionID string
 
 	t.Run("POST /templates/:id/versions create draft version", func(t *testing.T) {
-		if templateID == "" {
-			t.Skip("no template ID")
-		}
+		require.NotEmpty(t, templateID, "template ID is required to create version")
 
 		// Check if a version already exists via DB.
 		existingVID := GetLatestVersionID(t, templateID)
@@ -378,9 +350,7 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 	})
 
 	t.Run("PUT /locales/en add English locale", func(t *testing.T) {
-		if versionID == "" {
-			t.Skip("no version ID")
-		}
+		require.NotEmpty(t, versionID, "version ID is required to set locale")
 
 		req := map[string]string{
 			"subject":      "Welcome {{first_name}}!",
@@ -401,9 +371,7 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 	})
 
 	t.Run("PUT /locales/es add Spanish locale", func(t *testing.T) {
-		if versionID == "" {
-			t.Skip("no version ID")
-		}
+		require.NotEmpty(t, versionID, "version ID is required to set locale")
 
 		req := map[string]string{
 			"subject":      "Bienvenido {{first_name}}!",
@@ -424,9 +392,7 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 	})
 
 	t.Run("POST /publish publish version", func(t *testing.T) {
-		if versionID == "" {
-			t.Skip("no version ID")
-		}
+		require.NotEmpty(t, versionID, "version ID is required to publish")
 
 		resp := client.Post(
 			fmt.Sprintf("%s/templates/%s/versions/%s/publish", wp, templateID, versionID),
@@ -443,6 +409,7 @@ func TestF03_TemplateLifecycle(t *testing.T) {
 // TestF04_SendEmailSuccess verifies complete send flow:
 // POST /api/v1/send with valid API key → 202 Accepted → poll email status → verify email in Mailpit.
 func TestF04_SendEmailSuccess(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 	mailpit := NewMailpitClient(t)
@@ -469,14 +436,6 @@ func TestF04_SendEmailSuccess(t *testing.T) {
 		resp := sendClient.Post("/api/v1/send", req)
 		defer resp.Body.Close()
 
-		// PRODUCTION BUG: generateTrackingID() produces "trk_" + 32 hex = 36 chars,
-		// but emails.tracking_id column is varchar(32). This causes 500 on every send.
-		if resp.StatusCode == http.StatusInternalServerError {
-			body := ReadResponseBody(t, resp)
-			t.Logf("PRODUCTION BUG: send returns 500 (tracking_id varchar(32) overflow - generated ID is 36 chars): %s", body)
-			t.Skip("skipping due to known production bug: tracking_id column too short")
-		}
-
 		RequireStatus(t, resp, http.StatusAccepted)
 
 		var respBody struct {
@@ -498,9 +457,7 @@ func TestF04_SendEmailSuccess(t *testing.T) {
 	})
 
 	t.Run("poll email status until delivered", func(t *testing.T) {
-		if trackingID == "" {
-			t.Skip("no tracking ID from send")
-		}
+		require.NotEmpty(t, trackingID, "tracking ID is required")
 		// Email may stay as "sent" if no delivery webhook is received.
 		// Accept "sent" or "delivered". After server restart, River may take time to process queue.
 		// If the status doesn't reach "sent" in time, check if the email was delivered to Mailpit.
@@ -508,9 +465,7 @@ func TestF04_SendEmailSuccess(t *testing.T) {
 	})
 
 	t.Run("verify email arrived in Mailpit", func(t *testing.T) {
-		if trackingID == "" {
-			t.Skip("send did not succeed")
-		}
+		require.NotEmpty(t, trackingID, "tracking ID is required")
 		mailpit.WaitForMessages(1, 10*time.Second)
 
 		msg := mailpit.AssertMessageExists("recipient@test.example.com")
@@ -522,6 +477,7 @@ func TestF04_SendEmailSuccess(t *testing.T) {
 
 // TestF05_BatchSend verifies batch sending with multiple recipients.
 func TestF05_BatchSend(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 	mailpit := NewMailpitClient(t)
@@ -554,11 +510,6 @@ func TestF05_BatchSend(t *testing.T) {
 		resp := sendClient.Post("/api/v1/send", req)
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: batch send returns 500 (tracking_id varchar(32) overflow)")
-			t.Skip("skipping due to known production bug")
-		}
-
 		RequireStatus(t, resp, http.StatusAccepted)
 
 		var respBody struct {
@@ -576,9 +527,7 @@ func TestF05_BatchSend(t *testing.T) {
 	})
 
 	t.Run("verify all emails arrived in Mailpit", func(t *testing.T) {
-		if !batchSendSucceeded {
-			t.Skip("send did not succeed")
-		}
+		require.True(t, batchSendSucceeded, "batch send must succeed before validating delivery")
 		mailpit.WaitForMessages(batchSize, 30*time.Second)
 
 		messages := mailpit.GetMessages()
@@ -589,6 +538,7 @@ func TestF05_BatchSend(t *testing.T) {
 
 // TestF06_QueryByExternalID verifies external ID based queries.
 func TestF06_QueryByExternalID(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -620,19 +570,12 @@ func TestF06_QueryByExternalID(t *testing.T) {
 		resp := sendClient.Post("/api/v1/send", req)
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: send returns 500 (tracking_id varchar(32) overflow)")
-			t.Skip("skipping due to known production bug")
-		}
-
 		RequireStatus(t, resp, http.StatusAccepted)
 		sendSucceeded = true
 	})
 
 	t.Run("GET /emails?external_id=X query emails", func(t *testing.T) {
-		if !sendSucceeded {
-			t.Skip("send did not succeed")
-		}
+		require.True(t, sendSucceeded, "send with external ID must succeed")
 		time.Sleep(2 * time.Second) // wait for processing
 
 		url := fmt.Sprintf("%s/emails?external_id=%s", wsPath(), externalID)
@@ -648,6 +591,7 @@ func TestF06_QueryByExternalID(t *testing.T) {
 
 // TestF07_InheritanceChain verifies template resolution chain.
 func TestF07_InheritanceChain(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -669,11 +613,6 @@ func TestF07_InheritanceChain(t *testing.T) {
 		resp := sendClient.Post("/api/v1/send", req)
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: send returns 500 (tracking_id varchar(32) overflow)")
-			t.Skip("skipping due to known production bug")
-		}
-
 		RequireStatus(t, resp, http.StatusAccepted)
 
 		var respBody struct {
@@ -689,14 +628,16 @@ func TestF07_InheritanceChain(t *testing.T) {
 
 // TestF08_InjectorMerge verifies injector field merging.
 func TestF08_InjectorMerge(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
 	wp := wsPath()
+	injectorName := fmt.Sprintf("merge-test-injector-%d", time.Now().UnixNano())
 
 	t.Run("create injector with 3 fields", func(t *testing.T) {
 		req := InjectorRequest{
-			Name:        "merge-test-injector",
+			Name:        injectorName,
 			Description: "Test injector for merge verification",
 			Fields: []InjectorFieldRequest{
 				{FieldName: "field1", FieldType: "text", Description: "Field 1", Position: 0},
@@ -708,12 +649,7 @@ func TestF08_InjectorMerge(t *testing.T) {
 		resp := client.Post(wp+"/injectors", req)
 		defer resp.Body.Close()
 
-		// Accept 500 as known production bug (apperr.Conflict not matching domain.ErrConflict for duplicates)
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: injector creation returns 500 on duplicate (should be 409)")
-		}
-		require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusInternalServerError,
-			"expected 201, 409, or 500, got %d", resp.StatusCode)
+		RequireStatus(t, resp, http.StatusCreated)
 	})
 
 	t.Run("set injector values", func(t *testing.T) {
@@ -725,7 +661,7 @@ func TestF08_InjectorMerge(t *testing.T) {
 			},
 		}
 
-		resp := client.Put(wp+"/injectors/merge-test-injector/values", values)
+		resp := client.Put(fmt.Sprintf("%s/injectors/%s/values", wp, injectorName), values)
 		defer resp.Body.Close()
 
 		// SetValues returns 204 No Content on success
@@ -734,7 +670,7 @@ func TestF08_InjectorMerge(t *testing.T) {
 	})
 
 	t.Run("verify injector values", func(t *testing.T) {
-		resp := client.Get(wp + "/injectors/merge-test-injector")
+		resp := client.Get(fmt.Sprintf("%s/injectors/%s", wp, injectorName))
 		defer resp.Body.Close()
 
 		RequireStatus(t, resp, http.StatusOK)
@@ -743,6 +679,7 @@ func TestF08_InjectorMerge(t *testing.T) {
 
 // TestF09_APIKeyLifecycle verifies API Key create → use → revoke → reject.
 func TestF09_APIKeyLifecycle(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -752,34 +689,11 @@ func TestF09_APIKeyLifecycle(t *testing.T) {
 	var apiKeyValue string
 
 	t.Run("POST /api-keys create API key", func(t *testing.T) {
-		req := APIKeyRequest{
-			Name: APIKeyNamePrefix + fmt.Sprintf("lifecycle-%d", time.Now().UnixNano()),
-		}
-
-		resp := client.Post(wp+"/api-keys", req)
-		defer resp.Body.Close()
-
-		RequireStatus(t, resp, http.StatusCreated)
-
-		var respBody struct {
-			ID    string `json:"id"`
-			Key   string `json:"key"`
-			Token string `json:"token"`
-		}
-		ParseJSONResponse(t, resp, &respBody)
-
-		apiKeyID = respBody.ID
-		apiKeyValue = respBody.Key
-		if apiKeyValue == "" {
-			apiKeyValue = respBody.Token
-		}
-		require.NotEmpty(t, apiKeyValue)
+		apiKeyID, apiKeyValue = MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "lifecycle")
 	})
 
 	t.Run("POST /send with API Key succeeds", func(t *testing.T) {
-		if apiKeyValue == "" {
-			t.Skip("no API key")
-		}
+		require.NotEmpty(t, apiKeyValue, "api key must be created")
 		sendClient := NewTestClient(t)
 		sendClient.SetAPIKey(apiKeyValue)
 
@@ -795,18 +709,11 @@ func TestF09_APIKeyLifecycle(t *testing.T) {
 		resp := sendClient.Post("/api/v1/send", req)
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("PRODUCTION BUG: send returns 500 (tracking_id varchar(32) overflow)")
-			t.Skip("skipping due to known production bug")
-		}
-
 		RequireStatus(t, resp, http.StatusAccepted)
 	})
 
 	t.Run("DELETE /api-keys/:id revoke API key", func(t *testing.T) {
-		if apiKeyID == "" {
-			t.Skip("no API key ID")
-		}
+		require.NotEmpty(t, apiKeyID, "api key id must be created")
 		resp := client.Delete(fmt.Sprintf("%s/api-keys/%s", wp, apiKeyID))
 		defer resp.Body.Close()
 
@@ -816,9 +723,7 @@ func TestF09_APIKeyLifecycle(t *testing.T) {
 	})
 
 	t.Run("POST /send with revoked API Key fails", func(t *testing.T) {
-		if apiKeyValue == "" {
-			t.Skip("no API key")
-		}
+		require.NotEmpty(t, apiKeyValue, "api key must be created")
 		sendClient := NewTestClient(t)
 		sendClient.SetAPIKey(apiKeyValue)
 
@@ -840,6 +745,7 @@ func TestF09_APIKeyLifecycle(t *testing.T) {
 
 // TestF10_MemberRoles verifies RBAC behavior at API level.
 func TestF10_MemberRoles(t *testing.T) {
+	EnsureSetup(t)
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
@@ -863,13 +769,6 @@ func TestF10_MemberRoles(t *testing.T) {
 		}
 		typeResp := client.Post(wp+"/template-types", typeReq)
 		defer typeResp.Body.Close()
-
-		// PRODUCTION BUG: TemplateTypeService.Create uses err != domain.ErrNotFound
-		// instead of errors.Is(), so apperr.NotFound never matches and creation returns 404.
-		if typeResp.StatusCode == http.StatusNotFound {
-			t.Log("PRODUCTION BUG: template type creation returns 404 (apperr vs domain error mismatch in TemplateTypeService.Create)")
-			t.Skip("skipping due to known production bug")
-		}
 
 		require.True(t, typeResp.StatusCode == http.StatusCreated || typeResp.StatusCode == http.StatusConflict,
 			"admin should be able to create template type, got %d", typeResp.StatusCode)

@@ -104,11 +104,8 @@ func TestCRUD_Tenant_Delete(t *testing.T) {
 		"code": code,
 		"name": "Delete Me",
 	})
-	resp.Body.Close()
-	// May fail if create endpoint expects onboarding — accept 201 or skip
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create throwaway tenant (status %d), skipping delete test", resp.StatusCode)
-	}
+	defer resp.Body.Close()
+	RequireStatus(t, resp, http.StatusCreated)
 
 	t.Run("success", func(t *testing.T) {
 		resp := c.Delete(mgmtPath() + "/tenants/" + code)
@@ -162,10 +159,8 @@ func TestCRUD_Workspace_Delete(t *testing.T) {
 		"code": code,
 		"name": "Delete Workspace",
 	})
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create throwaway workspace (status %d), skipping", resp.StatusCode)
-	}
+	defer resp.Body.Close()
+	RequireStatus(t, resp, http.StatusCreated)
 
 	t.Run("success", func(t *testing.T) {
 		resp := c.Delete(tenantPath() + "/workspaces/" + code)
@@ -285,9 +280,7 @@ func TestCRUD_Global_Adapter(t *testing.T) {
 	})
 
 	t.Run("get", func(t *testing.T) {
-		if adapterID == "" {
-			t.Skip("no adapter created")
-		}
+		require.NotEmpty(t, adapterID, "adapter id must be created")
 		resp := c.Get(globalPath() + "/adapters/" + adapterID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusOK)
@@ -300,9 +293,7 @@ func TestCRUD_Global_Adapter(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		if adapterID == "" {
-			t.Skip("no adapter created")
-		}
+		require.NotEmpty(t, adapterID, "adapter id must be created")
 		resp := c.Put(globalPath()+"/adapters/"+adapterID, AdapterRequest{
 			Name:        name + "-updated",
 			AdapterType: AdapterType,
@@ -317,18 +308,14 @@ func TestCRUD_Global_Adapter(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		if adapterID == "" {
-			t.Skip("no adapter created")
-		}
+		require.NotEmpty(t, adapterID, "adapter id must be created")
 		resp := c.Delete(globalPath() + "/adapters/" + adapterID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusNoContent)
 	})
 
 	t.Run("get_after_delete", func(t *testing.T) {
-		if adapterID == "" {
-			t.Skip("no adapter created")
-		}
+		require.NotEmpty(t, adapterID, "adapter id must be created")
 		resp := c.Get(globalPath() + "/adapters/" + adapterID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusNotFound)
@@ -390,9 +377,7 @@ func TestCRUD_Global_Template(t *testing.T) {
 		Name: "Global Template Type for Templates",
 	})
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create global template type (status %d)", resp.StatusCode)
-	}
+	RequireStatus(t, resp, http.StatusCreated)
 
 	var ttID string
 	{
@@ -404,9 +389,7 @@ func TestCRUD_Global_Template(t *testing.T) {
 	}
 
 	t.Run("create_template", func(t *testing.T) {
-		if ttID == "" {
-			t.Skip("no template type ID")
-		}
+		require.NotEmpty(t, ttID, "template type id is required")
 		resp := c.Post(globalPath()+"/templates", map[string]string{
 			"template_type_id": ttID,
 		})
@@ -534,9 +517,7 @@ func TestCRUD_WS_Webhook(t *testing.T) {
 	})
 
 	t.Run("get", func(t *testing.T) {
-		if webhookID == "" {
-			t.Skip("no webhook created")
-		}
+		require.NotEmpty(t, webhookID, "webhook id must be created")
 		resp := c.Get(wsPath() + "/webhooks/" + webhookID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusOK)
@@ -549,9 +530,7 @@ func TestCRUD_WS_Webhook(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		if webhookID == "" {
-			t.Skip("no webhook created")
-		}
+		require.NotEmpty(t, webhookID, "webhook id must be created")
 		resp := c.Put(wsPath()+"/webhooks/"+webhookID, WebhookRequest{
 			URL:    url + "/updated",
 			Events: []string{"email.bounced"},
@@ -570,9 +549,7 @@ func TestCRUD_WS_Webhook(t *testing.T) {
 	})
 
 	t.Run("test_webhook", func(t *testing.T) {
-		if webhookID == "" {
-			t.Skip("no webhook created")
-		}
+		require.NotEmpty(t, webhookID, "webhook id must be created")
 		resp := c.Post(wsPath()+"/webhooks/"+webhookID+"/test", nil)
 		defer resp.Body.Close()
 		// Test endpoint fires a test event — may return 200 or 202
@@ -580,9 +557,7 @@ func TestCRUD_WS_Webhook(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		if webhookID == "" {
-			t.Skip("no webhook created")
-		}
+		require.NotEmpty(t, webhookID, "webhook id must be created")
 		resp := c.Delete(wsPath() + "/webhooks/" + webhookID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusNoContent)
@@ -679,9 +654,7 @@ func TestCRUD_WS_Template_Locale(t *testing.T) {
 		Name: "Locale Test Type",
 	})
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template type (status %d), skipping locale tests", resp.StatusCode)
-	}
+	RequireStatus(t, resp, http.StatusCreated)
 
 	var ttBody struct {
 		ID string `json:"id"`
@@ -693,9 +666,7 @@ func TestCRUD_WS_Template_Locale(t *testing.T) {
 		"template_type_id": ttBody.ID,
 	})
 	defer resp2.Body.Close()
-	if resp2.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template (status %d)", resp2.StatusCode)
-	}
+	RequireStatus(t, resp2, http.StatusCreated)
 
 	var tplBody struct {
 		ID string `json:"id"`
@@ -712,9 +683,7 @@ func TestCRUD_WS_Template_Locale(t *testing.T) {
 		DefaultLocale: "en",
 	})
 	defer resp3.Body.Close()
-	if resp3.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create version (status %d)", resp3.StatusCode)
-	}
+	RequireStatus(t, resp3, http.StatusCreated)
 
 	var verBody struct {
 		ID string `json:"id"`
@@ -791,9 +760,7 @@ func TestCRUD_WS_Template_ListVersions(t *testing.T) {
 		Name: "List Versions Type",
 	})
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template type (status %d)", resp.StatusCode)
-	}
+	RequireStatus(t, resp, http.StatusCreated)
 
 	var lvTTBody struct {
 		ID string `json:"id"`
@@ -804,9 +771,7 @@ func TestCRUD_WS_Template_ListVersions(t *testing.T) {
 		"template_type_id": lvTTBody.ID,
 	})
 	defer resp2.Body.Close()
-	if resp2.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template (status %d)", resp2.StatusCode)
-	}
+	RequireStatus(t, resp2, http.StatusCreated)
 
 	var tplBody struct {
 		ID string `json:"id"`
@@ -831,9 +796,7 @@ func TestCRUD_WS_Template_PreviewMJML(t *testing.T) {
 		Name: "Preview MJML Type",
 	})
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template type (status %d)", resp.StatusCode)
-	}
+	RequireStatus(t, resp, http.StatusCreated)
 
 	var pmTTBody struct {
 		ID string `json:"id"`
@@ -844,9 +807,7 @@ func TestCRUD_WS_Template_PreviewMJML(t *testing.T) {
 		"template_type_id": pmTTBody.ID,
 	})
 	defer resp2.Body.Close()
-	if resp2.StatusCode != http.StatusCreated {
-		t.Skipf("cannot create template (status %d)", resp2.StatusCode)
-	}
+	RequireStatus(t, resp2, http.StatusCreated)
 
 	var tplBody struct {
 		ID string `json:"id"`
@@ -916,9 +877,7 @@ func TestCRUD_Members(t *testing.T) {
 	})
 
 	t.Run("get", func(t *testing.T) {
-		if memberID == "" {
-			t.Skip("no member created")
-		}
+		require.NotEmpty(t, memberID, "member id must be created")
 		resp := c.Get(mgmtPath() + "/members/" + memberID)
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusOK)
@@ -933,9 +892,7 @@ func TestCRUD_Members(t *testing.T) {
 	var roleID string
 
 	t.Run("add_role", func(t *testing.T) {
-		if memberID == "" {
-			t.Skip("no member created")
-		}
+		require.NotEmpty(t, memberID, "member id must be created")
 		resp := c.Post(fmt.Sprintf("%s/members/%s/roles", mgmtPath(), memberID), map[string]interface{}{
 			"role":       "tenant_admin",
 			"scope_type": "tenant",
@@ -952,9 +909,8 @@ func TestCRUD_Members(t *testing.T) {
 	})
 
 	t.Run("remove_role", func(t *testing.T) {
-		if memberID == "" || roleID == "" {
-			t.Skip("no member or role created")
-		}
+		require.NotEmpty(t, memberID, "member id must be created")
+		require.NotEmpty(t, roleID, "role id must be created")
 		resp := c.Delete(fmt.Sprintf("%s/members/%s/roles/%s", mgmtPath(), memberID, roleID))
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusNoContent)

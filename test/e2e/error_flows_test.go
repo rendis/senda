@@ -88,9 +88,7 @@ func TestE02_NoAdapterConfigured(t *testing.T) {
 	}
 	ttResp := client.Post(wsPath+"/template-types", templateTypeReq)
 	defer ttResp.Body.Close()
-	if ttResp.StatusCode != http.StatusCreated {
-		t.Skipf("could not create template type: %d", ttResp.StatusCode)
-	}
+	RequireStatus(t, ttResp, http.StatusCreated)
 
 	var ttData struct {
 		ID string `json:"id"`
@@ -135,27 +133,7 @@ func TestE02_NoAdapterConfigured(t *testing.T) {
 	defer pubResp.Body.Close()
 	RequireStatus(t, pubResp, http.StatusNoContent)
 
-	// Create API key for sending
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("noadpt-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
-	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
-	}
+	_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "no-adapter")
 
 	sendClient := NewTestClient(t)
 	sendClient.SetAPIKey(apiKeyValue)
@@ -187,34 +165,64 @@ func TestE04_RateLimitExceeded(t *testing.T) {
 	client.LoginAs(SuperadminEmail)
 
 	wsPath := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s", TenantCode, WorkspaceCode)
+	lowRateAdapterName := fmt.Sprintf("rl-adapter-%d", time.Now().UnixNano())
+	adapterResp := client.Post(wsPath+"/adapters", AdapterRequest{
+		AdapterType:        AdapterType,
+		Name:               lowRateAdapterName,
+		RateLimitPerSecond: 1,
+		Config: map[string]interface{}{
+			"region":     "us-east-1",
+			"access_key": "test",
+			"secret_key": "test",
+		},
+	})
+	defer adapterResp.Body.Close()
+	RequireStatus(t, adapterResp, http.StatusCreated)
 
-	// Create API key for sending
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("ratelimit-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
+	var adapterBody struct {
+		ID string `json:"id"`
 	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
+	ParseJSONResponse(t, adapterResp, &adapterBody)
+	require.NotEmpty(t, adapterBody.ID)
+	EnsureDefaultAdapterIdentity(t, adapterBody.ID, TestFromEmail)
+
+	ttSlug := fmt.Sprintf("rl-type-%d", time.Now().UnixNano())
+	ttResp := client.Post(wsPath+"/template-types", TemplateTypeRequest{
+		Slug:           ttSlug,
+		Name:           "Rate Limit Type",
+		Description:    "Template type for deterministic rate limiting",
+		AdapterID:      adapterBody.ID,
+		VariableSchema: DefaultVariableSchema(),
+	})
+	defer ttResp.Body.Close()
+	RequireStatus(t, ttResp, http.StatusCreated)
+
+	var ttBody struct {
+		ID string `json:"id"`
 	}
+	ParseJSONResponse(t, ttResp, &ttBody)
+	require.NotEmpty(t, ttBody.ID)
+
+	tplResp := client.Post(wsPath+"/templates", map[string]string{
+		"template_type_id": ttBody.ID,
+	})
+	defer tplResp.Body.Close()
+	RequireStatus(t, tplResp, http.StatusCreated)
+
+	var tplBody struct {
+		ID string `json:"id"`
+	}
+	ParseJSONResponse(t, tplResp, &tplBody)
+	require.NotEmpty(t, tplBody.ID)
+
+	_ = MustEnsureVersionPublished(t, client, TenantCode, WorkspaceCode, tplBody.ID)
+	_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "ratelimit")
 
 	sendClient := NewTestClient(t)
 	sendClient.SetAPIKey(apiKeyValue)
 
 	sendReq := SendRequest{
-		Ref: sendRef(),
+		Ref: fmt.Sprintf("%s:%s:%s", TenantCode, WorkspaceCode, ttSlug),
 		To:  []string{"test@example.com"},
 		Variables: map[string]interface{}{
 			"first_name":   "John",
@@ -222,30 +230,21 @@ func TestE04_RateLimitExceeded(t *testing.T) {
 		},
 	}
 
-	var lastResp *http.Response
-	for i := 0; i < 200; i++ {
-		lastResp = sendClient.Post("/api/v1/send", sendReq)
-		if lastResp.StatusCode == http.StatusTooManyRequests {
-			break
+	rateLimitedCount := 0
+	for i := 0; i < 20; i++ {
+		resp := sendClient.Post("/api/v1/send", sendReq)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			errResp := AssertError(t, resp, "RATE_LIMITED")
+			require.NotEmpty(t, errResp.Error.Message)
+			rateLimitedCount++
+		} else {
+			require.Equal(t, http.StatusAccepted, resp.StatusCode,
+				"expected 202 or 429 in rate limit burst, got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
 		}
-		lastResp.Body.Close()
+		resp.Body.Close()
 	}
 
-	if lastResp != nil && lastResp.StatusCode == http.StatusTooManyRequests {
-		defer lastResp.Body.Close()
-		t.Log("rate limiting is active")
-
-		errResp := AssertError(t, lastResp, "RATE_LIMITED")
-		require.NotEmpty(t, errResp.Error.Message)
-		require.NotEmpty(t, errResp.Error.RequestID)
-
-		retryAfter := lastResp.Header.Get("Retry-After")
-		if retryAfter != "" {
-			t.Logf("Retry-After header: %s", retryAfter)
-		}
-	} else {
-		t.Log("rate limiting not triggered after 200 requests (may not be configured in test env)")
-	}
+	require.Greater(t, rateLimitedCount, 0, "expected at least one 429 RATE_LIMITED in burst")
 }
 
 // TestE05_InvalidVariables verifies that invalid template variables return 400 BAD_REQUEST.
@@ -321,27 +320,7 @@ func TestE05_InvalidVariables(t *testing.T) {
 	defer pubResp.Body.Close()
 	RequireStatus(t, pubResp, http.StatusNoContent)
 
-	// Create API key for sending
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("invalid-vars-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
-	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
-	}
+	_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "invalid-vars")
 
 	sendClient := NewTestClient(t)
 	sendClient.SetAPIKey(apiKeyValue)
@@ -426,10 +405,6 @@ func TestE08_EditorCannotPublish(t *testing.T) {
 		VariableSchema: DefaultVariableSchema(),
 	})
 	defer ttResp.Body.Close()
-	if ttResp.StatusCode == http.StatusNotFound {
-		t.Log("PRODUCTION BUG: template type creation returns 404")
-		t.Skip("skipping due to known production bug")
-	}
 	RequireStatus(t, ttResp, http.StatusCreated)
 	var ttData struct {
 		ID string `json:"id"`
@@ -475,14 +450,10 @@ func TestE08_EditorCannotPublish(t *testing.T) {
 	)
 	defer pubResp.Body.Close()
 
-	// If RBAC is properly enforced, this returns 403
-	if pubResp.StatusCode == http.StatusForbidden {
-		errResp := AssertError(t, pubResp, "FORBIDDEN")
-		require.NotEmpty(t, errResp.Error.Message)
-		require.NotEmpty(t, errResp.Error.RequestID)
-	} else {
-		t.Logf("expected 403 but got %d (editor role may not be configured in test env)", pubResp.StatusCode)
-	}
+	RequireStatus(t, pubResp, http.StatusForbidden)
+	errResp := AssertError(t, pubResp, "FORBIDDEN")
+	require.NotEmpty(t, errResp.Error.Message)
+	require.NotEmpty(t, errResp.Error.RequestID)
 }
 
 // TestE09_ViewerCannotWrite verifies that workspace-viewer cannot create or modify resources.
@@ -502,13 +473,10 @@ func TestE09_ViewerCannotWrite(t *testing.T) {
 		})
 		defer tplResp.Body.Close()
 
-		if tplResp.StatusCode == http.StatusForbidden {
-			errResp := AssertError(t, tplResp, "FORBIDDEN")
-			require.NotEmpty(t, errResp.Error.Message)
-			require.NotEmpty(t, errResp.Error.RequestID)
-		} else {
-			t.Logf("expected 403 but got %d (viewer role may not be configured in test env)", tplResp.StatusCode)
-		}
+		RequireStatus(t, tplResp, http.StatusForbidden)
+		errResp := AssertError(t, tplResp, "FORBIDDEN")
+		require.NotEmpty(t, errResp.Error.Message)
+		require.NotEmpty(t, errResp.Error.RequestID)
 	})
 
 	t.Run("viewer_cannot_create_injector_returns_403", func(t *testing.T) {
@@ -531,13 +499,10 @@ func TestE09_ViewerCannotWrite(t *testing.T) {
 		})
 		defer injResp.Body.Close()
 
-		if injResp.StatusCode == http.StatusForbidden {
-			errResp := AssertError(t, injResp, "FORBIDDEN")
-			require.NotEmpty(t, errResp.Error.Message)
-			require.NotEmpty(t, errResp.Error.RequestID)
-		} else {
-			t.Logf("expected 403 but got %d (viewer role may not be configured in test env)", injResp.StatusCode)
-		}
+		RequireStatus(t, injResp, http.StatusForbidden)
+		errResp := AssertError(t, injResp, "FORBIDDEN")
+		require.NotEmpty(t, errResp.Error.Message)
+		require.NotEmpty(t, errResp.Error.RequestID)
 	})
 }
 
@@ -601,9 +566,7 @@ func TestE10_DuplicateCodes(t *testing.T) {
 		// Get the template type ID to create a duplicate template
 		ttResp := client.Get(fmt.Sprintf("%s/template-types/%s", wsPath, TemplateTypeSlug))
 		defer ttResp.Body.Close()
-		if ttResp.StatusCode != http.StatusOK {
-			t.Skip("template type not found")
-		}
+		RequireStatus(t, ttResp, http.StatusOK)
 		var ttData struct {
 			ID string `json:"id"`
 		}
@@ -647,27 +610,7 @@ func TestE11_SuppressedEmail(t *testing.T) {
 	defer checkResp.Body.Close()
 	RequireStatus(t, checkResp, http.StatusOK)
 
-	// Create API key for sending
-	var apiKeyValue string
-	{
-		req := APIKeyRequest{Name: APIKeyNamePrefix + fmt.Sprintf("suppress-%d", time.Now().UnixNano())}
-		resp := client.Post(wsPath+"/api-keys", req)
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			var body struct {
-				Key   string `json:"key"`
-				Token string `json:"token"`
-			}
-			ParseJSONResponse(t, resp, &body)
-			apiKeyValue = body.Key
-			if apiKeyValue == "" {
-				apiKeyValue = body.Token
-			}
-		}
-	}
-	if apiKeyValue == "" {
-		t.Skip("could not create API key")
-	}
+	_, apiKeyValue := MustCreateAPIKey(t, client, TenantCode, WorkspaceCode, "suppress")
 
 	sendClient := NewTestClient(t)
 	sendClient.SetAPIKey(apiKeyValue)
@@ -682,12 +625,6 @@ func TestE11_SuppressedEmail(t *testing.T) {
 		},
 	})
 	defer sendResp.Body.Close()
-
-	// Send may fail with 500 due to production bug (tracking_id column overflow)
-	if sendResp.StatusCode == http.StatusInternalServerError {
-		t.Log("PRODUCTION BUG: send returns 500 (tracking_id varchar(32) overflow)")
-		t.Skip("skipping suppression verification due to known production bug")
-	}
 
 	// The server might reject suppressed emails with 422, or accept and mark internally
 	require.True(t, sendResp.StatusCode == http.StatusAccepted || sendResp.StatusCode == http.StatusUnprocessableEntity,

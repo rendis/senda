@@ -52,6 +52,7 @@ type SendService struct {
 	injectorMerger   *resolution.InjectorMerger
 	adapterResolver  *resolution.AdapterResolver
 	identitySvc      *IdentityService
+	rateLimiter      port.RateLimiter
 	emailStore       port.EmailStore
 	suppression      port.SuppressionStore
 	queue            port.JobQueue
@@ -66,6 +67,7 @@ func NewSendService(
 	injectorMerger *resolution.InjectorMerger,
 	adapterResolver *resolution.AdapterResolver,
 	identitySvc *IdentityService,
+	rateLimiter port.RateLimiter,
 	emailStore port.EmailStore,
 	suppression port.SuppressionStore,
 	queue port.JobQueue,
@@ -78,6 +80,7 @@ func NewSendService(
 		injectorMerger:   injectorMerger,
 		adapterResolver:  adapterResolver,
 		identitySvc:      identitySvc,
+		rateLimiter:      rateLimiter,
 		emailStore:       emailStore,
 		suppression:      suppression,
 		queue:            queue,
@@ -140,23 +143,32 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 6. Resolve from_email from adapter's default identity.
+	// 6. Apply provider-level token bucket rate limiting for this adapter.
+	allowed, err := s.rateLimiter.TryAcquire(ctx, adapter.Adapter.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, domain.ErrRateLimited
+	}
+
+	// 7. Resolve from_email from adapter's default identity.
 	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter)
 	if err != nil {
 		return nil, err
 	}
 
-	// 7. Render subject, preview text, from name with variables
+	// 8. Render subject, preview text, from name with variables
 	subject := getLocalizedField(resolved, "subject")
 	fromName := getLocalizedField(resolved, "from_name")
 
 	renderedSubject, _ := s.renderer.Render(subject, injectors, req.Variables)
 	renderedFromName, _ := s.renderer.Render(fromName, injectors, req.Variables)
 
-	// 8. Get the MJML body (locale-aware)
+	// 9. Get the MJML body (locale-aware)
 	bodyMJML := getLocalizedBody(resolved)
 
-	// 9. Create email records and enqueue jobs
+	// 10. Create email records and enqueue jobs
 	now := time.Now().UTC()
 	response := &SendResponse{
 		Status:           "accepted",
