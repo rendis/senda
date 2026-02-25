@@ -145,7 +145,7 @@ make dev              # Start full stack with Docker Compose
 make build            # Build binary
 make test             # Unit tests
 make test-integration # Integration tests (TestContainers)
-make test-e2e-core    # E2E core gate (deterministic, release-blocking)
+make test-e2e         # E2E deterministic gate (release-blocking)
 make test-e2e-chaos   # E2E chaos suite (non-blocking)
 make lint             # golangci-lint
 make migrate-up       # Apply migrations

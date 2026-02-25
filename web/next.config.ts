@@ -1,9 +1,17 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import path from "path";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+const workspaceRoot =
+  path.basename(process.cwd()) === "web"
+    ? process.cwd()
+    : path.join(process.cwd(), "web");
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: workspaceRoot,
+  },
   async rewrites() {
     return [
       {

@@ -215,6 +215,23 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
     }
   }, [editor, disabled]);
 
+  // Keep editor alignment synchronized with external block state.
+  useEffect(() => {
+    if (!editor) return;
+
+    const currentAlign: TextBlockAlign =
+      editor.isActive({ textAlign: "center" }) ? "center"
+      : editor.isActive({ textAlign: "right" }) ? "right"
+      : editor.isActive({ textAlign: "justify" }) ? "justify"
+      : "left";
+
+    if (currentAlign === align) {
+      return;
+    }
+
+    editor.chain().setTextAlign(align).run();
+  }, [editor, align]);
+
   const setAlign = useCallback(
     (a: TextBlockAlign) => {
       if (!editor) return;

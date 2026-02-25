@@ -3,6 +3,7 @@
 import { Check, AlertCircle, Loader2, Cloud } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AutoSaveStatus } from "@/hooks/use-auto-save";
@@ -91,14 +92,26 @@ function StatusIcon({ status }: { status: AutoSaveStatus }) {
 export function SaveStatusIndicator({
   status,
   lastSavedAt,
-  error: _error,
   onRetry,
   className,
 }: SaveStatusIndicatorProps) {
   const t = useTranslations("editor.saveStatus");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!lastSavedAt || status !== "idle") {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lastSavedAt, status]);
 
   const formatLastSaved = (date: Date): string => {
-    const diffMs = Date.now() - date.getTime();
+    const diffMs = now - date.getTime();
     const diffSeconds = Math.floor(diffMs / 1000);
     const diffMinutes = Math.floor(diffSeconds / 60);
 

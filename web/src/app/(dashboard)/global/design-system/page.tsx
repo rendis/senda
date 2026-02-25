@@ -64,9 +64,6 @@ export default function DesignSystemPage() {
             <StatusBadge status="draft" />
             <StatusBadge status="published" />
             <StatusBadge status="archived" />
-            <StatusBadge status="pending" />
-            <StatusBadge status="verified" />
-            <StatusBadge status="error" />
             <StatusBadge status="active" />
             <StatusBadge status="disabled" />
             <StatusBadge status="revoked" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -51,20 +51,23 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Initialize view when dialog opens
-  useEffect(() => {
-    if (open) {
-      setSearchInput("");
-      setDebouncedSearch("");
-      if (tenantCode) {
-        setView("workspaces");
-        setSelectedTenant({ code: tenantCode, name: tenantCode });
-      } else {
-        setView("tenants");
-        setSelectedTenant(null);
-      }
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      return;
     }
-  }, [open, tenantCode]);
+
+    setSearchInput("");
+    setDebouncedSearch("");
+    if (tenantCode) {
+      setView("workspaces");
+      setSelectedTenant({ code: tenantCode, name: tenantCode });
+      return;
+    }
+
+    setView("tenants");
+    setSelectedTenant(null);
+  }
 
   // Trigger label/icon/color
   const scopeLabel =
@@ -110,7 +113,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         className={cn(
           "flex items-center gap-2 mx-3 px-3 h-10 rounded-md border border-[#334155] hover:bg-sidebar-accent transition-colors",
           collapsed && "justify-center px-0"
@@ -129,7 +132,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
         )}
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
           <DialogTitle className="sr-only">Select scope</DialogTitle>
 
@@ -376,8 +379,6 @@ function useInfiniteScroll(
 ) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const stableFetchNextPage = useCallback(fetchNextPage, [fetchNextPage]);
-
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -385,7 +386,7 @@ function useInfiniteScroll(
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          stableFetchNextPage();
+          fetchNextPage();
         }
       },
       { threshold: 0.1 }
@@ -393,7 +394,7 @@ function useInfiniteScroll(
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, stableFetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return sentinelRef;
 }

@@ -49,6 +49,7 @@ export function DataTable<TData, TValue>({
   const showLoading = useMinimumLoading(loading);
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns stateful helpers by design.
   const table = useReactTable({
     data,
     columns,

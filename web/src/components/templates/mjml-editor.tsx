@@ -29,7 +29,6 @@ import {
   Trash2,
   GripVertical,
   Type,
-  MousePointer,
   Image as ImageIcon,
   Minus,
   Grip,
@@ -81,7 +80,6 @@ import {
 } from "@/components/ui/popover";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import type { CreateTemplateVersionRequest } from "@/types/templates";
 import type { InjectorDefinition, InjectorWithValues } from "@/types/injectors";
 
 const metadataSchema = z.object({
@@ -1989,7 +1987,7 @@ export function MjmlEditor() {
         hint: t("variableHintEvent"),
         category: "event",
       }));
-  }, [templateTypeQuery.data]);
+  }, [templateTypeQuery.data, t]);
 
   const templateVariables = useMemo(() => {
     return [...eventVariableTokens, ...injectorVariableTokens];
@@ -2113,7 +2111,7 @@ export function MjmlEditor() {
     return () => {
       cancelled = true;
     };
-  }, [api, scopedPath, injectorItems]);
+  }, [api, scopedPath, injectorItems, t]);
 
   function clampPreviewPanelWidth(nextWidth: number, containerWidth: number) {
     const safeContainerWidth = Math.max(0, Math.floor(containerWidth));
@@ -4411,6 +4409,7 @@ export function MjmlEditor() {
                                 </div>
                                 {block.thumbnailUrl && (
                                   <div className="mt-1 rounded border overflow-hidden relative">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- editor accepts arbitrary remote URLs for thumbnail preview. */}
                                     <img
                                       src={block.thumbnailUrl}
                                       alt={block.alt || "Video thumbnail"}

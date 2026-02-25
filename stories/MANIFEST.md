@@ -1,7 +1,7 @@
 # Senda — Story Manifest
 
 > Auto-actualizar este archivo al mover stories entre directorios.
-> Última actualización: 2026-02-25
+> Última actualización: 2026-02-25 (cierre operativo 5 puntos)
 
 ---
 

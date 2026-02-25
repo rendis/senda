@@ -1,0 +1,51 @@
+name: Backend Gate
+
+on:
+  pull_request:
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'docker/**'
+      - 'migrations/**'
+      - 'test/**'
+      - '.github/workflows/backend-gate.yml'
+  push:
+    branches:
+      - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          install-mode: binary
+
+      - name: Lint
+        run: make lint
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: make test
+
+      - name: Integration tests
+        run: make test-integration
+
+      - name: Deterministic E2E gate
+        run: make test-e2e

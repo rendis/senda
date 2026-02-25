@@ -13,22 +13,27 @@ export function useMinimumLoading(isLoading: boolean, minMs = 400): boolean {
   useEffect(() => {
     if (isLoading) {
       startRef.current = Date.now();
-      setShowLoading(true);
-    } else if (startRef.current !== null) {
-      const elapsed = Date.now() - startRef.current;
-      const remaining = minMs - elapsed;
-
-      if (remaining <= 0) {
-        setShowLoading(false);
-        startRef.current = null;
-      } else {
-        const timer = setTimeout(() => {
-          setShowLoading(false);
-          startRef.current = null;
-        }, remaining);
-        return () => clearTimeout(timer);
-      }
+      const timer = setTimeout(() => {
+        setShowLoading(true);
+      }, 0);
+      return () => clearTimeout(timer);
     }
+
+    if (startRef.current === null) {
+      const timer = setTimeout(() => {
+        setShowLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
+    const elapsed = Date.now() - startRef.current;
+    const remaining = Math.max(0, minMs - elapsed);
+
+    const timer = setTimeout(() => {
+      setShowLoading(false);
+      startRef.current = null;
+    }, remaining);
+    return () => clearTimeout(timer);
   }, [isLoading, minMs]);
 
   return showLoading;
