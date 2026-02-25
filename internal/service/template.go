@@ -43,15 +43,26 @@ func (s *TemplateService) ListByType(ctx context.Context, typeID uuid.UUID, wsID
 	return s.store.ListByType(ctx, typeID, wsID, opts)
 }
 
+// DisableTemplate activates the template kill switch for a scope.
+func (s *TemplateService) DisableTemplate(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID) error {
+	return s.store.SetDisabled(ctx, templateID, wsID, true)
+}
+
+// EnableTemplate deactivates the template kill switch for a scope.
+func (s *TemplateService) EnableTemplate(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID) error {
+	return s.store.SetDisabled(ctx, templateID, wsID, false)
+}
+
 // CreateVersion creates a new draft version for a template.
 // The version number is determined by counting existing versions + 1.
 //
 // WARNING: Race condition — concurrent CreateVersion calls for the same templateID
 // may read the same len(versions) and produce duplicate version numbers.
 // Production fix options:
-//   1. Use a DB-level sequence per template (preferred).
-//   2. Use SELECT MAX(version_number) + 1 ... FOR UPDATE in a transaction.
-//   3. Add a UNIQUE(template_id, version_number) constraint and retry on conflict.
+//  1. Use a DB-level sequence per template (preferred).
+//  2. Use SELECT MAX(version_number) + 1 ... FOR UPDATE in a transaction.
+//  3. Add a UNIQUE(template_id, version_number) constraint and retry on conflict.
+//
 // TODO: Implement one of the above strategies when moving to transactional store operations.
 func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUID, subject, previewText, fromName string, replyTo *string, bodyMJML, defaultLocale string, editorData map[string]any, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
 	versions, err := s.store.ListVersions(ctx, templateID)

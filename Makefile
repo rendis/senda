@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-up test-e2e-down test-e2e-run lint migrate-up migrate-down clean help
+.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-run test-e2e-core-run test-e2e-chaos-run lint migrate-up migrate-down clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 COMPOSE_E2E := docker compose -f docker/docker-compose.e2e.yml
@@ -43,6 +43,20 @@ test-e2e: test-e2e-up ## Run E2E tests (starts stack, runs tests, stops stack)
 
 test-e2e-run: ## Run E2E tests (assumes stack already running)
 	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 600s ./test/e2e/
+
+test-e2e-core: test-e2e-up ## Run deterministic E2E core gate (no chaos)
+	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 600s ./test/e2e/ -run '^TestCore' || ($(MAKE) test-e2e-down && exit 1)
+	$(MAKE) test-e2e-down
+
+test-e2e-core-run: ## Run deterministic E2E core gate (assumes stack already running)
+	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 600s ./test/e2e/ -run '^TestCore'
+
+test-e2e-chaos-run: ## Run chaos E2E suite (non-blocking)
+	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run '^TestC'
+
+test-e2e-chaos: test-e2e-up ## Run chaos E2E suite (starts stack, runs tests, stops stack)
+	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run '^TestC' || ($(MAKE) test-e2e-down && exit 1)
+	$(MAKE) test-e2e-down
 
 ## Migrations
 migrate-up: ## Run all migrations up

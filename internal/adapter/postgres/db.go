@@ -69,7 +69,9 @@ func RunMigrations(dbURL string, migrationsPath string) error {
 	if err != nil {
 		return fmt.Errorf("creating migration instance: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		_, _ = m.Close()
+	}()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("running migrations: %w", err)
@@ -115,7 +117,9 @@ func RunMigrationsDown(dbURL string, migrationsPath string) error {
 	if err != nil {
 		return fmt.Errorf("creating migration instance: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		_, _ = m.Close()
+	}()
 
 	if err := m.Down(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("reverting migrations: %w", err)

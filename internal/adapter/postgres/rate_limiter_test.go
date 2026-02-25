@@ -10,29 +10,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/testcontainers/testcontainers-go"
 )
 
 func setupRateLimiter(t *testing.T) (*pgadapter.ProviderRateLimiter, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 
-	ctr, connStr := startPostgres(ctx, t)
-	t.Cleanup(func() {
-		if err := testcontainers.TerminateContainer(ctr); err != nil {
-			t.Logf("terminating container: %v", err)
-		}
-	})
-
-	if err := pgadapter.RunMigrations(connStr, migrationsPath()); err != nil {
-		t.Fatalf("running migrations: %v", err)
-	}
-
-	pool, err := pgxpool.New(ctx, connStr)
-	if err != nil {
-		t.Fatalf("creating pool: %v", err)
-	}
-	t.Cleanup(func() { pool.Close() })
+	pool := setupTestDB(ctx, t)
 
 	return pgadapter.NewProviderRateLimiter(pool), pool
 }

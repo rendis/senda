@@ -325,6 +325,131 @@ func TestTemplateRepo_GetByTypeAndScope_NotFound(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_SetDisabled_WorkspaceScope(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
+
+	tt := &domain.TemplateType{
+		ID:          uuid.New(),
+		WorkspaceID: &ws.ID,
+		Slug:        "kill-switch-ws-" + uuid.New().String()[:8],
+		Name:        "Kill Switch WS",
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	tpl := &domain.Template{
+		ID:             uuid.New(),
+		TemplateTypeID: tt.ID,
+		WorkspaceID:    &ws.ID,
+	}
+	if err := repo.CreateTemplate(ctx, tpl); err != nil {
+		t.Fatalf("CreateTemplate() error: %v", err)
+	}
+
+	if err := repo.SetDisabled(ctx, tpl.ID, &ws.ID, true); err != nil {
+		t.Fatalf("SetDisabled(true) error: %v", err)
+	}
+
+	got, err := repo.GetByTypeAndScope(ctx, tt.ID, &ws.ID)
+	if err != nil {
+		t.Fatalf("GetByTypeAndScope() error: %v", err)
+	}
+	if !got.IsDisabled {
+		t.Fatal("expected template to be disabled")
+	}
+
+	if err := repo.SetDisabled(ctx, tpl.ID, &ws.ID, false); err != nil {
+		t.Fatalf("SetDisabled(false) error: %v", err)
+	}
+
+	got, err = repo.GetByTypeAndScope(ctx, tt.ID, &ws.ID)
+	if err != nil {
+		t.Fatalf("GetByTypeAndScope() error: %v", err)
+	}
+	if got.IsDisabled {
+		t.Fatal("expected template to be enabled")
+	}
+}
+
+func TestTemplateRepo_SetDisabled_GlobalScope(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	tt := &domain.TemplateType{
+		ID:   uuid.New(),
+		Slug: "kill-switch-global-" + uuid.New().String()[:8],
+		Name: "Kill Switch Global",
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	tpl := &domain.Template{
+		ID:             uuid.New(),
+		TemplateTypeID: tt.ID,
+	}
+	if err := repo.CreateTemplate(ctx, tpl); err != nil {
+		t.Fatalf("CreateTemplate() error: %v", err)
+	}
+
+	if err := repo.SetDisabled(ctx, tpl.ID, nil, true); err != nil {
+		t.Fatalf("SetDisabled(true) error: %v", err)
+	}
+
+	got, err := repo.GetByTypeAndScope(ctx, tt.ID, nil)
+	if err != nil {
+		t.Fatalf("GetByTypeAndScope() error: %v", err)
+	}
+	if !got.IsDisabled {
+		t.Fatal("expected global template to be disabled")
+	}
+}
+
+func TestTemplateRepo_SetDisabled_ScopeMismatch(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
+
+	tt := &domain.TemplateType{
+		ID:          uuid.New(),
+		WorkspaceID: &ws.ID,
+		Slug:        "kill-switch-mismatch-" + uuid.New().String()[:8],
+		Name:        "Kill Switch Mismatch",
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	tpl := &domain.Template{
+		ID:             uuid.New(),
+		TemplateTypeID: tt.ID,
+		WorkspaceID:    &ws.ID,
+	}
+	if err := repo.CreateTemplate(ctx, tpl); err != nil {
+		t.Fatalf("CreateTemplate() error: %v", err)
+	}
+
+	err := repo.SetDisabled(ctx, tpl.ID, nil, true)
+	if err == nil {
+		t.Fatal("expected not found error for scope mismatch")
+	}
+
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404 not found, got %v", err)
+	}
+}
+
 func TestTemplateRepo_ResolveTemplate(t *testing.T) {
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)
@@ -446,7 +571,7 @@ func TestTemplateRepo_CreateVersion_AutoIncrement(t *testing.T) {
 			TemplateID:    tpl.ID,
 			Status:        domain.VersionStatusDraft,
 			Subject:       "Subject",
-				BodyMJML:      "<mjml></mjml>",
+			BodyMJML:      "<mjml></mjml>",
 			DefaultLocale: "en",
 		}
 		if err := repo.CreateVersion(ctx, ver); err != nil {
@@ -582,7 +707,7 @@ func TestTemplateRepo_ListVersions(t *testing.T) {
 			TemplateID:    tpl.ID,
 			Status:        domain.VersionStatusDraft,
 			Subject:       "Subject",
-				BodyMJML:      "<mjml></mjml>",
+			BodyMJML:      "<mjml></mjml>",
 			DefaultLocale: "en",
 		}
 		if err := repo.CreateVersion(ctx, ver); err != nil {

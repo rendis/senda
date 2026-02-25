@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
@@ -321,6 +322,45 @@ func (r *TemplateRepo) ResolveTemplate(ctx context.Context, typeID uuid.UUID, ch
 	return scanTemplate(row)
 }
 
+func (r *TemplateRepo) SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error {
+	var (
+		tag pgconn.CommandTag
+		err error
+	)
+
+	if wsID == nil {
+		tag, err = r.pool.Exec(ctx,
+			`UPDATE templates
+			 SET is_disabled = @is_disabled, updated_at = now()
+			 WHERE id = @id AND workspace_id IS NULL AND deleted_at IS NULL`,
+			pgx.NamedArgs{
+				"id":          templateID,
+				"is_disabled": disabled,
+			},
+		)
+	} else {
+		tag, err = r.pool.Exec(ctx,
+			`UPDATE templates
+			 SET is_disabled = @is_disabled, updated_at = now()
+			 WHERE id = @id AND workspace_id = @workspace_id AND deleted_at IS NULL`,
+			pgx.NamedArgs{
+				"id":           templateID,
+				"workspace_id": *wsID,
+				"is_disabled":  disabled,
+			},
+		)
+	}
+
+	if err != nil {
+		return fmt.Errorf("updating template disabled state: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template %s not found in scope", templateID)
+	}
+
+	return nil
+}
+
 // --- Versions ---
 
 func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
@@ -328,7 +368,9 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	// Auto-calculate version number
 	var versionNumber int
@@ -353,7 +395,7 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":             ver.ID,
-			"template_id":   ver.TemplateID,
+			"template_id":    ver.TemplateID,
 			"version_number": versionNumber,
 			"status":         ver.Status,
 			"subject":        ver.Subject,
@@ -438,7 +480,9 @@ func (r *TemplateRepo) Publish(ctx context.Context, versionID uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	// Get the template_id for this version
 	var templateID uuid.UUID

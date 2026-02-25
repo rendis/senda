@@ -163,7 +163,9 @@ func (v *Verifier) fetchCert(certURL string) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCertFetch, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%w: HTTP %d", ErrCertFetch, resp.StatusCode)

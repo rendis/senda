@@ -54,10 +54,11 @@ type Server struct {
 	templateHandler     *handler.TemplateHandler
 
 	// HT-22 handlers (Send + Email Query).
-	sendHandler        *handler.SendHandler
-	emailHandler       *handler.EmailHandler
-	suppressionHandler *handler.SuppressionHandler
-	auditHandler       *handler.AuditHandler
+	sendHandler           *handler.SendHandler
+	emailHandler          *handler.EmailHandler
+	dataPlaneEmailHandler *handler.DataPlaneEmailHandler
+	suppressionHandler    *handler.SuppressionHandler
+	auditHandler          *handler.AuditHandler
 
 	// HT-23 handler (SES Webhooks).
 	sesWebhookHandler *handler.SESWebhookHandler
@@ -205,6 +206,13 @@ func WithEmailHandler(h *handler.EmailHandler) ServerOption {
 	}
 }
 
+// WithDataPlaneEmailHandler sets the API-key-scoped data-plane email query handler.
+func WithDataPlaneEmailHandler(h *handler.DataPlaneEmailHandler) ServerOption {
+	return func(s *Server) {
+		s.dataPlaneEmailHandler = h
+	}
+}
+
 // WithSuppressionHandler sets the SuppressionHandler for suppression list management.
 func WithSuppressionHandler(h *handler.SuppressionHandler) ServerOption {
 	return func(s *Server) {
@@ -323,6 +331,14 @@ func (s *Server) registerRoutes() {
 		api.POST("/send", s.sendHandler.Send, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
 	}
 
+	// Data-plane email query endpoints — API Key auth.
+	if s.dataPlaneEmailHandler != nil {
+		api.GET("/emails", s.dataPlaneEmailHandler.List, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		api.GET("/emails/export", s.dataPlaneEmailHandler.Export, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		api.GET("/emails/:tracking_id", s.dataPlaneEmailHandler.GetByTrackingID, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		api.GET("/emails/:tracking_id/events", s.dataPlaneEmailHandler.GetEvents, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+	}
+
 	// SES webhook ingestion — NO AUTH, uses SNS signature verification (HT-23).
 	if s.sesWebhookHandler != nil {
 		api.POST("/webhooks/ses/inbound", s.sesWebhookHandler.HandleInbound)
@@ -428,6 +444,8 @@ func (s *Server) registerRoutes() {
 				ws.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/disable", s.templateHandler.DisableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/enable", s.templateHandler.EnableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 
 			// API keys (HT-27).
@@ -526,6 +544,8 @@ func (s *Server) registerRoutes() {
 				// Preview.
 				global.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML)
 				global.POST("/templates/:template_id/test-send", s.templateHandler.TestSend)
+				global.POST("/templates/:template_id/disable", s.templateHandler.DisableTemplateGlobal)
+				global.POST("/templates/:template_id/enable", s.templateHandler.EnableTemplateGlobal)
 			}
 
 			// Global audit log (HT-22).

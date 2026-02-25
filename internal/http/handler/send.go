@@ -2,11 +2,13 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/http/middleware"
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/service"
@@ -27,7 +29,7 @@ func NewSendHandler(ss *service.SendService) *SendHandler {
 func (h *SendHandler) Send(c *echo.Context) error {
 	// Extract workspace_id from API key auth context.
 	// The auth middleware sets this for API key-authenticated requests.
-	wsID, ok := c.Get("workspace_id").(uuid.UUID)
+	wsID, ok := c.Get(middleware.ContextKeyWorkspaceID).(uuid.UUID)
 	if !ok || wsID == uuid.Nil {
 		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "workspace context required (API key auth)")
 	}
@@ -44,24 +46,23 @@ func (h *SendHandler) Send(c *echo.Context) error {
 	if len(req.To) == 0 {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "to", Message: "is required"})
 	}
+	if len(req.To) > 50 {
+		slog.Warn("send rejected", "reason", "to_limit_exceeded", "recipient_count", len(req.To), "workspace_id", wsID)
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "to", Message: "must contain at most 50 recipients"})
+	}
 	if len(fieldErrors) > 0 {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 	}
 
-	// TODO: Validate that the workspace in the ref matches the API key's workspace.
-	// This requires resolving the tenant/workspace from the ref (tenant:workspace:template)
-	// and comparing against wsID. Currently SendService.Send does this resolution
-	// internally but doesn't accept a workspaceID parameter for cross-check.
-	// When SendRequest gains a WorkspaceID field, pass wsID here for authorization.
-
 	svcReq := &service.SendRequest{
-		Ref:        req.Ref,
-		To:         req.To,
-		CC:         req.CC,
-		BCC:        req.BCC,
-		Variables:  req.Variables,
-		ExternalID: req.ExternalID,
-		Locale:     req.Locale,
+		Ref:             req.Ref,
+		To:              req.To,
+		CC:              req.CC,
+		BCC:             req.BCC,
+		Variables:       req.Variables,
+		ExternalID:      req.ExternalID,
+		Locale:          req.Locale,
+		AuthWorkspaceID: wsID,
 	}
 
 	resp, err := h.sendService.Send(c.Request().Context(), svcReq)
@@ -83,12 +84,21 @@ func mapSendError(c *echo.Context, err error) error {
 		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
 	case errors.Is(err, domain.ErrNoAdapterConfigured):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_ADAPTER", "no adapter configured for this template type")
+	case errors.Is(err, domain.ErrNoDefaultIdentity):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity configured for this adapter")
+	case errors.Is(err, domain.ErrWorkspaceScopeMismatch):
+		slog.Warn("send rejected", "reason", "scope_mismatch")
+		return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", "API key scope does not match template workspace")
+	case errors.Is(err, domain.ErrSystemWorkspaceBlocked):
+		slog.Warn("send rejected", "reason", "system_workspace_blocked")
+		return response.WriteError(c, http.StatusUnprocessableEntity, "SYSTEM_WORKSPACE_BLOCKED", "system workspace cannot send emails")
 	case errors.Is(err, domain.ErrDomainNotVerified):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "DOMAIN_NOT_VERIFIED", "from domain is not verified")
 	case errors.Is(err, domain.ErrSuppressed):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "SUPPRESSED", "recipient is suppressed")
 	case errors.Is(err, domain.ErrTemplateDisabled):
-		return response.WriteError(c, http.StatusUnprocessableEntity, "TEMPLATE_DISABLED", "template is disabled")
+		slog.Warn("send rejected", "reason", "template_disabled")
+		return response.WriteError(c, http.StatusConflict, "TEMPLATE_DISABLED", "template is disabled")
 	case errors.Is(err, domain.ErrNoPublishedVersion):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_PUBLISHED_VERSION", "no published version for this template")
 	case errors.Is(err, domain.ErrRateLimited):

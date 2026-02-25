@@ -112,6 +112,53 @@ func (h *TemplateHandler) listByTemplateType(c *echo.Context, wsID *uuid.UUID) e
 	})
 }
 
+// DisableTemplate handles POST .../templates/:template_id/disable.
+func (h *TemplateHandler) DisableTemplate(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.setTemplateDisabled(c, &ws.ID, true)
+}
+
+// EnableTemplate handles POST .../templates/:template_id/enable.
+func (h *TemplateHandler) EnableTemplate(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.setTemplateDisabled(c, &ws.ID, false)
+}
+
+// DisableTemplateGlobal handles POST /global/templates/:template_id/disable.
+func (h *TemplateHandler) DisableTemplateGlobal(c *echo.Context) error {
+	return h.setTemplateDisabled(c, nil, true)
+}
+
+// EnableTemplateGlobal handles POST /global/templates/:template_id/enable.
+func (h *TemplateHandler) EnableTemplateGlobal(c *echo.Context) error {
+	return h.setTemplateDisabled(c, nil, false)
+}
+
+func (h *TemplateHandler) setTemplateDisabled(c *echo.Context, wsID *uuid.UUID, disabled bool) error {
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	if disabled {
+		if err := h.svc.DisableTemplate(c.Request().Context(), templateID, wsID); err != nil {
+			return mapTemplateError(c, err)
+		}
+	} else {
+		if err := h.svc.EnableTemplate(c.Request().Context(), templateID, wsID); err != nil {
+			return mapTemplateError(c, err)
+		}
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
 // GetVersion handles GET .../templates/:template_id/versions/:version_id.
 func (h *TemplateHandler) GetVersion(c *echo.Context) error {
 	versionID, err := uuid.Parse(c.Param("version_id"))

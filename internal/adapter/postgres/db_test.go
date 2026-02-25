@@ -9,18 +9,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/config"
 	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/testcontainers/testcontainers-go"
 )
 
 func TestConnect(t *testing.T) {
 	ctx := context.Background()
-
-	ctr, connStr := startPostgres(ctx, t)
-	t.Cleanup(func() {
-		if err := testcontainers.TerminateContainer(ctr); err != nil {
-			t.Logf("terminating container: %v", err)
-		}
-	})
+	connStr := sharedConnStr(ctx, t)
 
 	cfg := config.DatabaseConfig{
 		URL:             connStr,
@@ -43,13 +36,16 @@ func TestConnect(t *testing.T) {
 
 func TestMigrations(t *testing.T) {
 	ctx := context.Background()
-
-	ctr, connStr := startPostgres(ctx, t)
+	sharedDBMu.Lock()
 	t.Cleanup(func() {
-		if err := testcontainers.TerminateContainer(ctr); err != nil {
-			t.Logf("terminating container: %v", err)
-		}
+		sharedDBMu.Unlock()
 	})
+	connStr := sharedConnStr(ctx, t)
+
+	// Ensure deterministic baseline for this migration test.
+	if err := pgadapter.RunMigrationsDown(connStr, migrationsPath()); err != nil {
+		t.Fatalf("pre-reset RunMigrationsDown() error: %v", err)
+	}
 
 	// Run all migrations up
 	if err := pgadapter.RunMigrations(connStr, migrationsPath()); err != nil {
@@ -71,7 +67,6 @@ func TestMigrations(t *testing.T) {
 		"injector_fields",
 		"injector_values",
 		"adapters",
-		"domains",
 		"template_types",
 		"templates",
 		"members",

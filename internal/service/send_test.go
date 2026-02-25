@@ -171,18 +171,19 @@ func (m *mockCacheSend) DeletePattern(_ context.Context, _ string) error {
 }
 
 type mockTemplateStoreSend struct {
-	getTypeBySlugFn        func(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
+	getTypeBySlugFn         func(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
 	findTypeBySlugInScopeFn func(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
-	createTypeFn           func(ctx context.Context, tt *domain.TemplateType) error
-	createTemplateFn       func(ctx context.Context, tpl *domain.Template) error
-	getByTypeAndScopeFn    func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
-	resolveTemplateFn      func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
-	createVersionFn        func(ctx context.Context, ver *domain.TemplateVersion) error
-	getPublishedVersionFn  func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
-	publishFn              func(ctx context.Context, versionID uuid.UUID) error
-	listVersionsFn         func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
-	setLocaleFn            func(ctx context.Context, locale *domain.TemplateVersionLocale) error
-	getLocaleFn            func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	createTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
+	createTemplateFn        func(ctx context.Context, tpl *domain.Template) error
+	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
+	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
+	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
+	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
+	publishFn               func(ctx context.Context, versionID uuid.UUID) error
+	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
+	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
+	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
+	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
 }
 
 func (m *mockTemplateStoreSend) CreateType(ctx context.Context, tt *domain.TemplateType) error {
@@ -223,6 +224,12 @@ func (m *mockTemplateStoreSend) ResolveTemplate(ctx context.Context, typeID uuid
 		return m.resolveTemplateFn(ctx, typeID, chain)
 	}
 	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStoreSend) SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error {
+	if m.setDisabledFn != nil {
+		return m.setDisabledFn(ctx, templateID, wsID, disabled)
+	}
+	return nil
 }
 func (m *mockTemplateStoreSend) CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
 	if m.createVersionFn != nil {
@@ -402,16 +409,16 @@ type sendTestFixture struct {
 	typeID      uuid.UUID
 	adapterID   uuid.UUID
 
-	tenantStore    *mockTenantStoreSend
-	wsStore        *mockWorkspaceStoreSend
-	emailStore     *mockEmailStoreSend
-	suppression    *mockSuppressionStoreSend
-	jq             *mockJobQueueSend
-	cache          *mockCacheSend
-	templateStore  *mockTemplateStoreSend
-	injectorStore  *mockInjectorStoreSend
-	adapterStore   *mockAdapterStoreSend
-	identityStore  *mockAdapterIdentityStoreSend
+	tenantStore   *mockTenantStoreSend
+	wsStore       *mockWorkspaceStoreSend
+	emailStore    *mockEmailStoreSend
+	suppression   *mockSuppressionStoreSend
+	jq            *mockJobQueueSend
+	cache         *mockCacheSend
+	templateStore *mockTemplateStoreSend
+	injectorStore *mockInjectorStoreSend
+	adapterStore  *mockAdapterStoreSend
+	identityStore *mockAdapterIdentityStoreSend
 }
 
 // newSendFixture creates a fully wired test fixture with happy-path defaults.
@@ -1085,5 +1092,63 @@ func TestSendService_NoDefaultIdentity(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrNoDefaultIdentity) {
 		t.Fatalf("expected ErrNoDefaultIdentity, got %v", err)
+	}
+}
+
+func TestSendService_ScopeMismatch(t *testing.T) {
+	f := newSendFixture()
+	svc := f.buildService()
+
+	req := f.happyRequest()
+	req.AuthWorkspaceID = uuid.Must(uuid.NewV7())
+
+	_, err := svc.Send(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected scope mismatch error")
+	}
+	if !errors.Is(err, domain.ErrWorkspaceScopeMismatch) {
+		t.Fatalf("expected ErrWorkspaceScopeMismatch, got %v", err)
+	}
+}
+
+func TestSendService_ScopeMatch(t *testing.T) {
+	f := newSendFixture()
+	svc := f.buildService()
+
+	req := f.happyRequest()
+	req.AuthWorkspaceID = f.workspaceID
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSendService_SystemWorkspaceBlocked(t *testing.T) {
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+		if tenantID == f.tenantID && code == "_system" {
+			return &domain.Workspace{
+				ID:       f.sysWSID,
+				TenantID: f.tenantID,
+				Code:     "_system",
+				Name:     "System",
+				IsSystem: true,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.Ref = "latam:_system:welcome"
+	req.AuthWorkspaceID = f.sysWSID
+
+	_, err := svc.Send(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected system workspace block error")
+	}
+	if !errors.Is(err, domain.ErrSystemWorkspaceBlocked) {
+		t.Fatalf("expected ErrSystemWorkspaceBlocked, got %v", err)
 	}
 }

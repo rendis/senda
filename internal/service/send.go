@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -23,6 +24,9 @@ type SendRequest struct {
 	Variables  map[string]any `json:"variables"`
 	ExternalID *string        `json:"external_id,omitempty"`
 	Locale     *string        `json:"locale,omitempty"`
+	// AuthWorkspaceID is the workspace resolved from API key auth context.
+	// When set, it must match the workspace resolved from Ref.
+	AuthWorkspaceID uuid.UUID `json:"-"`
 }
 
 // SendResponse represents the result of a send operation.
@@ -38,8 +42,8 @@ type SendResponse struct {
 type TrackingEntry struct {
 	To         string `json:"to"`
 	TrackingID string `json:"tracking_id"`
-	Status     string `json:"status"`           // "accepted", "suppressed", or "failed"
-	Error      string `json:"error,omitempty"`   // populated when Status is "failed"
+	Status     string `json:"status"`          // "accepted", "suppressed", or "failed"
+	Error      string `json:"error,omitempty"` // populated when Status is "failed"
 }
 
 // SendService orchestrates the full email send pipeline.
@@ -105,9 +109,22 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
+	if req.AuthWorkspaceID != uuid.Nil && ws.ID != req.AuthWorkspaceID {
+		slog.Warn("send rejected", "reason", "scope_mismatch", "auth_workspace_id", req.AuthWorkspaceID, "ref_workspace_id", ws.ID)
+		return nil, domain.ErrWorkspaceScopeMismatch
+	}
+
+	if ws.IsSystem {
+		slog.Warn("send rejected", "reason", "system_workspace_blocked", "workspace_id", ws.ID)
+		return nil, domain.ErrSystemWorkspaceBlocked
+	}
+
 	// 3. Resolve template (includes kill switch check, published version, locale fallback)
 	resolved, err := s.templateResolver.Resolve(ctx, ws.ID, ref.TemplateType, req.Locale)
 	if err != nil {
+		if errors.Is(err, domain.ErrTemplateDisabled) {
+			slog.Warn("send rejected", "reason", "template_disabled", "template_type", ref.TemplateType, "workspace_id", ws.ID)
+		}
 		return nil, err
 	}
 

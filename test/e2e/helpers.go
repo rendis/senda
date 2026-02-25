@@ -26,11 +26,11 @@ const (
 
 // TestClient wraps HTTP client with helpers for Senda API testing.
 type TestClient struct {
-	baseURL    string
-	httpClient *http.Client
-	t          *testing.T
+	baseURL     string
+	httpClient  *http.Client
+	t           *testing.T
 	bearerToken string
-	apiKey     string
+	apiKey      string
 }
 
 // NewTestClient creates a test client configured from environment.
@@ -265,12 +265,12 @@ type MailpitAddress struct {
 
 // Message represents an email message from Mailpit (single message endpoint).
 type Message struct {
-	ID      string             `json:"ID"`
-	From    MailpitAddress     `json:"From"`
-	To      []MailpitAddress   `json:"To"`
-	Subject string             `json:"Subject"`
-	Text    string             `json:"Text"`
-	HTML    string             `json:"HTML"`
+	ID      string              `json:"ID"`
+	From    MailpitAddress      `json:"From"`
+	To      []MailpitAddress    `json:"To"`
+	Subject string              `json:"Subject"`
+	Text    string              `json:"Text"`
+	HTML    string              `json:"HTML"`
 	Headers map[string][]string `json:"Headers"`
 }
 
@@ -407,10 +407,10 @@ func (m *MailpitClient) AssertMessageHasSubject(subject string) *Message {
 // ErrorResponse matches the API error contract.
 type ErrorResponse struct {
 	Error struct {
-		Code      string `json:"code"`
-		Message   string `json:"message"`
+		Code      string        `json:"code"`
+		Message   string        `json:"message"`
 		Details   []interface{} `json:"details"`
-		RequestID string `json:"request_id"`
+		RequestID string        `json:"request_id"`
 	} `json:"error"`
 }
 
@@ -509,6 +509,52 @@ func AssignAdapterToTemplateType(t *testing.T, templateTypeID, adapterID string)
 	require.True(t, tag.RowsAffected() > 0, "no template type found to update")
 }
 
+// EnsureDefaultAdapterIdentity seeds a verified default sender identity for an adapter.
+// E2E uses provider-managed auth model; this simulates a provider-verified identity.
+func EnsureDefaultAdapterIdentity(t *testing.T, adapterID, email string) {
+	t.Helper()
+
+	conn := dbConn(t)
+	ctx := context.Background()
+
+	tx, err := conn.Begin(ctx)
+	require.NoError(t, err, "failed to begin adapter identity transaction")
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	_, err = tx.Exec(ctx,
+		`UPDATE adapter_identities
+		   SET is_default = false, updated_at = NOW()
+		 WHERE adapter_id = $1::uuid
+		   AND identity <> $2`,
+		adapterID, email,
+	)
+	require.NoError(t, err, "failed to clear previous default identities")
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO adapter_identities (
+		     id, adapter_id, identity, identity_type, status,
+		     sending_enabled, is_default, source, last_synced_at, created_at, updated_at
+		 )
+		 VALUES (
+		     gen_random_uuid(), $1::uuid, $2, 'email', 'verified',
+		     true, true, 'provider', NOW(), NOW(), NOW()
+		 )
+		 ON CONFLICT (adapter_id, identity) DO UPDATE
+		     SET status = 'verified',
+		         sending_enabled = true,
+		         is_default = true,
+		         source = 'provider',
+		         last_synced_at = NOW(),
+		         updated_at = NOW()`,
+		adapterID, email,
+	)
+	require.NoError(t, err, "failed to upsert default adapter identity")
+
+	require.NoError(t, tx.Commit(ctx), "failed to commit adapter identity transaction")
+}
+
 // WaitForMailpit polls the Mailpit API until it's reachable.
 func WaitForMailpit(t *testing.T, timeout time.Duration) {
 	t.Helper()
@@ -600,6 +646,10 @@ func EnsureSetup(t *testing.T) {
 	})
 	resp.Body.Close()
 
+	if adapterID != "" {
+		EnsureDefaultAdapterIdentity(t, adapterID, TestFromEmail)
+	}
+
 	// 5. Template
 	ttResp := client.Get(fmt.Sprintf("%s/template-types/%s", wsPath, TemplateTypeSlug))
 	defer ttResp.Body.Close()
@@ -609,8 +659,9 @@ func EnsureSetup(t *testing.T) {
 	}
 	if ttResp.StatusCode == http.StatusOK {
 		ParseJSONResponse(t, ttResp, &ttBody)
-		// Ensure adapter is assigned (may be missing from previous runs).
-		if adapterID != "" && (ttBody.AdapterID == nil || *ttBody.AdapterID == "") {
+		// Ensure template type is bound to the deterministic adapter selected above.
+		// This keeps setup stable across reruns where older adapters may exist.
+		if adapterID != "" && (ttBody.AdapterID == nil || *ttBody.AdapterID != adapterID) {
 			AssignAdapterToTemplateType(t, ttBody.ID, adapterID)
 		}
 	}
@@ -635,7 +686,9 @@ func EnsureSetup(t *testing.T) {
 					"default_locale": "en",
 				})
 				if vResp.StatusCode == http.StatusCreated {
-					var vBody struct{ ID string `json:"id"` }
+					var vBody struct {
+						ID string `json:"id"`
+					}
 					ParseJSONResponse(t, vResp, &vBody)
 					// Add locale
 					client.Put(fmt.Sprintf("%s/templates/%s/versions/%s/locales/en", wsPath, tplID, vBody.ID), CreateLocaleRequest{
@@ -654,4 +707,3 @@ func EnsureSetup(t *testing.T) {
 		}
 	}
 }
-

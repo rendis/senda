@@ -77,24 +77,14 @@ func notificationStringToSign(msg map[string]string) string {
 	return s
 }
 
-// subscriptionStringToSign returns the canonical string for a SubscriptionConfirmation.
-func subscriptionStringToSign(msg map[string]string) string {
-	s := "Message\n" + msg["Message"] + "\n"
-	s += "MessageId\n" + msg["MessageId"] + "\n"
-	s += "SubscribeURL\n" + msg["SubscribeURL"] + "\n"
-	s += "Timestamp\n" + msg["Timestamp"] + "\n"
-	s += "Token\n" + msg["Token"] + "\n"
-	s += "TopicArn\n" + msg["TopicArn"] + "\n"
-	s += "Type\n" + msg["Type"] + "\n"
-	return s
-}
-
 func TestVerifier_ValidNotification(t *testing.T) {
 	_, key, certPEM := testCert(t)
 
 	// Serve the certificate via HTTPS-like test server (but HTTP for test).
 	certServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(certPEM)
+		if _, err := w.Write(certPEM); err != nil {
+			t.Fatalf("write cert PEM: %v", err)
+		}
 	}))
 	defer certServer.Close()
 

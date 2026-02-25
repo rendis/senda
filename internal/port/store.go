@@ -60,6 +60,7 @@ type TemplateStore interface {
 	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts ListOptions) ([]*domain.Template, string, error)
 	ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
+	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 
 	// Versions
 	CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error
@@ -214,6 +215,8 @@ type PageResult[T any] struct {
 
 // EmailFilters for email query filtering.
 type EmailFilters struct {
+	ExternalID       *string
+	Recipient        *string
 	Status           *domain.EmailStatus
 	TemplateTypeSlug *string
 	AdapterID        *uuid.UUID

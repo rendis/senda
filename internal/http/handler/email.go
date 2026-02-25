@@ -108,6 +108,12 @@ func (h *EmailHandler) GetEvents(c *echo.Context) error {
 func parseEmailFilters(c *echo.Context) port.EmailFilters {
 	var f port.EmailFilters
 
+	if s := c.QueryParam("external_id"); s != "" {
+		f.ExternalID = &s
+	}
+	if s := c.QueryParam("recipient"); s != "" {
+		f.Recipient = &s
+	}
 	if s := c.QueryParam("status"); s != "" {
 		status := domain.EmailStatus(s)
 		f.Status = &status

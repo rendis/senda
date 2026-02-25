@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	gmailadapter "github.com/senda-app/senda/internal/adapter/gmail"
+	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
 )
@@ -31,6 +33,10 @@ func NewIdentityService(
 	crypto port.Crypto,
 	providerFactory IdentityProviderFactory,
 ) *IdentityService {
+	if providerFactory == nil {
+		providerFactory = DefaultIdentityProviderFactory
+	}
+
 	return &IdentityService{
 		identityStore:   identityStore,
 		adapterStore:    adapterStore,
@@ -182,25 +188,36 @@ func DefaultIdentityProviderFactory(adapter *domain.Adapter, decryptedConfig []b
 
 func newSESIdentityProvider(decryptedConfig []byte) (port.IdentityProvider, error) {
 	var cfg struct {
-		Region          string `json:"region"`
-		AccessKeyID     string `json:"access_key_id"`
-		SecretAccessKey string `json:"secret_access_key"`
+		Region string `json:"region"`
 	}
 	if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal SES config: %w", err)
 	}
+	if cfg.Region == "" {
+		return nil, fmt.Errorf("%w: missing SES region", domain.ErrValidation)
+	}
 
-	// Import here to avoid circular dependency — uses the ses package constructor
-	// We defer to the caller to wire the actual SES adapter.
-	// For now, we return nil and let the handler/DI wire this up.
-	// This will be resolved in the DI layer.
-	return nil, fmt.Errorf("SES identity provider must be wired via DI")
+	provider, err := sesadapter.NewAdapterFromConfig(context.Background(), cfg.Region)
+	if err != nil {
+		return nil, fmt.Errorf("init SES identity provider: %w", err)
+	}
+	return provider, nil
 }
 
 func newGmailIdentityProvider(decryptedConfig []byte) (port.IdentityProvider, error) {
-	// Same as above — actual instantiation happens in the DI layer.
-	_ = decryptedConfig
-	return nil, fmt.Errorf("Gmail identity provider must be wired via DI")
+	var cfg gmailadapter.GmailConfig
+	if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal Gmail config: %w", err)
+	}
+	if cfg.OAuthClientID == "" || cfg.OAuthClientSecret == "" || cfg.RefreshToken == "" {
+		return nil, fmt.Errorf("%w: missing required Gmail OAuth fields", domain.ErrValidation)
+	}
+
+	provider, err := gmailadapter.NewAdapterFromConfig(context.Background(), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init Gmail identity provider: %w", err)
+	}
+	return provider, nil
 }
 
 func extractDomain(email string) string {

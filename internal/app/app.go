@@ -13,10 +13,10 @@ import (
 	"github.com/senda-app/senda/config"
 	"github.com/senda-app/senda/internal/adapter/crypto"
 	"github.com/senda-app/senda/internal/adapter/mjml"
+	"github.com/senda-app/senda/internal/adapter/oidcauth"
 	"github.com/senda-app/senda/internal/adapter/pgcache"
 	"github.com/senda-app/senda/internal/adapter/postgres"
 	"github.com/senda-app/senda/internal/adapter/river"
-	"github.com/senda-app/senda/internal/adapter/oidcauth"
 	smtpadapter "github.com/senda-app/senda/internal/adapter/smtp"
 	"github.com/senda-app/senda/internal/adapter/sns"
 	"github.com/senda-app/senda/internal/adapter/testauth"
@@ -174,6 +174,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo)
 	sendH := handler.NewSendHandler(sendSvc)
 	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)
+	dataPlaneEmailH := handler.NewDataPlaneEmailHandler(emailRepo)
 	suppressionH := handler.NewSuppressionHandler(suppressionRepo, tenantRepo, wsRepo)
 	auditH := handler.NewAuditHandler(auditRepo, tenantRepo, wsRepo)
 	webhookH := handler.NewWebhookHandler(webhookRepo, webhookSvc, tenantRepo, wsRepo)
@@ -223,6 +224,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		sendahttp.WithTemplateTypeHandler(templateTypeH),
 		sendahttp.WithTemplateHandler(templateH),
 		sendahttp.WithSendHandler(sendH),
+		sendahttp.WithDataPlaneEmailHandler(dataPlaneEmailH),
 		sendahttp.WithEmailHandler(emailH),
 		sendahttp.WithSuppressionHandler(suppressionH),
 		sendahttp.WithAuditHandler(auditH),

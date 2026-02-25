@@ -164,3 +164,30 @@ func TestSendHandler_Send_EmptyTo(t *testing.T) {
 		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestSendHandler_Send_TooManyRecipients(t *testing.T) {
+	e, _ := setupSendTest()
+
+	recipients := make([]string, 0, 51)
+	for i := 0; i < 51; i++ {
+		recipients = append(recipients, `"user`+string(rune('a'+(i%26)))+`@example.com"`)
+	}
+	body := `{"ref":"acme:default:welcome","to":[` + strings.Join(recipients, ",") + `]}`
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errResp response.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if len(errResp.Error.Details) != 1 || errResp.Error.Details[0].Field != "to" {
+		t.Fatalf("expected field error on 'to', got %+v", errResp.Error.Details)
+	}
+}

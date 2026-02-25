@@ -5,8 +5,10 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +17,26 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+var (
+	sharedPostgresOnce sync.Once
+	sharedPostgresCtr  testcontainers.Container
+	sharedPostgresConn string
+	sharedPostgresErr  error
+	sharedDBMu         sync.Mutex
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	if sharedPostgresCtr != nil {
+		if err := testcontainers.TerminateContainer(sharedPostgresCtr); err != nil {
+			fmt.Fprintf(os.Stderr, "terminating shared postgres container: %v\n", err)
+		}
+	}
+
+	os.Exit(code)
+}
 
 // projectRoot returns the absolute path to the project root directory.
 func projectRoot() string {
@@ -28,9 +50,7 @@ func migrationsPath() string {
 
 // startPostgres creates a PostgreSQL container with pg_cron support using
 // the project's custom Dockerfile.
-func startPostgres(ctx context.Context, t *testing.T) (testcontainers.Container, string) {
-	t.Helper()
-
+func startPostgres(ctx context.Context) (testcontainers.Container, string, error) {
 	dockerfilePath := filepath.Join(projectRoot(), "docker", "postgres")
 
 	const (
@@ -65,37 +85,53 @@ func startPostgres(ctx context.Context, t *testing.T) (testcontainers.Container,
 		Started:          true,
 	})
 	if err != nil {
-		t.Fatalf("starting postgres container: %v", err)
+		return nil, "", fmt.Errorf("starting postgres container: %w", err)
 	}
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		t.Fatalf("getting container host: %v", err)
+		return nil, "", fmt.Errorf("getting container host: %w", err)
 	}
 
 	mappedPort, err := ctr.MappedPort(ctx, "5432")
 	if err != nil {
-		t.Fatalf("getting mapped port: %v", err)
+		return nil, "", fmt.Errorf("getting mapped port: %w", err)
 	}
 
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		dbUser, dbPass, host, mappedPort.Port(), dbName)
 
-	return ctr, connStr
+	return ctr, connStr, nil
 }
 
-// setupTestDB starts a postgres container, runs migrations, and returns a pool.
-// It registers cleanup to terminate the container and close the pool.
+func sharedConnStr(ctx context.Context, t *testing.T) string {
+	t.Helper()
+
+	sharedPostgresOnce.Do(func() {
+		sharedPostgresCtr, sharedPostgresConn, sharedPostgresErr = startPostgres(ctx)
+	})
+
+	if sharedPostgresErr != nil {
+		t.Fatalf("starting shared postgres container: %v", sharedPostgresErr)
+	}
+
+	return sharedPostgresConn
+}
+
+// setupTestDB reuses one Postgres container per package and resets schema per test.
 func setupTestDB(ctx context.Context, t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	ctr, connStr := startPostgres(ctx, t)
+	sharedDBMu.Lock()
 	t.Cleanup(func() {
-		if err := testcontainers.TerminateContainer(ctr); err != nil {
-			t.Logf("terminating container: %v", err)
-		}
+		sharedDBMu.Unlock()
 	})
 
+	connStr := sharedConnStr(ctx, t)
+
+	if err := pgadapter.RunMigrationsDown(connStr, migrationsPath()); err != nil {
+		t.Fatalf("resetting migrations down: %v", err)
+	}
 	if err := pgadapter.RunMigrations(connStr, migrationsPath()); err != nil {
 		t.Fatalf("running migrations: %v", err)
 	}

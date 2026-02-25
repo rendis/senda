@@ -10,6 +10,7 @@ import (
 	"net/smtp"
 	"net/textproto"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,7 +39,7 @@ func (a *Adapter) Send(_ context.Context, msg *port.OutgoingEmail) (string, erro
 		return "", fmt.Errorf("smtp: build message: %w", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", a.host, a.port)
+	addr := net.JoinHostPort(a.host, strconv.Itoa(a.port))
 	recipients := allRecipients(msg)
 
 	if err := smtp.SendMail(addr, nil, msg.From.Address, recipients, rawMsg); err != nil {
@@ -54,12 +55,12 @@ func (a *Adapter) Name() string { return "smtp" }
 
 // HealthCheck verifies the SMTP server is reachable.
 func (a *Adapter) HealthCheck(_ context.Context) error {
-	addr := fmt.Sprintf("%s:%d", a.host, a.port)
+	addr := net.JoinHostPort(a.host, strconv.Itoa(a.port))
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("smtp: health check: %w", err)
 	}
-	conn.Close()
+	_ = conn.Close()
 	return nil
 }
 

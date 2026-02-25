@@ -3,15 +3,17 @@ package domain
 import "errors"
 
 var (
-	ErrNotFound            = errors.New("not found")
-	ErrConflict            = errors.New("conflict")
-	ErrValidation          = errors.New("validation error")
-	ErrForbidden           = errors.New("forbidden")
-	ErrNoAdapterConfigured = errors.New("no adapter configured")
-	ErrInvalidRef          = errors.New("invalid template reference")
-	ErrSuppressed          = errors.New("recipient is suppressed")
-	ErrRateLimited         = errors.New("rate limited")
-	ErrMaintenanceMode     = errors.New("maintenance mode")
+	ErrNotFound               = errors.New("not found")
+	ErrConflict               = errors.New("conflict")
+	ErrValidation             = errors.New("validation error")
+	ErrForbidden              = errors.New("forbidden")
+	ErrWorkspaceScopeMismatch = errors.New("workspace scope mismatch")
+	ErrSystemWorkspaceBlocked = errors.New("system workspace cannot be used for send")
+	ErrNoAdapterConfigured    = errors.New("no adapter configured")
+	ErrInvalidRef             = errors.New("invalid template reference")
+	ErrSuppressed             = errors.New("recipient is suppressed")
+	ErrRateLimited            = errors.New("rate limited")
+	ErrMaintenanceMode        = errors.New("maintenance mode")
 
 	// Template resolution errors (HT-11)
 	ErrTemplateTypeNotFound = errors.New("template type not found")
@@ -24,8 +26,8 @@ var (
 	ErrDomainNotFound = errors.New("domain not found")
 
 	// Adapter identity errors
-	ErrNoDefaultIdentity  = errors.New("adapter has no default identity")
-	ErrIdentityNotFound   = errors.New("adapter identity not found")
+	ErrNoDefaultIdentity   = errors.New("adapter has no default identity")
+	ErrIdentityNotFound    = errors.New("adapter identity not found")
 	ErrIdentityNotInDomain = errors.New("email not within adapter's verified domains")
 
 	// Pagination errors (HT-19)

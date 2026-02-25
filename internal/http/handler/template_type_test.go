@@ -31,6 +31,7 @@ type mockTemplateStore struct {
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
+	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
@@ -75,6 +76,12 @@ func (m *mockTemplateStore) ResolveTemplate(ctx context.Context, typeID uuid.UUI
 		return m.resolveTemplateFn(ctx, typeID, chain)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error {
+	if m.setDisabledFn != nil {
+		return m.setDisabledFn(ctx, templateID, wsID, disabled)
+	}
+	return nil
 }
 func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
 	if m.createVersionFn != nil {

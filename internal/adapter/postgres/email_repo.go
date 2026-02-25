@@ -43,31 +43,31 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error {
 		) RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":                  email.ID,
-			"tracking_id":        email.TrackingID,
-			"external_id":        email.ExternalID,
-			"workspace_id":       email.WorkspaceID,
-			"tenant_id":          email.TenantID,
-			"template_id":        email.TemplateID,
+			"tracking_id":         email.TrackingID,
+			"external_id":         email.ExternalID,
+			"workspace_id":        email.WorkspaceID,
+			"tenant_id":           email.TenantID,
+			"template_id":         email.TemplateID,
 			"template_version_id": email.TemplateVersionID,
-			"template_type_slug": email.TemplateTypeSlug,
-			"template_ref":       email.TemplateRef,
-			"recipient_email":    email.RecipientEmail,
-			"cc":                 email.CC,
-			"bcc":                email.BCC,
-			"from_email":         email.FromEmail,
-			"from_name":          email.FromName,
-			"reply_to":           email.ReplyTo,
-			"subject_rendered":   email.SubjectRendered,
-			"body_mjml":          email.BodyMJML,
-			"locale":             email.Locale,
-			"status":             email.Status,
-			"adapter_id":         email.AdapterID,
+			"template_type_slug":  email.TemplateTypeSlug,
+			"template_ref":        email.TemplateRef,
+			"recipient_email":     email.RecipientEmail,
+			"cc":                  email.CC,
+			"bcc":                 email.BCC,
+			"from_email":          email.FromEmail,
+			"from_name":           email.FromName,
+			"reply_to":            email.ReplyTo,
+			"subject_rendered":    email.SubjectRendered,
+			"body_mjml":           email.BodyMJML,
+			"locale":              email.Locale,
+			"status":              email.Status,
+			"adapter_id":          email.AdapterID,
 			"provider_message_id": email.ProviderMessageID,
-			"variables_snapshot": email.VariablesSnapshot,
-			"injectors_snapshot": email.InjectorsSnapshot,
-			"retry_count":        email.RetryCount,
-			"max_retries":        email.MaxRetries,
-			"next_retry_at":      email.NextRetryAt,
+			"variables_snapshot":  email.VariablesSnapshot,
+			"injectors_snapshot":  email.InjectorsSnapshot,
+			"retry_count":         email.RetryCount,
+			"max_retries":         email.MaxRetries,
+			"next_retry_at":       email.NextRetryAt,
 		},
 	)
 
@@ -212,6 +212,14 @@ func (r *EmailRepo) QueryByWorkspace(ctx context.Context, wsID uuid.UUID, filter
 	where := `workspace_id = @workspace_id`
 	args := pgx.NamedArgs{"workspace_id": wsID}
 
+	if filters.ExternalID != nil {
+		where += ` AND external_id = @external_id`
+		args["external_id"] = *filters.ExternalID
+	}
+	if filters.Recipient != nil {
+		where += ` AND recipient_email = @recipient_email`
+		args["recipient_email"] = *filters.Recipient
+	}
 	if filters.Status != nil {
 		where += ` AND status = @status`
 		args["status"] = *filters.Status
@@ -330,4 +338,3 @@ func collectEmail(row pgx.CollectableRow) (*domain.Email, error) {
 	}
 	return &e, nil
 }
-

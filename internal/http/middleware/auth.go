@@ -70,7 +70,9 @@ func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, stor
 	}
 
 	// Fire-and-forget: update last used timestamp.
-	go store.TouchLastUsed(context.Background(), key.ID)
+	go func() {
+		_ = store.TouchLastUsed(context.Background(), key.ID)
+	}()
 
 	c.Set(ContextKeyAuthType, "apikey")
 	c.Set(ContextKeyWorkspaceID, key.WorkspaceID)

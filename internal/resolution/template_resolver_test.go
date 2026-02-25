@@ -34,6 +34,9 @@ func (m *mockTemplateStore) GetByTypeAndScope(_ context.Context, _ uuid.UUID, _ 
 func (m *mockTemplateStore) ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error) {
 	return m.resolveTemplate(ctx, typeID, chain)
 }
+func (m *mockTemplateStore) SetDisabled(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ bool) error {
+	return nil
+}
 func (m *mockTemplateStore) CreateVersion(_ context.Context, _ *domain.TemplateVersion) error {
 	return nil
 }

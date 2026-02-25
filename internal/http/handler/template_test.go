@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"context"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
@@ -16,7 +17,6 @@ import (
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
-	"context"
 )
 
 // --- Helpers ---
@@ -42,6 +42,10 @@ func setupTemplateTest(store port.TemplateStore, compiler port.TemplateCompiler,
 	e.PUT(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.UpdateLocale)
 	e.DELETE(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.DeleteLocale)
 	e.POST(base+"/templates/:template_id/preview-mjml", h.PreviewMJML)
+	e.POST(base+"/templates/:template_id/disable", h.DisableTemplate)
+	e.POST(base+"/templates/:template_id/enable", h.EnableTemplate)
+	e.POST("/api/v1/manage/global/templates/:template_id/disable", h.DisableTemplateGlobal)
+	e.POST("/api/v1/manage/global/templates/:template_id/enable", h.EnableTemplateGlobal)
 
 	return e, h
 }
@@ -313,6 +317,95 @@ func TestTemplateHandler_PublishVersion_NotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateHandler_DisableTemplate_Success(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	var (
+		gotTemplateID uuid.UUID
+		gotScope      *uuid.UUID
+		gotDisabled   bool
+	)
+
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, id uuid.UUID, scope *uuid.UUID, disabled bool) error {
+			gotTemplateID = id
+			gotScope = scope
+			gotDisabled = disabled
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/disable", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotTemplateID != templateID {
+		t.Fatalf("expected template ID %s, got %s", templateID, gotTemplateID)
+	}
+	if gotScope == nil || *gotScope != ws.ID {
+		t.Fatalf("expected workspace scope %s, got %v", ws.ID, gotScope)
+	}
+	if !gotDisabled {
+		t.Fatal("expected disabled=true")
+	}
+}
+
+func TestTemplateHandler_EnableTemplate_Success(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	var gotDisabled bool
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, disabled bool) error {
+			gotDisabled = disabled
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/enable", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotDisabled {
+		t.Fatal("expected disabled=false")
+	}
+}
+
+func TestTemplateHandler_DisableTemplateGlobal_Success(t *testing.T) {
+	templateID := uuid.Must(uuid.NewV7())
+	var gotScope *uuid.UUID
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, _ uuid.UUID, scope *uuid.UUID, _ bool) error {
+			gotScope = scope
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, &mockTenantStore{}, &mockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/global/templates/"+templateID.String()+"/disable", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotScope != nil {
+		t.Fatalf("expected nil global scope, got %v", gotScope)
 	}
 }
 

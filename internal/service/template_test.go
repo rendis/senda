@@ -24,6 +24,7 @@ type mockTemplateStore struct {
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
+	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
@@ -64,6 +65,12 @@ func (m *mockTemplateStore) ResolveTemplate(ctx context.Context, typeID uuid.UUI
 		return m.resolveTemplateFn(ctx, typeID, chain)
 	}
 	return nil, nil
+}
+func (m *mockTemplateStore) SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error {
+	if m.setDisabledFn != nil {
+		return m.setDisabledFn(ctx, templateID, wsID, disabled)
+	}
+	return nil
 }
 func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
 	if m.createVersionFn != nil {
@@ -261,6 +268,62 @@ func TestTemplateService_CreateVersion_ListError(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestTemplateService_DisableTemplate_Success(t *testing.T) {
+	templateID := uuid.Must(uuid.NewV7())
+	wsID := uuid.Must(uuid.NewV7())
+
+	var (
+		gotTemplateID uuid.UUID
+		gotWorkspace  *uuid.UUID
+		gotDisabled   bool
+	)
+
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, id uuid.UUID, scope *uuid.UUID, disabled bool) error {
+			gotTemplateID = id
+			gotWorkspace = scope
+			gotDisabled = disabled
+			return nil
+		},
+	}
+
+	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
+	if err := svc.DisableTemplate(context.Background(), templateID, &wsID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotTemplateID != templateID {
+		t.Fatalf("expected template ID %s, got %s", templateID, gotTemplateID)
+	}
+	if gotWorkspace == nil || *gotWorkspace != wsID {
+		t.Fatalf("expected workspace ID %s, got %v", wsID, gotWorkspace)
+	}
+	if !gotDisabled {
+		t.Fatal("expected disabled=true")
+	}
+}
+
+func TestTemplateService_EnableTemplate_Success(t *testing.T) {
+	templateID := uuid.Must(uuid.NewV7())
+
+	var gotDisabled bool
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, disabled bool) error {
+			gotDisabled = disabled
+			return nil
+		},
+	}
+
+	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
+	if err := svc.EnableTemplate(context.Background(), templateID, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotDisabled {
+		t.Fatal("expected disabled=false")
 	}
 }
 
