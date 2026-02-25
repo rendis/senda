@@ -879,3 +879,18 @@ func TestTemplateRepo_GetLocale_NotFound(t *testing.T) {
 		t.Errorf("expected 404, got: %v", err)
 	}
 }
+
+func TestTemplateRepo_DeleteLocale_NotFound(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	err := repo.DeleteLocale(ctx, uuid.New(), "xx")
+	if err == nil {
+		t.Fatal("expected not found error")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Errorf("expected 404, got: %v", err)
+	}
+}

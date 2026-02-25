@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -344,6 +345,19 @@ func TestEmailRepo_QueryByWorkspace_Pagination(t *testing.T) {
 		if seen[e.ID] {
 			t.Errorf("email %s appears on both pages", e.ID)
 		}
+	}
+}
+
+func TestEmailRepo_QueryByWorkspace_InvalidCursor(t *testing.T) {
+	ctx := context.Background()
+	deps := setupEmailTestDeps(ctx, t)
+
+	_, _, err := deps.repo.QueryByWorkspace(ctx, deps.wsID, port.EmailFilters{}, "not-a-valid-cursor", 10)
+	if err == nil {
+		t.Fatal("expected error for invalid cursor")
+	}
+	if !errors.Is(err, domain.ErrInvalidCursor) {
+		t.Fatalf("expected ErrInvalidCursor, got %v", err)
 	}
 }
 

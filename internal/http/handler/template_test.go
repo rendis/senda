@@ -548,6 +548,27 @@ func TestTemplateHandler_DeleteLocale_Success(t *testing.T) {
 	}
 }
 
+func TestTemplateHandler_DeleteLocale_NotFound(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	store := &mockTemplateStore{
+		deleteLocaleFn: func(_ context.Context, _ uuid.UUID, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	templateID := uuid.Must(uuid.NewV7())
+	versionID := uuid.Must(uuid.NewV7())
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/locales/zh", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTemplateHandler_PreviewMJML_Success(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 

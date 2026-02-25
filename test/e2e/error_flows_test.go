@@ -11,12 +11,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestE01_DisabledTemplate verifies that sending to a disabled template returns an appropriate error.
-// Note: The server does not expose a disable/enable endpoint for templates (no PATCH/PUT on
-// /templates/:template_id for toggling enabled state). This test is skipped until such an
-// endpoint is added.
+// TestE01_DisabledTemplate verifies that sending to a disabled template returns 409.
 func TestE01_DisabledTemplate(t *testing.T) {
-	t.Skip("skipping: disable template endpoint not implemented in current server routes")
+	EnsureSetup(t)
+
+	client := NewTestClient(t)
+	client.LoginAs(SuperadminEmail)
+
+	ttResp := client.Get(fmt.Sprintf("%s/template-types/%s", wsPath(), TemplateTypeSlug))
+	defer ttResp.Body.Close()
+	RequireStatus(t, ttResp, http.StatusOK)
+
+	var tt struct {
+		ID string `json:"id"`
+	}
+	ParseJSONResponse(t, ttResp, &tt)
+	require.NotEmpty(t, tt.ID)
+
+	templateID := GetTemplateIDByTypeID(t, tt.ID)
+	require.NotEmpty(t, templateID)
+
+	disableResp := client.Post(fmt.Sprintf("%s/templates/%s/disable", wsPath(), templateID), nil)
+	defer disableResp.Body.Close()
+	RequireStatus(t, disableResp, http.StatusNoContent)
+
+	t.Cleanup(func() {
+		enableResp := client.Post(fmt.Sprintf("%s/templates/%s/enable", wsPath(), templateID), nil)
+		if enableResp != nil {
+			enableResp.Body.Close()
+		}
+	})
+
+	apiKeyValue := createAPIKey(t, client, "disabled-template-error-flow")
+	sendClient := NewTestClient(t)
+	sendClient.SetAPIKey(apiKeyValue)
+
+	sendResp := sendClient.Post("/api/v1/send", SendRequest{
+		Ref: sendRef(),
+		To:  []string{"disabled-template@test.example.com"},
+		Variables: map[string]interface{}{
+			"first_name":   "John",
+			"company_name": "Test Corp",
+		},
+	})
+	defer sendResp.Body.Close()
+
+	RequireStatus(t, sendResp, http.StatusConflict)
+	AssertError(t, sendResp, "TEMPLATE_DISABLED")
 }
 
 // TestE02_NoAdapterConfigured verifies that sending without a configured adapter returns an error.
@@ -260,10 +301,10 @@ func TestE05_InvalidVariables(t *testing.T) {
 
 	// Create version (using :template_id UUID)
 	verResp := client.Post(fmt.Sprintf("%s/templates/%s/versions", wsPath, tplData.ID), CreateVersionRequest{
-		Subject:     "Test Subject",
-		PreviewText: "Test Preview",
-		FromEmail:   TestFromEmail,
-		FromName:    TestFromName,
+		Subject:       "Test Subject",
+		PreviewText:   "Test Preview",
+		FromEmail:     TestFromEmail,
+		FromName:      TestFromName,
 		BodyMJML:      "<mj-text>Hello {{name}}, you are {{age}} years old</mj-text>",
 		DefaultLocale: "en",
 	})

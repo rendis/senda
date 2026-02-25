@@ -260,7 +260,7 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 	if cursor != "" {
 		cursorTime, cursorID, err := DecodeTimeCursor(cursor)
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("%w: %v", domain.ErrInvalidCursor, err)
 		}
 		where += ` AND (created_at, id) < (@cursor_time, @cursor_id)`
 		args["cursor_time"] = cursorTime

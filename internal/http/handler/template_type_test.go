@@ -35,6 +35,7 @@ type mockTemplateStore struct {
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	deleteLocaleFn          func(ctx context.Context, versionID uuid.UUID, locale string) error
 	listTypesFn             func(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error)
 }
 
@@ -128,7 +129,10 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 func (m *mockTemplateStore) ListLocales(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
 	return nil, nil
 }
-func (m *mockTemplateStore) DeleteLocale(_ context.Context, _ uuid.UUID, _ string) error {
+func (m *mockTemplateStore) DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error {
+	if m.deleteLocaleFn != nil {
+		return m.deleteLocaleFn(ctx, versionID, locale)
+	}
 	return nil
 }
 func (m *mockTemplateStore) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error) {

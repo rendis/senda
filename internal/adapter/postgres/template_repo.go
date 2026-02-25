@@ -620,13 +620,16 @@ func (r *TemplateRepo) ListLocales(ctx context.Context, versionID uuid.UUID) ([]
 }
 
 func (r *TemplateRepo) DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error {
-	_, err := r.pool.Exec(ctx,
+	tag, err := r.pool.Exec(ctx,
 		`DELETE FROM template_version_locales
 		 WHERE template_version_id = @version_id AND locale = @locale`,
 		pgx.NamedArgs{"version_id": versionID, "locale": locale},
 	)
 	if err != nil {
 		return fmt.Errorf("deleting template version locale: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template locale not found")
 	}
 	return nil
 }
