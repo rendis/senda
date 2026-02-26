@@ -153,10 +153,8 @@ func TestTemplateHandler_CreateVersion_Success(t *testing.T) {
 	templateID := uuid.Must(uuid.NewV7())
 	var created *domain.TemplateVersion
 	store := &mockTemplateStore{
-		listVersionsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersion, error) {
-			return nil, nil
-		},
 		createVersionFn: func(_ context.Context, ver *domain.TemplateVersion) error {
+			ver.VersionNumber = 1
 			created = ver
 			return nil
 		},

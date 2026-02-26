@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -580,6 +581,72 @@ func TestTemplateRepo_CreateVersion_AutoIncrement(t *testing.T) {
 		if ver.VersionNumber != i {
 			t.Errorf("expected version_number %d, got %d", i, ver.VersionNumber)
 		}
+	}
+}
+
+func TestTemplateRepo_CreateVersion_Concurrent_NoDuplicates(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	_, tpl := createTestTemplateWithType(ctx, t, repo)
+
+	const workers = 24
+	errCh := make(chan error, workers)
+	versionCh := make(chan int, workers)
+
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ver := &domain.TemplateVersion{
+				ID:            uuid.New(),
+				TemplateID:    tpl.ID,
+				Status:        domain.VersionStatusDraft,
+				Subject:       "Concurrent",
+				BodyMJML:      "<mjml></mjml>",
+				DefaultLocale: "en",
+			}
+			if err := repo.CreateVersion(ctx, ver); err != nil {
+				errCh <- err
+				return
+			}
+			versionCh <- ver.VersionNumber
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+	close(versionCh)
+
+	for err := range errCh {
+		t.Fatalf("CreateVersion(concurrent) error: %v", err)
+	}
+
+	seen := make(map[int]bool, workers)
+	for v := range versionCh {
+		if seen[v] {
+			t.Fatalf("duplicate version number detected: %d", v)
+		}
+		seen[v] = true
+	}
+
+	if len(seen) != workers {
+		t.Fatalf("expected %d created versions, got %d", workers, len(seen))
+	}
+	for i := 1; i <= workers; i++ {
+		if !seen[i] {
+			t.Fatalf("missing version number %d", i)
+		}
+	}
+
+	versions, err := repo.ListVersions(ctx, tpl.ID)
+	if err != nil {
+		t.Fatalf("ListVersions() error: %v", err)
+	}
+	if len(versions) != workers {
+		t.Fatalf("expected %d persisted versions, got %d", workers, len(versions))
 	}
 }
 

@@ -193,12 +193,8 @@ func TestTemplateService_CreateVersion_Success(t *testing.T) {
 	templateID := uuid.Must(uuid.NewV7())
 
 	store := &mockTemplateStore{
-		listVersionsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersion, error) {
-			return []*domain.TemplateVersion{
-				{ID: uuid.Must(uuid.NewV7()), VersionNumber: 1},
-			}, nil
-		},
 		createVersionFn: func(_ context.Context, ver *domain.TemplateVersion) error {
+			ver.VersionNumber = 2
 			created = ver
 			return nil
 		},
@@ -231,10 +227,8 @@ func TestTemplateService_CreateVersion_Success(t *testing.T) {
 
 func TestTemplateService_CreateVersion_FirstVersion(t *testing.T) {
 	store := &mockTemplateStore{
-		listVersionsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersion, error) {
-			return nil, nil
-		},
-		createVersionFn: func(_ context.Context, _ *domain.TemplateVersion) error {
+		createVersionFn: func(_ context.Context, ver *domain.TemplateVersion) error {
+			ver.VersionNumber = 1
 			return nil
 		},
 	}
@@ -253,10 +247,10 @@ func TestTemplateService_CreateVersion_FirstVersion(t *testing.T) {
 	}
 }
 
-func TestTemplateService_CreateVersion_ListError(t *testing.T) {
+func TestTemplateService_CreateVersion_StoreError(t *testing.T) {
 	store := &mockTemplateStore{
-		listVersionsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersion, error) {
-			return nil, errors.New("db error")
+		createVersionFn: func(_ context.Context, _ *domain.TemplateVersion) error {
+			return errors.New("db error")
 		},
 	}
 

@@ -49,8 +49,8 @@ func (h *TrackingHandler) HandleOpen(c *echo.Context) error {
 			return
 		}
 
-		event := &service.ProviderEvent{
-			Type:              service.EventOpened,
+		event := &domain.ProviderEvent{
+			Type:              domain.EventOpened,
 			ProviderMessageID: "", // not applicable for pixel opens
 			Timestamp:         time.Now().UTC(),
 		}

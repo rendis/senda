@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
+	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/service"
 )
 
@@ -72,9 +73,9 @@ type snsMessage struct {
 
 // sesNotification represents the SES event inside the SNS Message field.
 type sesNotification struct {
-	NotificationType string       `json:"notificationType"`
-	Mail             sesMail      `json:"mail"`
-	Bounce           *sesBounce   `json:"bounce,omitempty"`
+	NotificationType string        `json:"notificationType"`
+	Mail             sesMail       `json:"mail"`
+	Bounce           *sesBounce    `json:"bounce,omitempty"`
 	Complaint        *sesComplaint `json:"complaint,omitempty"`
 	Delivery         *sesDelivery  `json:"delivery,omitempty"`
 }
@@ -246,21 +247,21 @@ func (h *SESWebhookHandler) handleNotification(ctx context.Context, c *echo.Cont
 }
 
 // mapSESToProviderEvent converts an SES notification to a ProviderEvent.
-func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []byte) *service.ProviderEvent {
-	event := &service.ProviderEvent{
+func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []byte) *domain.ProviderEvent {
+	event := &domain.ProviderEvent{
 		ProviderMessageID: n.Mail.MessageId,
 		RawPayload:        rawBody,
 	}
 
 	switch n.NotificationType {
 	case "Delivery":
-		event.Type = service.EventDelivered
+		event.Type = domain.EventDelivered
 		if n.Delivery != nil {
 			event.Timestamp = parseSESTimestamp(n.Delivery.Timestamp)
 		}
 
 	case "Bounce":
-		event.Type = service.EventBounced
+		event.Type = domain.EventBounced
 		if n.Bounce != nil {
 			event.Timestamp = parseSESTimestamp(n.Bounce.Timestamp)
 
@@ -274,14 +275,14 @@ func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []
 				recipients = append(recipients, r.EmailAddress)
 			}
 
-			event.BounceDetail = &service.BounceDetail{
+			event.BounceDetail = &domain.BounceDetail{
 				BounceType: bounceType,
 				Recipients: recipients,
 			}
 		}
 
 	case "Complaint":
-		event.Type = service.EventComplained
+		event.Type = domain.EventComplained
 		if n.Complaint != nil {
 			event.Timestamp = parseSESTimestamp(n.Complaint.Timestamp)
 
@@ -290,7 +291,7 @@ func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []
 				recipients = append(recipients, r.EmailAddress)
 			}
 
-			event.ComplaintDetail = &service.ComplaintDetail{
+			event.ComplaintDetail = &domain.ComplaintDetail{
 				ComplaintType: n.Complaint.ComplaintFeedbackType,
 				FeedbackID:    n.Complaint.FeedbackId,
 				Recipients:    recipients,

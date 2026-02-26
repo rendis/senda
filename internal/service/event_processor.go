@@ -2,52 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
 )
-
-// TODO: Move ProviderEventType, ProviderEvent, BounceDetail, and ComplaintDetail
-// to internal/domain/provider_event.go. These are domain concepts (normalized
-// provider events), not service implementation details. They remain here temporarily
-// because modifying internal/domain/ is out of scope for this change.
-
-// ProviderEventType represents the type of a provider event.
-type ProviderEventType string
-
-const (
-	EventDelivered  ProviderEventType = "delivered"
-	EventBounced    ProviderEventType = "bounced"
-	EventComplained ProviderEventType = "complained"
-	EventOpened     ProviderEventType = "opened"
-)
-
-// BounceDetail contains bounce-specific information from the provider.
-type BounceDetail struct {
-	BounceType     string   // "hard" or "soft"
-	DiagnosticCode string
-	Recipients     []string
-}
-
-// ComplaintDetail contains complaint-specific information from the provider.
-type ComplaintDetail struct {
-	ComplaintType string
-	FeedbackID    string
-	Recipients    []string
-}
-
-// ProviderEvent represents a normalized event from an email provider.
-type ProviderEvent struct {
-	Type              ProviderEventType
-	ProviderMessageID string
-	Timestamp         time.Time
-	RawPayload        json.RawMessage
-	BounceDetail      *BounceDetail
-	ComplaintDetail   *ComplaintDetail
-}
 
 // EmailLookup is a local interface for finding emails by provider message ID.
 // The main EmailStore in port/ does not have GetByProviderMessageID yet.
@@ -103,7 +63,7 @@ func NewEventProcessor(
 }
 
 // Process handles a single provider event.
-func (p *EventProcessor) Process(ctx context.Context, event *ProviderEvent) error {
+func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEvent) error {
 	// 1. Look up the email by provider message ID.
 	email, err := p.emailLookup.GetByProviderMessageID(ctx, event.ProviderMessageID)
 	if err != nil {
@@ -158,11 +118,11 @@ func (p *EventProcessor) Process(ctx context.Context, event *ProviderEvent) erro
 	if p.webhookService != nil {
 		webhookPayload := map[string]any{
 			"email_id":            email.ID.String(),
-			"tracking_id":        email.TrackingID,
-			"recipient":          email.RecipientEmail,
-			"status":             string(status),
+			"tracking_id":         email.TrackingID,
+			"recipient":           email.RecipientEmail,
+			"status":              string(status),
 			"provider_message_id": event.ProviderMessageID,
-			"timestamp":          event.Timestamp.Format(time.RFC3339),
+			"timestamp":           event.Timestamp.Format(time.RFC3339),
 		}
 		if err := p.webhookService.Dispatch(ctx, email.WorkspaceID, "email."+string(event.Type), webhookPayload); err != nil {
 			p.logger.ErrorContext(ctx, "failed to dispatch webhook",
@@ -180,7 +140,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *ProviderEvent) erro
 // ProcessDirect handles an event for an email that has already been looked up.
 // Used by the open-tracking pixel where we already have the email from tracking_id.
 // Status is only updated if the email is in an eligible state (sent/delivered).
-func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email, event *ProviderEvent) error {
+func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email, event *domain.ProviderEvent) error {
 	status, ok := mapEventToStatus(event.Type)
 	if !ok {
 		p.logger.WarnContext(ctx, "unknown provider event type",
@@ -192,7 +152,7 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 
 	// Only transition status for opens if email is sent or delivered.
 	// Don't overwrite bounced/complained/failed, and don't re-set opened.
-	if event.Type == EventOpened {
+	if event.Type == domain.EventOpened {
 		if email.Status == domain.StatusSent || email.Status == domain.StatusDelivered {
 			if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
 				return err
@@ -241,9 +201,9 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 }
 
 // handleSuppression adds suppression entries for hard bounces and complaints.
-func (p *EventProcessor) handleSuppression(ctx context.Context, event *ProviderEvent, email *domain.Email) error {
+func (p *EventProcessor) handleSuppression(ctx context.Context, event *domain.ProviderEvent, email *domain.Email) error {
 	switch event.Type {
-	case EventBounced:
+	case domain.EventBounced:
 		if event.BounceDetail == nil || event.BounceDetail.BounceType != "hard" {
 			return nil
 		}
@@ -255,7 +215,7 @@ func (p *EventProcessor) handleSuppression(ctx context.Context, event *ProviderE
 			CreatedAt:     time.Now().UTC(),
 		})
 
-	case EventComplained:
+	case domain.EventComplained:
 		return p.suppression.AddWorkspace(ctx, &domain.SuppressionWorkspace{
 			ID:            uuid.Must(uuid.NewV7()),
 			WorkspaceID:   email.WorkspaceID,
@@ -271,15 +231,15 @@ func (p *EventProcessor) handleSuppression(ctx context.Context, event *ProviderE
 }
 
 // mapEventToStatus maps a provider event type to an internal email status.
-func mapEventToStatus(eventType ProviderEventType) (domain.EmailStatus, bool) {
+func mapEventToStatus(eventType domain.ProviderEventType) (domain.EmailStatus, bool) {
 	switch eventType {
-	case EventDelivered:
+	case domain.EventDelivered:
 		return domain.StatusDelivered, true
-	case EventBounced:
+	case domain.EventBounced:
 		return domain.StatusBounced, true
-	case EventComplained:
+	case domain.EventComplained:
 		return domain.StatusComplained, true
-	case EventOpened:
+	case domain.EventOpened:
 		return domain.StatusOpened, true
 	default:
 		return "", false
@@ -287,7 +247,7 @@ func mapEventToStatus(eventType ProviderEventType) (domain.EmailStatus, bool) {
 }
 
 // buildEventMetadata creates metadata for an email event based on the provider event.
-func buildEventMetadata(event *ProviderEvent) map[string]any {
+func buildEventMetadata(event *domain.ProviderEvent) map[string]any {
 	meta := map[string]any{
 		"provider_message_id": event.ProviderMessageID,
 		"source":              "provider_webhook",

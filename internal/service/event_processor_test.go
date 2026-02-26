@@ -144,22 +144,22 @@ func (f *eventProcessorFixture) buildProcessor() *service.EventProcessor {
 	)
 }
 
-func (f *eventProcessorFixture) deliveryEvent() *service.ProviderEvent {
-	return &service.ProviderEvent{
-		Type:              service.EventDelivered,
+func (f *eventProcessorFixture) deliveryEvent() *domain.ProviderEvent {
+	return &domain.ProviderEvent{
+		Type:              domain.EventDelivered,
 		ProviderMessageID: "ses-msg-123",
 		Timestamp:         time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC),
 		RawPayload:        json.RawMessage(`{}`),
 	}
 }
 
-func (f *eventProcessorFixture) hardBounceEvent() *service.ProviderEvent {
-	return &service.ProviderEvent{
-		Type:              service.EventBounced,
+func (f *eventProcessorFixture) hardBounceEvent() *domain.ProviderEvent {
+	return &domain.ProviderEvent{
+		Type:              domain.EventBounced,
 		ProviderMessageID: "ses-msg-123",
 		Timestamp:         time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC),
 		RawPayload:        json.RawMessage(`{}`),
-		BounceDetail: &service.BounceDetail{
+		BounceDetail: &domain.BounceDetail{
 			BounceType:     "hard",
 			DiagnosticCode: "smtp;550 5.1.1",
 			Recipients:     []string{"alice@user.com"},
@@ -167,13 +167,13 @@ func (f *eventProcessorFixture) hardBounceEvent() *service.ProviderEvent {
 	}
 }
 
-func (f *eventProcessorFixture) softBounceEvent() *service.ProviderEvent {
-	return &service.ProviderEvent{
-		Type:              service.EventBounced,
+func (f *eventProcessorFixture) softBounceEvent() *domain.ProviderEvent {
+	return &domain.ProviderEvent{
+		Type:              domain.EventBounced,
 		ProviderMessageID: "ses-msg-123",
 		Timestamp:         time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC),
 		RawPayload:        json.RawMessage(`{}`),
-		BounceDetail: &service.BounceDetail{
+		BounceDetail: &domain.BounceDetail{
 			BounceType:     "soft",
 			DiagnosticCode: "smtp;452 4.2.2",
 			Recipients:     []string{"alice@user.com"},
@@ -181,13 +181,13 @@ func (f *eventProcessorFixture) softBounceEvent() *service.ProviderEvent {
 	}
 }
 
-func (f *eventProcessorFixture) complaintEvent() *service.ProviderEvent {
-	return &service.ProviderEvent{
-		Type:              service.EventComplained,
+func (f *eventProcessorFixture) complaintEvent() *domain.ProviderEvent {
+	return &domain.ProviderEvent{
+		Type:              domain.EventComplained,
 		ProviderMessageID: "ses-msg-123",
 		Timestamp:         time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC),
 		RawPayload:        json.RawMessage(`{}`),
-		ComplaintDetail: &service.ComplaintDetail{
+		ComplaintDetail: &domain.ComplaintDetail{
 			ComplaintType: "abuse",
 			FeedbackID:    "feedback-456",
 			Recipients:    []string{"alice@user.com"},
@@ -195,9 +195,9 @@ func (f *eventProcessorFixture) complaintEvent() *service.ProviderEvent {
 	}
 }
 
-func (f *eventProcessorFixture) openEvent() *service.ProviderEvent {
-	return &service.ProviderEvent{
-		Type:              service.EventOpened,
+func (f *eventProcessorFixture) openEvent() *domain.ProviderEvent {
+	return &domain.ProviderEvent{
+		Type:              domain.EventOpened,
 		ProviderMessageID: "ses-msg-123",
 		Timestamp:         time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC),
 		RawPayload:        json.RawMessage(`{}`),

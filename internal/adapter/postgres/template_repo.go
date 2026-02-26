@@ -372,11 +372,22 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 		_ = tx.Rollback(ctx)
 	}()
 
+	var lockedTemplateID uuid.UUID
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM templates WHERE id = @template_id FOR UPDATE`,
+		pgx.NamedArgs{"template_id": ver.TemplateID},
+	).Scan(&lockedTemplateID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NotFound("template %s not found", ver.TemplateID)
+		}
+		return fmt.Errorf("locking template for version creation: %w", err)
+	}
+
 	// Auto-calculate version number
 	var versionNumber int
 	err = tx.QueryRow(ctx,
 		`SELECT COALESCE(MAX(version_number), 0) + 1
-		 FROM template_versions
+			 FROM template_versions
 		 WHERE template_id = @template_id`,
 		pgx.NamedArgs{"template_id": ver.TemplateID},
 	).Scan(&versionNumber)
@@ -387,12 +398,12 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 
 	row := tx.QueryRow(ctx,
 		`INSERT INTO template_versions (id, template_id, version_number, status, subject, preview_text,
-		                                from_name, reply_to, body_mjml, default_locale,
-		                                editor_data, created_by)
-		 VALUES (@id, @template_id, @version_number, @status, @subject, @preview_text,
-		         @from_name, @reply_to, @body_mjml, @default_locale,
-		         @editor_data, @created_by)
-		 RETURNING created_at, updated_at`,
+			                                from_name, reply_to, body_mjml, default_locale,
+			                                editor_data, created_by)
+			 VALUES (@id, @template_id, @version_number, @status, @subject, @preview_text,
+			         @from_name, @reply_to, @body_mjml, @default_locale,
+			         @editor_data, @created_by)
+			 RETURNING version_number, created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":             ver.ID,
 			"template_id":    ver.TemplateID,
@@ -409,7 +420,10 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 		},
 	)
 
-	if err := row.Scan(&ver.CreatedAt, &ver.UpdatedAt); err != nil {
+	if err := row.Scan(&ver.VersionNumber, &ver.CreatedAt, &ver.UpdatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
 		return fmt.Errorf("inserting template version: %w", err)
 	}
 

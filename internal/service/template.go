@@ -54,27 +54,12 @@ func (s *TemplateService) EnableTemplate(ctx context.Context, templateID uuid.UU
 }
 
 // CreateVersion creates a new draft version for a template.
-// The version number is determined by counting existing versions + 1.
-//
-// WARNING: Race condition — concurrent CreateVersion calls for the same templateID
-// may read the same len(versions) and produce duplicate version numbers.
-// Production fix options:
-//  1. Use a DB-level sequence per template (preferred).
-//  2. Use SELECT MAX(version_number) + 1 ... FOR UPDATE in a transaction.
-//  3. Add a UNIQUE(template_id, version_number) constraint and retry on conflict.
-//
-// TODO: Implement one of the above strategies when moving to transactional store operations.
+// Version assignment is delegated to the store to keep it transactional.
 func (s *TemplateService) CreateVersion(ctx context.Context, templateID uuid.UUID, subject, previewText, fromName string, replyTo *string, bodyMJML, defaultLocale string, editorData map[string]any, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
-	versions, err := s.store.ListVersions(ctx, templateID)
-	if err != nil {
-		return nil, err
-	}
-
 	now := time.Now().UTC()
 	ver := &domain.TemplateVersion{
 		ID:            uuid.Must(uuid.NewV7()),
 		TemplateID:    templateID,
-		VersionNumber: len(versions) + 1,
 		Status:        domain.VersionStatusDraft,
 		Subject:       subject,
 		PreviewText:   previewText,
