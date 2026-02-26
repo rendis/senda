@@ -4,11 +4,11 @@ Comprehensive Postman collection for the Senda email orchestration platform API 
 
 ## Files
 
-| File | Description |
-|------|-------------|
-| `senda-api-v1.postman_collection.json` | Full API collection (Postman v2.1 format) |
-| `senda-local.postman_environment.json` | Environment for local development (localhost:8080) |
-| `senda-staging.postman_environment.json` | Environment for staging (placeholder URL) |
+| File                                     | Description                                        |
+| ---------------------------------------- | -------------------------------------------------- |
+| `senda-api-v1.postman_collection.json`   | Full API collection (Postman v2.1 format)          |
+| `senda-local.postman_environment.json`   | Environment for local development (localhost:8080) |
+| `senda-staging.postman_environment.json` | Environment for staging (placeholder URL)          |
 
 ## Quick Start
 
@@ -31,6 +31,7 @@ The collection uses Bearer token auth by default. Individual requests inherit th
 The Send endpoint (`POST /api/v1/send`) uses API Key auth via the `X-API-Key` header.
 
 To get an API key:
+
 1. Create one via `POST /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/api-keys`
 2. Save the `key` from the response (returned only once)
 3. Set the `api_key` environment variable
@@ -45,49 +46,49 @@ To get an API key:
 
 The collection is organized into folders matching the API structure:
 
-| Folder | Endpoints | Auth | Description |
-|--------|-----------|------|-------------|
-| **Health** | 3 | None | Health checks and Prometheus metrics |
-| **Onboarding** | 2 | Public / OIDC | First-use setup |
-| **Tenants** | 5 | OIDC (superadmin) | Tenant CRUD |
-| **Workspaces** | 5 | OIDC (tenant_admin+) | Workspace CRUD |
-| **Members** | 4 | OIDC (superadmin) | Member and role management |
-| **Config** | 2 | OIDC (superadmin) | Global configuration |
-| **Injectors** | 4 | OIDC (workspace roles) | Injector definitions and values |
-| **Adapters** | 5 | OIDC (workspace roles) | Email adapter CRUD |
-| **Domains** | 5 | OIDC (workspace roles) | Domain registration and DKIM verification |
-| **Template Types** | 3 | OIDC (workspace roles) | Template type CRUD |
-| **Templates** | 9 | OIDC (workspace roles) | Templates, versions, locales, MJML preview |
-| **Send** | 1 | API Key / OIDC | Send emails |
-| **Emails** | 3 | OIDC (workspace_viewer+) | Email query and event history |
-| **Suppression** | 3 | OIDC (workspace roles) | Suppression list management |
-| **Audit Log** | 1 | OIDC (workspace_viewer+) | Workspace audit log |
-| **Webhooks** | 6 | OIDC (workspace roles) | Webhook CRUD and test |
-| **API Keys** | 3 | OIDC (workspace_admin) | API key management |
-| **SES Webhooks** | 1 | None (SNS sig) | Provider event ingestion |
-| **Global** | 15 | OIDC (superadmin) | Global-scoped resources |
+| Folder             | Endpoints | Auth                     | Description                                |
+| ------------------ | --------- | ------------------------ | ------------------------------------------ |
+| **Health**         | 3         | None                     | Health checks and Prometheus metrics       |
+| **Onboarding**     | 2         | Public / OIDC            | First-use setup                            |
+| **Tenants**        | 5         | OIDC (superadmin)        | Tenant CRUD                                |
+| **Workspaces**     | 5         | OIDC (tenant_admin+)     | Workspace CRUD                             |
+| **Members**        | 4         | OIDC (superadmin)        | Member and role management                 |
+| **Config**         | 2         | OIDC (superadmin)        | Global configuration                       |
+| **Injectors**      | 4         | OIDC (workspace roles)   | Injector definitions and values            |
+| **Adapters**       | 5         | OIDC (workspace roles)   | Email adapter CRUD                         |
+| **Domains**        | 5         | OIDC (workspace roles)   | Domain registration and DKIM verification  |
+| **Template Types** | 3         | OIDC (workspace roles)   | Template type CRUD                         |
+| **Templates**      | 9         | OIDC (workspace roles)   | Templates, versions, locales, MJML preview |
+| **Send**           | 1         | API Key / OIDC           | Send emails                                |
+| **Emails**         | 3         | OIDC (workspace_viewer+) | Email query and event history              |
+| **Suppression**    | 3         | OIDC (workspace roles)   | Suppression list management                |
+| **Audit Log**      | 1         | OIDC (workspace_viewer+) | Workspace audit log                        |
+| **Webhooks**       | 6         | OIDC (workspace roles)   | Webhook CRUD and test                      |
+| **API Keys**       | 3         | OIDC (workspace_admin)   | API key management                         |
+| **SES Webhooks**   | 1         | None (SNS sig)           | Provider event ingestion                   |
+| **Global**         | 15        | OIDC (superadmin)        | Global-scoped resources                    |
 
 ## Variables
 
 The collection uses these variables (auto-populated by test scripts):
 
-| Variable | Source | Description |
-|----------|--------|-------------|
-| `base_url` | Environment | Server base URL |
-| `oidc_token` | Environment | OIDC Bearer token |
-| `api_key` | Auto (Create API Key) | API key for send endpoint |
-| `tenant_code` | Auto (Create Tenant) | Current tenant code |
-| `workspace_code` | Auto (Create Workspace) | Current workspace code |
-| `member_id` | Auto (Create Member) | Last created member ID |
-| `role_id` | Auto (Add Role) | Last created role ID |
-| `adapter_id` | Auto (Create Adapter) | Last created adapter ID |
-| `domain_id` | Auto (Register Domain) | Last created domain ID |
+| Variable           | Source                      | Description                   |
+| ------------------ | --------------------------- | ----------------------------- |
+| `base_url`         | Environment                 | Server base URL               |
+| `oidc_token`       | Environment                 | OIDC Bearer token             |
+| `api_key`          | Auto (Create API Key)       | API key for send endpoint     |
+| `tenant_code`      | Auto (Create Tenant)        | Current tenant code           |
+| `workspace_code`   | Auto (Create Workspace)     | Current workspace code        |
+| `member_id`        | Auto (Create Member)        | Last created member ID        |
+| `role_id`          | Auto (Add Role)             | Last created role ID          |
+| `adapter_id`       | Auto (Create Adapter)       | Last created adapter ID       |
+| `domain_id`        | Auto (Register Domain)      | Last created domain ID        |
 | `template_type_id` | Auto (Create Template Type) | Last created template type ID |
-| `template_id` | Auto (Create Template) | Last created template ID |
-| `version_id` | Auto (Create Version) | Last created version ID |
-| `tracking_id` | Auto (Send Email) | Last tracking ID from send |
-| `webhook_id` | Auto (Create Webhook) | Last created webhook ID |
-| `api_key_id` | Auto (Create API Key) | Last created API key ID |
+| `template_id`      | Auto (Create Template)      | Last created template ID      |
+| `version_id`       | Auto (Create Version)       | Last created version ID       |
+| `tracking_id`      | Auto (Send Email)           | Last tracking ID from send    |
+| `webhook_id`       | Auto (Create Webhook)       | Last created webhook ID       |
+| `api_key_id`       | Auto (Create API Key)       | Last created API key ID       |
 
 ## Recommended Test Order
 
@@ -122,17 +123,17 @@ All errors follow the standard envelope:
 
 ```json
 {
-    "error": {
-        "code": "VALIDATION_ERROR",
-        "message": "validation failed",
-        "details": [
-            {
-                "field": "name",
-                "message": "is required"
-            }
-        ],
-        "request_id": "abc-123"
-    }
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "validation failed",
+    "details": [
+      {
+        "field": "name",
+        "message": "is required"
+      }
+    ],
+    "request_id": "abc-123"
+  }
 }
 ```
 

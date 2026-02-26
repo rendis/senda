@@ -1,0 +1,47 @@
+name: System Nightly Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 5 * * *'
+
+jobs:
+  system-nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm --prefix web ci
+
+      - name: Install test CLIs
+        run: npm install -g newman agent-browser
+
+      - name: Install browser runtime
+        run: agent-browser install --with-deps
+
+      - name: Run full nightly gate
+        run: make system-nightly
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-nightly-artifacts
+          path: artifacts/system/**
+          if-no-files-found: warn

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/http/middleware"
 	"github.com/senda-app/senda/internal/http/pagination"
 	"github.com/senda-app/senda/internal/http/request"
 	"github.com/senda-app/senda/internal/http/response"
@@ -108,6 +109,25 @@ func (h *MemberHandler) Get(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
+	roleResponses := make([]response.MemberRoleResponse, len(roles))
+	for i, r := range roles {
+		roleResponses[i] = response.NewMemberRoleResponse(r)
+	}
+
+	return c.JSON(http.StatusOK, response.MemberWithRolesResponse{
+		MemberResponse: response.NewMemberResponse(member),
+		Roles:          roleResponses,
+	})
+}
+
+// Me handles GET /api/v1/members/me.
+func (h *MemberHandler) Me(c *echo.Context) error {
+	member, _ := c.Get(middleware.ContextKeyMember).(*domain.Member)
+	if member == nil {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing member context")
+	}
+
+	roles, _ := c.Get(middleware.ContextKeyRoles).([]*domain.MemberRole)
 	roleResponses := make([]response.MemberRoleResponse, len(roles))
 	for i, r := range roles {
 		roleResponses[i] = response.NewMemberRoleResponse(r)

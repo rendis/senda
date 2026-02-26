@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run lint migrate-up migrate-down clean help
+.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 COMPOSE_E2E := docker compose -f docker/docker-compose.e2e.yml
@@ -65,6 +65,23 @@ test-e2e-chaos-run: ## Run chaos E2E suite (non-blocking)
 test-e2e-chaos: test-e2e-up ## Run chaos E2E suite (starts stack, runs tests, stops stack)
 	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run '^TestC[0-9]' || ($(MAKE) test-e2e-down && exit 1)
 	$(MAKE) test-e2e-down
+
+## System test orchestration
+system-validate-manifest: ## Validate full screen manifest coverage vs app routes
+	go run ./cmd/systemtest validate-manifest --manifest test/system/screen-manifest.json --baseline-map test/system/visual-baseline-map.json --app-dir web/src/app
+
+system-matrix: ## Generate system coverage matrix CSV into artifacts
+	mkdir -p artifacts/system
+	go run ./cmd/systemtest matrix --manifest test/system/screen-manifest.json --format csv --out artifacts/system/coverage-matrix.csv
+
+system-pr: ## Run PR system gate (functional + UI flow + critical visual)
+	bash test/system/system-runner.sh pr
+
+system-nightly: ## Run nightly full system gate (functional + security/chaos + visual + a11y)
+	bash test/system/system-runner.sh nightly
+
+system-down: ## Force-stop system E2E stack
+	bash test/system/subagents/infra-orchestrator.sh down
 
 ## Migrations
 migrate-up: ## Run all migrations up

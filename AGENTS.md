@@ -4,22 +4,64 @@
 
 Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements a 3-level hierarchy (Global → Tenant → Workspace) with inheritance chain resolution for templates, injectors, and adapters.
 
-**Stack:** Go 1.25+, PostgreSQL 16 + pg_cron, Echo v5, River (queue), pgx v5, gomjml, golang-migrate
+- **Module:** `github.com/senda-app/senda`
+- **Backend:** Go 1.25+ / PostgreSQL 16 + pg_cron / Echo v5 / River (PG-native queue) / pgx v5 / gomjml / golang-migrate
+- **Frontend:** Next.js 16 / React 19 / TypeScript 5 / Tailwind v4 / shadcn/ui (in `web/`)
+- **Architecture:** Hexagonal (Ports & Adapters) — domain has zero infra dependencies
+- **No Redis.** PG handles cache (UNLOGGED tables), rate limiting (PL/pgSQL token bucket), and job queue (River).
+- **Config priority:** env vars > YAML > defaults. Prefix: `SENDA_`
+- **Auth:** OIDC (humans, management plane) + API Keys (machines, data plane). 5-tier RBAC.
+- **Data patterns:** UUIDs v7, cursor-based pagination, soft delete (`deleted_at`), partitioned tables (emails, audit_logs)
 
-**Architecture:** Hexagonal (Ports & Adapters), TDD mandatory, TestContainers for integration tests.
+### Key Paths
+
+```
+cmd/senda/              Entry point + DI
+internal/
+  domain/               Entities, value objects, domain errors
+  port/                 Interface contracts (stores, senders, crypto, cache, queue)
+  service/              Business logic (SendService, TemplateService, EventProcessor, WebhookService, APIKeyService, IdentityService)
+  resolution/           Hierarchy chain resolution (chain, template, adapter, injector merger)
+  adapter/
+    postgres/           PG stores (pgx v5) + rate limiter
+    pgcache/            PG UNLOGGED cache
+    ses/                AWS SES sender + identity provider
+    gmail/              Gmail sender + identity provider
+    smtp/               SMTP sender (dev/Mailpit)
+    river/              Background workers (send + webhook)
+    mjml/               MJML -> HTML compiler (gomjml)
+    crypto/             AES-256-GCM encryption (HKDF)
+  http/
+    handler/            HTTP handlers (26+)
+    middleware/          Auth, RBAC, scope, logger, metrics, recovery, requestid
+  app/                  Bootstrap + DI wiring
+pkg/                    apperr (error mapping), slug (validation), tracking (ID gen)
+migrations/             24 SQL migrations (golang-migrate)
+config/                 YAML config + env overrides (SENDA_* prefix)
+web/src/                Frontend app (Next.js App Router)
+```
+
+### Rules
+
+- **TDD mandatory** — write test first, make it pass, refactor
+- **Manual mocks** — no mock frameworks; implement interfaces by hand
+- **Integration tests** — use TestContainers, tag with `//go:build integration`
+- **E2E tests** — tag with `//go:build e2e`, require Docker stack running
 
 ---
 
 ## Session Workflow (cómo trabajar conmigo)
 
-### Al iniciar cada sesión:
+### Al iniciar cada sesión
 
 1. **Lee este archivo** (`AGENTS.md`) — ya lo estás haciendo
 2. **Revisa el estado actual:**
+
    ```bash
    ls stories/in-progress/    # ¿Hay algo a medio hacer?
    ls stories/done/            # ¿Qué ya está completado?
    ```
+
 3. **Si hay una HT in-progress** → continúa donde se quedó (lee la sección "Log de Progreso" de esa HT)
 4. **Si no hay nada in-progress** → consulta `stories/MANIFEST.md` sección "Ready to Start" y elige la siguiente según el orden recomendado
 
@@ -35,12 +77,12 @@ Senda is an open-source email orchestration platform built with Go + PostgreSQL 
    - Mueve la HT a `stories/done/`
    - Actualiza `stories/MANIFEST.md` (status, counters, "Ready to Start")
 
-### Si la sesión se corta a mitad de una HT:
+### Si la sesión se corta a mitad de una HT
 
 - La HT queda en `stories/in-progress/` con su "Log de Progreso" actualizado
 - La siguiente sesión retoma desde ahí — no repitas trabajo ya hecho
 
-### Prompt tipo para iniciar sesión:
+### Prompt tipo para iniciar sesión
 
 ```
 Revisa el estado del proyecto y continúa con la siguiente HT disponible.
@@ -185,14 +227,17 @@ Documentation lives in `docs/`:
 
 | Document                           | Purpose                                              | Read When                                |
 | ---------------------------------- | ---------------------------------------------------- | ---------------------------------------- |
+| `docs/ARCHITECTURE.md`             | Architecture deep-dive, diagrams, resolution engine  | Understanding system design              |
+| `docs/API.md`                      | Full API reference (endpoints, auth, errors)         | Building integrations or handlers        |
+| `docs/DEVELOPMENT.md`              | Developer setup, Makefile, Docker, troubleshooting   | First-time setup or debugging env        |
+| `docs/DEPLOYMENT.md`               | Production deployment, env vars, providers           | Deploying to production                  |
 | `docs/specs/PRD_v5.md`             | Product requirements, user stories, business rules   | Understanding "why" and "what"           |
 | `docs/specs/TECH_SPEC_v1.md`       | Complete technical specification (v1.4, ~5000 lines) | **Primary reference for implementation** |
 | `docs/specs/TECH_STORIES.md`       | All 27 HTs with dependency graph and timeline        | Understanding scope and order            |
 | `docs/specs/TESTING_STRATEGY.md`   | Test pyramid, patterns, coverage targets             | Writing tests                            |
 | `docs/specs/SECURITY_CHECKLIST.md` | OWASP mapping, encryption, auth requirements         | Security-sensitive code                  |
-| `docs/specs/DESIGN_BRIEF.md`       | UX/UI specification for frontend (future)            | Not needed for backend                   |
-
-> Historical versions (PRD v1–v4, INITIAL_SPECT) live in `docs/archive/`.
+| `docs/specs/DESIGN_BRIEF.md`       | UX/UI specification for frontend                     | Frontend implementation                  |
+| `docs/postman/`                    | Postman collection + environments                    | API testing                              |
 
 ### UI/UX Design — Pencil MCP (OBLIGATORIO)
 
@@ -308,15 +353,16 @@ senda/
 ├── stories/
 │   ├── MANIFEST.md        ← Dependency graph + status overview
 │   ├── backlog/           ← Stories not yet started
-│   │   ├── HT-01.md
-│   │   ├── HT-02.md
-│   │   └── ...
 │   ├── in-progress/       ← Currently being worked on
 │   ├── done/              ← Completed stories
 │   └── blocked/           ← Stories blocked by external dependency
 ├── docs/
-│   ├── specs/             ← Docs vigentes (PRD, Tech Spec, etc.)
-│   └── archive/           ← Versiones históricas
+│   ├── ARCHITECTURE.md    ← Architecture deep-dive + diagrams
+│   ├── API.md             ← Full API reference
+│   ├── DEVELOPMENT.md     ← Developer setup guide
+│   ├── DEPLOYMENT.md      ← Production deployment
+│   ├── postman/           ← Postman collection + environments
+│   └── specs/             ← PRD, Tech Spec, Stories, Security, Design
 └── ...
 ```
 
@@ -406,6 +452,7 @@ grep "dependencies:" stories/backlog/HT-XX.md
 ```bash
 make test                 # Unit tests pass
 make test-integration     # Integration tests pass (if applicable)
+make test-e2e             # E2E deterministic gate (if applicable)
 make lint                 # golangci-lint passes
 go vet ./...              # No issues
 ```
@@ -473,6 +520,72 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 8. **Partitioned tables** — emails and audit_logs by month
 9. **Soft delete** — `deleted_at` column, never physical delete
 10. **Cursor-based pagination** — no offset, UUIDv7 as cursor
+
+---
+
+## Available Commands
+
+### Makefile Targets
+
+| Category    | Command                         | Description                                               |
+| ----------- | ------------------------------- | --------------------------------------------------------- |
+| **Dev**     | `make dev`                      | Start full Docker stack (senda + PG + Keycloak + Mailpit) |
+|             | `make dev-down`                 | Stop the stack                                            |
+|             | `make dev-clean`                | Stop stack + remove volumes                               |
+| **Build**   | `make build`                    | Build binary to `bin/senda`                               |
+| **Test**    | `make test`                     | Unit tests with race detector                             |
+|             | `make test-integration`         | Integration tests (TestContainers, requires PG)           |
+|             | `make test-e2e`                 | E2E deterministic gate (starts stack, runs, stops)        |
+|             | `make test-e2e-run`             | E2E deterministic (assumes stack running)                 |
+|             | `make test-e2e-full`            | Full E2E suite incl. chaos (starts stack, stops)          |
+|             | `make test-e2e-full-run`        | Full E2E suite (assumes stack running)                    |
+|             | `make test-e2e-core`            | E2E core gate only (starts stack, stops)                  |
+|             | `make test-e2e-core-run`        | E2E core gate (assumes stack running)                     |
+|             | `make test-e2e-chaos`           | Chaos E2E suite (starts stack, stops)                     |
+|             | `make test-e2e-chaos-run`       | Chaos E2E suite (assumes stack running)                   |
+|             | `make test-e2e-up`              | Start E2E stack with --wait                               |
+|             | `make test-e2e-down`            | Stop E2E stack + remove volumes                           |
+| **System**  | `make system-validate-manifest` | Validate screen manifest vs app routes                    |
+|             | `make system-matrix`            | Generate system coverage matrix CSV                       |
+|             | `make system-pr`                | PR system gate (functional + UI + visual)                 |
+|             | `make system-nightly`           | Nightly full gate (+ security + a11y)                     |
+|             | `make system-down`              | Force-stop system E2E stack                               |
+| **DB**      | `make migrate-up`               | Apply all pending migrations                              |
+|             | `make migrate-down`             | Rollback last migration                                   |
+| **Quality** | `make lint`                     | golangci-lint                                             |
+| **Cleanup** | `make clean`                    | Remove build artifacts (bin/, tmp/)                       |
+| **Help**    | `make help`                     | Show all targets with descriptions                        |
+
+### Frontend Scripts
+
+```bash
+npm --prefix web run dev      # Next.js dev server (localhost:3000)
+npm --prefix web run build    # Production build
+npm --prefix web run start    # Production server
+npm --prefix web run lint     # ESLint
+```
+
+---
+
+## Dev Stack Services
+
+| Service  | Default Port            | Purpose                      | Access URL                                         | Credentials   |
+| -------- | ----------------------- | ---------------------------- | -------------------------------------------------- | ------------- |
+| senda    | 8081                    | Backend API (Air hot-reload) | http://localhost:8081                              | —             |
+| postgres | 5435                    | PostgreSQL 16 + pg_cron      | `psql postgres://senda:senda@localhost:5435/senda` | senda / senda |
+| keycloak | 9090                    | OIDC provider                | http://localhost:9090                              | admin / admin |
+| mailpit  | 1026 (SMTP) / 8026 (UI) | Email capture                | http://localhost:8026                              | —             |
+| caddy    | 443                     | HTTPS proxy (optional)       | https://localhost                                  | —             |
+
+### Keycloak Test Users
+
+| Email                      | Password         | Role            |
+| -------------------------- | ---------------- | --------------- |
+| admin@senda.dev            | admin            | Superadmin      |
+| tenant-admin@senda.dev     | tenant-admin     | TenantAdmin     |
+| workspace-admin@senda.dev  | workspace-admin  | WorkspaceAdmin  |
+| workspace-editor@senda.dev | workspace-editor | WorkspaceEditor |
+| workspace-viewer@senda.dev | workspace-viewer | WorkspaceViewer |
 
 ---
 

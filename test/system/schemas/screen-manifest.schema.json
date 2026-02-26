@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://senda-app.github.io/schemas/screen-manifest.schema.json",
+  "title": "System Screen Manifest",
+  "type": "object",
+  "required": ["version", "matrixDefaults", "screens"],
+  "properties": {
+    "version": { "type": "string" },
+    "matrixDefaults": {
+      "type": "object",
+      "required": ["role", "locale", "viewport"],
+      "properties": {
+        "role": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "locale": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "viewport": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "screens": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "route",
+          "scope",
+          "role",
+          "locale",
+          "viewport",
+          "preconditions",
+          "actions",
+          "assertions",
+          "pencilFrameId",
+          "critical"
+        ],
+        "properties": {
+          "route": { "type": "string" },
+          "scope": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "role": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "locale": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "viewport": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "preconditions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "actions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "assertions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "pencilFrameId": { "type": "string" },
+          "critical": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

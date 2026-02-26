@@ -50,6 +50,96 @@
           "temporary": false
         }
       ]
+    },
+    {
+      "username": "tenant-admin@senda.dev",
+      "email": "tenant-admin@senda.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Tenant",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "tenant-admin",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "workspace-admin@senda.dev",
+      "email": "workspace-admin@senda.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Workspace",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "workspace-admin",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "workspace-editor@senda.dev",
+      "email": "workspace-editor@senda.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Workspace",
+      "lastName": "Editor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "workspace-editor",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "workspace-viewer@senda.dev",
+      "email": "workspace-viewer@senda.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Workspace",
+      "lastName": "Viewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "workspace-viewer",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "no-member@senda.dev",
+      "email": "no-member@senda.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "No",
+      "lastName": "Member",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "no-member",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "superadmin@test.example.com",
+      "email": "superadmin@test.example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Superadmin",
+      "lastName": "Bootstrap",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "superadmin-test",
+          "temporary": false
+        }
+      ]
     }
   ]
 }

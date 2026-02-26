@@ -1,7 +1,7 @@
 # Senda — Story Manifest
 
 > Auto-actualizar este archivo al mover stories entre directorios.
-> Última actualización: 2026-02-25 (cierre operativo 5 puntos)
+> Última actualización: 2026-02-25 (HT-38 hardening post-cierre)
 
 ---
 
@@ -11,10 +11,10 @@
 |--------|-------|---------|
 | Backlog | 0 | — |
 | In Progress | 0 | — |
-| Done | 37 | HT-01 to HT-37 |
+| Done | 38 | HT-01 to HT-38 |
 | Blocked | 0 | — |
 
-**Progress: 37 / 37 (100%)**
+**Progress: 38 / 38 (100%)**
 
 ---
 
@@ -50,6 +50,7 @@
 | HT-26 | Observability (Metrics + Health + Logging) | HT-17 | D | done |
 | HT-27 | API Keys Service + Management Endpoints | HT-09, HT-17, HT-18 | C | done |
 | **HT-37** | **E2E Backend QA + Pentesting + Colección Postman** | **HT-11..12, HT-15..16, HT-19..25, HT-27** | **F** | **done** |
+| HT-38 | Post-Closure Hardening — Versionado Transaccional + ProviderEvent en Dominio | HT-37 | B | done |
 | HT-28 | Frontend Scaffolding + Pencil MCP + Design System | HT-17, **HT-37** | E | done |
 | HT-29 | Auth (OIDC) + Scope Switcher + Protected Routes | HT-18, HT-25, HT-28 | E | done |
 | HT-30 | Onboarding Wizard (3 pasos) | HT-25, HT-29 | E | done |
@@ -120,6 +121,9 @@ Level 15:
 
 Level 16:
   HT-32 (22,29)   HT-35 (19,24,27,29)
+
+Level 17:
+  HT-38 (37)
 ```
 
 ---
@@ -133,7 +137,7 @@ HT-01 → HT-02 → HT-03 → HT-04 → HT-13 → HT-14
 
 ### Track B — Domain + Resolution ✅ DONE
 ```
-HT-05 → HT-06 → HT-07 → HT-08 → HT-09 → HT-10 → HT-11 → HT-12
+HT-05 → HT-06 → HT-07 → HT-08 → HT-09 → HT-10 → HT-11 → HT-12 → HT-38
 ```
 
 ### Track C — API Layer ✅ DONE
@@ -169,6 +173,7 @@ HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → 
 | E5 — API Layer | HT-17, HT-18, HT-19, HT-20, HT-21, HT-22 | 6 | 100% |
 | E6 — Operations | HT-23, HT-24, HT-25, HT-26, HT-27 | 5 | 100% |
 | **E8 — QA Gate** | **HT-37** | **1** | **100%** |
+| E9 — Post-Closure Hardening | HT-38 | 1 | 100% |
 | E7 — Frontend | HT-28, HT-29, HT-30, HT-31, HT-32, HT-33, HT-34, HT-35, HT-36 | 9 | 100% |
 
 ---
@@ -188,4 +193,4 @@ Backend (Tracks A+B+C+D)  →  QA Gate (Track F)  →  Frontend (Track E)
 
 > Stories whose ALL dependencies are in `done/`:
 
-**All 37 stories complete. Nothing remaining.**
+**All 38 stories complete. Nothing remaining.**

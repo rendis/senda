@@ -1,0 +1,225 @@
+{
+  "version": "1.0.0",
+  "entries": [
+    {
+      "route": "/global/adapters",
+      "pencilFrameId": "frame:global__adapters",
+      "critical": false
+    },
+    {
+      "route": "/global/api-keys",
+      "pencilFrameId": "frame:global__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/global/audit-log",
+      "pencilFrameId": "frame:global__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/global/design-system",
+      "pencilFrameId": "frame:global__design-system",
+      "critical": false
+    },
+    {
+      "route": "/global/emails/[trackingId]",
+      "pencilFrameId": "frame:global__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/global/emails",
+      "pencilFrameId": "frame:global__emails",
+      "critical": false
+    },
+    {
+      "route": "/global/injectors",
+      "pencilFrameId": "frame:global__injectors",
+      "critical": false
+    },
+    {
+      "route": "/global/members",
+      "pencilFrameId": "frame:global__members",
+      "critical": false
+    },
+    {
+      "route": "/global",
+      "pencilFrameId": "frame:global",
+      "critical": true
+    },
+    {
+      "route": "/global/settings",
+      "pencilFrameId": "frame:global__settings",
+      "critical": false
+    },
+    {
+      "route": "/global/templates/[slug]/edit",
+      "pencilFrameId": "frame:global__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/global/templates/[slug]",
+      "pencilFrameId": "frame:global__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/global/templates",
+      "pencilFrameId": "frame:global__templates",
+      "critical": false
+    },
+    {
+      "route": "/global/webhooks",
+      "pencilFrameId": "frame:global__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/adapters",
+      "pencilFrameId": "frame:t__tenantCode__adapters",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/api-keys",
+      "pencilFrameId": "frame:t__tenantCode__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/audit-log",
+      "pencilFrameId": "frame:t__tenantCode__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/emails/[trackingId]",
+      "pencilFrameId": "frame:t__tenantCode__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/emails",
+      "pencilFrameId": "frame:t__tenantCode__emails",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/injectors",
+      "pencilFrameId": "frame:t__tenantCode__injectors",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/members",
+      "pencilFrameId": "frame:t__tenantCode__members",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]",
+      "pencilFrameId": "frame:t__tenantCode",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/settings",
+      "pencilFrameId": "frame:t__tenantCode__settings",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/templates/[slug]/edit",
+      "pencilFrameId": "frame:t__tenantCode__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/templates/[slug]",
+      "pencilFrameId": "frame:t__tenantCode__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/templates",
+      "pencilFrameId": "frame:t__tenantCode__templates",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/adapters",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__adapters",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/api-keys",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/audit-log",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/emails/[trackingId]",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/emails",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__emails",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/injectors",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__injectors",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/members",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__members",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/settings",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__settings",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates/[slug]/edit",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates/[slug]",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/webhooks",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/webhooks",
+      "pencilFrameId": "frame:t__tenantCode__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/access-denied",
+      "pencilFrameId": "frame:access-denied",
+      "critical": true
+    },
+    {
+      "route": "/login",
+      "pencilFrameId": "frame:login",
+      "critical": true
+    },
+    {
+      "route": "/onboarding",
+      "pencilFrameId": "frame:onboarding",
+      "critical": true
+    },
+    {
+      "route": "/",
+      "pencilFrameId": "frame:root",
+      "critical": false
+    }
+  ]
+}

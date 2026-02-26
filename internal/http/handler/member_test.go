@@ -237,6 +237,78 @@ func TestMemberHandler_Get_InvalidUUID(t *testing.T) {
 	}
 }
 
+func TestMemberHandler_Me_Success(t *testing.T) {
+	now := time.Now().UTC()
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	workspaceID := uuid.New()
+
+	h := handler.NewMemberHandler(&mockMemberStore{})
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/members/me", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	member := &domain.Member{
+		ID:        memberID,
+		Email:     "alice@example.com",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	roles := []*domain.MemberRole{
+		{
+			ID:          uuid.New(),
+			MemberID:    memberID,
+			Role:        domain.RoleTenantAdmin,
+			ScopeType:   domain.ScopeTenant,
+			TenantID:    &tenantID,
+			WorkspaceID: &workspaceID,
+			CreatedAt:   now,
+		},
+	}
+
+	c.Set(middleware.ContextKeyMember, member)
+	c.Set(middleware.ContextKeyRoles, roles)
+
+	if err := h.Me(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.MemberWithRolesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Email != "alice@example.com" {
+		t.Fatalf("expected email alice@example.com, got %s", resp.Email)
+	}
+	if len(resp.Roles) != 1 {
+		t.Fatalf("expected 1 role, got %d", len(resp.Roles))
+	}
+	if resp.Roles[0].Role != string(domain.RoleTenantAdmin) {
+		t.Fatalf("expected role tenant_admin, got %s", resp.Roles[0].Role)
+	}
+}
+
+func TestMemberHandler_Me_MissingMemberContext(t *testing.T) {
+	h := handler.NewMemberHandler(&mockMemberStore{})
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/members/me", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := h.Me(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestMemberHandler_AddRole_Success(t *testing.T) {
 	memberID := uuid.New()
 	now := time.Now().UTC()

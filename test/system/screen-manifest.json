@@ -1,0 +1,1705 @@
+{
+  "version": "1.0.0",
+  "matrixDefaults": {
+    "role": [
+      "superadmin",
+      "tenant-admin",
+      "workspace-admin",
+      "workspace-editor",
+      "workspace-viewer",
+      "no-member"
+    ],
+    "locale": [
+      "en",
+      "es"
+    ],
+    "viewport": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  "screens": [
+    {
+      "route": "/global/adapters",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__adapters",
+      "critical": false
+    },
+    {
+      "route": "/global/api-keys",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/global/audit-log",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/global/design-system",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__design-system",
+      "critical": false
+    },
+    {
+      "route": "/global/emails/[trackingId]",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "at least one delivered email exists",
+        "TRACKING_ID resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify detail timeline panel renders"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/global/emails",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__emails",
+      "critical": false
+    },
+    {
+      "route": "/global/injectors",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__injectors",
+      "critical": false
+    },
+    {
+      "route": "/global/members",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__members",
+      "critical": false
+    },
+    {
+      "route": "/global",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global",
+      "critical": true
+    },
+    {
+      "route": "/global/settings",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__settings",
+      "critical": false
+    },
+    {
+      "route": "/global/templates/[slug]/edit",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify editor shell + preview panel render"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/global/templates/[slug]",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/global/templates",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__templates",
+      "critical": false
+    },
+    {
+      "route": "/global/webhooks",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/adapters",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__adapters",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/api-keys",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/audit-log",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/emails/[trackingId]",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "at least one delivered email exists",
+        "TRACKING_ID resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify detail timeline panel renders"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/emails",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__emails",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/injectors",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__injectors",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/members",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__members",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/settings",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__settings",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/templates/[slug]/edit",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify editor shell + preview panel render"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/templates/[slug]",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/templates",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__templates",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/adapters",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__adapters",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/api-keys",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__api-keys",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/audit-log",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__audit-log",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/emails/[trackingId]",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "at least one delivered email exists",
+        "TRACKING_ID resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify detail timeline panel renders"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__emails__trackingId",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/emails",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__emails",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/injectors",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__injectors",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/members",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__members",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/settings",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__settings",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates/[slug]/edit",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible",
+        "verify editor shell + preview panel render"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates/[slug]",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/templates",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/webhooks",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/webhooks",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "TENANT_CODE and WORKSPACE_CODE resolved"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__webhooks",
+      "critical": false
+    },
+    {
+      "route": "/access-denied",
+      "scope": [
+        "public"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "authenticated user without member role"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "access denied message visible"
+      ],
+      "pencilFrameId": "frame:access-denied",
+      "critical": true
+    },
+    {
+      "route": "/login",
+      "scope": [
+        "public"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "browser fresh session"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify OIDC sign-in CTA visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404"
+      ],
+      "pencilFrameId": "frame:login",
+      "critical": true
+    },
+    {
+      "route": "/onboarding",
+      "scope": [
+        "public"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "user authenticated with OIDC"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify wizard steps render"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404"
+      ],
+      "pencilFrameId": "frame:onboarding",
+      "critical": true
+    },
+    {
+      "route": "/",
+      "scope": [
+        "public"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "browser fresh session"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404"
+      ],
+      "pencilFrameId": "frame:root",
+      "critical": false
+    }
+  ]
+}

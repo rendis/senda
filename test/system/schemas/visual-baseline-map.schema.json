@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://senda-app.github.io/schemas/visual-baseline-map.schema.json",
+  "title": "Visual Baseline Map",
+  "type": "object",
+  "required": ["version", "entries"],
+  "properties": {
+    "version": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route", "pencilFrameId", "critical"],
+        "properties": {
+          "route": { "type": "string" },
+          "pencilFrameId": { "type": "string" },
+          "critical": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

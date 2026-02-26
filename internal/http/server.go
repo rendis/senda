@@ -350,6 +350,11 @@ func (s *Server) registerRoutes() {
 		api.POST("/onboarding/setup", s.onboardingHandler.Setup)
 	}
 
+	// Current authenticated member profile (OIDC only).
+	if s.memberHandler != nil {
+		api.GET("/members/me", s.memberHandler.Me, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier), middleware.OIDCOnly())
+	}
+
 	// Management API (OIDC only) — only registered when handlers are provided.
 	if s.tenantHandler != nil {
 		mgmt := s.echo.Group("/api/v1/manage")
