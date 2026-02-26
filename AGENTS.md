@@ -225,19 +225,20 @@ Levantá el stack E2E completo y ejecutá la batería de tests.
 
 Documentation lives in `docs/`:
 
-| Document                           | Purpose                                              | Read When                                |
-| ---------------------------------- | ---------------------------------------------------- | ---------------------------------------- |
-| `docs/ARCHITECTURE.md`             | Architecture deep-dive, diagrams, resolution engine  | Understanding system design              |
-| `docs/API.md`                      | Full API reference (endpoints, auth, errors)         | Building integrations or handlers        |
-| `docs/DEVELOPMENT.md`              | Developer setup, Makefile, Docker, troubleshooting   | First-time setup or debugging env        |
-| `docs/DEPLOYMENT.md`               | Production deployment, env vars, providers           | Deploying to production                  |
-| `docs/specs/PRD_v5.md`             | Product requirements, user stories, business rules   | Understanding "why" and "what"           |
-| `docs/specs/TECH_SPEC_v1.md`       | Complete technical specification (v1.4, ~5000 lines) | **Primary reference for implementation** |
-| `docs/specs/TECH_STORIES.md`       | All 27 HTs with dependency graph and timeline        | Understanding scope and order            |
-| `docs/specs/TESTING_STRATEGY.md`   | Test pyramid, patterns, coverage targets             | Writing tests                            |
-| `docs/specs/SECURITY_CHECKLIST.md` | OWASP mapping, encryption, auth requirements         | Security-sensitive code                  |
-| `docs/specs/DESIGN_BRIEF.md`       | UX/UI specification for frontend                     | Frontend implementation                  |
-| `docs/postman/`                    | Postman collection + environments                    | API testing                              |
+| Document | What You'll Find | Read When |
+| --- | --- | --- |
+| `docs/ARCHITECTURE.md` | Hexagonal layer diagrams, domain entities, port interfaces, resolution engine flow (chain → template → injector → adapter), send pipeline sequence, River workers, cache/rate-limit/encryption infrastructure, ADR summary | Understanding system design or adding new adapters/services |
+| `docs/API.md` | All endpoints (health, data-plane, management, global), auth schemes (OIDC + API Key), RBAC roles, error codes, pagination (cursor-based), curl examples, webhook events + HMAC signatures | Building handlers, integrations, or debugging API calls |
+| `docs/DEVELOPMENT.md` | First-time setup, Docker stacks (dev vs e2e comparison), all 27 Makefile targets, frontend npm scripts, DB migrations, Keycloak test users/credentials, service URLs/ports, testing guide (unit → system), troubleshooting | First session, env setup, or when something breaks |
+| `docs/DEPLOYMENT.md` | Production Dockerfile, required/optional env vars, PG + pg_cron setup, OIDC provider config, email provider setup (SES/Gmail/SMTP), health endpoints, reverse proxy examples, docker run example | Deploying to production |
+| `docs/specs/PRD_v5.md` | Product requirements, user stories, business rules, scope hierarchy rules | Understanding "why" and "what" |
+| `docs/specs/TECH_SPEC_v1.md` | Complete technical spec (~5000 lines): SQL schema (16+ tables), migrations, folder structure, port interfaces, domain models, resolution engine, send flow, middleware, API contract, workers, config, Docker, observability, PG cache, rate limiting | **Primary reference for implementation** |
+| `docs/specs/TECH_STORIES.md` | All 38 HTs with dependency graph, timeline, tracks | Understanding scope and order |
+| `docs/specs/TESTING_STRATEGY.md` | Test pyramid, manual mock patterns, TestContainers usage, coverage targets | Writing tests |
+| `docs/specs/SECURITY_CHECKLIST.md` | OWASP Top 10 mapping, AES-256-GCM encryption spec, auth requirements, API key security model | Security-sensitive code |
+| `docs/specs/DESIGN_BRIEF.md` | UX/UI screens, component specs, responsive breakpoints, Design System tokens | Frontend implementation |
+| `docs/specs/ADR-0001-...md` | **Why no DKIM/SPF/DMARC in app** — provider-managed email auth decision, consequences for send flow and identity validation | When questioning email auth approach |
+| `docs/postman/` | Postman collection (116KB, all endpoints) + local/staging environments | API testing and exploration |
 
 ### UI/UX Design — Pencil MCP (OBLIGATORIO)
 
@@ -512,14 +513,16 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 
 1. **No Redis** — PG UNLOGGED table for cache, PL/pgSQL for rate limiting
 2. **Adapter assigned per template_type** — not per workspace or template
-3. **Resolution chain** via `get_resolution_chain()` PL/pgSQL function
+3. **Resolution chain** via scope hierarchy (workspace → _system → global)
 4. **River** for job queue (Go + PG native, no external broker)
-5. **OIDC for humans, API Keys for machines** — dual auth
+5. **OIDC for humans, API Keys for machines** — dual auth. Keys are SHA-256 hashed, workspace-scoped, raw shown once at creation. Blast radius of a compromised key = 1 workspace (data-plane only, no management access)
 6. **Hexagonal architecture** — ports define contracts, adapters implement
 7. **UUIDs v7** — time-ordered, non-sequential
 8. **Partitioned tables** — emails and audit_logs by month
 9. **Soft delete** — `deleted_at` column, never physical delete
 10. **Cursor-based pagination** — no offset, UUIDv7 as cursor
+11. **Provider-managed email auth** — SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail), NOT the app. Senda validates sender capability via adapter identities (sync from provider + default identity). No DKIM signing, no DNS record management in app code. See [ADR-0001](docs/specs/ADR-0001-provider-managed-email-auth.md)
+12. **No app-level email address validation** — `from_email` is verified by the provider's identity system. If an identity isn't verified, the provider rejects the send. Senda tracks identity status (`verified`/`pending`/`failed`) via `AdapterIdentity` but doesn't duplicate provider checks
 
 ---
 
