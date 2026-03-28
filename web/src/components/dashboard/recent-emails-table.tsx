@@ -25,20 +25,25 @@ export function RecentEmailsTable({ emails, emailsHref }: RecentEmailsTableProps
           </a>
         )}
       </div>
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto"
+        role="region"
+        aria-label="Recent emails table"
+        tabIndex={0}
+      >
         <table className="w-full">
           <thead>
             <tr className="h-9 bg-surface">
-              <th className="text-left px-5 text-[11px] font-semibold font-mono text-muted-foreground uppercase tracking-wider">
+              <th className="text-left px-5 text-[11px] font-semibold font-mono text-foreground/70 uppercase tracking-wider">
                 Recipient
               </th>
-              <th className="text-left px-5 text-[11px] font-semibold font-mono text-muted-foreground uppercase tracking-wider w-[140px]">
+              <th className="text-left px-5 text-[11px] font-semibold font-mono text-foreground/70 uppercase tracking-wider w-[140px]">
                 Template
               </th>
-              <th className="text-left px-5 text-[11px] font-semibold font-mono text-muted-foreground uppercase tracking-wider w-[110px]">
+              <th className="text-left px-5 text-[11px] font-semibold font-mono text-foreground/70 uppercase tracking-wider w-[110px]">
                 Status
               </th>
-              <th className="text-left px-5 text-[11px] font-semibold font-mono text-muted-foreground uppercase tracking-wider w-[150px]">
+              <th className="text-left px-5 text-[11px] font-semibold font-mono text-foreground/70 uppercase tracking-wider w-[150px]">
                 Date
               </th>
             </tr>
@@ -52,13 +57,13 @@ export function RecentEmailsTable({ emails, emailsHref }: RecentEmailsTableProps
                 <td className="px-5 text-[13px] font-mono text-foreground truncate max-w-0">
                   {email.recipient_email}
                 </td>
-                <td className="px-5 text-[13px] font-mono text-muted-foreground w-[140px]">
+                <td className="px-5 text-[13px] font-mono text-foreground/70 w-[140px]">
                   {email.template_type_slug || "\u2014"}
                 </td>
                 <td className="px-5 w-[110px]">
                   <StatusBadge status={email.status} />
                 </td>
-                <td className="px-5 text-xs font-mono text-muted-foreground w-[150px]">
+                <td className="px-5 text-xs font-mono text-foreground/70 w-[150px]">
                   {formatDate(email.created_at)}
                 </td>
               </tr>
@@ -67,7 +72,7 @@ export function RecentEmailsTable({ emails, emailsHref }: RecentEmailsTableProps
               <tr>
                 <td
                   colSpan={4}
-                  className="px-5 py-8 text-center text-xs font-mono text-muted-foreground"
+                  className="px-5 py-8 text-center text-xs font-mono text-foreground/70"
                 >
                   No emails sent yet
                 </td>

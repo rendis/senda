@@ -33,14 +33,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page">
-      <div className="w-[400px] rounded-lg border border-border bg-card px-10 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-page px-4 py-10 sm:px-6">
+      <div className="w-full max-w-[400px] rounded-lg border border-border bg-card px-6 py-10 sm:px-10 sm:py-12">
         <div className="flex flex-col items-center gap-8">
           {/* Logo */}
           <div className="flex flex-col items-center gap-2">
             <Send className="h-12 w-12 text-primary" />
             <h1 className="text-[28px] font-bold text-foreground">{t("title")}</h1>
-            <p className="text-sm text-muted-foreground">
+          <p className="text-center text-sm text-muted-foreground">
               {t("subtitle")}
             </p>
           </div>
@@ -58,7 +58,7 @@ export default function LoginPage() {
           </Button>
 
           {/* Footer */}
-          <p className="w-[280px] text-center text-xs text-muted-foreground">
+          <p className="w-full max-w-[280px] text-center text-xs text-muted-foreground">
             {t("termsNotice")}
           </p>
         </div>

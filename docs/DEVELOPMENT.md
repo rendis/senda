@@ -116,8 +116,8 @@ All 27 available targets:
 | `make test-e2e-core-run`  | Run core E2E tests (assumes stack is already up)        |
 | `make test-e2e-chaos`     | Start E2E stack, run chaos/resilience tests, stop stack |
 | `make test-e2e-chaos-run` | Run chaos tests (assumes stack is already up)           |
-| `make test-e2e-up`        | Start the E2E Docker Compose stack                      |
-| `make test-e2e-down`      | Stop the E2E Docker Compose stack                       |
+| `make test-e2e-up`        | No-op (E2E harness is self-managed by Testcontainers)  |
+| `make test-e2e-down`      | No-op (E2E harness is self-managed by Testcontainers)  |
 
 ### System Tests
 
@@ -125,8 +125,8 @@ All 27 available targets:
 | ------------------------------- | ----------------------------------------------------------- |
 | `make system-validate-manifest` | Validate the system test manifest                           |
 | `make system-matrix`            | Run the system test matrix                                  |
-| `make system-pr`                | Run PR-level system tests (API contract + UI flow + visual) |
-| `make system-nightly`           | Run full nightly system test suite                          |
+| `make system-pr`                | Run PR-level system tests (API contract + UI flow; visual opt-in) |
+| `make system-nightly`           | Run full nightly system test suite (visual opt-in)         |
 | `make system-down`              | Stop system test infrastructure                             |
 
 ### Database
@@ -201,7 +201,7 @@ Uses [TestContainers](https://golang.testcontainers.org/) to spin up real Postgr
 make test-e2e
 ```
 
-Starts the full Docker Compose E2E stack, runs the deterministic E2E test gate, and tears down the stack when done. Use `make test-e2e-run` if you already have the stack running.
+Runs the deterministic E2E gate on a self-managed Testcontainers harness. Use `make test-e2e-run` if you already have an external stack running and exported via the harness env report.
 
 ### E2E Chaos Tests
 

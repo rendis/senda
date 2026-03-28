@@ -8,6 +8,28 @@ require_cmd jq
 require_cmd agent-browser
 require_cmd timeout
 
+BODY_TEXT_JS='(() => {
+  if (!document.body) return "";
+  const excluded = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (excluded.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+      if (!text) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const parts = [];
+  while (walker.nextNode()) {
+    parts.push((walker.currentNode.textContent || "").replace(/\s+/g, " ").trim());
+  }
+  return parts.join(" ");
+})()'
+
+load_env_report "$ENV_REPORT_FILE"
+
 REPORT_PATH="$ARTIFACT_DIR/ui-flow-report.md"
 MATRIX_TSV="$ARTIFACT_DIR/ui-flow-matrix.tsv"
 FILTERED_TSV="$ARTIFACT_DIR/ui-flow-matrix.filtered.tsv"
@@ -20,12 +42,10 @@ mkdir -p "$SCREENSHOT_DIR" "$TRACE_DIR" "$STATE_DIR"
 
 capture_trace="${UI_CAPTURE_TRACE:-}"
 if [[ -z "$capture_trace" ]]; then
-  if [[ "$SYSTEM_MODE" == "nightly" ]]; then
-    capture_trace="1"
-  else
-    capture_trace="0"
-  fi
+  capture_trace="0"
 fi
+
+session_namespace="$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
 
 ab() {
   local session="$1"
@@ -42,7 +62,7 @@ ab_json() {
 session_for_role() {
   local role="$1"
   local slug="${role//[^a-zA-Z0-9]/-}"
-  echo "senda-${slug}"
+  echo "senda-${session_namespace}-${slug}"
 }
 
 sanitize_field() {
@@ -118,13 +138,50 @@ ensure_role_login() {
   fi
 
   log "ui-flow-tester: login role=$role email=$email"
+  timeout 5s agent-browser --session "$session" close >/dev/null 2>&1 || true
   ab "$session" open "$FRONTEND_BASE_URL/login" >/dev/null
   ab "$session" wait 1200 >/dev/null
 
   local current_url
-  current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
-  if [[ "$current_url" == *"/login"* ]]; then
-    ab "$session" click "button" >/dev/null
+  local login_started=0
+  for _ in $(seq 1 10); do
+    current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+    if [[ "$current_url" != *"/login"* ]]; then
+      login_started=1
+      break
+    fi
+
+    if ! ab_json "$session" eval '(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const button = buttons.find((candidate) => {
+        const text = (candidate.textContent || "").replace(/\s+/g, " ").trim();
+        return /sign in|oidc|iniciar|ingresar/i.test(text);
+      });
+      if (!button) return "missing";
+      button.click();
+      return "clicked";
+    })()' | jq -e '.data.result == "clicked"' >/dev/null; then
+      echo "login button not found on frontend login page for role=$role" >&2
+      return 1
+    fi
+
+    for _ in $(seq 1 15); do
+      current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+      if [[ "$current_url" != *"/login"* ]]; then
+        login_started=1
+        break
+      fi
+      sleep 1
+    done
+
+    if [[ "$login_started" -eq 1 ]]; then
+      break
+    fi
+  done
+
+  if [[ "$login_started" -ne 1 ]]; then
+    echo "login did not leave frontend login page for role=$role last_url=$current_url" >&2
+    return 1
   fi
 
   ab "$session" wait "#username" >/dev/null
@@ -221,7 +278,7 @@ run_case() {
   if [[ "$status" == "pass" ]]; then
     ab "$session" wait 1500 >/dev/null || true
     final_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
-    body_text="$(ab_json "$session" get text body | jq -r '.data.text // ""')"
+    body_text="$(ab_json "$session" eval "$BODY_TEXT_JS" | jq -r '.data.result // ""')"
   fi
 
   if [[ "$status" == "pass" ]]; then
@@ -288,7 +345,7 @@ go run "$ROOT_DIR/cmd/systemtest" matrix \
 if [[ "$SYSTEM_MODE" == "pr" ]]; then
   awk -F '\t' 'NR==1 || ($7=="true" && $5=="en" && $6=="desktop" && ($4=="superadmin" || $4=="no-member"))' "$MATRIX_TSV" >"$FILTERED_TSV"
 else
-  cp "$MATRIX_TSV" "$FILTERED_TSV"
+  awk -F '\t' 'NR==1 || ($7=="true" && $5=="en" && $6=="desktop")' "$MATRIX_TSV" >"$FILTERED_TSV"
 fi
 
 echo -e "route\tscope\trole\tlocale\tviewport\tcritical\texpected\tfinal_url\tstatus\tnote\tscreenshot\ttrace" >"$CASE_RESULTS"

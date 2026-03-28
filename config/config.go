@@ -19,8 +19,13 @@ type Config struct {
 	OIDC     OIDCConfig     `yaml:"oidc"`
 	Crypto   CryptoConfig   `yaml:"crypto"`
 	SMTP     SMTPConfig     `yaml:"smtp"`
+	SNS      SNSConfig      `yaml:"sns"`
 	Log      LogConfig      `yaml:"log"`
 	Tracking TrackingConfig `yaml:"tracking"`
+}
+
+type SNSConfig struct {
+	SkipSignatureVerification bool `yaml:"skip_signature_verification" env:"SENDA_SNS_SKIP_SIGNATURE_VERIFICATION" default:"false"`
 }
 
 type TrackingConfig struct {

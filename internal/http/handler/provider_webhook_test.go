@@ -109,10 +109,10 @@ type providerWebhookFixture struct {
 	emailID     uuid.UUID
 	workspaceID uuid.UUID
 
-	verifier  *mockSNSVerifier
-	confirmer *mockSubscriptionConfirmer
-	lookup    *mockEmailLookupPW
-	updater   *mockEmailUpdaterPW
+	verifier   *mockSNSVerifier
+	confirmer  *mockSubscriptionConfirmer
+	lookup     *mockEmailLookupPW
+	updater    *mockEmailUpdaterPW
 	suppressor *mockSuppressionWriterPW
 	dispatcher *mockWebhookDispatcherPW
 }
@@ -406,6 +406,44 @@ func TestSESWebhook_SubscriptionConfirmation(t *testing.T) {
 	// No email processing
 	if len(f.updater.statuses) != 0 {
 		t.Fatalf("expected no status updates for subscription confirmation, got %d", len(f.updater.statuses))
+	}
+}
+
+func TestSESWebhook_SkipSignatureVerificationOption(t *testing.T) {
+	f := newProviderWebhookFixture()
+	f.verifier.verifyFn = func(_ []byte) error {
+		return errors.New("bad signature")
+	}
+
+	processor := service.NewEventProcessor(
+		f.lookup,
+		f.updater,
+		f.suppressor,
+		f.dispatcher,
+		nil,
+	)
+	h := handler.NewSESWebhookHandler(
+		processor,
+		f.verifier,
+		f.confirmer,
+		nil,
+		handler.WithSkipSignatureVerification(true),
+	)
+
+	body := f.snsDeliveryNotification()
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+	c.Request().Header.Set("Content-Type", "application/json")
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("HandleInbound() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if len(f.updater.statuses) == 0 || f.updater.statuses[0] != domain.StatusDelivered {
+		t.Fatalf("expected delivery to be processed despite verifier failure, got statuses=%v", f.updater.statuses)
 	}
 }
 

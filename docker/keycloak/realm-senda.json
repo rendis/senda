@@ -32,7 +32,10 @@
         "openid",
         "profile",
         "email"
-      ]
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/login"
+      }
     }
   ],
   "users": [

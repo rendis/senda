@@ -93,7 +93,7 @@ export function Step2CreateTenant({
         <h1 className="text-[22px] font-bold text-foreground">
           {t("title")}
         </h1>
-        <p className="w-[380px] text-center text-sm leading-relaxed text-muted-foreground">
+        <p className="w-full max-w-[380px] text-center text-sm leading-relaxed text-muted-foreground">
           {t("subtitle")}
         </p>
       </div>

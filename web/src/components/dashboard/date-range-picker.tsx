@@ -19,7 +19,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       className="h-9 gap-2 rounded-md"
       onClick={() => onChange(value === "7d" ? "30d" : "7d")}
     >
-      <Calendar className="h-4 w-4 text-muted-foreground" />
+      <Calendar className="h-4 w-4 text-foreground/70" />
       <span className="text-[13px] font-medium">{label}</span>
     </Button>
   );

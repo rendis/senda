@@ -165,7 +165,7 @@ func TestE04_RateLimitExceeded(t *testing.T) {
 	client.LoginAs(SuperadminEmail)
 
 	wsPath := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s", TenantCode, WorkspaceCode)
-	lowRateAdapterName := fmt.Sprintf("rl-adapter-%d", time.Now().UnixNano())
+	lowRateAdapterName := "rl-adapter-e2e"
 	adapterResp := client.Post(wsPath+"/adapters", AdapterRequest{
 		AdapterType:        AdapterType,
 		Name:               lowRateAdapterName,

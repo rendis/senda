@@ -8,6 +8,8 @@ require_cmd jq
 require_cmd agent-browser
 require_cmd timeout
 
+load_env_report "$ENV_REPORT_FILE"
+
 REPORT_HTML="$ARTIFACT_DIR/visual-diff-report.html"
 REPORT_JSON="$ARTIFACT_DIR/visual-diff-report.json"
 REPORT_MD="$ARTIFACT_DIR/visual-diff-report.md"
@@ -25,6 +27,13 @@ fi
 
 mkdir -p "$ACTUAL_DIR" "$TRACE_DIR" "$STATE_DIR"
 
+capture_trace="${VISUAL_CAPTURE_TRACE:-}"
+if [[ -z "$capture_trace" ]]; then
+  capture_trace="0"
+fi
+
+session_namespace="$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
+
 ab() {
   local session="$1"
   shift
@@ -40,7 +49,7 @@ ab_json() {
 session_for_role() {
   local role="$1"
   local slug="${role//[^a-zA-Z0-9]/-}"
-  echo "senda-visual-${slug}"
+  echo "senda-visual-${session_namespace}-${slug}"
 }
 
 choose_role_for_route() {
@@ -98,12 +107,49 @@ ensure_role_login() {
   fi
 
   log "ui-visual-tester: login role=$role email=$email"
+  timeout 5s agent-browser --session "$session" close >/dev/null 2>&1 || true
   ab "$session" open "$FRONTEND_BASE_URL/login" >/dev/null
   ab "$session" wait 1200 >/dev/null
   local current_url
-  current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
-  if [[ "$current_url" == *"/login"* ]]; then
-    ab "$session" click "button" >/dev/null
+  local login_started=0
+  for _ in $(seq 1 10); do
+    current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+    if [[ "$current_url" != *"/login"* ]]; then
+      login_started=1
+      break
+    fi
+
+    if ! ab_json "$session" eval '(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const button = buttons.find((candidate) => {
+        const text = (candidate.textContent || "").replace(/\s+/g, " ").trim();
+        return /sign in|oidc|iniciar|ingresar/i.test(text);
+      });
+      if (!button) return "missing";
+      button.click();
+      return "clicked";
+    })()' | jq -e '.data.result == "clicked"' >/dev/null; then
+      echo "visual login button not found on frontend login page for role=$role" >&2
+      return 1
+    fi
+
+    for _ in $(seq 1 15); do
+      current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+      if [[ "$current_url" != *"/login"* ]]; then
+        login_started=1
+        break
+      fi
+      sleep 1
+    done
+
+    if [[ "$login_started" -eq 1 ]]; then
+      break
+    fi
+  done
+
+  if [[ "$login_started" -ne 1 ]]; then
+    echo "visual login did not leave frontend login page for role=$role last_url=$current_url" >&2
+    return 1
   fi
 
   ab "$session" wait "#username" >/dev/null
@@ -189,7 +235,9 @@ while IFS=$'\t' read -r route critical; do
       fi
 
       if [[ "$status" == "pass" ]]; then
-        ab "$session" trace start >/dev/null || true
+        if [[ "$capture_trace" == "1" ]]; then
+          ab "$session" trace start >/dev/null || true
+        fi
         if ! ab "$session" open "$FRONTEND_BASE_URL/login" >/dev/null; then
           status="fail"
           note="open-login-failed"
@@ -218,7 +266,9 @@ while IFS=$'\t' read -r route critical; do
         fi
       fi
 
-      ab "$session" trace stop "$trace_path" >/dev/null || true
+      if [[ "$capture_trace" == "1" ]]; then
+        ab "$session" trace stop "$trace_path" >/dev/null || true
+      fi
 
       echo -e "${route}\t${scope}\t${role}\t${locale}\t${viewport}\t${status}\t${note}\t${screenshot_path}\t${trace_path}" >>"$CASE_RESULTS"
       if [[ "$status" != "pass" ]]; then

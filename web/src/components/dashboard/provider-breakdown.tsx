@@ -37,47 +37,47 @@ export function ProviderBreakdown({ adapters }: ProviderBreakdownProps) {
                 <span className="text-sm font-medium text-foreground">
                   {a.adapter_name}
                 </span>
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono uppercase text-foreground/70">
                   {a.adapter_type}
                 </span>
                 {hasTracking ? (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">
+                  <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-mono text-emerald-700">
                     tracking
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">
+                  <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-700">
                     send-only
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-4 gap-2 text-xs">
                 <div>
-                  <span className="text-muted-foreground">Sent</span>
+                  <span className="text-foreground/70">Sent</span>
                   <p className="font-mono font-medium">
                     {formatNumber(a.totals.sent)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Delivered</span>
+                  <span className="text-foreground/70">Delivered</span>
                   <p className="font-mono font-medium">
                     {hasTracking ? formatNumber(a.totals.delivered) : "-"}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Bounced</span>
+                  <span className="text-foreground/70">Bounced</span>
                   <p className="font-mono font-medium">
                     {hasTracking ? formatNumber(a.totals.bounced) : "-"}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Delivery</span>
+                  <span className="text-foreground/70">Delivery</span>
                   <p className="font-mono font-medium">
                     {hasTracking ? deliveryRate(a.totals) : "-"}
                   </p>
                 </div>
               </div>
               {!hasTracking && (
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="mt-1 text-[10px] text-foreground/70">
                   This provider does not support delivery/bounce tracking.
                 </p>
               )}

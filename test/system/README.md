@@ -5,7 +5,7 @@ This directory contains the full-system test harness for Senda:
 - Backend deterministic tests + contract verification.
 - Security/chaos suites.
 - UI flow traversal for all routes/scopes/roles/locales/viewports.
-- Visual diff against golden + Pencil baselines.
+- Visual diff against golden + Pencil baselines (opt-in).
 - Accessibility checks (axe + semantic checks).
 
 ## Commands
@@ -14,6 +14,9 @@ This directory contains the full-system test harness for Senda:
   - `make system-pr`
 - Nightly full gate:
   - `make system-nightly`
+- Optional visual baseline pass:
+  - `SYSTEM_UI_VISUAL=1 make system-pr`
+  - `SYSTEM_UI_VISUAL=1 make system-nightly`
 - Validate route coverage manifest:
   - `make system-validate-manifest`
 - Generate matrix only:
@@ -23,6 +26,13 @@ Main orchestrator:
 
 - `test/system/system-runner.sh pr`
 - `test/system/system-runner.sh nightly`
+
+The orchestrator now expects a unified stack lifecycle command from `cmd/systemtest`:
+
+- `stack up --mode <pr|nightly> --out <env-report.json>`
+- `stack down --out <env-report.json>`
+
+`env-report.json` becomes the source of truth for service base URLs consumed by the subagents. The frontend remains host-side and is still started locally by the UI stages.
 
 ## Subagents
 
@@ -49,6 +59,10 @@ If a new route appears without manifest scenario + baseline map entry, the gate 
 
 - Goldens: `test/system/baselines/golden`
 - Pencil: `test/system/baselines/pencil`
+
+By default, PR and nightly runs skip the visual baseline diff stage and use functional,
+security, accessibility, and manual QA as the release blockers. Set `SYSTEM_UI_VISUAL=1`
+when you explicitly want to generate screenshots and compare them against baselines.
 
 Expected naming convention:
 

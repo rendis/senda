@@ -1,5 +1,8 @@
 bin/
 tmp/
+artifacts/
+.next/
+e2e.test
 .git/
 docs/
 stories/

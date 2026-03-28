@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE="${1:-pr}"
+SYSTEM_UI_VISUAL="${SYSTEM_UI_VISUAL:-0}"
 
 case "$MODE" in
   pr|nightly)
@@ -27,6 +28,7 @@ source "$ROOT_DIR/test/system/subagents/lib.sh"
 
 require_cmd go
 require_cmd awk
+require_cmd jq
 
 echo -n >"$STAGE_RESULTS"
 any_failed=0
@@ -72,6 +74,17 @@ skip_stage() {
   log_stage "$name" "skip" 0 "$log_path"
 }
 
+run_visual_stage() {
+  if [[ "$SYSTEM_UI_VISUAL" == "1" ]]; then
+    run_stage "ui-visual" "$ROOT_DIR/test/system/subagents/ui-visual-tester.sh"
+    return
+  fi
+
+  skip_stage \
+    "ui-visual" \
+    "disabled-by-default (set SYSTEM_UI_VISUAL=1 to enable baseline screenshots + diff)"
+}
+
 cleanup() {
   local log_path="$STAGES_DIR/infra-down.log"
   log "system-runner: stage=infra-down start"
@@ -113,21 +126,26 @@ go run "$ROOT_DIR/cmd/systemtest" matrix \
   --out "$ARTIFACT_DIR/coverage-matrix.csv"
 
 run_stage "infra-up" "$ROOT_DIR/test/system/subagents/infra-orchestrator.sh" up "$ENV_REPORT"
-run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
 
-if [[ "$MODE" == "nightly" ]]; then
-  run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
-else
-  skip_stage "security-chaos" "nightly-only"
+if [[ ! -f "$ENV_REPORT" ]]; then
+  echo "system-runner: missing env-report after infra-up: $ENV_REPORT" >&2
+  exit 1
 fi
 
-run_stage "ui-flow" "$ROOT_DIR/test/system/subagents/ui-flow-tester.sh"
-run_stage "ui-visual" "$ROOT_DIR/test/system/subagents/ui-visual-tester.sh"
+load_env_report "$ENV_REPORT"
 
 if [[ "$MODE" == "nightly" ]]; then
+  run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
+  run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
+  run_stage "ui-flow" "$ROOT_DIR/test/system/subagents/ui-flow-tester.sh"
+  run_visual_stage
   run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
 else
+  run_stage "ui-flow" "$ROOT_DIR/test/system/subagents/ui-flow-tester.sh"
+  run_visual_stage
   skip_stage "ui-a11y" "nightly-only"
+  run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
+  skip_stage "security-chaos" "nightly-only"
 fi
 
 if [[ "$any_failed" -ne 0 ]]; then

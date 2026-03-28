@@ -145,6 +145,8 @@ func main() {
 		err = cmdJunit(os.Args[2:])
 	case "run-result":
 		err = cmdRunResult(os.Args[2:])
+	case "stack":
+		err = cmdStack(os.Args[2:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command: %s", os.Args[1])
@@ -168,6 +170,7 @@ func usage() {
 	fmt.Println("  visual-diff")
 	fmt.Println("  junit")
 	fmt.Println("  run-result")
+	fmt.Println("  stack <up|down>")
 }
 
 func cmdInventory(args []string) error {
@@ -324,7 +327,7 @@ func cmdValidateManifest(args []string) error {
 	return nil
 }
 
-func cmdMatrix(args []string) error {
+func cmdMatrix(args []string) (err error) {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	manifestPath := fs.String("manifest", "test/system/screen-manifest.json", "screen manifest path")
 	outPath := fs.String("out", "", "csv output path")
@@ -353,12 +356,12 @@ func cmdMatrix(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeWithError(f, &err)
 
 	switch *format {
 	case "csv":
 		w := csv.NewWriter(f)
-		defer w.Flush()
+		defer flushCSVWithError(w, &err)
 
 		header := []string{"route", "route_slug", "scope", "role", "locale", "viewport", "critical", "pencil_frame_id", "preconditions", "actions", "assertions"}
 		if err := w.Write(header); err != nil {
@@ -1185,16 +1188,29 @@ func absDiff(a, b uint32) uint32 {
 	return b - a
 }
 
+func closeWithError(closer io.Closer, errp *error) {
+	if cerr := closer.Close(); cerr != nil && *errp == nil {
+		*errp = cerr
+	}
+}
+
+func flushCSVWithError(w *csv.Writer, errp *error) {
+	w.Flush()
+	if cerr := w.Error(); cerr != nil && *errp == nil {
+		*errp = cerr
+	}
+}
+
 func round3(v float64) float64 {
 	return math.Round(v*1000) / 1000
 }
 
-func loadImage(path string) (image.Image, error) {
+func loadImage(path string) (_ image.Image, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer closeWithError(f, &err)
 	img, _, err := image.Decode(f)
 	if err != nil {
 		return nil, err
@@ -1221,11 +1237,11 @@ func renderVisualHTML(results []VisualDiffResult) string {
 		b.WriteString("</td><td>")
 		b.WriteString(strconv.FormatBool(r.Critical))
 		b.WriteString("</td><td>")
-		b.WriteString(fmt.Sprintf("%.3f", r.GoldenDiffPct))
+		b.WriteString(strconv.FormatFloat(r.GoldenDiffPct, 'f', 3, 64))
 		b.WriteString("</td><td>")
-		b.WriteString(fmt.Sprintf("%.3f", r.PencilDiffPct))
+		b.WriteString(strconv.FormatFloat(r.PencilDiffPct, 'f', 3, 64))
 		b.WriteString("</td><td>")
-		b.WriteString(fmt.Sprintf("%.2f", r.ThresholdPct))
+		b.WriteString(strconv.FormatFloat(r.ThresholdPct, 'f', 2, 64))
 		b.WriteString("</td><td>")
 		b.WriteString(htmlEscape(strings.ToUpper(r.Status)))
 		b.WriteString("</td><td>")
@@ -1247,12 +1263,12 @@ func htmlEscape(s string) string {
 	return r.Replace(s)
 }
 
-func readStageTSV(path string) ([]stageResult, error) {
+func readStageTSV(path string) (_ []stageResult, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer closeWithError(f, &err)
 
 	results := make([]stageResult, 0)
 	scanner := bufio.NewScanner(f)
@@ -1455,7 +1471,7 @@ func sendOneEmail(client *http.Client, baseURL, apiKey, tenantCode, workspaceCod
 	return resp.TrackingIDs[0].TrackingID, nil
 }
 
-func doJSON(client *http.Client, method, endpoint, authHeader string, payload any) (int, []byte, error) {
+func doJSON(client *http.Client, method, endpoint, authHeader string, payload any) (_ int, _ []byte, err error) {
 	var body io.Reader
 	if payload != nil {
 		b, err := json.Marshal(payload)
@@ -1478,7 +1494,7 @@ func doJSON(client *http.Client, method, endpoint, authHeader string, payload an
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Body.Close()
+	defer closeWithError(resp.Body, &err)
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, nil, err
@@ -1486,7 +1502,7 @@ func doJSON(client *http.Client, method, endpoint, authHeader string, payload an
 	return resp.StatusCode, data, nil
 }
 
-func keycloakAdminToken(baseURL, adminUser, adminPass string) (string, error) {
+func keycloakAdminToken(baseURL, adminUser, adminPass string) (_ string, err error) {
 	endpoint := strings.TrimSuffix(baseURL, "/") + "/realms/master/protocol/openid-connect/token"
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -1505,7 +1521,7 @@ func keycloakAdminToken(baseURL, adminUser, adminPass string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer closeWithError(resp.Body, &err)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -1525,7 +1541,7 @@ func keycloakAdminToken(baseURL, adminUser, adminPass string) (string, error) {
 	return out.AccessToken, nil
 }
 
-func keycloakUserExists(baseURL, realm, adminToken, email string) (bool, error) {
+func keycloakUserExists(baseURL, realm, adminToken, email string) (_ bool, err error) {
 	endpoint := fmt.Sprintf("%s/admin/realms/%s/users?username=%s", strings.TrimSuffix(baseURL, "/"), realm, url.QueryEscape(email))
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -1537,7 +1553,7 @@ func keycloakUserExists(baseURL, realm, adminToken, email string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer closeWithError(resp.Body, &err)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
@@ -1552,7 +1568,7 @@ func keycloakUserExists(baseURL, realm, adminToken, email string) (bool, error) 
 	return len(users) > 0, nil
 }
 
-func keycloakCreateUser(baseURL, realm, adminToken, email, password string) error {
+func keycloakCreateUser(baseURL, realm, adminToken, email, password string) (err error) {
 	endpoint := fmt.Sprintf("%s/admin/realms/%s/users", strings.TrimSuffix(baseURL, "/"), realm)
 	payload := map[string]any{
 		"username":      email,
@@ -1584,7 +1600,7 @@ func keycloakCreateUser(baseURL, realm, adminToken, email, password string) erro
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer closeWithError(resp.Body, &err)
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err

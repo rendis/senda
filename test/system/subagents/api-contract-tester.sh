@@ -7,6 +7,9 @@ require_cmd go
 require_cmd make
 require_cmd npm
 require_cmd node
+require_cmd jq
+
+load_env_report "$ENV_REPORT_FILE"
 
 REPORT_PATH="$ARTIFACT_DIR/api-contract-report.md"
 RUNTIME_ENV_FILE="${RUNTIME_ENV_FILE:-$ARTIFACT_DIR/runtime.env}"
@@ -58,6 +61,21 @@ make -C "$ROOT_DIR" test
 
 log "api-contract-tester: make test-integration"
 make -C "$ROOT_DIR" test-integration
+
+POSTGRES_CONTAINER="$(jq -r '.runtime.containers.postgres // empty' "$ENV_REPORT_FILE")"
+if [[ -z "$POSTGRES_CONTAINER" ]]; then
+  log "api-contract-tester: env-report missing postgres container name"
+  exit 1
+fi
+
+POSTGRES_PORT="$(docker port "$POSTGRES_CONTAINER" 5432/tcp | awk -F: 'NR==1 {print $NF}')"
+if [[ -z "$POSTGRES_PORT" ]]; then
+  log "api-contract-tester: failed to resolve postgres mapped port for $POSTGRES_CONTAINER"
+  exit 1
+fi
+
+export MAILPIT_URL="${MAILPIT_BASE_URL}"
+export SENDA_DATABASE_URL="postgres://senda:senda@127.0.0.1:${POSTGRES_PORT}/senda?sslmode=disable"
 
 log "api-contract-tester: make test-e2e-run"
 make -C "$ROOT_DIR" test-e2e-run

@@ -1,13 +1,5 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { SettingsContent } from "@/components/settings/settings-content";
+import { redirect } from "next/navigation";
 
 export default function TenantSettingsPage() {
-  return (
-    <PageShell
-      title="Settings"
-      breadcrumbs={[{ label: "Tenant" }, { label: "Settings" }]}
-    >
-      <SettingsContent />
-    </PageShell>
-  );
+  redirect("/global/settings");
 }

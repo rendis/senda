@@ -217,6 +217,11 @@
       "critical": true
     },
     {
+      "route": "/logout",
+      "pencilFrameId": "frame:logout",
+      "critical": false
+    },
+    {
       "route": "/",
       "pencilFrameId": "frame:root",
       "critical": false

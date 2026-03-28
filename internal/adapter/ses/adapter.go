@@ -7,12 +7,16 @@ import (
 	"mime"
 	"net/mail"
 	"net/textproto"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
+	sesv1types "github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 
@@ -21,6 +25,15 @@ import (
 
 // safeHeaderKeyRe allows only alphanumeric characters and hyphens in custom header keys.
 var safeHeaderKeyRe = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+// Config holds the decrypted configuration for an SES adapter.
+type Config struct {
+	Region               string `json:"region"`
+	AccessKeyID          string `json:"access_key_id,omitempty"`
+	SecretAccessKey      string `json:"secret_access_key,omitempty"`
+	EndpointURL          string `json:"endpoint_url,omitempty"`
+	ConfigurationSetName string `json:"configuration_set_name,omitempty"`
+}
 
 // SESAPI abstracts the SES v2 API for testability.
 type SESAPI interface {
@@ -54,14 +67,201 @@ func WithConfigurationSet(name string) Option {
 	return func(a *Adapter) { a.configurationSetName = name }
 }
 
-// NewAdapterFromConfig creates a new SES adapter using default AWS config.
-func NewAdapterFromConfig(ctx context.Context, region string) (*Adapter, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+// LoadAWSConfig builds an AWS SDK config from the decrypted SES adapter config.
+func LoadAWSConfig(ctx context.Context, cfg Config) (aws.Config, error) {
+	loadOpts := []func(*config.LoadOptions) error{config.WithRegion(cfg.Region)}
+	if cfg.AccessKeyID != "" || cfg.SecretAccessKey != "" {
+		loadOpts = append(loadOpts, config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		))
+	}
+	return config.LoadDefaultConfig(ctx, loadOpts...)
+}
+
+// NewAdapterFromConfig creates a new SES adapter using the decrypted adapter config.
+func NewAdapterFromConfig(ctx context.Context, cfg Config) (*Adapter, error) {
+	awsCfg, err := LoadAWSConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("ses: load aws config: %w", err)
 	}
-	client := sesv2.NewFromConfig(cfg)
-	return &Adapter{client: client, region: region}, nil
+	client := NewSESAPIFromAWSConfig(awsCfg, cfg.EndpointURL)
+	return NewAdapter(client, cfg.Region, WithConfigurationSet(cfg.ConfigurationSetName)), nil
+}
+
+// NewSESAPIFromAWSConfig creates the SES API implementation to use for the given config.
+// endpoint_url is a test hook used for LocalStack and other custom SES endpoints.
+func NewSESAPIFromAWSConfig(cfg aws.Config, endpointURL string) SESAPI {
+	endpointURL = strings.TrimRight(endpointURL, "/")
+	if shouldUseSESV1Shim(endpointURL) {
+		return &sesV1API{
+			client: sesv1.NewFromConfig(cfg, func(o *sesv1.Options) {
+				o.BaseEndpoint = aws.String(endpointURL)
+			}),
+		}
+	}
+	return sesv2.NewFromConfig(cfg, func(o *sesv2.Options) {
+		if endpointURL != "" {
+			o.BaseEndpoint = aws.String(endpointURL)
+		}
+	})
+}
+
+func shouldUseSESV1Shim(endpointURL string) bool {
+	if endpointURL == "" {
+		return false
+	}
+	parsed, err := url.Parse(endpointURL)
+	if err != nil {
+		return true
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "localstack"
+}
+
+type sesV1API struct {
+	client *sesv1.Client
+}
+
+func (s *sesV1API) SendEmail(ctx context.Context, params *sesv2.SendEmailInput, _ ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error) {
+	if params == nil || params.Content == nil || params.Content.Raw == nil {
+		return nil, fmt.Errorf("ses: raw message content is required")
+	}
+	input := &sesv1.SendRawEmailInput{
+		RawMessage: &sesv1types.RawMessage{
+			Data: params.Content.Raw.Data,
+		},
+		ConfigurationSetName: params.ConfigurationSetName,
+		Destinations:         flattenDestination(params.Destination),
+	}
+	out, err := s.client.SendRawEmail(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return &sesv2.SendEmailOutput{MessageId: out.MessageId}, nil
+}
+
+func (s *sesV1API) ListEmailIdentities(ctx context.Context, params *sesv2.ListEmailIdentitiesInput, _ ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error) {
+	input := &sesv1.ListIdentitiesInput{
+		MaxItems:  params.PageSize,
+		NextToken: params.NextToken,
+	}
+	out, err := s.client.ListIdentities(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	verificationAttrs := map[string]sesv1types.IdentityVerificationAttributes{}
+	if len(out.Identities) > 0 {
+		verifyOut, err := s.client.GetIdentityVerificationAttributes(ctx, &sesv1.GetIdentityVerificationAttributesInput{
+			Identities: out.Identities,
+		})
+		if err != nil {
+			return nil, err
+		}
+		verificationAttrs = verifyOut.VerificationAttributes
+	}
+
+	identities := make([]types.IdentityInfo, 0, len(out.Identities))
+	for _, identity := range out.Identities {
+		attr, ok := verificationAttrs[identity]
+		status := types.VerificationStatusNotStarted
+		sendingEnabled := false
+		if ok {
+			status = mapVerificationStatus(attr.VerificationStatus)
+			sendingEnabled = attr.VerificationStatus == sesv1types.VerificationStatusSuccess
+		}
+		identities = append(identities, types.IdentityInfo{
+			IdentityName:       aws.String(identity),
+			IdentityType:       mapIdentityType(identity),
+			SendingEnabled:     sendingEnabled,
+			VerificationStatus: status,
+		})
+	}
+
+	return &sesv2.ListEmailIdentitiesOutput{
+		EmailIdentities: identities,
+		NextToken:       out.NextToken,
+	}, nil
+}
+
+func (s *sesV1API) CreateConfigurationSet(ctx context.Context, params *sesv2.CreateConfigurationSetInput, _ ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetOutput, error) {
+	if params == nil || params.ConfigurationSetName == nil {
+		return nil, fmt.Errorf("ses: configuration set name is required")
+	}
+	_, err := s.client.CreateConfigurationSet(ctx, &sesv1.CreateConfigurationSetInput{
+		ConfigurationSet: &sesv1types.ConfigurationSet{
+			Name: params.ConfigurationSetName,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &sesv2.CreateConfigurationSetOutput{}, nil
+}
+
+func (s *sesV1API) CreateConfigurationSetEventDestination(ctx context.Context, params *sesv2.CreateConfigurationSetEventDestinationInput, _ ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetEventDestinationOutput, error) {
+	if params == nil || params.ConfigurationSetName == nil || params.EventDestination == nil || params.EventDestinationName == nil {
+		return nil, fmt.Errorf("ses: event destination is required")
+	}
+	input := &sesv1.CreateConfigurationSetEventDestinationInput{
+		ConfigurationSetName: params.ConfigurationSetName,
+		EventDestination: &sesv1types.EventDestination{
+			Name:               params.EventDestinationName,
+			Enabled:            params.EventDestination.Enabled,
+			MatchingEventTypes: mapEventTypes(params.EventDestination.MatchingEventTypes),
+		},
+	}
+	if params.EventDestination.SnsDestination != nil && params.EventDestination.SnsDestination.TopicArn != nil {
+		input.EventDestination.SNSDestination = &sesv1types.SNSDestination{
+			TopicARN: params.EventDestination.SnsDestination.TopicArn,
+		}
+	}
+	_, err := s.client.CreateConfigurationSetEventDestination(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return &sesv2.CreateConfigurationSetEventDestinationOutput{}, nil
+}
+
+func flattenDestination(dest *types.Destination) []string {
+	if dest == nil {
+		return nil
+	}
+	all := make([]string, 0, len(dest.ToAddresses)+len(dest.CcAddresses)+len(dest.BccAddresses))
+	all = append(all, dest.ToAddresses...)
+	all = append(all, dest.CcAddresses...)
+	all = append(all, dest.BccAddresses...)
+	return all
+}
+
+func mapVerificationStatus(status sesv1types.VerificationStatus) types.VerificationStatus {
+	switch status {
+	case sesv1types.VerificationStatusSuccess:
+		return types.VerificationStatusSuccess
+	case sesv1types.VerificationStatusPending:
+		return types.VerificationStatusPending
+	case sesv1types.VerificationStatusTemporaryFailure:
+		return types.VerificationStatusTemporaryFailure
+	case sesv1types.VerificationStatusFailed:
+		return types.VerificationStatusFailed
+	default:
+		return types.VerificationStatusNotStarted
+	}
+}
+
+func mapIdentityType(identity string) types.IdentityType {
+	if strings.Contains(identity, "@") {
+		return types.IdentityTypeEmailAddress
+	}
+	return types.IdentityTypeDomain
+}
+
+func mapEventTypes(eventTypes []types.EventType) []sesv1types.EventType {
+	out := make([]sesv1types.EventType, 0, len(eventTypes))
+	for _, eventType := range eventTypes {
+		out = append(out, sesv1types.EventType(eventType))
+	}
+	return out
 }
 
 // Send delivers an email via AWS SES v2 using SendRawEmail.

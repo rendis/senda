@@ -29,10 +29,10 @@ export function MetricCard({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium font-mono text-muted-foreground">
+        <span className="text-xs font-medium font-mono text-foreground/70">
           {label}
         </span>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon className="h-4 w-4 text-foreground/70" />
       </div>
       <p
         className="text-[28px] font-semibold text-foreground"
@@ -46,16 +46,16 @@ export function MetricCard({
             <span
               className={cn(
                 "text-xs font-medium font-mono",
-                isPositive && "text-[#22C55E]",
-                isNegative && "text-[#EF4444]",
-                !isPositive && !isNegative && "text-muted-foreground"
+                isPositive && "text-emerald-700",
+                isNegative && "text-red-700",
+                !isPositive && !isNegative && "text-foreground/70"
               )}
             >
               {change}
             </span>
           )}
           {period && (
-            <span className="text-xs font-mono text-muted-foreground">
+            <span className="text-xs font-mono text-foreground/70">
               {period}
             </span>
           )}

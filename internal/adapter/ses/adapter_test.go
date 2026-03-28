@@ -57,6 +57,35 @@ func TestAdapter_HealthCheck(t *testing.T) {
 	}
 }
 
+func TestNewAdapterFromConfig_UsesSESV1ShimForLocalEndpoints(t *testing.T) {
+	adapter, err := NewAdapterFromConfig(context.Background(), Config{
+		Region:          "us-east-1",
+		AccessKeyID:     "test",
+		SecretAccessKey: "test",
+		EndpointURL:     "http://localhost:4566",
+	})
+	if err != nil {
+		t.Fatalf("NewAdapterFromConfig() error = %v", err)
+	}
+	if _, ok := adapter.client.(*sesV1API); !ok {
+		t.Fatalf("expected SES v1 shim for local endpoint, got %T", adapter.client)
+	}
+}
+
+func TestNewAdapterFromConfig_UsesSESV2ForAWSDefaultEndpoints(t *testing.T) {
+	adapter, err := NewAdapterFromConfig(context.Background(), Config{
+		Region:          "us-east-1",
+		AccessKeyID:     "test",
+		SecretAccessKey: "test",
+	})
+	if err != nil {
+		t.Fatalf("NewAdapterFromConfig() error = %v", err)
+	}
+	if _, ok := adapter.client.(*sesv2.Client); !ok {
+		t.Fatalf("expected SES v2 client for default endpoint, got %T", adapter.client)
+	}
+}
+
 func TestAdapter_ImplementsEmailSender(t *testing.T) {
 	var _ port.EmailSender = (*Adapter)(nil)
 }

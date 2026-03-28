@@ -187,9 +187,7 @@ func DefaultIdentityProviderFactory(adapter *domain.Adapter, decryptedConfig []b
 }
 
 func newSESIdentityProvider(decryptedConfig []byte) (port.IdentityProvider, error) {
-	var cfg struct {
-		Region string `json:"region"`
-	}
+	var cfg sesadapter.Config
 	if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal SES config: %w", err)
 	}
@@ -197,7 +195,7 @@ func newSESIdentityProvider(decryptedConfig []byte) (port.IdentityProvider, erro
 		return nil, fmt.Errorf("%w: missing SES region", domain.ErrValidation)
 	}
 
-	provider, err := sesadapter.NewAdapterFromConfig(context.Background(), cfg.Region)
+	provider, err := sesadapter.NewAdapterFromConfig(context.Background(), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("init SES identity provider: %w", err)
 	}

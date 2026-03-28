@@ -5,7 +5,14 @@ import { LOCALE_COOKIE, DEFAULT_LOCALE } from "@/lib/locale";
 // next-auth v5: auth(handler) wraps the handler with auth checks.
 // The authorized callback in auth.ts handles redirect to /login.
 export default auth(function proxy(req: NextRequest) {
-  const res = NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-senda-pathname", req.nextUrl.pathname);
+
+  const res = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 
   // Set default locale cookie on first visit if absent
   if (!req.cookies.get(LOCALE_COOKIE)) {

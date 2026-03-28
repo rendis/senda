@@ -4,6 +4,9 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd make
+require_cmd jq
+
+load_env_report "$ENV_REPORT_FILE"
 
 REPORT_PATH="$ARTIFACT_DIR/security-chaos-report.md"
 

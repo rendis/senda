@@ -2,6 +2,7 @@ package river
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -140,8 +141,43 @@ func (m *mockSender) Send(ctx context.Context, msg *port.OutgoingEmail) (string,
 	}
 	return "provider-msg-123", nil
 }
-func (m *mockSender) Name() string                        { return "mock" }
+func (m *mockSender) Name() string                          { return "mock" }
 func (m *mockSender) HealthCheck(ctx context.Context) error { return nil }
+
+type mockAdapterStore struct {
+	getByIDFn func(ctx context.Context, id uuid.UUID) (*domain.Adapter, error)
+}
+
+func (m *mockAdapterStore) Create(context.Context, *domain.Adapter) error { return nil }
+func (m *mockAdapterStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Adapter, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockAdapterStore) Update(context.Context, *domain.Adapter) error { return nil }
+func (m *mockAdapterStore) SoftDelete(context.Context, uuid.UUID) error   { return nil }
+func (m *mockAdapterStore) ListInChain(context.Context, []uuid.NullUUID) ([]*domain.Adapter, error) {
+	return nil, nil
+}
+func (m *mockAdapterStore) ListByWorkspace(context.Context, *uuid.UUID, port.ListOptions) (*port.PageResult[domain.Adapter], error) {
+	return nil, nil
+}
+
+type mockCrypto struct {
+	decryptFn func(ciphertext []byte) ([]byte, error)
+}
+
+func (m *mockCrypto) Encrypt(_ []byte) ([]byte, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockCrypto) Decrypt(ciphertext []byte) ([]byte, error) {
+	if m.decryptFn != nil {
+		return m.decryptFn(ciphertext)
+	}
+	return ciphertext, nil
+}
 
 // --- Test helpers ---
 
@@ -176,8 +212,13 @@ func newTestSendWorker(
 	renderer *mockRenderer,
 	rateLimiter *mockRateLimiter,
 	sender *mockSender,
+	opts ...SendWorkerOption,
 ) *SendWorker {
-	return NewSendWorker(emailStore, compiler, renderer, rateLimiter, sender)
+	var staticSender port.EmailSender
+	if sender != nil {
+		staticSender = sender
+	}
+	return NewSendWorker(emailStore, compiler, renderer, rateLimiter, staticSender, opts...)
 }
 
 func makeJob(args SendJobArgs, attempt int) *goriver.Job[SendJobArgs] {
@@ -268,6 +309,117 @@ func TestSendWorker_EmailNotFound_CancelsJob(t *testing.T) {
 	var cancelErr *goriver.JobCancelError
 	if !errors.As(err, &cancelErr) {
 		t.Errorf("expected JobCancelError, got %T: %v", err, err)
+	}
+}
+
+func TestSendWorker_AdapterDrivenSender(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	var factoryCalls int
+	dynamicSender := &mockSender{}
+	adapterStore := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != email.AdapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:              id,
+				AdapterType:     domain.AdapterTypeSES,
+				ConfigEncrypted: []byte("encrypted"),
+			}, nil
+		},
+	}
+	crypto := &mockCrypto{
+		decryptFn: func(ciphertext []byte) ([]byte, error) {
+			if string(ciphertext) != "encrypted" {
+				t.Fatalf("unexpected ciphertext: %q", string(ciphertext))
+			}
+			return json.RawMessage(`{"region":"us-east-1","access_key_id":"key","secret_access_key":"secret","endpoint_url":"http://localstack:4566"}`), nil
+		},
+	}
+
+	worker := newTestSendWorker(
+		emailStore,
+		&mockCompiler{},
+		&mockRenderer{},
+		&mockRateLimiter{},
+		nil,
+		WithAdapterRuntime(adapterStore, crypto, func(_ context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error) {
+			factoryCalls++
+			if adapter.AdapterType != domain.AdapterTypeSES {
+				t.Fatalf("unexpected adapter type: %s", adapter.AdapterType)
+			}
+			if string(decryptedConfig) == "" {
+				t.Fatal("expected decrypted config")
+			}
+			return dynamicSender, nil
+		}),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if factoryCalls != 1 {
+		t.Fatalf("expected 1 sender factory call, got %d", factoryCalls)
+	}
+	if len(dynamicSender.calls) != 1 {
+		t.Fatalf("expected 1 dynamic sender call, got %d", len(dynamicSender.calls))
+	}
+	if emailStore.updateStatusCalls[len(emailStore.updateStatusCalls)-1].Status != domain.StatusSent {
+		t.Fatalf("expected final status sent, got %s", emailStore.updateStatusCalls[len(emailStore.updateStatusCalls)-1].Status)
+	}
+}
+
+func TestSendWorker_StaticSenderTakesPrecedenceOverAdapterRuntime(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	staticSender := &mockSender{}
+	worker := newTestSendWorker(
+		emailStore,
+		&mockCompiler{},
+		&mockRenderer{},
+		&mockRateLimiter{},
+		staticSender,
+		WithAdapterRuntime(&mockAdapterStore{}, &mockCrypto{}, func(_ context.Context, _ *domain.Adapter, _ []byte) (port.EmailSender, error) {
+			t.Fatal("adapter runtime should not be used when static sender is configured")
+			return nil, nil
+		}),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(staticSender.calls) != 1 {
+		t.Fatalf("expected static sender to be used once, got %d calls", len(staticSender.calls))
 	}
 }
 

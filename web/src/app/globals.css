@@ -49,19 +49,19 @@
   --color-scope-workspace: #0D9488;
 
   /* Senda — Status colors */
-  --color-status-queued: #94A3B8;
+  --color-status-queued: #475569;
   --color-status-queued-bg: #F1F5F9;
-  --color-status-sent: #3B82F6;
+  --color-status-sent: #1D4ED8;
   --color-status-sent-bg: #EFF6FF;
-  --color-status-delivered: #22C55E;
+  --color-status-delivered: #15803D;
   --color-status-delivered-bg: #F0FDF4;
-  --color-status-bounced: #EF4444;
+  --color-status-bounced: #B91C1C;
   --color-status-bounced-bg: #FEF2F2;
-  --color-status-complained: #F97316;
+  --color-status-complained: #C2410C;
   --color-status-complained-bg: #FFF7ED;
-  --color-status-draft: #64748B;
+  --color-status-draft: #475569;
   --color-status-draft-bg: #F1F5F9;
-  --color-status-published: #22C55E;
+  --color-status-published: #15803D;
   --color-status-published-bg: #F0FDF4;
 
   /* Senda — Custom surface colors */
@@ -92,20 +92,20 @@
   --card-foreground: #0F172A;
   --popover: #FFFFFF;
   --popover-foreground: #0F172A;
-  --primary: #0D9488;
+  --primary: #0F766E;
   --primary-foreground: #FFFFFF;
   --primary-light: #CCFBF1;
   --secondary: #F1F5F9;
   --secondary-foreground: #0F172A;
   --muted: #F1F5F9;
-  --muted-foreground: #64748B;
+  --muted-foreground: #475569;
   --accent: #F1F5F9;
   --accent-foreground: #0F172A;
-  --destructive: #EF4444;
+  --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
   --border: #E2E8F0;
   --input: #E2E8F0;
-  --ring: #0D9488;
+  --ring: #0F766E;
 
   /* Surfaces */
   --surface: #F5F5F5;

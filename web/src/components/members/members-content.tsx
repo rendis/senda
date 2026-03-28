@@ -66,13 +66,15 @@ function MembersTable() {
 
   const allMembers = data?.pages.flatMap((p) => p.items) ?? [];
 
+  const visibleMembers = allMembers.filter((member) => (member.roles?.length ?? 0) > 0);
+
   const members = searchQuery
-    ? allMembers.filter(
+    ? visibleMembers.filter(
         (m) =>
           m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
           m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : allMembers;
+    : visibleMembers;
 
   const handleInvite = async (formData: {
     email: string;

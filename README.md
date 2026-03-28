@@ -351,8 +351,8 @@ See [`config/config.example.yaml`](config/config.example.yaml) for all options.
 |             | `make test-integration`| Integration tests (TestContainers)           |
 |             | `make test-e2e`        | E2E deterministic gate                       |
 |             | `make test-e2e-chaos`  | E2E chaos suite (non-blocking)               |
-| System      | `make system-pr`       | PR system gate (functional + UI + visual)    |
-|             | `make system-nightly`  | Full nightly gate (+ security + a11y)        |
+| System      | `make system-pr`       | PR system gate (functional + UI flow; visual opt-in) |
+|             | `make system-nightly`  | Full nightly gate (+ security + a11y; visual opt-in) |
 | Database    | `make migrate-up`      | Apply all pending migrations                 |
 |             | `make migrate-down`    | Rollback last migration                      |
 | Quality     | `make lint`            | golangci-lint                                |
@@ -373,8 +373,8 @@ npm --prefix web run lint     # ESLint
 | ----------- | ---------------------- | -------------- | ------------------------------- |
 | Unit        | `make test`            | —              | None                            |
 | Integration | `make test-integration`| `integration`  | TestContainers (PG auto-spun)   |
-| E2E         | `make test-e2e`        | `e2e`          | Docker Compose (full stack)     |
-| System      | `make system-pr`       | —              | Docker Compose + Browser        |
+| E2E         | `make test-e2e`        | `e2e`          | Testcontainers (self-managed)   |
+| System      | `make system-pr`       | —              | Testcontainers stack + Browser  |
 
 TDD mandatory. Manual mocks (no frameworks). TestContainers for integration tests.
 

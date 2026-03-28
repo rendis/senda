@@ -17,11 +17,13 @@ export function Step1Welcome({ currentStep, onConnect }: Step1WelcomeProps) {
     <>
       {/* Header */}
       <div className="flex flex-col items-center gap-2">
-        <Send className="h-12 w-12 text-primary" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+          <Send className="h-8 w-8 text-primary-foreground" />
+        </div>
         <h1 className="text-2xl font-bold text-foreground">
           {t("title")}
         </h1>
-        <p className="w-[360px] text-center text-sm leading-relaxed text-muted-foreground">
+        <p className="w-full max-w-[360px] text-center text-sm leading-relaxed text-foreground/70">
           {t("subtitle")}
         </p>
       </div>

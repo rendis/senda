@@ -1,5 +1,6 @@
 import ky, { type Options, type KyInstance, HTTPError } from "ky";
 import type { ApiError } from "@/types/api";
+import { startFederatedLogout } from "@/lib/logout";
 
 // Guard to prevent multiple concurrent signOut calls when several
 // API requests return 401 at the same time.
@@ -38,8 +39,7 @@ export const api = ky.create({
 
           // Refresh failed or retry also returned 401 — sign out.
           signingOut = true;
-          const { signOut } = await import("next-auth/react");
-          await signOut({ callbackUrl: "/login" });
+          startFederatedLogout("/login");
         }
       },
     ],

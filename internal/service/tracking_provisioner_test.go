@@ -19,8 +19,8 @@ import (
 // --- Mock SES client ---
 
 type mockProvisionSES struct {
-	createConfigSetErr    error
-	createEventDestErr    error
+	createConfigSetErr error
+	createEventDestErr error
 }
 
 func (m *mockProvisionSES) SendEmail(_ context.Context, _ *sesv2.SendEmailInput, _ ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error) {
@@ -126,7 +126,7 @@ func newAccessDeniedErr() error {
 
 func setupProvisioner(sesMock *mockProvisionSES, snsMock *mockProvisionSNS, adapterStore *mockProvisionAdapterStore, crypto *mockProvisionCrypto) *TrackingProvisioner {
 	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
-	p.clientFactory = func(_ aws.Config) (sesadapter.SESAPI, sesadapter.SNSAPI) {
+	p.clientFactory = func(_ aws.Config, _ string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
 		return sesMock, snsMock
 	}
 	return p
@@ -135,8 +135,8 @@ func setupProvisioner(sesMock *mockProvisionSES, snsMock *mockProvisionSNS, adap
 func TestProvision_Success(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
 	cfgJSON, _ := json.Marshal(sesAdapterConfig{
-		Region:         "us-east-1",
-		AccessKeyID:    "AKID",
+		Region:          "us-east-1",
+		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
 	})
 
@@ -189,8 +189,8 @@ func TestProvision_Success(t *testing.T) {
 func TestProvision_AlreadyExists_Idempotent(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
 	cfgJSON, _ := json.Marshal(sesAdapterConfig{
-		Region:         "us-east-1",
-		AccessKeyID:    "AKID",
+		Region:          "us-east-1",
+		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
 	})
 
@@ -250,8 +250,8 @@ func TestProvision_NonSESAdapter_Fails(t *testing.T) {
 func TestProvision_AccessDenied_Fails(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
 	cfgJSON, _ := json.Marshal(sesAdapterConfig{
-		Region:         "us-east-1",
-		AccessKeyID:    "AKID",
+		Region:          "us-east-1",
+		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
 	})
 
@@ -277,6 +277,42 @@ func TestProvision_AccessDenied_Fails(t *testing.T) {
 	}
 	if result.Steps[0].Status != "failed" {
 		t.Errorf("step 0 status = %q, want failed", result.Steps[0].Status)
+	}
+}
+
+func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
+	adapterID := uuid.Must(uuid.NewV7())
+	cfgJSON, _ := json.Marshal(sesAdapterConfig{
+		Region:          "us-east-1",
+		AccessKeyID:     "AKID",
+		SecretAccessKey: "SECRET",
+		EndpointURL:     "http://localstack:4566",
+	})
+
+	adapterStore := &mockProvisionAdapterStore{
+		adapter: &domain.Adapter{
+			ID:              adapterID,
+			AdapterType:     domain.AdapterTypeSES,
+			ConfigEncrypted: cfgJSON,
+		},
+	}
+	crypto := &mockProvisionCrypto{decrypted: cfgJSON, encrypted: []byte("encrypted")}
+	var gotEndpoint string
+
+	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
+	p.clientFactory = func(_ aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
+		gotEndpoint = endpointURL
+		return &mockProvisionSES{}, &mockProvisionSNS{
+			createTopicARN: "arn:aws:sns:us-east-1:123456789:senda-ses-events-" + adapterID.String()[:8],
+			subscribeARN:   "arn:aws:sns:us-east-1:123456789:senda-ses-events-" + adapterID.String()[:8] + ":sub-1",
+		}
+	}
+
+	if _, err := p.Provision(context.Background(), adapterID); err != nil {
+		t.Fatalf("Provision() error = %v", err)
+	}
+	if gotEndpoint != "http://localstack:4566" {
+		t.Fatalf("clientFactory endpoint = %q, want %q", gotEndpoint, "http://localstack:4566")
 	}
 }
 

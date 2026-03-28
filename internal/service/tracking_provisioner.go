@@ -8,8 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	sestypes "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
@@ -50,11 +48,16 @@ type ProvisionStep struct {
 
 // AWSClientFactory creates SES and SNS clients from an AWS config.
 // Abstracted for testability.
-type AWSClientFactory func(cfg aws.Config) (sesadapter.SESAPI, sesadapter.SNSAPI)
+type AWSClientFactory func(cfg aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI)
 
 // DefaultAWSClientFactory creates real AWS SES v2 and SNS clients.
-func DefaultAWSClientFactory(cfg aws.Config) (sesadapter.SESAPI, sesadapter.SNSAPI) {
-	return sesv2.NewFromConfig(cfg), sns.NewFromConfig(cfg)
+func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
+	return sesadapter.NewSESAPIFromAWSConfig(cfg, endpointURL),
+		sns.NewFromConfig(cfg, func(o *sns.Options) {
+			if endpointURL != "" {
+				o.BaseEndpoint = aws.String(endpointURL)
+			}
+		})
 }
 
 // TrackingProvisioner auto-provisions SES tracking resources (Configuration Set, SNS Topic,
@@ -87,12 +90,7 @@ func NewTrackingProvisioner(
 }
 
 // sesAdapterConfig mirrors the encrypted config stored for SES adapters.
-type sesAdapterConfig struct {
-	Region               string `json:"region"`
-	AccessKeyID          string `json:"access_key_id"`
-	SecretAccessKey       string `json:"secret_access_key"`
-	ConfigurationSetName string `json:"configuration_set_name,omitempty"`
-}
+type sesAdapterConfig = sesadapter.Config
 
 // Provision auto-provisions all SES tracking resources for the given adapter.
 func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID) (*ProvisionResult, error) {
@@ -115,23 +113,14 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 		return nil, fmt.Errorf("unmarshal adapter config: %w", err)
 	}
 
-	// 3. Build AWS config with static credentials from adapter.
-	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(adapterCfg.Region),
-		awsconfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				adapterCfg.AccessKeyID,
-				adapterCfg.SecretAccessKey,
-				"",
-			),
-		),
-	)
+	// 3. Build AWS config from adapter credentials.
+	awsCfg, err := sesadapter.LoadAWSConfig(ctx, adapterCfg)
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
 	}
 
 	// 4. Create clients.
-	sesClient, snsClient := p.clientFactory(awsCfg)
+	sesClient, snsClient := p.clientFactory(awsCfg, adapterCfg.EndpointURL)
 
 	// 5. Derive resource names.
 	shortID := adapter.ID.String()[:8]

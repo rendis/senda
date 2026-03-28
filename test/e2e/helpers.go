@@ -217,6 +217,11 @@ func (c *TestClient) WaitForEmailStatus(tenantCode, workspaceCode, trackingID, e
 			c.t.Fatalf("timeout waiting for email %s to reach status %s", trackingID, expectedStatus)
 		case <-ticker.C:
 			resp := c.Get(path)
+			if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+				body := ReadResponseBody(c.t, resp)
+				resp.Body.Close()
+				c.t.Fatalf("unauthorized waiting for email %s status via %s: HTTP %d: %s", trackingID, path, resp.StatusCode, body)
+			}
 			if resp.StatusCode != http.StatusOK {
 				resp.Body.Close()
 				continue
@@ -293,17 +298,9 @@ type MessagesResponse struct {
 
 // GetMessages fetches all messages from Mailpit.
 func (m *MailpitClient) GetMessages() []MessageSummary {
-	resp, err := m.httpClient.Get(m.baseURL + "/api/v1/messages")
+	messages, err := m.tryGetMessages()
 	require.NoError(m.t, err)
-	defer resp.Body.Close()
-
-	require.Equal(m.t, http.StatusOK, resp.StatusCode)
-
-	var data MessagesResponse
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	require.NoError(m.t, err)
-
-	return data.Messages
+	return messages
 }
 
 // GetMessage fetches a single message by ID.
@@ -353,6 +350,34 @@ func (m *MailpitClient) ClearMessages() {
 func (m *MailpitClient) GetMessageCount() int {
 	messages := m.GetMessages()
 	return len(messages)
+}
+
+// TryGetMessageCount returns the total number of messages in Mailpit without failing the test.
+func (m *MailpitClient) TryGetMessageCount() (int, error) {
+	messages, err := m.tryGetMessages()
+	if err != nil {
+		return 0, err
+	}
+	return len(messages), nil
+}
+
+func (m *MailpitClient) tryGetMessages() ([]MessageSummary, error) {
+	resp, err := m.httpClient.Get(m.baseURL + "/api/v1/messages")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("mailpit get messages status=%d", resp.StatusCode)
+	}
+
+	var data MessagesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	return data.Messages, nil
 }
 
 // WaitForMessages waits for N messages to arrive in Mailpit or times out.

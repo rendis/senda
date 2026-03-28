@@ -16,9 +16,9 @@ const (
 	SystemWorkspaceCode = "_system"
 
 	// User emails
-	SuperadminEmail    = "superadmin@test.example.com"
-	TenantAdminEmail   = "tenant-admin@test.example.com"
-	WorkspaceAdminEmail = "ws-admin@test.example.com"
+	SuperadminEmail      = "superadmin@test.example.com"
+	TenantAdminEmail     = "tenant-admin@test.example.com"
+	WorkspaceAdminEmail  = "ws-admin@test.example.com"
 	WorkspaceEditorEmail = "ws-editor@test.example.com"
 	WorkspaceViewerEmail = "ws-viewer@test.example.com"
 
@@ -29,21 +29,27 @@ const (
 	TemplateTypeName = "Welcome Email"
 
 	// From address (provider validates identity)
-	TestFromEmail   = "noreply@mail.test.example.com"
-	TestFromName    = "Test Corp"
+	TestFromEmail = "noreply@mail.test.example.com"
+	TestFromName  = "Test Corp"
 
 	// Adapter type — DB only supports "ses" or "gmail"; actual delivery uses bootstrap SMTP adapter.
-	AdapterType     = "ses"
-	AdapterName     = "E2E Test Adapter"
+	AdapterType = "ses"
+	AdapterName = "E2E Test Adapter"
+
+	// Shared test harness configuration.
+	DefaultMasterKey          = "e2e-master-key-must-be-at-least-32-characters"
+	defaultAWSRegion          = "us-east-1"
+	defaultAWSAccessKeyID     = "test"
+	defaultAWSSecretAccessKey = "test"
 
 	// API Key reference
 	APIKeyName       = "test-key"
 	APIKeyNamePrefix = "test-key-"
 
 	// Test send content
-	TestSubject      = "Welcome to Test Corp"
-	TestEmailBody    = "<p>Hello {{first_name}}, welcome to Test Corp!</p>"
-	TestPreviewText  = "Welcome to Test Corp"
+	TestSubject     = "Welcome to Test Corp"
+	TestEmailBody   = "<p>Hello {{first_name}}, welcome to Test Corp!</p>"
+	TestPreviewText = "Welcome to Test Corp"
 
 	// Webhook test
 	WebhookName = "test-webhook"
@@ -71,11 +77,11 @@ type TemplateTypeRequest struct {
 
 // CreateTemplateRequest is the request structure for creating a template.
 type CreateTemplateRequest struct {
-	TemplateTypeID string `json:"template_type_id,omitempty"`
+	TemplateTypeID   string `json:"template_type_id,omitempty"`
 	TemplateTypeSlug string `json:"template_type_slug,omitempty"`
-	Slug           string `json:"slug"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
 }
 
 // CreateVersionRequest is the request structure for creating a template version.
@@ -100,20 +106,20 @@ type CreateLocaleRequest struct {
 
 // SendRequest is the request structure for sending an email.
 type SendRequest struct {
-	Ref        string            `json:"ref"`
-	To         []string          `json:"to"`
-	CC         []string          `json:"cc,omitempty"`
-	BCC        []string          `json:"bcc,omitempty"`
+	Ref        string                 `json:"ref"`
+	To         []string               `json:"to"`
+	CC         []string               `json:"cc,omitempty"`
+	BCC        []string               `json:"bcc,omitempty"`
 	Variables  map[string]interface{} `json:"variables,omitempty"`
-	ExternalID string            `json:"external_id,omitempty"`
-	Locale     string            `json:"locale,omitempty"`
+	ExternalID string                 `json:"external_id,omitempty"`
+	Locale     string                 `json:"locale,omitempty"`
 }
 
 // InjectorRequest is the request structure for creating an injector.
 type InjectorRequest struct {
-	Name        string                   `json:"name"`
-	Description string                   `json:"description,omitempty"`
-	Fields      []InjectorFieldRequest   `json:"fields"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Fields      []InjectorFieldRequest `json:"fields"`
 }
 
 // InjectorFieldRequest defines a field in an injector schema.

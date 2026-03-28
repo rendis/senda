@@ -79,36 +79,43 @@ export function OnboardingWizard() {
   const idToken = session?.idToken ?? "";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page">
-      <div className="w-[480px] rounded-lg border border-border bg-card px-10 py-12">
-        <div
-          className={cn(
-            "flex flex-col items-center",
-            step === 1 ? "gap-8" : "gap-7",
-          )}
-        >
-          {step === 1 && (
-            <Step1Welcome currentStep={step} onConnect={handleConnect} />
-          )}
+    <>
+      <header className="sr-only">
+        <nav aria-label="Public navigation">
+          <a href="/login">Back to login</a>
+        </nav>
+      </header>
+      <main className="flex min-h-screen items-center justify-center bg-page px-4 py-10 sm:px-6">
+        <div className="w-full max-w-[480px] rounded-lg border border-border bg-card px-6 py-10 sm:px-10 sm:py-12">
+          <div
+            className={cn(
+              "flex flex-col items-center",
+              step === 1 ? "gap-8" : "gap-7",
+            )}
+          >
+            {step === 1 && (
+              <Step1Welcome currentStep={step} onConnect={handleConnect} />
+            )}
 
-          {step === 2 && (
-            <Step2CreateTenant
-              currentStep={step}
-              idToken={idToken}
-              onSuccess={handleTenantCreated}
-            />
-          )}
+            {step === 2 && (
+              <Step2CreateTenant
+                currentStep={step}
+                idToken={idToken}
+                onSuccess={handleTenantCreated}
+              />
+            )}
 
-          {step === 3 && (
-            <Step3CreateWorkspace
-              currentStep={step}
-              idToken={idToken}
-              tenantCode={tenantCode}
-              onSuccess={handleWorkspaceCreated}
-            />
-          )}
+            {step === 3 && (
+              <Step3CreateWorkspace
+                currentStep={step}
+                idToken={idToken}
+                tenantCode={tenantCode}
+                onSuccess={handleWorkspaceCreated}
+              />
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </main>
+    </>
   );
 }

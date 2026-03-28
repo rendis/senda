@@ -2,9 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bell } from "lucide-react";
+import { Bell, PanelLeft } from "lucide-react";
 
-export function AppHeader() {
+export function AppHeader({
+  onOpenMobileSidebar,
+}: {
+  onOpenMobileSidebar?: () => void;
+}) {
   const pathname = usePathname();
   const t = useTranslations("nav");
 
@@ -45,11 +49,27 @@ export function AppHeader() {
 
   return (
     <header className="flex items-center justify-between h-14 px-8 border-b bg-card">
-      <h2 className="text-lg font-semibold" style={{ letterSpacing: "-1px" }}>
-        {title}
-      </h2>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          aria-label="Open navigation"
+          title="Open navigation"
+          onClick={onOpenMobileSidebar}
+          className="rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground md:hidden"
+        >
+          <PanelLeft className="h-5 w-5" />
+        </button>
+        <h2 className="text-lg font-semibold" style={{ letterSpacing: "-1px" }}>
+          {title}
+        </h2>
+      </div>
       <div className="flex items-center gap-2">
-        <button className="rounded-md p-2 text-muted-foreground hover:text-foreground transition-colors outline-none ring-ring focus-visible:ring-2">
+        <button
+          type="button"
+          aria-label="Notifications"
+          title="Notifications"
+          className="rounded-md p-2 text-muted-foreground hover:text-foreground transition-colors outline-none ring-ring focus-visible:ring-2"
+        >
           <Bell className="h-5 w-5" />
         </button>
       </div>

@@ -35,7 +35,7 @@ export function EmailBarChart({ data, range }: EmailBarChartProps) {
         <span className="text-sm font-semibold text-foreground">
           Emails Sent
         </span>
-        <span className="text-[11px] font-mono text-muted-foreground">
+        <span className="text-[11px] font-mono text-foreground/70">
           {rangeLabel}
         </span>
       </div>
@@ -46,12 +46,20 @@ export function EmailBarChart({ data, range }: EmailBarChartProps) {
               dataKey="label"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 10, fontFamily: "var(--font-ibm-plex-mono)", fill: "#64748B" }}
+              tick={{
+                fontSize: 10,
+                fontFamily: "var(--font-ibm-plex-mono)",
+                fill: "var(--muted-foreground)",
+              }}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 10, fontFamily: "var(--font-ibm-plex-mono)", fill: "#64748B" }}
+              tick={{
+                fontSize: 10,
+                fontFamily: "var(--font-ibm-plex-mono)",
+                fill: "var(--muted-foreground)",
+              }}
               width={40}
             />
             <Tooltip
@@ -64,7 +72,7 @@ export function EmailBarChart({ data, range }: EmailBarChartProps) {
             />
             <Bar
               dataKey="sent"
-              fill="#0D9488"
+              fill="var(--primary)"
               radius={[4, 4, 0, 0]}
               maxBarSize={32}
             />

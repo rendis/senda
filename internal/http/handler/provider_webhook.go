@@ -34,10 +34,20 @@ type SubscriptionConfirmer interface {
 // SESWebhookHandler handles incoming SES event notifications via SNS.
 // Route: POST /api/v1/webhooks/ses/inbound (NO AUTH — uses SNS signature verification).
 type SESWebhookHandler struct {
-	processor *service.EventProcessor
-	verifier  SNSVerifier
-	confirmer SubscriptionConfirmer
-	logger    *slog.Logger
+	processor                 *service.EventProcessor
+	verifier                  SNSVerifier
+	confirmer                 SubscriptionConfirmer
+	logger                    *slog.Logger
+	skipSignatureVerification bool
+}
+
+// SESWebhookHandlerOption configures optional behavior for the SES webhook handler.
+type SESWebhookHandlerOption func(*SESWebhookHandler)
+
+// WithSkipSignatureVerification disables SNS signature verification.
+// Intended only for isolated test harnesses that replay trusted envelopes.
+func WithSkipSignatureVerification(skip bool) SESWebhookHandlerOption {
+	return func(h *SESWebhookHandler) { h.skipSignatureVerification = skip }
 }
 
 // NewSESWebhookHandler creates a new SES webhook handler.
@@ -46,16 +56,21 @@ func NewSESWebhookHandler(
 	verifier SNSVerifier,
 	confirmer SubscriptionConfirmer,
 	logger *slog.Logger,
+	opts ...SESWebhookHandlerOption,
 ) *SESWebhookHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &SESWebhookHandler{
+	h := &SESWebhookHandler{
 		processor: processor,
 		verifier:  verifier,
 		confirmer: confirmer,
 		logger:    logger,
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // snsMessage represents the SNS message envelope.
@@ -119,7 +134,7 @@ func (h *SESWebhookHandler) HandleInbound(c *echo.Context) error {
 	}
 
 	// 2. Verify SNS signature.
-	if h.verifier != nil {
+	if h.verifier != nil && !h.skipSignatureVerification {
 		if err := h.verifier.Verify(body); err != nil {
 			h.logger.WarnContext(ctx, "SNS signature verification failed", "error", err)
 			return c.NoContent(http.StatusForbidden)
@@ -345,6 +360,8 @@ func (c *HTTPSubscriptionConfirmer) ConfirmSubscription(ctx context.Context, sub
 	if err != nil {
 		return err
 	}
-	_ = resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	return nil
 }

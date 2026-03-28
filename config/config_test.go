@@ -157,6 +157,9 @@ crypto:
 	if cfg.Log.Format != "json" {
 		t.Errorf("default Log.Format = %q, want %q", cfg.Log.Format, "json")
 	}
+	if cfg.SNS.SkipSignatureVerification {
+		t.Errorf("default SNS.SkipSignatureVerification = %v, want false", cfg.SNS.SkipSignatureVerification)
+	}
 }
 
 func TestLoad_EnvVarOverrides(t *testing.T) {
@@ -182,6 +185,7 @@ crypto:
 	t.Setenv("SENDA_OIDC_CLIENT_ID", "env-client")
 	t.Setenv("SENDA_OIDC_CLIENT_SECRET", "env-secret")
 	t.Setenv("SENDA_MASTER_KEY", "env-master-key-that-is-at-least-32-chars!!")
+	t.Setenv("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION", "true")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -208,6 +212,9 @@ crypto:
 	}
 	if cfg.Crypto.MasterKey != "env-master-key-that-is-at-least-32-chars!!" {
 		t.Errorf("env override Crypto.MasterKey = %q", cfg.Crypto.MasterKey)
+	}
+	if !cfg.SNS.SkipSignatureVerification {
+		t.Errorf("env override SNS.SkipSignatureVerification = %v, want true", cfg.SNS.SkipSignatureVerification)
 	}
 }
 

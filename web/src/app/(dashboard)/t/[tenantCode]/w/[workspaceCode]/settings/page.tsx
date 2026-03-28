@@ -1,13 +1,5 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { SettingsContent } from "@/components/settings/settings-content";
+import { redirect } from "next/navigation";
 
 export default function WorkspaceSettingsPage() {
-  return (
-    <PageShell
-      title="Settings"
-      breadcrumbs={[{ label: "Workspace" }, { label: "Settings" }]}
-    >
-      <SettingsContent />
-    </PageShell>
-  );
+  redirect("/global/settings");
 }

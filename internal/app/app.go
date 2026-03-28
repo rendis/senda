@@ -97,11 +97,13 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		emailSender = smtpadapter.NewAdapter(cfg.SMTP.Host, cfg.SMTP.Port)
 		logger.Info("using SMTP email sender", "host", cfg.SMTP.Host, "port", cfg.SMTP.Port)
 	} else {
-		logger.Warn("no email sender configured, send operations will fail")
+		logger.Info("no static email sender configured; send worker will resolve adapter senders at runtime")
 	}
 
 	// 8. River workers.
-	var sendWorkerOpts []river.SendWorkerOption
+	sendWorkerOpts := []river.SendWorkerOption{
+		river.WithAdapterRuntime(adapterRepo, aesCrypto, river.DefaultAdapterSenderFactory),
+	}
 	if cfg.Tracking.BaseURL != "" {
 		sendWorkerOpts = append(sendWorkerOpts,
 			river.WithWorkspaceStore(wsRepo),
@@ -198,7 +200,13 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	if cfg.SMTP.Host == "" {
 		snsVerifier := sns.NewVerifier(&http.Client{})
 		snsConfirmer := handler.NewHTTPSubscriptionConfirmer(&http.Client{})
-		sesH := handler.NewSESWebhookHandler(eventProcessor, snsVerifier, snsConfirmer, logger)
+		sesH := handler.NewSESWebhookHandler(
+			eventProcessor,
+			snsVerifier,
+			snsConfirmer,
+			logger,
+			handler.WithSkipSignatureVerification(cfg.SNS.SkipSignatureVerification),
+		)
 		sesOpts = append(sesOpts, sendahttp.WithSESWebhookHandler(sesH))
 	}
 

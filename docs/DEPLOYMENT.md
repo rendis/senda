@@ -39,6 +39,7 @@ The master key is used to encrypt sensitive data at rest (adapter credentials, A
 | `SENDA_SMTP_PORT`         | `1025`       | SMTP server port                                 |
 | `SENDA_TRACKING_BASE_URL` | --           | Base URL for open-tracking pixels                |
 | `SENDA_MIGRATIONS_PATH`   | `migrations` | Path to SQL migration files inside the container |
+| `SENDA_SNS_SKIP_SIGNATURE_VERIFICATION` | `false` | Skip SNS signature verification (test-only; do not enable in production) |
 
 ## Database Setup
 
@@ -84,7 +85,7 @@ Email providers are configured per adapter through the management UI, not via en
 
 ### Amazon SES
 
-Configure the adapter with your AWS region and credentials. The sending identity (domain or email address) must be verified in SES before sending. For sandbox accounts, recipient addresses must also be verified.
+Configure the adapter with your AWS region and credentials. The sending identity (domain or email address) must be verified in SES before sending. For sandbox accounts, recipient addresses must also be verified. For non-production harnesses you can also provide an adapter-level `endpoint_url` to target a compatible SES endpoint such as LocalStack; leave it unset in production.
 
 ### Gmail
 

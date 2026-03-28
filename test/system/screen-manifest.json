@@ -1666,6 +1666,43 @@
       "critical": true
     },
     {
+      "route": "/logout",
+      "scope": [
+        "public"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "browser fresh session"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify logout feedback visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404"
+      ],
+      "pencilFrameId": "frame:logout",
+      "critical": false
+    },
+    {
       "route": "/",
       "scope": [
         "public"

@@ -5,10 +5,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 ACTION="${1:-up}"
 ENV_REPORT_PATH="${2:-$ARTIFACT_DIR/env-report.json}"
-COMPOSE_FILE="$ROOT_DIR/docker/docker-compose.e2e.yml"
 
-require_cmd docker
+require_cmd go
 require_cmd curl
+require_cmd jq
+
+stack_cmd() {
+  go run "$ROOT_DIR/cmd/systemtest" stack "$@"
+}
 
 health_check() {
   curl -fsS "$SENDA_BASE_URL/health" >/dev/null
@@ -16,36 +20,18 @@ health_check() {
   curl -fsS "$KEYCLOAK_BASE_URL/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration" >/dev/null
 }
 
-write_env_report() {
-  local timestamp
-  timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  cat >"$ENV_REPORT_PATH" <<JSON
-{
-  "timestamp": "$timestamp",
-  "status": "healthy",
-  "services": {
-    "senda": "$SENDA_BASE_URL",
-    "mailpit": "$MAILPIT_BASE_URL",
-    "keycloak": "$KEYCLOAK_BASE_URL"
-  },
-  "compose_file": "$COMPOSE_FILE"
-}
-JSON
-}
-
 case "$ACTION" in
   up)
-    log "infra-orchestrator: docker compose up"
-    docker compose -f "$COMPOSE_FILE" up -d --build --wait
+    log "infra-orchestrator: stack up"
+    stack_cmd up --mode "$SYSTEM_MODE" --out "$ENV_REPORT_PATH"
+    load_env_report "$ENV_REPORT_PATH"
     log "infra-orchestrator: health checks"
     health_check
-    mkdir -p "$(dirname "$ENV_REPORT_PATH")"
-    write_env_report
     log "infra-orchestrator: environment ready"
     ;;
   down)
-    log "infra-orchestrator: docker compose down"
-    docker compose -f "$COMPOSE_FILE" down -v
+    log "infra-orchestrator: stack down"
+    stack_cmd down --out "$ENV_REPORT_PATH"
     ;;
   status)
     health_check

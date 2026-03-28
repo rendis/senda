@@ -67,7 +67,7 @@ export function DashboardContent() {
             <h2 className="text-2xl font-semibold" style={{ letterSpacing: "-1px" }}>
               Overview
             </h2>
-            <p className="text-xs font-mono text-muted-foreground mt-1">
+            <p className="mt-1 text-xs font-mono text-foreground/70">
               {scopeLabel}
             </p>
           </div>
@@ -96,7 +96,7 @@ export function DashboardContent() {
             <h2 className="text-2xl font-semibold" style={{ letterSpacing: "-1px" }}>
               Overview
             </h2>
-            <p className="text-xs font-mono text-muted-foreground mt-1">
+            <p className="mt-1 text-xs font-mono text-foreground/70">
               {scopeLabel}
             </p>
           </div>
@@ -120,7 +120,7 @@ export function DashboardContent() {
             <h2 className="text-2xl font-semibold" style={{ letterSpacing: "-1px" }}>
               Overview
             </h2>
-            <p className="text-xs font-mono text-muted-foreground mt-1">
+            <p className="mt-1 text-xs font-mono text-foreground/70">
               {scopeLabel}
             </p>
           </div>
@@ -154,7 +154,7 @@ export function DashboardContent() {
           >
             Overview
           </h2>
-          <p className="text-xs font-mono text-muted-foreground mt-1">
+          <p className="mt-1 text-xs font-mono text-foreground/70">
             {scopeLabel}
           </p>
         </div>

@@ -2,6 +2,8 @@ package river
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -10,20 +12,54 @@ import (
 	"github.com/google/uuid"
 	goriver "github.com/riverqueue/river"
 
+	gmailadapter "github.com/senda-app/senda/internal/adapter/gmail"
+	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/tracking"
 )
 
+// AdapterSenderFactory creates a provider sender from a resolved adapter config.
+type AdapterSenderFactory func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error)
+
+// DefaultAdapterSenderFactory builds provider-specific senders from adapter configs.
+func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error) {
+	switch adapter.AdapterType {
+	case domain.AdapterTypeSES:
+		var cfg sesadapter.Config
+		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+			return nil, fmt.Errorf("%w: unmarshal SES config: %v", domain.ErrValidation, err)
+		}
+		if cfg.Region == "" {
+			return nil, fmt.Errorf("%w: missing SES region", domain.ErrValidation)
+		}
+		return sesadapter.NewAdapterFromConfig(ctx, cfg)
+	case domain.AdapterTypeGmail:
+		var cfg gmailadapter.GmailConfig
+		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+			return nil, fmt.Errorf("%w: unmarshal Gmail config: %v", domain.ErrValidation, err)
+		}
+		if cfg.OAuthClientID == "" || cfg.OAuthClientSecret == "" || cfg.RefreshToken == "" {
+			return nil, fmt.Errorf("%w: missing required Gmail OAuth fields", domain.ErrValidation)
+		}
+		return gmailadapter.NewAdapterFromConfig(ctx, cfg)
+	default:
+		return nil, fmt.Errorf("%w: unsupported adapter type %s", domain.ErrValidation, adapter.AdapterType)
+	}
+}
+
 // SendWorker processes email send jobs.
 type SendWorker struct {
 	goriver.WorkerDefaults[SendJobArgs]
 
-	emailStore  port.EmailStore
-	compiler    port.TemplateCompiler
+	emailStore      port.EmailStore
+	compiler        port.TemplateCompiler
 	renderer        port.VariableRenderer
 	rateLimiter     port.RateLimiter
 	sender          port.EmailSender
+	adapterStore    port.AdapterStore
+	crypto          port.Crypto
+	senderFactory   AdapterSenderFactory
 	wsStore         port.WorkspaceStore
 	trackingBaseURL string
 }
@@ -38,8 +74,8 @@ func NewSendWorker(
 	opts ...SendWorkerOption,
 ) *SendWorker {
 	w := &SendWorker{
-		emailStore: emailStore,
-		compiler:   compiler,
+		emailStore:  emailStore,
+		compiler:    compiler,
 		renderer:    renderer,
 		rateLimiter: rateLimiter,
 		sender:      sender,
@@ -61,6 +97,15 @@ func WithWorkspaceStore(ws port.WorkspaceStore) SendWorkerOption {
 // WithTrackingBaseURL sets the base URL for open-tracking pixels.
 func WithTrackingBaseURL(url string) SendWorkerOption {
 	return func(w *SendWorker) { w.trackingBaseURL = url }
+}
+
+// WithAdapterRuntime enables adapter-driven sender resolution when no static sender is configured.
+func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, senderFactory AdapterSenderFactory) SendWorkerOption {
+	return func(w *SendWorker) {
+		w.adapterStore = adapterStore
+		w.crypto = crypto
+		w.senderFactory = senderFactory
+	}
 }
 
 // Work processes a single email send job.
@@ -140,7 +185,14 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	}
 
 	// 8. Send via provider adapter.
-	providerMsgID, err := w.sender.Send(ctx, outgoing)
+	sender, err := w.resolveSender(ctx, email.AdapterID)
+	if err != nil {
+		if errors.Is(err, domain.ErrValidation) || errors.Is(err, domain.ErrNotFound) {
+			return w.failPermanently(ctx, email, fmt.Errorf("send: resolve sender: %w", err))
+		}
+		return fmt.Errorf("send: resolve sender: %w", err)
+	}
+	providerMsgID, err := sender.Send(ctx, outgoing)
 	if err != nil {
 		return w.handleSendError(ctx, email, job.Attempt, err)
 	}
@@ -207,6 +259,39 @@ func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, r
 		slog.Error("send_worker: failed to add failure event", "email_id", email.ID, "error", err)
 	}
 	return goriver.JobCancel(reason)
+}
+
+func (w *SendWorker) resolveSender(ctx context.Context, adapterID uuid.UUID) (port.EmailSender, error) {
+	if w.sender != nil {
+		return w.sender, nil
+	}
+	if adapterID == uuid.Nil {
+		return nil, fmt.Errorf("%w: missing adapter id", domain.ErrValidation)
+	}
+	if w.adapterStore == nil || w.crypto == nil {
+		return nil, fmt.Errorf("%w: adapter runtime sender is not configured", domain.ErrValidation)
+	}
+	factory := w.senderFactory
+	if factory == nil {
+		factory = DefaultAdapterSenderFactory
+	}
+
+	adapter, err := w.adapterStore.GetByID(ctx, adapterID)
+	if err != nil {
+		return nil, err
+	}
+	decryptedConfig, err := w.crypto.Decrypt(adapter.ConfigEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("%w: decrypt adapter config: %v", domain.ErrValidation, err)
+	}
+	sender, err := factory(ctx, adapter, decryptedConfig)
+	if err != nil {
+		return nil, err
+	}
+	if sender == nil {
+		return nil, fmt.Errorf("%w: adapter sender factory returned nil for %s", domain.ErrValidation, adapter.AdapterType)
+	}
+	return sender, nil
 }
 
 // isPermanentSendError checks if the error indicates a permanent failure.

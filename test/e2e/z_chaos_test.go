@@ -19,22 +19,20 @@ import (
 
 // --- Docker CLI helpers (no Docker Go SDK needed) ---
 
-// findContainerID uses the docker CLI to find a running container by name substring.
-func findContainerID(t *testing.T, nameSubstring string) string {
+// findContainerID resolves a specific running container by its exact known name.
+func findContainerID(t *testing.T, containerName string) string {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "docker", "ps", "--filter", fmt.Sprintf("name=%s", nameSubstring), "--format", "{{.ID}}")
-	out, err := cmd.Output()
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Running}} {{.Id}}", containerName).Output()
 	if err != nil {
 		return ""
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) > 0 && lines[0] != "" {
-		return strings.TrimSpace(lines[0])
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) == 2 && fields[0] == "true" {
+		return fields[1]
 	}
 	return ""
 }
@@ -55,6 +53,42 @@ func dockerStart(t *testing.T, containerID string) {
 	defer cancel()
 	require.NoError(t, exec.CommandContext(ctx, "docker", "start", containerID).Run(),
 		"failed to start container %s", containerID)
+}
+
+func waitForContainerHealthy(t *testing.T, containerID string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		out, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}", containerID).Output()
+		cancel()
+		if err == nil {
+			fields := strings.Fields(strings.TrimSpace(string(out)))
+			if len(fields) >= 1 && fields[0] == "running" {
+				if len(fields) == 1 || fields[1] == "none" || fields[1] == "healthy" {
+					return
+				}
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("container %s did not become healthy within %v", containerID, timeout)
+}
+
+func refreshMappedBaseURL(t *testing.T, containerID, containerPort, envKey string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "port", containerID, containerPort).Output()
+	require.NoError(t, err, "failed to resolve mapped port for %s %s", containerID, containerPort)
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	require.NotEmpty(t, lines, "no mapped ports returned for %s %s", containerID, containerPort)
+	mapping := strings.TrimSpace(lines[0])
+	idx := strings.LastIndex(mapping, ":")
+	require.NotEqual(t, -1, idx, "unexpected mapped port format %q", mapping)
+	url := "http://127.0.0.1:" + mapping[idx+1:]
+	require.NoError(t, os.Setenv(envKey, url), "failed to set %s", envKey)
+	return url
 }
 
 // dockerPause pauses a container via docker CLI.
@@ -118,7 +152,7 @@ func TestC01_ProviderDown(t *testing.T) {
 	}
 
 	// Stop Mailpit container via docker CLI
-	mailpitContainerID := findContainerID(t, "mailpit")
+	mailpitContainerID := findContainerID(t, coreHarnessMailpit)
 	require.NotEmpty(t, mailpitContainerID, "mailpit container not found in docker")
 
 	dockerStop(t, mailpitContainerID)
@@ -129,28 +163,14 @@ func TestC01_ProviderDown(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	// Restart Mailpit
+	// Restart Mailpit and wait until both the container health check and the host
+	// API endpoint are responsive again. Docker Desktop can take noticeably longer
+	// than a few seconds to rebind the published port after a stop/start cycle.
 	dockerStart(t, mailpitContainerID)
-	time.Sleep(5 * time.Second)
-
-	// Wait for Mailpit API to be responsive before checking messages
-	mailpitBaseURL := os.Getenv("MAILPIT_URL")
-	if mailpitBaseURL == "" {
-		mailpitBaseURL = "http://localhost:8025"
-	}
-	mailpitDeadline := time.Now().Add(15 * time.Second)
-	mailpitHTTP := &http.Client{Timeout: 2 * time.Second}
-	for time.Now().Before(mailpitDeadline) {
-		r, err := mailpitHTTP.Get(mailpitBaseURL + "/api/v1/messages")
-		if err == nil && r.StatusCode == http.StatusOK {
-			r.Body.Close()
-			break
-		}
-		if r != nil {
-			r.Body.Close()
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
+	waitForContainerHealthy(t, mailpitContainerID, 45*time.Second)
+	refreshMappedBaseURL(t, mailpitContainerID, "8025/tcp", "MAILPIT_URL")
+	WaitForMailpit(t, 45*time.Second)
+	mailpit = NewMailpitClient(t)
 
 	recoveryResp := sendClient.Post("/api/v1/send", SendRequest{
 		Ref: sendRef(),
@@ -164,7 +184,11 @@ func TestC01_ProviderDown(t *testing.T) {
 	recoveryResp.Body.Close()
 
 	require.Eventually(t, func() bool {
-		return mailpit.GetMessageCount() >= 1
+		count, err := mailpit.TryGetMessageCount()
+		if err != nil {
+			return false
+		}
+		return count >= 1
 	}, 120*time.Second, 1*time.Second, "expected at least one email delivered after provider restart")
 }
 
@@ -179,7 +203,7 @@ func TestC02_DBConnectionLost(t *testing.T) {
 	client := NewTestClient(t)
 	client.LoginAs(SuperadminEmail)
 
-	pgContainerID := findContainerID(t, "postgres")
+	pgContainerID := findContainerID(t, coreHarnessPostgres)
 	require.NotEmpty(t, pgContainerID, "postgres container not found in docker")
 
 	err := dockerPause(t, pgContainerID)
@@ -246,14 +270,16 @@ func TestC03_WorkerCrashRecovery(t *testing.T) {
 		resp.Body.Close()
 	}
 
-	sendaContainerID := findContainerID(t, "senda")
+	sendaContainerID := findContainerID(t, coreHarnessApp)
 	require.NotEmpty(t, sendaContainerID, "senda container not found in docker")
 
 	dockerKill(t, sendaContainerID, "SIGKILL")
 	time.Sleep(2 * time.Second)
 
 	dockerStart(t, sendaContainerID)
-	time.Sleep(5 * time.Second)
+	waitForContainerHealthy(t, sendaContainerID, 60*time.Second)
+	refreshMappedBaseURL(t, sendaContainerID, "8080/tcp", "SENDA_BASE_URL")
+	WaitForServer(t, 60*time.Second)
 
 	deadline := time.Now().Add(60 * time.Second)
 	var finalCount int

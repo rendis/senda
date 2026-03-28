@@ -8,6 +8,8 @@ require_cmd jq
 require_cmd agent-browser
 require_cmd timeout
 
+load_env_report "$ENV_REPORT_FILE"
+
 REPORT_PATH="$ARTIFACT_DIR/a11y-report.md"
 RESULTS_JSON="$ARTIFACT_DIR/a11y-results.json"
 CASE_RESULTS="$ARTIFACT_DIR/a11y-cases.tsv"
@@ -17,6 +19,8 @@ RAW_DIR="$ARTIFACT_DIR/a11y/raw"
 STATE_DIR="$ARTIFACT_DIR/a11y/state"
 
 mkdir -p "$RAW_DIR" "$STATE_DIR"
+
+session_namespace="$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
 
 ab() {
   local session="$1"
@@ -33,7 +37,7 @@ ab_json() {
 session_for_role() {
   local role="$1"
   local slug="${role//[^a-zA-Z0-9]/-}"
-  echo "senda-a11y-${slug}"
+  echo "senda-a11y-${session_namespace}-${slug}"
 }
 
 ensure_role_login() {
@@ -58,13 +62,50 @@ ensure_role_login() {
   fi
 
   log "ui-a11y-tester: login role=$role email=$email"
+  timeout 5s agent-browser --session "$session" close >/dev/null 2>&1 || true
   ab "$session" open "$FRONTEND_BASE_URL/login" >/dev/null
   ab "$session" wait 1200 >/dev/null
 
   local current_url
-  current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
-  if [[ "$current_url" == *"/login"* ]]; then
-    ab "$session" click "button" >/dev/null
+  local login_started=0
+  for _ in $(seq 1 10); do
+    current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+    if [[ "$current_url" != *"/login"* ]]; then
+      login_started=1
+      break
+    fi
+
+    if ! ab_json "$session" eval '(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const button = buttons.find((candidate) => {
+        const text = (candidate.textContent || "").replace(/\s+/g, " ").trim();
+        return /sign in|oidc|iniciar|ingresar/i.test(text);
+      });
+      if (!button) return "missing";
+      button.click();
+      return "clicked";
+    })()' | jq -e '.data.result == "clicked"' >/dev/null; then
+      echo "a11y login button not found on frontend login page for role=$role" >&2
+      return 1
+    fi
+
+    for _ in $(seq 1 15); do
+      current_url="$(ab_json "$session" get url | jq -r '.data.url // ""')"
+      if [[ "$current_url" != *"/login"* ]]; then
+        login_started=1
+        break
+      fi
+      sleep 1
+    done
+
+    if [[ "$login_started" -eq 1 ]]; then
+      break
+    fi
+  done
+
+  if [[ "$login_started" -ne 1 ]]; then
+    echo "a11y login did not leave frontend login page for role=$role last_url=$current_url" >&2
+    return 1
   fi
 
   ab "$session" wait "#username" >/dev/null
@@ -184,7 +225,12 @@ A11Y_JS=$(cat <<'EOF_JS'
         impact: v.impact,
         description: v.description,
         help: v.help,
-        nodeCount: v.nodes.length
+        nodeCount: v.nodes.length,
+        nodes: v.nodes.map((n) => ({
+          target: n.target,
+          html: n.html,
+          failureSummary: n.failureSummary,
+        }))
       }))
     }
   };
@@ -206,7 +252,7 @@ go run "$ROOT_DIR/cmd/systemtest" matrix \
 if [[ "$SYSTEM_MODE" == "pr" ]]; then
   awk -F '\t' 'NR==1 || ($7=="true" && $4=="superadmin" && $5=="en" && $6=="desktop")' "$MATRIX_TSV" >"$FILTERED_TSV"
 else
-  cp "$MATRIX_TSV" "$FILTERED_TSV"
+  awk -F '\t' 'NR==1 || ($7=="true" && $4=="superadmin")' "$MATRIX_TSV" >"$FILTERED_TSV"
 fi
 
 echo -e "route\tscope\trole\tlocale\tviewport\tstatus\tcritical\tserious\tmanual_issues\traw_json" >"$CASE_RESULTS"

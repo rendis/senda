@@ -40,7 +40,12 @@ export function ActivityFeed({ items, auditHref }: ActivityFeedProps) {
           </a>
         )}
       </div>
-      <div className="flex flex-col overflow-y-auto">
+      <div
+        className="flex flex-col overflow-y-auto"
+        role="region"
+        aria-label="Recent activity feed"
+        tabIndex={0}
+      >
         {items.map((item, i) => (
           <div
             key={item.id}
@@ -59,14 +64,14 @@ export function ActivityFeed({ items, auditHref }: ActivityFeedProps) {
               <span className="text-xs font-medium text-foreground truncate">
                 {formatAction(item.action, item.entity_type)}
               </span>
-              <span className="text-[11px] font-mono text-muted-foreground">
+              <span className="text-[11px] font-mono text-foreground/70">
                 {formatRelativeTime(item.created_at)}
               </span>
             </div>
           </div>
         ))}
         {items.length === 0 && (
-          <p className="text-xs font-mono text-muted-foreground py-4 text-center">
+          <p className="py-4 text-center text-xs font-mono text-foreground/70">
             No recent activity
           </p>
         )}

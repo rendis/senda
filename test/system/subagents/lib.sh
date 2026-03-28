@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SYSTEM_MODE="${SYSTEM_MODE:-pr}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$ROOT_DIR/artifacts/system/$(date -u +%Y%m%dT%H%M%SZ)}"
+ENV_REPORT_FILE="${ENV_REPORT_FILE:-$ARTIFACT_DIR/env-report.json}"
 SENDA_BASE_URL="${SENDA_BASE_URL:-http://localhost:8090}"
 KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://localhost:9090}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-senda}"
@@ -45,27 +46,88 @@ require_cmd() {
   fi
 }
 
+load_env_report() {
+  local report="${1:-$ENV_REPORT_FILE}"
+  if [[ ! -f "$report" ]]; then
+    return 0
+  fi
+
+  require_cmd jq
+
+  eval "$(
+    jq -r '
+      .services as $s
+      | [
+          "export SENDA_BASE_URL=" + (($s.senda // "") | @sh),
+          "export MAILPIT_BASE_URL=" + (($s.mailpit // "") | @sh),
+          "export KEYCLOAK_BASE_URL=" + (($s.keycloak // "") | @sh),
+          "export FRONTEND_BASE_URL=" + (($s.frontend // env.FRONTEND_BASE_URL // "") | @sh)
+        ]
+      | .[]
+    ' "$report"
+  )"
+}
+
+stop_stale_frontend_listeners() {
+  local pid
+  if ! command -v lsof >/dev/null 2>&1; then
+    return 0
+  fi
+
+  while read -r pid; do
+    [[ -n "$pid" ]] || continue
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      log "stopping stale frontend listener pid=$pid on port 3000"
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 1
+      if kill -0 "$pid" >/dev/null 2>&1; then
+        kill -9 "$pid" >/dev/null 2>&1 || true
+      fi
+    fi
+  done < <(lsof -tiTCP:3000 -sTCP:LISTEN 2>/dev/null || true)
+}
+
 start_frontend() {
+  load_env_report
+
   local pid_file="$ARTIFACT_DIR/frontend.pid"
   local log_file="$ARTIFACT_DIR/frontend.log"
+  local api_url="$SENDA_BASE_URL"
+  local auth_secret="${AUTH_SECRET:-ysf1mCbeKS9WIY7kan1OOXg/8MmK35YVZRC9qsYUYFM=}"
+  local auth_oidc_issuer="${AUTH_OIDC_ISSUER:-$KEYCLOAK_BASE_URL/realms/senda}"
+  local auth_oidc_id="${AUTH_OIDC_ID:-senda-web}"
+  local auth_oidc_secret="${AUTH_OIDC_SECRET:-senda-dev-secret}"
 
   if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" >/dev/null 2>&1; then
     log "frontend already running (pid=$(cat "$pid_file"))"
     return 0
   fi
 
+  stop_stale_frontend_listeners
+
   log "building frontend"
-  npm --prefix "$ROOT_DIR/web" run build >/dev/null
+  (
+    cd "$ROOT_DIR"
+    NEXT_PUBLIC_API_URL="$api_url" \
+    AUTH_URL="$FRONTEND_BASE_URL" \
+    AUTH_SECRET="$auth_secret" \
+    AUTH_TRUST_HOST=true \
+    AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
+    AUTH_OIDC_ID="$auth_oidc_id" \
+    AUTH_OIDC_SECRET="$auth_oidc_secret" \
+    npm --prefix "$ROOT_DIR/web" run build >/dev/null
+  )
 
   log "starting frontend server"
   (
     cd "$ROOT_DIR"
-    NEXT_PUBLIC_API_URL="$SENDA_BASE_URL" \
-    AUTH_SECRET="${AUTH_SECRET:-ysf1mCbeKS9WIY7kan1OOXg/8MmK35YVZRC9qsYUYFM=}" \
+    NEXT_PUBLIC_API_URL="$api_url" \
+    AUTH_URL="$FRONTEND_BASE_URL" \
+    AUTH_SECRET="$auth_secret" \
     AUTH_TRUST_HOST=true \
-    AUTH_OIDC_ISSUER="${AUTH_OIDC_ISSUER:-$KEYCLOAK_BASE_URL/realms/senda}" \
-    AUTH_OIDC_ID="${AUTH_OIDC_ID:-senda-web}" \
-    AUTH_OIDC_SECRET="${AUTH_OIDC_SECRET:-senda-dev-secret}" \
+    AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
+    AUTH_OIDC_ID="$auth_oidc_id" \
+    AUTH_OIDC_SECRET="$auth_oidc_secret" \
     npm --prefix web run start -- --port 3000
   ) >"$log_file" 2>&1 &
 
@@ -75,6 +137,10 @@ start_frontend() {
   log "waiting frontend health"
   local ok=0
   for _ in $(seq 1 60); do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      echo "frontend exited before becoming healthy, log: $log_file" >&2
+      return 1
+    fi
     if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
       ok=1
       break
@@ -105,6 +171,8 @@ stop_frontend() {
 }
 
 ensure_runtime_env() {
+  load_env_report
+
   local runtime_env="${RUNTIME_ENV_FILE:-$ARTIFACT_DIR/runtime.env}"
   if [[ -f "$runtime_env" ]]; then
     return 0
@@ -134,6 +202,8 @@ load_runtime_env() {
 }
 
 seed_keycloak_users() {
+  load_env_report
+
   log "seeding keycloak users"
   if ! go run "$ROOT_DIR/cmd/systemtest" keycloak-seed \
     --base-url "$KEYCLOAK_BASE_URL" \
@@ -146,6 +216,7 @@ seed_keycloak_users() {
 }
 
 seed_rbac_memberships() {
+  load_env_report
   ensure_runtime_env
   load_runtime_env
   log "seeding RBAC member roles"

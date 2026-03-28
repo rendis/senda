@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { startFederatedLogout } from "@/lib/logout";
 
 function getUserInitials(name?: string | null, email?: string | null): string {
   if (name) {
@@ -49,11 +50,22 @@ function getUserInitials(name?: string | null, email?: string | null): string {
   return "??";
 }
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+  mobileOpen: boolean;
+  onMobileOpenChange: (open: boolean) => void;
+}
+
+export function AppSidebar({
+  collapsed,
+  onCollapsedChange,
+  mobileOpen,
+  onMobileOpenChange,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const { level, tenantCode, workspaceCode } = useScope();
   const { data: session } = useSession();
-  const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
 
@@ -81,128 +93,181 @@ export function AppSidebar() {
   const displayName = session?.user?.name ?? session?.user?.email ?? "User";
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
 
-  return (
-    <aside
-      className={cn(
-        "flex flex-col justify-between bg-sidebar text-sidebar-foreground transition-all duration-200",
-        collapsed ? "w-16" : "w-60"
-      )}
-      style={{ minHeight: "100vh" }}
-    >
-      {/* Top */}
-      <div className="flex flex-col gap-1">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-3 h-10 mt-5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary shrink-0">
-            <span className="text-sm font-bold text-primary-foreground">S</span>
+  const visibleNavItems = navItems.filter(
+    (item) => !(item.href === "/settings" && level !== "global"),
+  );
+
+  function hrefForItem(href: string) {
+    if (href === "/settings") {
+      return "/global/settings";
+    }
+    return `${basePath}${href}`;
+  }
+
+  function renderSidebarContent(
+    currentCollapsed: boolean,
+    isMobile: boolean,
+  ) {
+    return (
+      <div className="flex h-full flex-col justify-between bg-sidebar text-sidebar-foreground">
+        <div className="flex flex-col gap-1">
+          <div className="mt-5 flex h-10 items-center gap-2.5 px-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary">
+              <span className="text-sm font-bold text-primary-foreground">S</span>
+            </div>
+            {!currentCollapsed && (
+              <span className="text-base font-semibold text-white">Senda</span>
+            )}
           </div>
-          {!collapsed && (
-            <span className="text-base font-semibold text-white">Senda</span>
-          )}
+
+          <div className="mx-3 my-1 h-px bg-sidebar-accent" />
+          <ScopeSwitcher collapsed={currentCollapsed} />
+          <div className="mx-3 my-1 h-px bg-sidebar-accent" />
+
+          <nav className="flex flex-col gap-0.5 px-3">
+            {visibleNavItems.map((item) => {
+              const href = hrefForItem(item.href);
+              const isActive =
+                item.href === ""
+                  ? pathname === basePath || pathname === `${basePath}/`
+                  : pathname.startsWith(href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={href}
+                  onClick={() => {
+                    if (isMobile) {
+                      onMobileOpenChange(false);
+                    }
+                  }}
+                  className={cn(
+                    "flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent font-medium text-white"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px] shrink-0" />
+                  {!currentCollapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Divider */}
-        <div className="mx-3 my-1 h-px bg-sidebar-accent" />
+        <div className="flex flex-col gap-2 px-3 pb-5">
+          <button
+            type="button"
+            aria-label={t("help")}
+            title={t("help")}
+            className="flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-white"
+          >
+            <CircleHelp className="h-[18px] w-[18px] shrink-0" />
+            {!currentCollapsed && <span>{t("help")}</span>}
+          </button>
 
-        {/* Scope switcher */}
-        <ScopeSwitcher collapsed={collapsed} />
+          <div className="h-px bg-sidebar-accent" />
 
-        {/* Divider */}
-        <div className="mx-3 my-1 h-px bg-sidebar-accent" />
+          <div
+            className={cn(
+              "flex px-2",
+              currentCollapsed
+                ? "flex-col items-center gap-2 py-1"
+                : "h-10 items-center gap-2.5",
+            )}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={
+                    currentCollapsed ? displayName : `${displayName} menu`
+                  }
+                  title={displayName}
+                  className={cn(
+                    "flex items-center rounded-md outline-none",
+                    currentCollapsed
+                      ? "justify-center"
+                      : "min-w-0 flex-1 gap-2.5",
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#334155]">
+                    <span className="text-[11px] font-semibold text-white">
+                      {initials}
+                    </span>
+                  </div>
+                  {!currentCollapsed && (
+                    <span className="truncate text-[13px] text-white">
+                      {displayName}
+                    </span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-48">
+                <DropdownMenuItem asChild>
+                  <LocaleSwitcher />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (isMobile) {
+                      onMobileOpenChange(false);
+                    }
+                    startFederatedLogout("/login");
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {tCommon("signOut")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        {/* Nav items */}
-        <nav className="flex flex-col gap-0.5 px-3">
-          {navItems.map((item) => {
-            const href = `${basePath}${item.href}`;
-            const isActive =
-              item.href === ""
-                ? pathname === basePath || pathname === `${basePath}/`
-                : pathname.startsWith(href);
-
-            return (
-              <Link
-                key={item.href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 h-9 rounded-md text-[13px] transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-white font-medium"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
-                )}
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Bottom */}
-      <div className="flex flex-col gap-2 px-3 pb-5">
-        {/* Help */}
-        <button className="flex items-center gap-2.5 px-3 h-9 rounded-md text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-white transition-colors">
-          <CircleHelp className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>{t("help")}</span>}
-        </button>
-
-        {/* Divider */}
-        <div className="h-px bg-sidebar-accent" />
-
-        {/* User row (dropdown) + collapse */}
-        <div
-          className={cn(
-            "flex px-2",
-            collapsed
-              ? "flex-col items-center gap-2 py-1"
-              : "items-center gap-2.5 h-10"
-          )}
-        >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            {!isMobile && (
               <button
-                className={cn(
-                  "flex items-center outline-none rounded-md",
-                  collapsed ? "justify-center" : "gap-2.5 flex-1 min-w-0"
-                )}
+                type="button"
+                onClick={() => onCollapsedChange(!currentCollapsed)}
+                aria-label={
+                  currentCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                }
+                title={currentCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                className="shrink-0 text-sidebar-foreground transition-colors hover:text-white"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#334155] shrink-0">
-                  <span className="text-[11px] font-semibold text-white">
-                    {initials}
-                  </span>
-                </div>
-                {!collapsed && (
-                  <span className="text-[13px] text-white truncate">
-                    {displayName}
-                  </span>
+                {currentCollapsed ? (
+                  <PanelLeft className="h-4 w-4" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4" />
                 )}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-48">
-              <DropdownMenuItem asChild>
-                <LocaleSwitcher />
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => signOut({ callbackUrl: "/login" })}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                {tCommon("signOut")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="text-sidebar-foreground hover:text-white transition-colors shrink-0"
-          >
-            {collapsed ? (
-              <PanelLeft className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
             )}
-          </button>
+          </div>
         </div>
       </div>
-    </aside>
+    );
+  }
+
+  return (
+    <>
+      <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <SheetContent
+          side="left"
+          className="w-[18rem] border-r border-sidebar-accent bg-sidebar p-0 text-sidebar-foreground md:hidden"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation</SheetTitle>
+          </SheetHeader>
+          {renderSidebarContent(false, true)}
+        </SheetContent>
+      </Sheet>
+
+      <aside
+        className={cn(
+          "hidden min-h-screen flex-col justify-between bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
+          collapsed ? "w-16" : "w-60",
+        )}
+      >
+        {renderSidebarContent(collapsed, false)}
+      </aside>
+    </>
   );
 }
