@@ -74,6 +74,19 @@
     "switchTo": "English",
     "current": "Español"
   },
+  "theme": {
+    "label": "Tema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema",
+    "current": "Tema actual: {theme}",
+    "followingSystem": "Siguiendo el sistema: {theme}"
+  },
+  "appearance": {
+    "title": "Apariencia",
+    "description": "Elige cómo se ve Senda en este navegador y dispositivo.",
+    "localOnly": "Esta preferencia se guarda solo en este navegador y dispositivo."
+  },
   "nav": {
     "dashboard": "Dashboard",
     "emails": "Emails",

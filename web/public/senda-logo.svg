@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+    <defs>
+        <!-- Gradientes para la Caja/Sobre (Gestión) -->
+        <linearGradient id="flapGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#5B21B6"></stop>
+            <stop offset="100%" stop-color="#3B0764"></stop>
+        </linearGradient>
+        <linearGradient id="leftFaceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4C1D95"></stop>
+            <stop offset="100%" stop-color="#2E1065"></stop>
+        </linearGradient>
+        <linearGradient id="rightFaceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#7C3AED"></stop>
+            <stop offset="100%" stop-color="#4C1D95"></stop>
+        </linearGradient>
+
+        <!-- Gradientes para el Avión (Envío) -->
+        <linearGradient id="planeLeftGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#F43F5E"></stop>
+            <stop offset="100%" stop-color="#FF8A00"></stop>
+        </linearGradient>
+        <linearGradient id="planeRightGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FF8A00"></stop>
+            <stop offset="100%" stop-color="#FBBF24"></stop>
+        </linearGradient>
+        <linearGradient id="planeShadowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#E11D48"></stop>
+            <stop offset="100%" stop-color="#9F1239"></stop>
+        </linearGradient>
+        
+        <!-- Gradiente para el rastro de velocidad -->
+        <linearGradient id="trailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FBBF24" stop-opacity="0"></stop>
+            <stop offset="100%" stop-color="#FF8A00" stop-opacity="1"></stop>
+        </linearGradient>
+    </defs>
+
+    <g stroke-linejoin="round" stroke-linecap="round">
+        <!-- 1. SOLAPA TRASERA DEL SOBRE (Al fondo) -->
+        <polygon points="200,335 600,335 400,105" fill="url(#flapGrad)" stroke="url(#flapGrad)" stroke-width="8"></polygon>
+
+        <!-- 2. SOMBRA INTERNA DEL AVIÓN (Profundidad) -->
+        <polygon points="400,500 350,250 430,300" fill="url(#planeShadowGrad)" stroke="url(#planeShadowGrad)" stroke-width="8"></polygon>
+
+        <!-- 3. ALA IZQUIERDA DEL AVIÓN -->
+        <polygon points="400,500 350,250 700,150" fill="url(#planeLeftGrad)" stroke="url(#planeLeftGrad)" stroke-width="12"></polygon>
+
+        <!-- 4. ALA DERECHA DEL AVIÓN -->
+        <polygon points="400,500 550,450 700,150" fill="url(#planeRightGrad)" stroke="url(#planeRightGrad)" stroke-width="12"></polygon>
+
+        <!-- 5. ESTELAS DE VELOCIDAD (Emergiendo) -->
+        <line x1="320" y1="420" x2="240" y2="473" stroke="url(#trailGrad)" stroke-width="12" stroke-linecap="round"></line>
+        <line x1="480" y1="520" x2="420" y2="560" stroke="url(#trailGrad)" stroke-width="10" stroke-linecap="round"></line>
+        <line x1="380" y1="450" x2="350" y2="470" stroke="url(#trailGrad)" stroke-width="8" stroke-linecap="round"></line>
+
+        <!-- 6. CARA IZQUIERDA DE LA CAJA (Oculta la base del avión creando el efecto 3D) -->
+        <polygon points="400,450 200,335 200,565 400,680" fill="url(#leftFaceGrad)" stroke="url(#leftFaceGrad)" stroke-width="8"></polygon>
+
+        <!-- 7. CARA DERECHA DE LA CAJA -->
+        <polygon points="400,450 400,680 600,565 600,335" fill="url(#rightFaceGrad)" stroke="url(#rightFaceGrad)" stroke-width="8"></polygon>
+
+        <!-- 8. LÍNEA EN V DEL SOBRE FRONTAL (Le da identidad de "Email") -->
+        <polyline points="200,335 400,550 600,335" fill="none" stroke="#FFFFFF" stroke-width="8" opacity="0.15"></polyline>
+
+        <!-- 9. BORDE SUPERIOR DE LA CAJA (Define la apertura por donde sale el avión) -->
+        <polyline points="200,335 400,450 600,335" fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.25"></polyline>
+    </g>
+</svg>

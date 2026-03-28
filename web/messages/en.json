@@ -74,6 +74,19 @@
     "switchTo": "Español",
     "current": "English"
   },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "current": "Current theme: {theme}",
+    "followingSystem": "Following system: {theme}"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "description": "Choose how Senda looks on this browser and device.",
+    "localOnly": "This preference is saved only in this browser and device."
+  },
   "nav": {
     "dashboard": "Dashboard",
     "emails": "Emails",

@@ -35,20 +35,20 @@ import { truncate } from "@/lib/utils";
 import type { Webhook, WebhookEventType } from "@/types/webhooks";
 
 const EVENT_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
-  "email.sent": { dot: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-500" },
-  "email.delivered": { dot: "bg-green-500", bg: "bg-green-50", text: "text-green-500" },
-  "email.bounced": { dot: "bg-red-500", bg: "bg-red-50", text: "text-red-500" },
-  "email.complained": { dot: "bg-orange-500", bg: "bg-orange-50", text: "text-orange-500" },
-  "email.opened": { dot: "bg-purple-500", bg: "bg-purple-50", text: "text-purple-500" },
+  "email.sent": { dot: "bg-status-sent", bg: "bg-status-sent-bg", text: "text-status-sent" },
+  "email.delivered": { dot: "bg-status-delivered", bg: "bg-status-delivered-bg", text: "text-status-delivered" },
+  "email.bounced": { dot: "bg-status-bounced", bg: "bg-status-bounced-bg", text: "text-status-bounced" },
+  "email.complained": { dot: "bg-status-complained", bg: "bg-status-complained-bg", text: "text-status-complained" },
+  "email.opened": { dot: "bg-scope-system", bg: "bg-scope-system-bg", text: "text-scope-system" },
 };
 
 function EventBadge({ event }: { event: WebhookEventType }) {
   const label = event.replace("email.", "");
   const capitalLabel = label.charAt(0).toUpperCase() + label.slice(1);
   const colors = EVENT_COLORS[event] ?? {
-    dot: "bg-gray-500",
-    bg: "bg-gray-50",
-    text: "text-gray-500",
+    dot: "bg-status-draft",
+    bg: "bg-status-draft-bg",
+    text: "text-status-draft",
   };
 
   return (
@@ -197,7 +197,7 @@ function WebhooksTable() {
       cell: ({ row }) => (
         <span
           className={`text-xs font-medium ${
-            row.original.is_active ? "text-green-500" : "text-muted-foreground"
+            row.original.is_active ? "text-status-delivered" : "text-muted-foreground"
           }`}
         >
           {row.original.is_active ? "Active" : "Disabled"}
@@ -214,7 +214,7 @@ function WebhooksTable() {
           <span
             className={`font-mono text-xs ${
               failures > 0
-                ? "text-orange-500 font-semibold"
+                ? "font-semibold text-status-complained"
                 : "text-muted-foreground"
             }`}
           >

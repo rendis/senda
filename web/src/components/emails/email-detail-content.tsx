@@ -149,8 +149,8 @@ export function EmailDetailContent() {
               (e.event_type === "bounced" || e.event_type === "failed") &&
               e.metadata
           ) && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-              <h3 className="text-sm font-semibold text-red-800 mb-2">
+            <div className="rounded-lg border border-status-bounced bg-status-bounced-bg p-6">
+              <h3 className="mb-2 text-sm font-semibold text-status-bounced">
                 Error Details
               </h3>
               {(email.events ?? [])
@@ -162,7 +162,7 @@ export function EmailDetailContent() {
                 .map((e) => (
                   <pre
                     key={e.id}
-                    className="text-xs font-mono text-red-700 whitespace-pre-wrap"
+                    className="text-xs font-mono text-status-bounced whitespace-pre-wrap"
                   >
                     {JSON.stringify(e.metadata, null, 2)}
                   </pre>

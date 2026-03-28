@@ -20,6 +20,10 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Senda — Email Orchestration",
   description: "Open-source email orchestration platform",
+  icons: {
+    icon: "/senda-logo.svg",
+    shortcut: "/senda-logo.svg",
+  },
 };
 
 export default async function RootLayout({

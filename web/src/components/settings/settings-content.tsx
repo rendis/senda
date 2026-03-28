@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ThemeSelector } from "@/components/shared/theme-selector";
 import type { UpdateSettingsRequest } from "@/types/settings";
+import { useTranslations } from "next-intl";
 
 interface SettingsFormValues {
   max_retries: number;
@@ -46,6 +48,8 @@ function SettingsFormSkeleton() {
 }
 
 export function SettingsContent() {
+  const tTheme = useTranslations("theme");
+  const tAppearance = useTranslations("appearance");
   const scope = useScope();
   const { data, isLoading: rawLoading, error } = useSettings();
   const isLoading = useMinimumLoading(rawLoading);
@@ -196,6 +200,18 @@ export function SettingsContent() {
               className="h-9 text-[13px]"
             />
           </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={tAppearance("title")}>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-[13px] font-medium">{tTheme("label")}</Label>
+            <p className="text-sm text-muted-foreground">
+              {tAppearance("description")}
+            </p>
+          </div>
+          <ThemeSelector variant="inline" />
         </div>
       </SettingsSection>
 

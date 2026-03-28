@@ -11,12 +11,12 @@ interface ActivityFeedProps {
 
 function getActivityColor(action: string): string {
   if (action.includes("delete") || action.includes("bounce") || action.includes("fail")) {
-    return "bg-[#EF4444]";
+    return "bg-status-bounced";
   }
   if (action.includes("create") || action.includes("deliver") || action.includes("send")) {
-    return "bg-[#22C55E]";
+    return "bg-status-delivered";
   }
-  return "bg-[#3B82F6]";
+  return "bg-status-sent";
 }
 
 function formatAction(action: string, entityType: string): string {

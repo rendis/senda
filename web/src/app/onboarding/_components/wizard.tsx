@@ -7,6 +7,7 @@ import { Step1Welcome } from "./step-1-welcome";
 import { Step2CreateTenant } from "./step-2-create-tenant";
 import { Step3CreateWorkspace } from "./step-3-create-workspace";
 import { cn } from "@/lib/utils";
+import { PublicThemeToggle } from "@/components/shared/public-theme-toggle";
 
 const STORAGE_KEY = "senda-onboarding";
 
@@ -80,6 +81,7 @@ export function OnboardingWizard() {
 
   return (
     <>
+      <PublicThemeToggle />
       <header className="sr-only">
         <nav aria-label="Public navigation">
           <a href="/login">Back to login</a>

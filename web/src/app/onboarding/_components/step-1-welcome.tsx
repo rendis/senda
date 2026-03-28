@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Send, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { Button } from "@/components/ui/button";
 import { OnboardingStepper } from "@/components/shared/onboarding-stepper";
 
@@ -17,9 +18,7 @@ export function Step1Welcome({ currentStep, onConnect }: Step1WelcomeProps) {
     <>
       {/* Header */}
       <div className="flex flex-col items-center gap-2">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-          <Send className="h-8 w-8 text-primary-foreground" />
-        </div>
+        <BrandLogo size="lg" priority />
         <h1 className="text-2xl font-bold text-foreground">
           {t("title")}
         </h1>

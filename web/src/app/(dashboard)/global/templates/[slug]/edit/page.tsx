@@ -17,7 +17,7 @@ export default function GlobalTemplateEditPage() {
             </div>
             <div className="flex flex-1">
               <div className="flex-1 bg-background" />
-              <div className="w-[480px] bg-slate-100 border-l" />
+              <div className="w-[480px] border-l bg-surface" />
             </div>
           </div>
         }

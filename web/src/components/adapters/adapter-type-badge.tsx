@@ -4,13 +4,13 @@ import type { AdapterType } from "@/types/adapters";
 const typeConfig: Record<AdapterType, { label: string; textColor: string; bgColor: string }> = {
   ses: {
     label: "SES",
-    textColor: "text-orange-700",
-    bgColor: "bg-orange-50",
+    textColor: "text-adapter-ses",
+    bgColor: "bg-adapter-ses-bg",
   },
   gmail: {
     label: "Gmail",
-    textColor: "text-red-600",
-    bgColor: "bg-red-50",
+    textColor: "text-adapter-gmail",
+    bgColor: "bg-adapter-gmail-bg",
   },
 };
 
@@ -20,7 +20,7 @@ interface AdapterTypeBadgeProps {
 }
 
 export function AdapterTypeBadge({ type, className }: AdapterTypeBadgeProps) {
-  const config = typeConfig[type] ?? { label: type, textColor: "text-gray-700", bgColor: "bg-gray-100" };
+  const config = typeConfig[type] ?? { label: type, textColor: "text-muted-foreground", bgColor: "bg-muted" };
 
   return (
     <span

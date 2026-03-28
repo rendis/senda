@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 
 const actionColors: Record<string, { bg: string; text: string }> = {
-  create: { bg: "bg-blue-100", text: "text-blue-700" },
-  update: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  delete: { bg: "bg-red-50", text: "text-red-600" },
+  create: { bg: "bg-status-delivered-bg", text: "text-status-delivered" },
+  update: { bg: "bg-status-complained-bg", text: "text-status-complained" },
+  delete: { bg: "bg-status-bounced-bg", text: "text-status-bounced" },
 };
 
-const defaultColor = { bg: "bg-gray-100", text: "text-gray-600" };
+const defaultColor = { bg: "bg-status-draft-bg", text: "text-status-draft" };
 
 interface ActionBadgeProps {
   action: string;

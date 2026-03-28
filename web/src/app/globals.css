@@ -44,25 +44,34 @@
   --color-chart-5: var(--chart-5);
 
   /* Senda — Scope colors */
-  --color-scope-global: #3B82F6;
-  --color-scope-system: #8B5CF6;
-  --color-scope-workspace: #0D9488;
+  --color-scope-global: var(--scope-global);
+  --color-scope-global-bg: var(--scope-global-bg);
+  --color-scope-system: var(--scope-system);
+  --color-scope-system-bg: var(--scope-system-bg);
+  --color-scope-workspace: var(--scope-workspace);
+  --color-scope-workspace-bg: var(--scope-workspace-bg);
 
   /* Senda — Status colors */
-  --color-status-queued: #475569;
-  --color-status-queued-bg: #F1F5F9;
-  --color-status-sent: #1D4ED8;
-  --color-status-sent-bg: #EFF6FF;
-  --color-status-delivered: #15803D;
-  --color-status-delivered-bg: #F0FDF4;
-  --color-status-bounced: #B91C1C;
-  --color-status-bounced-bg: #FEF2F2;
-  --color-status-complained: #C2410C;
-  --color-status-complained-bg: #FFF7ED;
-  --color-status-draft: #475569;
-  --color-status-draft-bg: #F1F5F9;
-  --color-status-published: #15803D;
-  --color-status-published-bg: #F0FDF4;
+  --color-status-queued: var(--status-queued);
+  --color-status-queued-bg: var(--status-queued-bg);
+  --color-status-sent: var(--status-sent);
+  --color-status-sent-bg: var(--status-sent-bg);
+  --color-status-delivered: var(--status-delivered);
+  --color-status-delivered-bg: var(--status-delivered-bg);
+  --color-status-bounced: var(--status-bounced);
+  --color-status-bounced-bg: var(--status-bounced-bg);
+  --color-status-complained: var(--status-complained);
+  --color-status-complained-bg: var(--status-complained-bg);
+  --color-status-draft: var(--status-draft);
+  --color-status-draft-bg: var(--status-draft-bg);
+  --color-status-published: var(--status-published);
+  --color-status-published-bg: var(--status-published-bg);
+
+  /* Senda — Adapter colors */
+  --color-adapter-ses: var(--adapter-ses);
+  --color-adapter-ses-bg: var(--adapter-ses-bg);
+  --color-adapter-gmail: var(--adapter-gmail);
+  --color-adapter-gmail-bg: var(--adapter-gmail-bg);
 
   /* Senda — Custom surface colors */
   --color-surface: var(--surface);
@@ -127,6 +136,36 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #1E293B;
   --sidebar-ring: #0D9488;
+
+  /* Scope chips */
+  --scope-global: #1D4ED8;
+  --scope-global-bg: #DBEAFE;
+  --scope-system: #7C3AED;
+  --scope-system-bg: #EDE9FE;
+  --scope-workspace: #0F766E;
+  --scope-workspace-bg: #CCFBF1;
+
+  /* Status chips */
+  --status-queued: #475569;
+  --status-queued-bg: #F1F5F9;
+  --status-sent: #1D4ED8;
+  --status-sent-bg: #EFF6FF;
+  --status-delivered: #15803D;
+  --status-delivered-bg: #F0FDF4;
+  --status-bounced: #B91C1C;
+  --status-bounced-bg: #FEF2F2;
+  --status-complained: #C2410C;
+  --status-complained-bg: #FFF7ED;
+  --status-draft: #475569;
+  --status-draft-bg: #F1F5F9;
+  --status-published: #15803D;
+  --status-published-bg: #F0FDF4;
+
+  /* Adapter chips */
+  --adapter-ses: #9A3412;
+  --adapter-ses-bg: #FFF7ED;
+  --adapter-gmail: #B91C1C;
+  --adapter-gmail-bg: #FEF2F2;
 }
 
 .dark {
@@ -168,6 +207,33 @@
   --sidebar-accent-foreground: #F8FAFC;
   --sidebar-border: #1E293B;
   --sidebar-ring: #14B8A6;
+
+  --scope-global: #93C5FD;
+  --scope-global-bg: #1E3A8A;
+  --scope-system: #C4B5FD;
+  --scope-system-bg: #4C1D95;
+  --scope-workspace: #5EEAD4;
+  --scope-workspace-bg: #134E4A;
+
+  --status-queued: #CBD5E1;
+  --status-queued-bg: #334155;
+  --status-sent: #93C5FD;
+  --status-sent-bg: #1E3A8A;
+  --status-delivered: #86EFAC;
+  --status-delivered-bg: #14532D;
+  --status-bounced: #FCA5A5;
+  --status-bounced-bg: #7F1D1D;
+  --status-complained: #FDBA74;
+  --status-complained-bg: #7C2D12;
+  --status-draft: #CBD5E1;
+  --status-draft-bg: #334155;
+  --status-published: #86EFAC;
+  --status-published-bg: #14532D;
+
+  --adapter-ses: #FDBA74;
+  --adapter-ses-bg: #7C2D12;
+  --adapter-gmail: #FCA5A5;
+  --adapter-gmail-bg: #7F1D1D;
 }
 
 @layer base {

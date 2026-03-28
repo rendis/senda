@@ -10,25 +10,25 @@ const scopeConfig: Record<
     label: "Global",
     icon: Globe,
     color: "text-scope-global",
-    bgColor: "bg-blue-50",
+    bgColor: "bg-scope-global-bg",
   },
   system: {
     label: "_system",
     icon: Settings,
     color: "text-scope-system",
-    bgColor: "bg-violet-50",
+    bgColor: "bg-scope-system-bg",
   },
   tenant: {
     label: "Tenant",
     icon: Settings,
     color: "text-scope-system",
-    bgColor: "bg-violet-50",
+    bgColor: "bg-scope-system-bg",
   },
   workspace: {
     label: "Workspace",
     icon: Box,
     color: "text-scope-workspace",
-    bgColor: "bg-primary-light",
+    bgColor: "bg-scope-workspace-bg",
   },
 };
 

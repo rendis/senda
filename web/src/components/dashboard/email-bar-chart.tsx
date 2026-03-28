@@ -67,7 +67,9 @@ export function EmailBarChart({ data, range }: EmailBarChartProps) {
                 fontSize: 12,
                 fontFamily: "var(--font-ibm-plex-mono)",
                 borderRadius: 8,
-                border: "1px solid #E2E8F0",
+                border: "1px solid var(--border)",
+                background: "var(--popover)",
+                color: "var(--popover-foreground)",
               }}
             />
             <Bar

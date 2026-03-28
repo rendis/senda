@@ -6,15 +6,15 @@ import type { EmailEvent } from "@/types/emails";
 import type { EmailStatus } from "@/types/api";
 
 const eventDotColor: Record<EmailStatus, string> = {
-  queued: "bg-slate-400",
-  processing: "bg-slate-400",
-  sent: "bg-blue-500",
-  delivered: "bg-green-500",
-  opened: "bg-green-500",
-  bounced: "bg-red-500",
-  complained: "bg-orange-500",
-  failed: "bg-red-500",
-  suppressed: "bg-slate-400",
+  queued: "bg-status-queued",
+  processing: "bg-status-queued",
+  sent: "bg-status-sent",
+  delivered: "bg-status-delivered",
+  opened: "bg-status-delivered",
+  bounced: "bg-status-bounced",
+  complained: "bg-status-complained",
+  failed: "bg-status-bounced",
+  suppressed: "bg-status-queued",
 };
 
 const eventLabel: Record<EmailStatus, string> = {
@@ -47,7 +47,7 @@ export function EmailStatusTimeline({ events }: EmailStatusTimelineProps) {
             <span
               className={cn(
                 "h-2.5 w-2.5 rounded-full mt-1.5",
-                eventDotColor[event.event_type] ?? "bg-slate-400"
+                eventDotColor[event.event_type] ?? "bg-status-draft"
               )}
             />
             {idx < sorted.length - 1 && (

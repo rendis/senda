@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { ShieldX, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PublicThemeToggle } from "@/components/shared/public-theme-toggle";
 import { useTranslations } from "next-intl";
 import { startFederatedLogout } from "@/lib/logout";
 
@@ -12,6 +13,7 @@ export default function AccessDeniedPage() {
 
   return (
     <>
+      <PublicThemeToggle />
       <header className="sr-only">
         <nav aria-label="Public navigation">
           <a href="/login">Back to login</a>

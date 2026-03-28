@@ -3,7 +3,9 @@
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { LogIn, Send } from "lucide-react";
+import { LogIn } from "lucide-react";
+import { BrandLogo } from "@/components/shared/brand-logo";
+import { PublicThemeToggle } from "@/components/shared/public-theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 
@@ -34,13 +36,14 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-page px-4 py-10 sm:px-6">
+      <PublicThemeToggle />
       <div className="w-full max-w-[400px] rounded-lg border border-border bg-card px-6 py-10 sm:px-10 sm:py-12">
         <div className="flex flex-col items-center gap-8">
           {/* Logo */}
           <div className="flex flex-col items-center gap-2">
-            <Send className="h-12 w-12 text-primary" />
+            <BrandLogo size="lg" priority />
             <h1 className="text-[28px] font-bold text-foreground">{t("title")}</h1>
-          <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground">
               {t("subtitle")}
             </p>
           </div>

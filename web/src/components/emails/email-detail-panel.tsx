@@ -25,7 +25,7 @@ function InfoRow({ label, value, copiable, highlight }: InfoRowProps) {
       </span>
       <div className="flex items-center gap-2 min-w-0">
         <span
-          className={`font-mono text-[13px] break-all ${highlight ? "text-teal-600" : "text-foreground"}`}
+          className={`font-mono text-[13px] break-all ${highlight ? "text-scope-workspace" : "text-foreground"}`}
         >
           {value}
         </span>

@@ -46,8 +46,8 @@ export function MetricCard({
             <span
               className={cn(
                 "text-xs font-medium font-mono",
-                isPositive && "text-emerald-700",
-                isNegative && "text-red-700",
+                isPositive && "text-status-delivered",
+                isNegative && "text-status-bounced",
                 !isPositive && !isNegative && "text-foreground/70"
               )}
             >

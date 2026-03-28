@@ -1,11 +1,11 @@
 import type { Role } from "@/types/api";
 
 const ROLE_COLORS: Record<Role, string> = {
-  superadmin: "text-blue-500",
-  tenant_admin: "text-purple-500",
-  workspace_admin: "text-teal-600",
-  workspace_editor: "text-teal-500",
-  workspace_viewer: "text-gray-500",
+  superadmin: "text-scope-global",
+  tenant_admin: "text-scope-system",
+  workspace_admin: "text-scope-workspace",
+  workspace_editor: "text-scope-workspace",
+  workspace_viewer: "text-muted-foreground",
 };
 
 const ROLE_LABELS: Record<Role, string> = {

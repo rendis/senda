@@ -111,7 +111,7 @@ function TemplateTypesTable() {
             {row.original.adapter_id}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-orange-500 text-xs">
+          <span className="inline-flex items-center gap-1 text-status-complained text-xs">
             <TriangleAlert className="h-3.5 w-3.5" />
             No adapter
           </span>

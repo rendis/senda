@@ -8,20 +8,20 @@ const SCOPE_CONFIG: Record<
   global: {
     icon: Globe,
     label: "Global",
-    color: "text-blue-500",
-    bg: "bg-blue-50",
+    color: "text-scope-global",
+    bg: "bg-scope-global-bg",
   },
   tenant: {
     icon: Settings,
     label: "Tenant",
-    color: "text-purple-500",
-    bg: "bg-purple-50",
+    color: "text-scope-system",
+    bg: "bg-scope-system-bg",
   },
   workspace: {
     icon: Box,
     label: "Workspace",
-    color: "text-teal-500",
-    bg: "bg-teal-50",
+    color: "text-scope-workspace",
+    bg: "bg-scope-workspace-bg",
   },
 };
 

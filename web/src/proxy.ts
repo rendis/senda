@@ -28,6 +28,6 @@ export default auth(function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|access-denied|onboarding|api/|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|access-denied|onboarding|api/|_next/static|_next/image|favicon.ico|senda-logo.svg).*)",
   ],
 };

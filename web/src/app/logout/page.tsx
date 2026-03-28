@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 function sanitizeCallbackUrl(callbackUrl: string | null): string {
   try {
@@ -67,8 +68,8 @@ export default function LogoutPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-page px-4 py-10 sm:px-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-lg border border-border bg-card px-6 py-8 text-center sm:px-8">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <LogOut className="h-6 w-6 text-foreground" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-background shadow-sm">
+          <BrandLogo size="sm" priority />
         </div>
         <div className="space-y-2">
           <h1 className="text-lg font-semibold text-foreground">

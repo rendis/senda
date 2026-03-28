@@ -7,28 +7,28 @@ const scopeConfig: Record<
 > = {
   global: {
     icon: Globe,
-    bg: "bg-blue-50",
-    text: "text-blue-600",
+    bg: "bg-scope-global-bg",
+    text: "text-scope-global",
     label: "Global",
   },
   tenant: {
     icon: Settings,
-    bg: "bg-violet-50",
-    text: "text-violet-600",
+    bg: "bg-scope-system-bg",
+    text: "text-scope-system",
     label: "Tenant",
   },
   workspace: {
     icon: Box,
-    bg: "bg-teal-50",
-    text: "text-teal-600",
+    bg: "bg-scope-workspace-bg",
+    text: "text-scope-workspace",
     label: "Workspace",
   },
 };
 
 const defaultScope = {
   icon: Globe,
-  bg: "bg-gray-100",
-  text: "text-gray-600",
+  bg: "bg-muted",
+  text: "text-muted-foreground",
   label: "Unknown",
 };
 

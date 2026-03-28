@@ -22,13 +22,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
+import { ThemeSelector } from "@/components/shared/theme-selector";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -112,12 +115,12 @@ export function AppSidebar({
       <div className="flex h-full flex-col justify-between bg-sidebar text-sidebar-foreground">
         <div className="flex flex-col gap-1">
           <div className="mt-5 flex h-10 items-center gap-2.5 px-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">S</span>
-            </div>
-            {!currentCollapsed && (
-              <span className="text-base font-semibold text-white">Senda</span>
-            )}
+            <BrandLogo
+              size="sm"
+              showWordmark={!currentCollapsed}
+              imageClassName="rounded-sm"
+              wordmarkClassName="text-base text-sidebar-accent-foreground"
+            />
           </div>
 
           <div className="mx-3 my-1 h-px bg-sidebar-accent" />
@@ -144,8 +147,8 @@ export function AppSidebar({
                   className={cn(
                     "flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] transition-colors",
                     isActive
-                      ? "bg-sidebar-accent font-medium text-white"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )}
                 >
                   <item.icon className="h-[18px] w-[18px] shrink-0" />
@@ -161,7 +164,7 @@ export function AppSidebar({
             type="button"
             aria-label={t("help")}
             title={t("help")}
-            className="flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-white"
+            className="flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <CircleHelp className="h-[18px] w-[18px] shrink-0" />
             {!currentCollapsed && <span>{t("help")}</span>}
@@ -192,22 +195,25 @@ export function AppSidebar({
                       : "min-w-0 flex-1 gap-2.5",
                   )}
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#334155]">
-                    <span className="text-[11px] font-semibold text-white">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent">
+                    <span className="text-[11px] font-semibold text-sidebar-accent-foreground">
                       {initials}
                     </span>
                   </div>
                   {!currentCollapsed && (
-                    <span className="truncate text-[13px] text-white">
+                    <span className="truncate text-[13px] text-sidebar-accent-foreground">
                       {displayName}
                     </span>
                   )}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuContent side="top" align="start" className="w-56">
+                <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <LocaleSwitcher />
                 </DropdownMenuItem>
+                <ThemeSelector variant="menu" />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {
@@ -231,7 +237,7 @@ export function AppSidebar({
                   currentCollapsed ? "Expand sidebar" : "Collapse sidebar"
                 }
                 title={currentCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                className="shrink-0 text-sidebar-foreground transition-colors hover:text-white"
+                className="shrink-0 text-sidebar-foreground transition-colors hover:text-sidebar-accent-foreground"
               >
                 {currentCollapsed ? (
                   <PanelLeft className="h-4 w-4" />

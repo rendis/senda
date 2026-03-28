@@ -115,7 +115,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
       <button
         onClick={() => handleOpenChange(true)}
         className={cn(
-          "flex items-center gap-2 mx-3 px-3 h-10 rounded-md border border-[#334155] hover:bg-sidebar-accent transition-colors",
+          "mx-3 flex h-10 items-center gap-2 rounded-md border border-sidebar-border px-3 transition-colors hover:bg-sidebar-accent",
           collapsed && "justify-center px-0"
         )}
       >
@@ -124,7 +124,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
         />
         {!collapsed && (
           <>
-            <span className="text-xs font-medium text-white truncate flex-1 text-left">
+            <span className="flex-1 truncate text-left text-xs font-medium text-sidebar-accent-foreground">
               {scopeLabel}
             </span>
             <ChevronDown className="h-3.5 w-3.5 text-sidebar-foreground shrink-0" />

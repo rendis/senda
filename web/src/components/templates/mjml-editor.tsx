@@ -19,6 +19,7 @@ import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTheme } from "next-themes";
 import {
   ArrowLeft,
   Save,
@@ -4736,14 +4737,14 @@ export function MjmlEditor() {
             <div className="flex items-center justify-between h-10 px-4 border-b bg-card">
               <span className="text-sm font-semibold">Preview</span>
             </div>
-            <div className="flex-1 bg-slate-100 p-6 overflow-hidden">
+            <div className="flex-1 overflow-hidden bg-surface p-6">
               <div
                 ref={previewStageCallbackRef}
                 className="flex h-full w-full items-start justify-center overflow-hidden"
               >
                 {previewFrameUrl ? (
                   <div
-                    className="relative overflow-hidden rounded-md border border-border/60 bg-white"
+                    className="relative overflow-hidden rounded-md border border-border/60 bg-card"
                     style={{
                       width: `${previewScaledWidth}px`,
                       height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
@@ -4753,7 +4754,7 @@ export function MjmlEditor() {
                       ref={previewIframeRef}
                       src={previewFrameUrl}
                       onLoad={handlePreviewIframeLoad}
-                      className="pointer-events-none border-0 bg-white"
+                      className="pointer-events-none border-0 bg-card"
                       style={{
                         width: `${previewNaturalWidth}px`,
                         height: `${previewNaturalHeight}px`,
@@ -4766,7 +4767,7 @@ export function MjmlEditor() {
                   </div>
                 ) : (
                   <div
-                    className="flex items-center justify-center text-sm text-muted-foreground rounded-md border bg-white"
+                    className="flex items-center justify-center rounded-md border bg-card text-sm text-muted-foreground"
                     style={{
                       width: `${previewScaledWidth}px`,
                       height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
@@ -4818,6 +4819,7 @@ function MonacoEditorWrapper({
   readOnly: boolean;
 }) {
   const [Editor, setEditor] = useState<MonacoEditorComponent | null>(null);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     import("@monaco-editor/react").then((mod) => {
@@ -4838,7 +4840,7 @@ function MonacoEditorWrapper({
       value={value}
       onChange={(val: string | undefined) => onChange(val ?? "")}
       language="xml"
-      theme="vs-dark"
+      theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
       options={{
         minimap: { enabled: false },
         fontSize: 13,
@@ -4927,7 +4929,7 @@ function MjmlEditorSkeleton() {
       </div>
       <div className="flex flex-1">
         <div className="flex-1 bg-background" />
-        <div className="w-[480px] bg-slate-100 border-l" />
+        <div className="w-[480px] border-l bg-surface" />
       </div>
     </div>
   );
