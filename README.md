@@ -17,6 +17,7 @@ Senda lets you manage transactional email across organizations with a 3-level hi
 - **Dual auth** — OIDC/JWT for humans (management plane), API Keys for machines (data plane)
 - **Webhook system** — Real-time event delivery with HMAC-SHA256 signatures
 - **Full audit trail** — Every mutation logged with actor, scope, and change diff
+- **Unified web UX** — Shared branding plus `light` / `dark` / `system` theme across public pages, dashboard, and editor
 - **Provider-managed security** — SPF, DKIM, DMARC handled by email providers ([ADR-0001](docs/specs/ADR-0001-provider-managed-email-auth.md))
 
 ## Architecture
@@ -107,6 +108,7 @@ No Redis. No external message broker. PostgreSQL handles everything.
 | Auth            | Auth.js v5 (OIDC)          |
 | HTTP Client     | ky                         |
 | i18n            | next-intl (en, es)         |
+| Theme           | next-themes (`light`, `dark`, `system`) |
 | Code Editor     | Monaco Editor              |
 | Charts          | Recharts                   |
 
@@ -149,6 +151,10 @@ npm --prefix web install
 npm --prefix web run dev
 # → http://localhost:3000
 ```
+
+The web app uses the Senda SVG logo for visible branding and favicon, and defaults to the
+browser/system theme preference. Users can switch between `Light`, `Dark`, and `System`
+from public pages, the dashboard menu, and `/global/settings`.
 
 ### Send your first email
 

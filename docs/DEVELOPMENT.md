@@ -53,6 +53,19 @@ npm --prefix web run dev    # starts on localhost:3000
 | `AUTH_OIDC_CLIENT_ID`     | OIDC client ID                                         |
 | `AUTH_OIDC_CLIENT_SECRET` | OIDC client secret                                     |
 
+### Frontend UX, theme, and branding
+
+- **Theme modes:** `light`, `dark`, `system`
+- **Default:** `system` (follows browser / OS preference)
+- **Persistence:** local browser storage via `next-themes`
+- **Controls available in:** public pages (`/login`, `/access-denied`, `/onboarding`), dashboard user menu, and `/global/settings`
+- **Editor:** Monaco follows the resolved light/dark theme automatically
+- **Brand asset:** `web/public/senda-logo.svg` is the current canonical logo and favicon source
+
+If you add a new public asset that must load before authentication, make sure it is exempted
+in `web/src/proxy.ts`; otherwise Auth.js middleware can redirect the request before the asset
+is served.
+
 ## Database
 
 - **Engine:** PostgreSQL 16 + pg_cron extension
@@ -218,7 +231,14 @@ make system-pr       # PR gate: API contract + UI flow + visual regression
 make system-nightly  # Full nightly suite
 ```
 
-System tests cover end-to-end API contracts, UI flows, and visual regression. The PR gate runs a subset for fast feedback; the nightly suite runs the complete matrix.
+System tests cover end-to-end API contracts, UI flows, accessibility, and optional visual regression.
+The PR gate runs a subset for fast feedback; the nightly suite runs the complete matrix. Visual
+diff is opt-in:
+
+```bash
+SYSTEM_UI_VISUAL=1 make system-pr
+SYSTEM_UI_VISUAL=1 make system-nightly
+```
 
 ## Troubleshooting
 
