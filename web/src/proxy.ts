@@ -14,6 +14,11 @@ export default auth(function proxy(req: NextRequest) {
     },
   });
 
+  // Prevent browser bfcache from showing stale authenticated pages after logout.
+  // Without this, pressing "back" after logout can show cached dashboard content.
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.headers.set("Pragma", "no-cache");
+
   // Set default locale cookie on first visit if absent
   if (!req.cookies.get(LOCALE_COOKIE)) {
     res.cookies.set(LOCALE_COOKIE, DEFAULT_LOCALE, {

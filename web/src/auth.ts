@@ -109,7 +109,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
     authorized({ auth }) {
-      return !!auth;
+      // Block access if session is missing or token refresh failed.
+      // This forces an immediate redirect to /login via the proxy.
+      if (!auth) return false;
+      if (auth.error === "RefreshTokenError") return false;
+      return true;
     },
   },
 });
