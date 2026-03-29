@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 
-const basePath = process.env.__NEXT_ROUTER_BASEPATH || "";
-
 function sanitizeCallbackUrl(
   request: NextRequest,
   rawCallbackUrl: string | null,
 ): URL {
-  const loginPath = `${basePath}/login`;
   try {
-    const candidate = new URL(rawCallbackUrl ?? loginPath, request.nextUrl.origin);
+    const candidate = new URL(rawCallbackUrl ?? "/login", request.nextUrl.origin);
     if (candidate.origin !== request.nextUrl.origin) {
-      return new URL(loginPath, request.nextUrl.origin);
+      return new URL("/login", request.nextUrl.origin);
     }
 
     return new URL(
@@ -19,7 +16,7 @@ function sanitizeCallbackUrl(
       request.nextUrl.origin,
     );
   } catch {
-    return new URL(loginPath, request.nextUrl.origin);
+    return new URL("/login", request.nextUrl.origin);
   }
 }
 
