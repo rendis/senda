@@ -40,7 +40,8 @@ type App struct {
 }
 
 // Bootstrap wires all dependencies and returns a ready-to-start App.
-func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*App, error) {
+// ext may be nil when running without SDK extensions.
+func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext *Extensions) (*App, error) {
 	// 1. Database connection.
 	pool, err := postgres.Connect(ctx, cfg.Database)
 	if err != nil {
@@ -101,7 +102,13 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	// 6. Resolution engine.
 	chainResolver := resolution.NewChainResolver(wsRepo, cache)
 	templateResolver := resolution.NewTemplateResolver(templateRepo, cache, chainResolver)
-	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver)
+	var codeInjectors []port.CodeInjector
+	var codeInitFunc port.CodeInitFunc
+	if ext != nil {
+		codeInjectors = ext.Injectors
+		codeInitFunc = ext.InitFunc
+	}
+	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver, codeInjectors, codeInitFunc)
 	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
 
 	// 7. Email sender (SMTP for dev/E2E, SES for production).

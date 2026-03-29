@@ -29,6 +29,8 @@ type SendRequest struct {
 	// AuthWorkspaceID is the workspace resolved from API key auth context.
 	// When set, it must match the workspace resolved from Ref.
 	AuthWorkspaceID uuid.UUID `json:"-"`
+	// Headers carries HTTP request headers for code injectors. Optional.
+	Headers map[string]string `json:"-"`
 }
 
 // SendResponse represents the result of a send operation.
@@ -138,8 +140,20 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 4. Merge injectors
-	injectors, err := s.injectorMerger.Resolve(ctx, ws.ID)
+	// 4. Merge injectors (DB + code injectors if registered).
+	var injectors resolution.MergedInjectors
+	if s.injectorMerger.HasCodeInjectors() {
+		injCtx := port.NewInjectorContext(
+			req.Headers,
+			req.Ref,
+			req.Variables,
+			tenant.ID, ws.ID,
+			ref.TemplateType,
+		)
+		injectors, err = s.injectorMerger.ResolveWithContext(ctx, ws.ID, injCtx)
+	} else {
+		injectors, err = s.injectorMerger.Resolve(ctx, ws.ID)
+	}
 	if err != nil {
 		return nil, err
 	}

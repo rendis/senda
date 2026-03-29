@@ -16,12 +16,14 @@ Senda is an open-source email orchestration platform built with Go + PostgreSQL 
 ### Key Paths
 
 ```
-cmd/senda/              Entry point + DI
+sdk/                    PUBLIC SDK — Engine, Injector interface, InjectorContext, InitFunc
+                        Users `go get` this to extend Senda as a library.
+cmd/senda/              Entry point (uses sdk.NewWithConfig + engine.Run)
 internal/
   domain/               Entities, value objects, domain errors
-  port/                 Interface contracts (stores, senders, crypto, cache, queue)
+  port/                 Interface contracts (stores, senders, crypto, cache, queue, CodeInjector)
   service/              Business logic (SendService, TemplateService, EventProcessor, WebhookService, APIKeyService, IdentityService)
-  resolution/           Hierarchy chain resolution (chain, template, adapter, injector merger)
+  resolution/           Hierarchy chain resolution (chain, template, adapter, injector merger + code injectors)
   adapter/
     postgres/           PG stores (pgx v5) + rate limiter
     pgcache/            PG UNLOGGED cache
@@ -34,7 +36,7 @@ internal/
   http/
     handler/            HTTP handlers (26+)
     middleware/          Auth, RBAC, scope, logger, metrics, recovery, requestid
-  app/                  Bootstrap + DI wiring
+  app/                  Bootstrap + DI wiring + Extensions bridge
 pkg/                    apperr (error mapping), slug (validation), tracking (ID gen)
 migrations/             24 SQL migrations (golang-migrate)
 config/                 YAML config + env overrides (SENDA_* prefix)
@@ -238,6 +240,7 @@ Documentation lives in `docs/`:
 | `docs/specs/SECURITY_CHECKLIST.md` | OWASP Top 10 mapping, AES-256-GCM encryption spec, auth requirements, API key security model | Security-sensitive code |
 | `docs/specs/DESIGN_BRIEF.md` | UX/UI screens, component specs, responsive breakpoints, Design System tokens | Frontend implementation |
 | `docs/specs/ADR-0001-...md` | **Why no DKIM/SPF/DMARC in app** — provider-managed email auth decision, consequences for send flow and identity validation | When questioning email auth approach |
+| `docs/extensibility-guide.md` | SDK extension guide: Engine, Injectors, InitFunc, InjectorContext, lifecycle hooks, merge flow, consumer project structure, troubleshooting | Extending Senda as a Go library |
 | `docs/postman/` | Postman collection (116KB, all endpoints) + local/staging environments | API testing and exploration |
 
 ### UI/UX Design — Pencil MCP (OBLIGATORIO)
@@ -523,6 +526,58 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 10. **Cursor-based pagination** — no offset, UUIDv7 as cursor
 11. **Provider-managed email auth** — SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail), NOT the app. Senda validates sender capability via adapter identities (sync from provider + default identity). No DKIM signing, no DNS record management in app code. See [ADR-0001](docs/specs/ADR-0001-provider-managed-email-auth.md)
 12. **No app-level email address validation** — `from_email` is verified by the provider's identity system. If an identity isn't verified, the provider rejects the send. Senda tracks identity status (`verified`/`pending`/`failed`) via `AdapterIdentity` but doesn't duplicate provider checks
+13. **SDK extensibility model** — Senda exposes a public `sdk/` package. Users extend via code injectors (implement `sdk.Injector`), init functions (`sdk.InitFunc`), and lifecycle hooks (`OnStart`/`OnShutdown`). Built-in adapters (SES, Gmail, SMTP, PG stores, River, cache, crypto) stay internal, managed by YAML config. The `sdk.Engine` wraps `internal/app.Bootstrap` with an extensions bridge. Code injectors resolve alongside DB injectors in the `InjectorMerger`; on name collision, code wins with a warning. Pattern follows pdf-forge/doc-assembly SDK model.
+
+---
+
+## SDK — Extending Senda as a Library
+
+Senda exposes `sdk/` as a public Go package. External projects import it to add business-specific logic without forking.
+
+### Public API (`sdk/`)
+
+| Type | Purpose |
+|---|---|
+| `sdk.Engine` | Builder entry point. `New()` / `NewWithConfig(path)` → register extensions → `Run()` |
+| `sdk.Injector` | Interface: `Code()`, `Resolve() (ResolveFunc, deps)`, `IsCritical()`, `Timeout()` |
+| `sdk.ResolveFunc` | `func(ctx, *InjectorContext) (map[string]any, error)` — returns field values |
+| `sdk.InitFunc` | `func(ctx, *InjectorContext) (any, error)` — runs once per request before injectors |
+| `sdk.InjectorContext` | Read-only context: headers, variables, init data, tenant/workspace IDs, resolved values |
+
+### How code injectors merge with DB injectors
+
+1. `SendService.Send()` builds an `InjectorContext` with HTTP headers, send request data, and resolved tenant/workspace
+2. `InjectorMerger.ResolveWithContext()` resolves DB injectors first → seeds context → runs `InitFunc` → resolves code injectors in dependency order
+3. Code injector values merge into the same `map[string]map[string]any` as DB injectors
+4. Templates access both via `{{ injector.<name>.<field> }}`
+5. On name collision: code injector wins, warning logged
+
+### Key files
+
+| File | Role |
+|---|---|
+| `sdk/engine.go` | Engine struct + `Run()` (wraps `app.Bootstrap`) |
+| `sdk/interfaces.go` | Type aliases → `internal/port.CodeInjector`, `CodeResolveFunc`, `CodeInitFunc` |
+| `sdk/types.go` | Type alias → `internal/port.InjectorContext` |
+| `internal/port/code_injector.go` | Real implementations: `InjectorContext`, `CodeInjector` interface |
+| `internal/app/extensions.go` | `Extensions` struct bridging SDK → bootstrap |
+| `internal/resolution/injector_merger.go` | `ResolveWithContext()` — merges DB + code injectors |
+
+### Consumer project structure (like tools-pdf-forge)
+
+```
+my-senda-app/
+├── main.go                  sdk.NewWithConfig("config.yaml") + Register(engine) + engine.Run()
+├── extensions/
+│   ├── register.go          Register(engine) — single entry point for all extensions
+│   ├── init.go              InitFunc — load shared data per request
+│   └── injectors/
+│       ├── student.go       Custom injector: student data
+│       └── institution.go   Custom injector: institution data
+├── internal/                Private data sources (MongoDB, APIs, etc.)
+├── config.yaml              Senda config (DB, OIDC, providers)
+└── go.mod                   requires github.com/senda-app/senda
+```
 
 ---
 

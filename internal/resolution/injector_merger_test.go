@@ -3,10 +3,13 @@ package resolution_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/resolution"
 	"github.com/senda-app/senda/pkg/apperr"
 )
@@ -126,7 +129,7 @@ func TestInjectorMerger_SingleScopeGlobal(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -176,7 +179,7 @@ func TestInjectorMerger_WorkspaceOverridesGlobal(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -227,7 +230,7 @@ func TestInjectorMerger_ThreeLevelMerge(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -277,7 +280,7 @@ func TestInjectorMerger_FieldWithNoValue(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -339,7 +342,7 @@ func TestInjectorMerger_MultipleDefinitions(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -396,7 +399,7 @@ func TestInjectorMerger_DuplicateDefNames_WorkspaceWins(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -418,7 +421,7 @@ func TestInjectorMerger_ChainResolverError(t *testing.T) {
 	}
 
 	cr := newErrorChainResolver(apperr.NotFound("workspace not found"))
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	_, err := merger.Resolve(context.Background(), uuid.New())
 	if err == nil {
@@ -449,7 +452,7 @@ func TestInjectorMerger_StoreError(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
 
 	_, err := merger.Resolve(context.Background(), wsID)
 	if err == nil {
@@ -458,5 +461,473 @@ func TestInjectorMerger_StoreError(t *testing.T) {
 	var appErr *apperr.AppError
 	if !errors.As(err, &appErr) || appErr.Code != 500 {
 		t.Errorf("expected Internal error, got %v", err)
+	}
+}
+
+// --- Code Injector tests ---
+
+type stubCodeInjector struct {
+	code       string
+	resolveFn  port.CodeResolveFunc
+	fields     map[string]any
+	deps       []string
+	critical   bool
+	err        error
+}
+
+func (s *stubCodeInjector) Code() string { return s.code }
+func (s *stubCodeInjector) Resolve() (port.CodeResolveFunc, []string) {
+	if s.resolveFn != nil {
+		return s.resolveFn, s.deps
+	}
+	return func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+		if s.err != nil {
+			return nil, s.err
+		}
+		return s.fields, nil
+	}, s.deps
+}
+func (s *stubCodeInjector) IsCritical() bool       { return s.critical }
+func (s *stubCodeInjector) Timeout() time.Duration { return 0 }
+
+func emptyInjStore() *mockInjectorStore {
+	return &mockInjectorStore{
+		listDefsFn:  func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) { return nil, nil },
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) { return nil, nil },
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) { return nil, nil },
+	}
+}
+
+func TestResolveWithContext_CodeInjectorsOnly(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	codeInj := &stubCodeInjector{
+		code:   "student",
+		fields: map[string]any{"name": "Jane", "email": "jane@test.com"},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{codeInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, "welcome")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result["student"]["name"] != "Jane" {
+		t.Errorf("student.name = %v, want Jane", result["student"]["name"])
+	}
+	if result["student"]["email"] != "jane@test.com" {
+		t.Errorf("student.email = %v, want jane@test.com", result["student"]["email"])
+	}
+}
+
+func TestResolveWithContext_InitFunc(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	initFunc := func(_ context.Context, _ *port.InjectorContext) (any, error) {
+		return "loaded-data", nil
+	}
+
+	inj := &stubCodeInjector{
+		code: "from_init",
+		resolveFn: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+			data := injCtx.InitData().(string)
+			return map[string]any{"value": data}, nil
+		},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, initFunc)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result["from_init"]["value"] != "loaded-data" {
+		t.Errorf("from_init.value = %v, want loaded-data", result["from_init"]["value"])
+	}
+}
+
+func TestResolveWithContext_NonCriticalSkipped(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	failInj := &stubCodeInjector{code: "flaky", critical: false, err: errors.New("network timeout")}
+	okInj := &stubCodeInjector{code: "stable", fields: map[string]any{"ok": true}}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{failInj, okInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("non-critical failure should not abort: %v", err)
+	}
+	if _, exists := result["flaky"]; exists {
+		t.Error("flaky injector should not appear in results")
+	}
+	if result["stable"]["ok"] != true {
+		t.Error("stable injector should still resolve")
+	}
+}
+
+func TestResolveWithContext_CriticalAborts(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	criticalInj := &stubCodeInjector{code: "must_work", critical: true, err: errors.New("db down")}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{criticalInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err == nil {
+		t.Fatal("critical injector failure should abort")
+	}
+}
+
+func TestResolveWithContext_DependencyOrder(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	var order []string
+	parentInj := &orderTracker{code: "parent", fields: map[string]any{"v": "1"}, order: &order}
+	childInj := &orderTracker{code: "child", deps: []string{"parent"}, fields: map[string]any{"v": "2"}, order: &order}
+
+	cr := newTestChainResolver(chain, nil)
+	// Register child BEFORE parent to test dependency resolution.
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{childInj, parentInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(order) != 2 || order[0] != "parent" || order[1] != "child" {
+		t.Errorf("execution order = %v, want [parent, child]", order)
+	}
+}
+
+type orderTracker struct {
+	code   string
+	deps   []string
+	fields map[string]any
+	order  *[]string
+}
+
+func (o *orderTracker) Code() string { return o.code }
+func (o *orderTracker) Resolve() (port.CodeResolveFunc, []string) {
+	return func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+		*o.order = append(*o.order, o.code)
+		return o.fields, nil
+	}, o.deps
+}
+func (o *orderTracker) IsCritical() bool       { return false }
+func (o *orderTracker) Timeout() time.Duration { return 0 }
+
+func TestResolveWithContext_CodeOverridesDB(t *testing.T) {
+	defID := uuid.New()
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}, {Valid: false}},
+	}
+
+	// DB injector named "brand" with logo field.
+	injStore := &mockInjectorStore{
+		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{
+				{ID: defID, WorkspaceID: nil, Name: "brand"},
+			}, nil
+		},
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
+			return []*domain.InjectorField{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "logo", FieldType: domain.FieldTypeURL, Position: 0},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			return []*domain.InjectorValue{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "logo", WorkspaceID: nil, Value: `"db-logo.png"`},
+			}, nil
+		},
+	}
+
+	// Code injector with same name "brand" → should override DB.
+	codeInj := &stubCodeInjector{
+		code:   "brand",
+		fields: map[string]any{"logo": "code-logo.png", "extra": "from-code"},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Code injector should override DB.
+	if result["brand"]["logo"] != "code-logo.png" {
+		t.Errorf("brand.logo = %v, want code-logo.png", result["brand"]["logo"])
+	}
+	if result["brand"]["extra"] != "from-code" {
+		t.Errorf("brand.extra = %v, want from-code", result["brand"]["extra"])
+	}
+}
+
+func TestResolveWithContext_MixedDBAndCode(t *testing.T) {
+	defID := uuid.New()
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}, {Valid: false}},
+	}
+
+	injStore := &mockInjectorStore{
+		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{
+				{ID: defID, WorkspaceID: nil, Name: "company"},
+			}, nil
+		},
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
+			return []*domain.InjectorField{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", FieldType: domain.FieldTypeText, Position: 0},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			return []*domain.InjectorValue{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", WorkspaceID: nil, Value: `"Acme"`},
+			}, nil
+		},
+	}
+
+	codeInj := &stubCodeInjector{
+		code:   "student",
+		fields: map[string]any{"full_name": "Jane Doe"},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Both DB and code injectors should be present.
+	if result["company"]["name"] != "Acme" {
+		t.Errorf("company.name = %v, want Acme", result["company"]["name"])
+	}
+	if result["student"]["full_name"] != "Jane Doe" {
+		t.Errorf("student.full_name = %v, want Jane Doe", result["student"]["full_name"])
+	}
+}
+
+func TestResolveWithContext_NoCodeInjectors_SameAsResolve(t *testing.T) {
+	defID := uuid.New()
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}, {Valid: false}},
+	}
+
+	injStore := &mockInjectorStore{
+		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{
+				{ID: defID, WorkspaceID: nil, Name: "brand"},
+			}, nil
+		},
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
+			return []*domain.InjectorField{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", FieldType: domain.FieldTypeText, Position: 0},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			return []*domain.InjectorValue{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", WorkspaceID: nil, Value: `"Acme"`},
+			}, nil
+		},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	// No code injectors.
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	resultCtx, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("ResolveWithContext error: %v", err)
+	}
+	resultPlain, err := merger.Resolve(context.Background(), wsID)
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+
+	if resultCtx["brand"]["name"] != resultPlain["brand"]["name"] {
+		t.Errorf("ResolveWithContext and Resolve should return same DB values")
+	}
+}
+
+func TestHasCodeInjectors(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+	cr := newTestChainResolver(chain, nil)
+
+	// Without code injectors.
+	m1 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, nil)
+	if m1.HasCodeInjectors() {
+		t.Error("HasCodeInjectors should be false when no injectors/initFunc")
+	}
+
+	// With code injectors.
+	m2 := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{
+		&stubCodeInjector{code: "x", fields: map[string]any{}},
+	}, nil)
+	if !m2.HasCodeInjectors() {
+		t.Error("HasCodeInjectors should be true when injectors registered")
+	}
+
+	// With only initFunc.
+	m3 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, func(_ context.Context, _ *port.InjectorContext) (any, error) {
+		return nil, nil
+	})
+	if !m3.HasCodeInjectors() {
+		t.Error("HasCodeInjectors should be true when initFunc is set")
+	}
+}
+
+func TestResolveWithContext_InitFuncError(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	failInit := func(_ context.Context, _ *port.InjectorContext) (any, error) {
+		return nil, errors.New("init failed: db unreachable")
+	}
+
+	inj := &stubCodeInjector{code: "x", fields: map[string]any{"v": 1}}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, failInit)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err == nil {
+		t.Fatal("InitFunc error should abort resolution")
+	}
+	if !strings.Contains(err.Error(), "init failed") {
+		t.Errorf("error should contain init message, got: %v", err)
+	}
+}
+
+func TestResolveWithContext_DepOnDBInjector(t *testing.T) {
+	defID := uuid.New()
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}, {Valid: false}},
+	}
+
+	injStore := &mockInjectorStore{
+		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{
+				{ID: defID, WorkspaceID: nil, Name: "company"},
+			}, nil
+		},
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
+			return []*domain.InjectorField{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", FieldType: domain.FieldTypeText, Position: 0},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			return []*domain.InjectorValue{
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", WorkspaceID: nil, Value: `"Acme"`},
+			}, nil
+		},
+	}
+
+	// Code injector that declares dep on "company" (a DB injector).
+	// The dep is not in code injectors, so it's skipped during dep resolution.
+	// But the DB value should be accessible via GetResolved since it was seeded.
+	codeInj := &stubCodeInjector{
+		code: "derived",
+		deps: []string{"company"}, // DB injector
+		resolveFn: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+			company, _ := injCtx.GetResolved("company")
+			name := ""
+			if company != nil {
+				if n, ok := company["name"].(string); ok {
+					name = n
+				}
+			}
+			return map[string]any{"greeting": "Hello from " + name}, nil
+		},
+	}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result["derived"]["greeting"] != "Hello from Acme" {
+		t.Errorf("derived.greeting = %v, want 'Hello from Acme'", result["derived"]["greeting"])
+	}
+}
+
+func TestResolveWithContext_DuplicateCodeInjectorCodes(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	chain := &resolution.ResolutionChain{
+		WorkspaceID: wsID,
+		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
+	}
+
+	// Two code injectors with same Code. Last one registered wins
+	// because the byCode map overwrites.
+	first := &stubCodeInjector{code: "dup", fields: map[string]any{"v": "first"}}
+	second := &stubCodeInjector{code: "dup", fields: map[string]any{"v": "second"}}
+
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{first, second}, nil)
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+
+	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Last registered wins (map overwrite).
+	if result["dup"]["v"] != "second" {
+		t.Errorf("dup.v = %v, want 'second' (last registered wins)", result["dup"]["v"])
 	}
 }

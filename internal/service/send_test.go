@@ -563,9 +563,13 @@ func newSendFixture() *sendTestFixture {
 }
 
 func (f *sendTestFixture) buildService() *service.SendService {
+	return f.buildServiceWithCodeInjectors(nil, nil)
+}
+
+func (f *sendTestFixture) buildServiceWithCodeInjectors(codeInjectors []port.CodeInjector, initFunc port.CodeInitFunc) *service.SendService {
 	chainResolver := resolution.NewChainResolver(f.wsStore, f.cache)
 	templateResolver := resolution.NewTemplateResolver(f.templateStore, f.cache, chainResolver)
-	injectorMerger := resolution.NewInjectorMerger(f.injectorStore, chainResolver)
+	injectorMerger := resolution.NewInjectorMerger(f.injectorStore, chainResolver, codeInjectors, initFunc)
 	adapterResolver := resolution.NewAdapterResolver(f.adapterStore, f.cache)
 	renderer := service.NewVariableRenderer()
 	identitySvc := service.NewIdentityService(f.identityStore, f.adapterStore, nil, nil)
@@ -1169,3 +1173,111 @@ func TestSendService_SystemWorkspaceBlocked(t *testing.T) {
 		t.Fatalf("expected ErrSystemWorkspaceBlocked, got %v", err)
 	}
 }
+
+// --- Code Injector integration tests ---
+
+type testCodeInjector struct {
+	code   string
+	fields map[string]any
+}
+
+func (t *testCodeInjector) Code() string { return t.code }
+func (t *testCodeInjector) Resolve() (port.CodeResolveFunc, []string) {
+	return func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+		return t.fields, nil
+	}, nil
+}
+func (t *testCodeInjector) IsCritical() bool      { return false }
+func (t *testCodeInjector) Timeout() time.Duration { return 0 }
+
+func TestSendService_WithCodeInjectors(t *testing.T) {
+	f := newSendFixture()
+
+	var capturedEmail *domain.Email
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		capturedEmail = email
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	codeInj := &testCodeInjector{
+		code:   "student",
+		fields: map[string]any{"name": "Alice", "grade": "A+"},
+	}
+
+	svc := f.buildServiceWithCodeInjectors([]port.CodeInjector{codeInj}, nil)
+	req := f.happyRequest()
+
+	resp, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted, got %q", resp.Status)
+	}
+
+	// Verify code injector values appear in the injectors snapshot.
+	if capturedEmail == nil {
+		t.Fatal("email was not created")
+	}
+	snapshot := capturedEmail.InjectorsSnapshot
+	studentFields, ok := snapshot["student"]
+	if !ok {
+		t.Fatal("student injector missing from email snapshot")
+	}
+	if studentFields["name"] != "Alice" {
+		t.Errorf("student.name = %v, want Alice", studentFields["name"])
+	}
+	if studentFields["grade"] != "A+" {
+		t.Errorf("student.grade = %v, want A+", studentFields["grade"])
+	}
+}
+
+func TestSendService_WithHeaders(t *testing.T) {
+	f := newSendFixture()
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	var capturedHeader string
+	headerInj := &testCodeInjector{code: "header_reader"}
+	// Override to read headers from context.
+	headerInj.fields = nil // will use resolveFn pattern instead
+
+	// Use a proper injector that reads headers.
+	type headerReader struct{}
+	hr := &headerReader{}
+	_ = hr
+
+	codeInj := &stubCodeInjectorSend{
+		code: "from_header",
+		resolveFn: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+			capturedHeader = injCtx.Header("X-Case-Id")
+			return map[string]any{"case_id": capturedHeader}, nil
+		},
+	}
+
+	svc := f.buildServiceWithCodeInjectors([]port.CodeInjector{codeInj}, nil)
+	req := f.happyRequest()
+	req.Headers = map[string]string{"X-Case-Id": "case-42"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if capturedHeader != "case-42" {
+		t.Errorf("header X-Case-Id = %q, want case-42", capturedHeader)
+	}
+}
+
+type stubCodeInjectorSend struct {
+	code      string
+	resolveFn port.CodeResolveFunc
+}
+
+func (s *stubCodeInjectorSend) Code() string { return s.code }
+func (s *stubCodeInjectorSend) Resolve() (port.CodeResolveFunc, []string) {
+	return s.resolveFn, nil
+}
+func (s *stubCodeInjectorSend) IsCritical() bool      { return false }
+func (s *stubCodeInjectorSend) Timeout() time.Duration { return 0 }

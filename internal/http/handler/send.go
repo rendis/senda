@@ -54,6 +54,14 @@ func (h *SendHandler) Send(c *echo.Context) error {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 	}
 
+	// Extract HTTP headers for code injectors.
+	headers := make(map[string]string)
+	for k, vals := range c.Request().Header {
+		if len(vals) > 0 {
+			headers[k] = vals[0]
+		}
+	}
+
 	svcReq := &service.SendRequest{
 		Ref:             req.Ref,
 		To:              req.To,
@@ -63,6 +71,7 @@ func (h *SendHandler) Send(c *echo.Context) error {
 		ExternalID:      req.ExternalID,
 		Locale:          req.Locale,
 		AuthWorkspaceID: wsID,
+		Headers:         headers,
 	}
 
 	resp, err := h.sendService.Send(c.Request().Context(), svcReq)

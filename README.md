@@ -74,6 +74,82 @@ Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with 
 
 ---
 
+## Use as a Library
+
+Senda can be imported as a Go module. Register custom **code injectors** to feed business-specific data into templates, add an **init function** for shared per-request context, and wire **lifecycle hooks** for your infrastructure.
+
+```bash
+go get github.com/senda-app/senda
+```
+
+```go
+package main
+
+import (
+    "context"
+    "github.com/senda-app/senda/sdk"
+)
+
+func main() {
+    engine := sdk.NewWithConfig("config.yaml")
+
+    // Per-request init: load shared data before injectors run.
+    engine.SetInitFunc(func(ctx context.Context, injCtx *sdk.InjectorContext) (any, error) {
+        return loadStudent(ctx, injCtx.Header("X-Case-Id"))
+    })
+
+    // Custom injector: values merge with DB injectors into templates.
+    // Templates use {{ injector.student.full_name }}.
+    engine.RegisterInjector(&StudentInjector{})
+
+    // Lifecycle hooks for your infrastructure.
+    engine.OnStart(func(ctx context.Context) error  { return connectMongo(ctx) })
+    engine.OnShutdown(func(ctx context.Context) error { return closeMongo(ctx) })
+
+    engine.Run()
+}
+```
+
+<details>
+<summary><strong>Implementing an Injector</strong></summary>
+
+```go
+type StudentInjector struct{}
+
+func (i *StudentInjector) Code() string { return "student" }
+
+func (i *StudentInjector) Resolve() (sdk.ResolveFunc, []string) {
+    return func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
+        student := injCtx.InitData().(*Student)
+        return map[string]any{
+            "full_name": student.FullName,
+            "email":     student.Email,
+            "grade":     student.Grade,
+        }, nil
+    }, nil // no dependencies on other injectors
+}
+
+func (i *StudentInjector) IsCritical() bool        { return true }
+func (i *StudentInjector) Timeout() time.Duration   { return 10 * time.Second }
+```
+
+**Key concepts:**
+- `Code()` maps to the template namespace: `{{ injector.<Code()>.<field> }}`
+- `Resolve()` returns `(resolveFunc, dependencies)` — dependencies are other injector codes that must resolve first
+- `IsCritical()` — if `true`, a failure aborts the send; if `false`, the injector is silently skipped
+- Code injector values merge with DB injectors. On name collision, code injectors win (with a warning log)
+- `InjectorContext` provides: HTTP headers, send request variables, init data, tenant/workspace IDs, and other resolved injectors
+
+</details>
+
+**What's extensible (SDK):** Code injectors, init function, lifecycle hooks (OnStart/OnShutdown).
+
+**What's internal (config):** Email senders (SES/Gmail/SMTP), cache, crypto, queue, rate limiter, auth, middleware, resolution engine. All managed via YAML config.
+
+Update Senda independently — `go get -u github.com/senda-app/senda@latest` — your extensions keep working.
+
+---
+
 ## Architecture
 
 Hexagonal (Ports & Adapters). Domain logic has zero infrastructure dependencies.
@@ -374,10 +450,11 @@ Frontend: `npm --prefix web run dev` | `npm --prefix web run build` | `npm --pre
 
 ```
 senda/
-├── cmd/senda/              Entry point + DI composition
+├── sdk/                    Public SDK (Engine, Injector, InjectorContext)
+├── cmd/senda/              Entry point (uses sdk.Engine)
 ├── internal/
 │   ├── domain/             Entities, value objects, domain errors
-│   ├── port/               Interface contracts
+│   ├── port/               Interface contracts (incl. CodeInjector)
 │   ├── service/            Business logic
 │   ├── resolution/         Hierarchy chain resolution engine
 │   ├── adapter/            PostgreSQL, SES, Gmail, SMTP, River, MJML, Crypto
@@ -395,14 +472,15 @@ senda/
 
 ## Documentation
 
-|                  | Document                                                 | Description                                    |
-| ---------------- | -------------------------------------------------------- | ---------------------------------------------- |
-| **Architecture** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)             | Hexagonal layers, resolution engine, ADRs      |
-| **API**          | [docs/API.md](docs/API.md)                               | All endpoints, auth schemes, error codes       |
-| **Development**  | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)               | Setup, Docker, testing, troubleshooting        |
-| **Deployment**   | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                 | Production Dockerfile, env vars, health checks |
-| **Postman**      | [docs/postman/](docs/postman/)                           | Collection + environments                      |
-| **Tech Spec**    | [docs/specs/TECH_SPEC_v1.md](docs/specs/TECH_SPEC_v1.md) | Complete technical specification               |
+|                      | Document                                                           | Description                                    |
+| -------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
+| **Extensibility**    | [docs/extensibility-guide.md](docs/extensibility-guide.md)         | SDK guide: injectors, init, hooks, examples    |
+| **Architecture**     | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                       | Hexagonal layers, resolution engine, ADRs      |
+| **API**              | [docs/API.md](docs/API.md)                                        | All endpoints, auth schemes, error codes       |
+| **Development**      | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)                        | Setup, Docker, testing, troubleshooting        |
+| **Deployment**       | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                          | Production Dockerfile, env vars, health checks |
+| **Postman**          | [docs/postman/](docs/postman/)                                    | Collection + environments                      |
+| **Tech Spec**        | [docs/specs/TECH_SPEC_v1.md](docs/specs/TECH_SPEC_v1.md)          | Complete technical specification               |
 
 ---
 
