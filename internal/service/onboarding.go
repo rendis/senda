@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -207,23 +208,32 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		return nil, fmt.Errorf("create system workspace: %w", err)
 	}
 
-	// 6. Audit log (best-effort, on tx for atomicity).
-	_, _ = tx.Exec(ctx,
-		`INSERT INTO audit_logs (id, actor_id, actor_email, action, entity_type, entity_id, tenant_id, scope_type, changes, created_at)
-		 VALUES (@id, @actor_id, @actor_email, @action, @entity_type, @entity_id, @tenant_id, @scope_type, @changes, @created_at)`,
-		pgx.NamedArgs{
-			"id":           uuid.Must(uuid.NewV7()),
-			"actor_id":     member.ID,
-			"actor_email":  member.Email,
-			"action":       domain.AuditCreate,
-			"entity_type":  "onboarding",
-			"entity_id":    tenant.ID,
-			"tenant_id":    &tenant.ID,
-			"scope_type":   domain.ScopeGlobal,
-			"changes":      map[string]any{"tenant_code": tenant.Code, "tenant_name": tenant.Name, "member_email": member.Email},
-			"created_at":   now,
-		},
-	)
+	// 6. Audit log (best-effort with savepoint — a failed INSERT must not
+	//    abort the outer TX or the subsequent COMMIT will rollback everything).
+	if _, spErr := tx.Exec(ctx, "SAVEPOINT audit_sp"); spErr == nil {
+		changesJSON, _ := json.Marshal(map[string]any{"tenant_code": tenant.Code, "tenant_name": tenant.Name, "member_email": member.Email})
+		_, auditErr := tx.Exec(ctx,
+			`INSERT INTO audit_logs (id, actor_id, actor_email, action, entity_type, entity_id, tenant_id, scope_type, changes, created_at)
+			 VALUES (@id, @actor_id, @actor_email, @action, @entity_type, @entity_id, @tenant_id, @scope_type, @changes::jsonb, @created_at)`,
+			pgx.NamedArgs{
+				"id":          uuid.Must(uuid.NewV7()),
+				"actor_id":    member.ID,
+				"actor_email": member.Email,
+				"action":      domain.AuditCreate,
+				"entity_type": "onboarding",
+				"entity_id":   tenant.ID,
+				"tenant_id":   &tenant.ID,
+				"scope_type":  domain.ScopeGlobal,
+				"changes":     string(changesJSON),
+				"created_at":  now,
+			},
+		)
+		if auditErr != nil {
+			_, _ = tx.Exec(ctx, "ROLLBACK TO SAVEPOINT audit_sp")
+		} else {
+			_, _ = tx.Exec(ctx, "RELEASE SAVEPOINT audit_sp")
+		}
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit tx: %w", err)
