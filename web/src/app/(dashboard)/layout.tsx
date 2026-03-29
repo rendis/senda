@@ -113,14 +113,14 @@ export default async function DashboardLayout({
   const pathname =
     (await headers()).get("x-senda-pathname") ?? "";
 
-  const membership = await fetchMembership(idToken);
-  if (!membership || !hasScopeAccess(membership.roles ?? [], pathname)) {
-    redirect("/access-denied");
-  }
-
   const needsOnboarding = await checkOnboarding(idToken);
   if (needsOnboarding) {
     redirect("/onboarding");
+  }
+
+  const membership = await fetchMembership(idToken);
+  if (!membership || !hasScopeAccess(membership.roles ?? [], pathname)) {
+    redirect("/access-denied");
   }
 
   return (
