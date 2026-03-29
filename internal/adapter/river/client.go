@@ -2,6 +2,7 @@ package river
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -65,8 +66,8 @@ func NewClient(pool *pgxpool.Pool, sendWorker *SendWorker, webhookWorker *Webhoo
 
 	client, err := goriver.NewClient(riverpgxv5.New(pool), &goriver.Config{
 		Queues: map[string]goriver.QueueConfig{
-			"send":    {MaxWorkers: 50},
-			"webhook": {MaxWorkers: 20},
+			"send":    {MaxWorkers: 30},
+			"webhook": {MaxWorkers: 15},
 		},
 		Workers:      workers,
 		ErrorHandler: &errorHandler{},
@@ -107,6 +108,25 @@ func (c *Client) EnqueueSend(ctx context.Context, job *port.SendJob) error {
 	return nil
 }
 
+// EnqueueSendTx enqueues an email send job within an existing transaction.
+func (c *Client) EnqueueSendTx(ctx context.Context, tx pgx.Tx, job *port.SendJob) error {
+	priority := job.Priority
+	if priority < 1 {
+		priority = 2
+	}
+
+	_, err := c.inner.InsertTx(ctx, tx, SendJobArgs{
+		EmailID:    job.EmailID,
+		TrackingID: job.TrackingID,
+		AdapterID:  job.AdapterID,
+		Priority:   priority,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("river: enqueue send tx: %w", err)
+	}
+	return nil
+}
+
 // EnqueueWebhook enqueues a webhook delivery job.
 func (c *Client) EnqueueWebhook(ctx context.Context, job *port.WebhookJob) error {
 	_, err := c.inner.Insert(ctx, WebhookJobArgs{
@@ -121,6 +141,13 @@ func (c *Client) EnqueueWebhook(ctx context.Context, job *port.WebhookJob) error
 	return nil
 }
 
+// Healthy reports whether the River client is operational.
+// It verifies that the underlying connection pool can reach PostgreSQL
+// (which is also the River job store).
+func (c *Client) Healthy(ctx context.Context) error {
+	return c.pool.Ping(ctx)
+}
+
 // Compile-time interface check.
 var _ port.JobQueue = (*Client)(nil)
 
@@ -129,10 +156,55 @@ type errorHandler struct{}
 
 func (h *errorHandler) HandleError(_ context.Context, job *rivertype.JobRow, err error) *goriver.ErrorHandlerResult {
 	slog.Error("river: job failed", "kind", job.Kind, "id", job.ID, "attempt", job.Attempt, "error", err)
+
+	// DLQ logging: when a job exhausts all retries, log a warning with identifiers
+	// for manual inspection. River will discard the job after MaxAttempts.
+	if job.Attempt >= job.MaxAttempts {
+		attrs := []any{
+			"kind", job.Kind,
+			"job_id", job.ID,
+			"attempts", job.Attempt,
+			"max_attempts", job.MaxAttempts,
+			"error", err,
+		}
+		// Try to extract email-specific identifiers from the job args.
+		if job.Kind == "send_email" {
+			var args struct {
+				EmailID    string `json:"email_id"`
+				TrackingID string `json:"tracking_id"`
+			}
+			if json.Unmarshal(job.EncodedArgs, &args) == nil {
+				attrs = append(attrs, "email_id", args.EmailID, "tracking_id", args.TrackingID)
+			}
+		}
+		slog.Warn("river: job exhausted all retries, entering dead letter state", attrs...)
+	}
+
 	return nil
 }
 
 func (h *errorHandler) HandlePanic(_ context.Context, job *rivertype.JobRow, panicVal any, trace string) *goriver.ErrorHandlerResult {
 	slog.Error("river: job panicked", "kind", job.Kind, "id", job.ID, "panic", panicVal, "trace", trace)
+
+	if job.Attempt >= job.MaxAttempts {
+		attrs := []any{
+			"kind", job.Kind,
+			"job_id", job.ID,
+			"attempts", job.Attempt,
+			"max_attempts", job.MaxAttempts,
+			"panic", panicVal,
+		}
+		if job.Kind == "send_email" {
+			var args struct {
+				EmailID    string `json:"email_id"`
+				TrackingID string `json:"tracking_id"`
+			}
+			if json.Unmarshal(job.EncodedArgs, &args) == nil {
+				attrs = append(attrs, "email_id", args.EmailID, "tracking_id", args.TrackingID)
+			}
+		}
+		slog.Warn("river: job exhausted all retries (panic), entering dead letter state", attrs...)
+	}
+
 	return nil
 }

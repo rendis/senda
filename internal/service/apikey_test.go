@@ -17,6 +17,7 @@ import (
 
 type mockAPIKeyStore struct {
 	createFn          func(ctx context.Context, key *domain.APIKey) error
+	getByIDFn         func(ctx context.Context, id uuid.UUID) (*domain.APIKey, error)
 	getByHashFn       func(ctx context.Context, hash string) (*domain.APIKey, error)
 	revokeFn          func(ctx context.Context, id uuid.UUID) error
 	touchLastUsedFn   func(ctx context.Context, id uuid.UUID) error
@@ -28,6 +29,12 @@ func (m *mockAPIKeyStore) Create(ctx context.Context, key *domain.APIKey) error 
 		return m.createFn(ctx, key)
 	}
 	return nil
+}
+func (m *mockAPIKeyStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, domain.ErrNotFound
 }
 func (m *mockAPIKeyStore) GetByHash(ctx context.Context, hash string) (*domain.APIKey, error) {
 	if m.getByHashFn != nil {
@@ -68,7 +75,7 @@ func TestAPIKeyService_Generate_Success(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	fullKey, key, err := svc.Generate(context.Background(), wsID, "My API Key", memberID)
 	if err != nil {
@@ -125,7 +132,7 @@ func TestAPIKeyService_Generate_StoreError(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	_, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), "key", uuid.Must(uuid.NewV7()))
 	if !errors.Is(err, domain.ErrConflict) {
@@ -135,7 +142,7 @@ func TestAPIKeyService_Generate_StoreError(t *testing.T) {
 
 func TestAPIKeyService_Generate_UniqueKeys(t *testing.T) {
 	store := &mockAPIKeyStore{}
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	key1, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), "k1", uuid.Must(uuid.NewV7()))
 	if err != nil {
@@ -165,7 +172,7 @@ func TestAPIKeyService_Validate_Success(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 	fullKey, _, err := svc.Generate(context.Background(), wsID, "test", uuid.Must(uuid.NewV7()))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -206,7 +213,7 @@ func TestAPIKeyService_Validate_NotFound(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	_, err := svc.Validate(context.Background(), "senda_live_deadbeefdeadbeefdeadbeefdeadbeef")
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -225,7 +232,7 @@ func TestAPIKeyService_Validate_Revoked(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	_, err := svc.Validate(context.Background(), "senda_live_deadbeefdeadbeefdeadbeefdeadbeef")
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -238,13 +245,11 @@ func TestAPIKeyService_Revoke_Success(t *testing.T) {
 	keyID := uuid.Must(uuid.NewV7())
 	var revokedID uuid.UUID
 	store := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, wID uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			if wID != wsID {
-				t.Fatalf("expected workspace ID %s, got %s", wsID, wID)
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			if id != keyID {
+				return nil, domain.ErrNotFound
 			}
-			return &port.PageResult[domain.APIKey]{
-				Items: []*domain.APIKey{{ID: keyID, WorkspaceID: wsID}},
-			}, nil
+			return &domain.APIKey{ID: keyID, WorkspaceID: wsID}, nil
 		},
 		revokeFn: func(_ context.Context, id uuid.UUID) error {
 			revokedID = id
@@ -252,7 +257,7 @@ func TestAPIKeyService_Revoke_Success(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	err := svc.Revoke(context.Background(), wsID, keyID)
 	if err != nil {
@@ -265,17 +270,18 @@ func TestAPIKeyService_Revoke_Success(t *testing.T) {
 
 func TestAPIKeyService_Revoke_CrossWorkspace(t *testing.T) {
 	wsID := uuid.Must(uuid.NewV7())
-	otherKeyID := uuid.Must(uuid.NewV7())
+	otherWsID := uuid.Must(uuid.NewV7())
+	keyID := uuid.Must(uuid.NewV7())
 	store := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, _ uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			// Return an empty list — key does not belong to this workspace.
-			return &port.PageResult[domain.APIKey]{Items: []*domain.APIKey{}}, nil
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			// Key exists but belongs to a different workspace.
+			return &domain.APIKey{ID: id, WorkspaceID: otherWsID}, nil
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	err := svc.Revoke(context.Background(), wsID, otherKeyID)
+	err := svc.Revoke(context.Background(), wsID, keyID)
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for cross-workspace revoke, got %v", err)
 	}
@@ -285,17 +291,15 @@ func TestAPIKeyService_Revoke_StoreError(t *testing.T) {
 	wsID := uuid.Must(uuid.NewV7())
 	keyID := uuid.Must(uuid.NewV7())
 	store := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, _ uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			return &port.PageResult[domain.APIKey]{
-				Items: []*domain.APIKey{{ID: keyID, WorkspaceID: wsID}},
-			}, nil
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			return &domain.APIKey{ID: id, WorkspaceID: wsID}, nil
 		},
 		revokeFn: func(_ context.Context, _ uuid.UUID) error {
 			return domain.ErrNotFound
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	err := svc.Revoke(context.Background(), wsID, keyID)
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -322,7 +326,7 @@ func TestAPIKeyService_ListByWorkspace_Success(t *testing.T) {
 		},
 	}
 
-	svc := service.NewAPIKeyService(store)
+	svc := service.NewAPIKeyService(store, "test-pepper")
 
 	page, err := svc.ListByWorkspace(context.Background(), wsID, port.ListOptions{Limit: 25})
 	if err != nil {

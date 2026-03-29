@@ -111,7 +111,7 @@ func TestTemplateResolver_FullSuccess_NoLocale(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	result, err := resolver.Resolve(context.Background(), wsID, "welcome-email", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -153,7 +153,7 @@ func TestTemplateResolver_TypeNotFound(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	_, err := resolver.Resolve(context.Background(), wsID, "nonexistent", nil)
 	if !errors.Is(err, domain.ErrTemplateTypeNotFound) {
 		t.Errorf("expected ErrTemplateTypeNotFound, got %v", err)
@@ -189,7 +189,7 @@ func TestTemplateResolver_TemplateNotFound(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	_, err := resolver.Resolve(context.Background(), wsID, "welcome-email", nil)
 	if !errors.Is(err, domain.ErrTemplateNotFound) {
 		t.Errorf("expected ErrTemplateNotFound, got %v", err)
@@ -227,7 +227,7 @@ func TestTemplateResolver_TemplateDisabled(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	_, err := resolver.Resolve(context.Background(), wsID, "welcome-email", nil)
 	if !errors.Is(err, domain.ErrTemplateDisabled) {
 		t.Errorf("expected ErrTemplateDisabled, got %v", err)
@@ -268,7 +268,7 @@ func TestTemplateResolver_NoPublishedVersion(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	_, err := resolver.Resolve(context.Background(), wsID, "welcome-email", nil)
 	if !errors.Is(err, domain.ErrNoPublishedVersion) {
 		t.Errorf("expected ErrNoPublishedVersion, got %v", err)
@@ -320,7 +320,7 @@ func TestTemplateResolver_LocaleExactMatch(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	locale := "es"
 	result, err := resolver.Resolve(context.Background(), wsID, "welcome-email", &locale)
 	if err != nil {
@@ -379,7 +379,7 @@ func TestTemplateResolver_LocalePrefixFallback(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	locale := "es-CO"
 	result, err := resolver.Resolve(context.Background(), wsID, "welcome-email", &locale)
 	if err != nil {
@@ -433,7 +433,7 @@ func TestTemplateResolver_LocaleTotalMiss(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	locale := "zh"
 	result, err := resolver.Resolve(context.Background(), wsID, "welcome-email", &locale)
 	if err != nil {
@@ -486,7 +486,7 @@ func TestTemplateResolver_LocaleMatchesDefault_SkipLookup(t *testing.T) {
 		},
 	}
 
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 	locale := "en" // same as DefaultLocale
 	result, err := resolver.Resolve(context.Background(), wsID, "welcome-email", &locale)
 	if err != nil {
@@ -505,7 +505,7 @@ func TestTemplateResolver_ChainResolverError(t *testing.T) {
 	cr := newErrorChainResolver(chainErr)
 
 	store := &mockTemplateStore{}
-	resolver := resolution.NewTemplateResolver(store, cr)
+	resolver := resolution.NewTemplateResolver(store, newMockCache(), cr)
 
 	_, err := resolver.Resolve(context.Background(), uuid.New(), "any-slug", nil)
 	if err == nil {

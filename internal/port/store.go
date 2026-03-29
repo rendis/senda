@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/senda-app/senda/internal/domain"
 )
 
@@ -45,43 +46,60 @@ type InjectorStore interface {
 	// Values (overrideable)
 	SetValue(ctx context.Context, val *domain.InjectorValue) error
 	GetValues(ctx context.Context, defID uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error)
+
+	// Batch operations (N+1 elimination)
+	GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error)
+	GetAllValuesByDefinitions(ctx context.Context, defIDs []uuid.UUID, chain []uuid.NullUUID) (map[uuid.UUID][]*domain.InjectorValue, error)
 }
 
-// TemplateStore manages template persistence.
-type TemplateStore interface {
-	// Types
+// TemplateTypeStore manages template type persistence.
+type TemplateTypeStore interface {
 	CreateType(ctx context.Context, tt *domain.TemplateType) error
 	GetTypeBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
 	FindTypeBySlugInScope(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
 	ListTypes(ctx context.Context, wsID *uuid.UUID, opts ListOptions) ([]*domain.TemplateType, string, error)
+}
 
-	// Templates
-	CreateTemplate(ctx context.Context, tpl *domain.Template) error
-	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
-	ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts ListOptions) ([]*domain.Template, string, error)
-	ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
-	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
-
-	// Versions
+// TemplateVersionStore manages template version persistence.
+type TemplateVersionStore interface {
 	CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error
 	GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error
 	Publish(ctx context.Context, versionID uuid.UUID) error // archives previous published
 	ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
+}
 
-	// Locales
+// LocaleStore manages template version locale persistence.
+type LocaleStore interface {
 	SetLocale(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	GetLocale(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
 	ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error)
 	DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error
 }
 
+// TemplateStore manages template persistence. It composes the narrower sub-interfaces
+// so callers can accept a specific sub-interface when they don't need the full store.
+type TemplateStore interface {
+	TemplateTypeStore
+	TemplateVersionStore
+	LocaleStore
+
+	// Core template methods
+	CreateTemplate(ctx context.Context, tpl *domain.Template) error
+	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
+	ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts ListOptions) ([]*domain.Template, string, error)
+	ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
+	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
+}
+
 // EmailStore manages email persistence and queries.
 type EmailStore interface {
 	Create(ctx context.Context, email *domain.Email) error
+	CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error
 	GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error)
-	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
+	GetByProviderMessageID(ctx context.Context, providerMessageID string) (*domain.Email, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	UpdateRetry(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
 	SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMessageID string) error
 
@@ -109,6 +127,9 @@ type MemberStore interface {
 	RemoveRole(ctx context.Context, roleID uuid.UUID) error
 	GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 	GetRolesInScope(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
+
+	// Batch operations (N+1 elimination)
+	GetRolesByMembers(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error)
 }
 
 // SuppressionStore manages suppression lists.
@@ -161,6 +182,13 @@ type WebhookStore interface {
 	Update(ctx context.Context, wh *domain.Webhook) error
 	Delete(ctx context.Context, id uuid.UUID) error // hard delete -- webhooks have no hierarchy
 
+	// IncrementFailureCount atomically increments the failure counter and auto-disables after 10 consecutive failures.
+	// Returns the new consecutive failure count and whether the webhook is still active.
+	IncrementFailureCount(ctx context.Context, id uuid.UUID) (consecutiveFailures int, isActive bool, err error)
+
+	// ResetFailureCount atomically resets the consecutive failure counter and last_failure_at on success.
+	ResetFailureCount(ctx context.Context, id uuid.UUID) error
+
 	// ListByWorkspace returns webhooks for a workspace.
 	ListByWorkspace(ctx context.Context, workspaceID uuid.UUID, opts ListOptions) (*PageResult[domain.Webhook], error)
 
@@ -171,6 +199,7 @@ type WebhookStore interface {
 // APIKeyStore manages API key persistence.
 type APIKeyStore interface {
 	Create(ctx context.Context, key *domain.APIKey) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error)
 	GetByHash(ctx context.Context, hash string) (*domain.APIKey, error)
 	Revoke(ctx context.Context, id uuid.UUID) error
 	TouchLastUsed(ctx context.Context, id uuid.UUID) error

@@ -23,6 +23,7 @@ import (
 
 type mockAPIKeyStore struct {
 	createFn          func(ctx context.Context, key *domain.APIKey) error
+	getByIDFn         func(ctx context.Context, id uuid.UUID) (*domain.APIKey, error)
 	getByHashFn       func(ctx context.Context, hash string) (*domain.APIKey, error)
 	revokeFn          func(ctx context.Context, id uuid.UUID) error
 	touchLastUsedFn   func(ctx context.Context, id uuid.UUID) error
@@ -34,6 +35,12 @@ func (m *mockAPIKeyStore) Create(ctx context.Context, key *domain.APIKey) error 
 		return m.createFn(ctx, key)
 	}
 	return nil
+}
+func (m *mockAPIKeyStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, domain.ErrNotFound
 }
 func (m *mockAPIKeyStore) GetByHash(ctx context.Context, hash string) (*domain.APIKey, error) {
 	if m.getByHashFn != nil {
@@ -81,7 +88,7 @@ func setupAPIKeyTest(aks port.APIKeyStore, ts port.TenantStore, ws port.Workspac
 		e.Use(fakeMember(member))
 	}
 
-	svc := service.NewAPIKeyService(aks)
+	svc := service.NewAPIKeyService(aks, "test-pepper")
 	h := handler.NewAPIKeyHandler(svc, ts, ws)
 
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/api-keys", h.Create)
@@ -403,10 +410,11 @@ func TestAPIKeyHandler_Revoke_Success(t *testing.T) {
 	keyID := uuid.Must(uuid.NewV7())
 	var revokedID uuid.UUID
 	aks := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, wID uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			return &port.PageResult[domain.APIKey]{
-				Items: []*domain.APIKey{{ID: keyID, WorkspaceID: ws.ID}},
-			}, nil
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			if id == keyID {
+				return &domain.APIKey{ID: keyID, WorkspaceID: ws.ID}, nil
+			}
+			return nil, domain.ErrNotFound
 		},
 		revokeFn: func(_ context.Context, id uuid.UUID) error {
 			revokedID = id
@@ -432,11 +440,12 @@ func TestAPIKeyHandler_Revoke_CrossWorkspace(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 	member := &domain.Member{ID: uuid.Must(uuid.NewV7()), Email: "admin@acme.com"}
 
+	otherWsID := uuid.Must(uuid.NewV7())
 	otherKeyID := uuid.Must(uuid.NewV7())
 	aks := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, _ uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			// Key not in this workspace
-			return &port.PageResult[domain.APIKey]{Items: []*domain.APIKey{}}, nil
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			// Key exists but belongs to a different workspace.
+			return &domain.APIKey{ID: id, WorkspaceID: otherWsID}, nil
 		},
 	}
 
@@ -468,15 +477,13 @@ func TestAPIKeyHandler_Revoke_InvalidID(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Revoke_NotFound(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 	member := &domain.Member{ID: uuid.Must(uuid.NewV7()), Email: "admin@acme.com"}
 
 	keyID := uuid.Must(uuid.NewV7())
 	aks := &mockAPIKeyStore{
-		listByWorkspaceFn: func(_ context.Context, _ uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.APIKey], error) {
-			return &port.PageResult[domain.APIKey]{
-				Items: []*domain.APIKey{{ID: keyID}},
-			}, nil
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.APIKey, error) {
+			return &domain.APIKey{ID: id, WorkspaceID: ws.ID}, nil
 		},
 		revokeFn: func(_ context.Context, _ uuid.UUID) error {
 			return domain.ErrNotFound

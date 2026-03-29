@@ -10,6 +10,10 @@ import (
 )
 
 // TemplateService handles template, version, and locale business logic.
+// It requires the full port.TemplateStore because it uses methods across all sub-interfaces:
+//   - Core TemplateStore: CreateTemplate, ListByType, SetDisabled
+//   - TemplateVersionStore: CreateVersion, GetVersionByID, UpdateVersion, Publish, ListVersions
+//   - LocaleStore: SetLocale, GetLocale, ListLocales, DeleteLocale
 type TemplateService struct {
 	store    port.TemplateStore
 	compiler port.TemplateCompiler

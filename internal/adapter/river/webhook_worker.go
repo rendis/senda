@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/pkg/netutil"
 )
 
 // HTTPClient abstracts HTTP requests for testability.
@@ -24,25 +26,43 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// SSRFChecker is a function that returns true if the hostname should be blocked.
+type SSRFChecker func(hostname string) bool
+
 // WebhookWorker processes webhook delivery jobs.
 type WebhookWorker struct {
 	goriver.WorkerDefaults[WebhookJobArgs]
 
 	webhookStore port.WebhookStore
 	httpClient   HTTPClient
+	ssrfChecker  SSRFChecker
+}
+
+// WebhookWorkerOption configures optional WebhookWorker settings.
+type WebhookWorkerOption func(*WebhookWorker)
+
+// WithSSRFChecker overrides the default SSRF host checker. Useful in tests to
+// skip DNS resolution against test URLs like example.com.
+func WithSSRFChecker(fn SSRFChecker) WebhookWorkerOption {
+	return func(w *WebhookWorker) { w.ssrfChecker = fn }
 }
 
 // NewWebhookWorker creates a new webhook delivery worker.
-func NewWebhookWorker(webhookStore port.WebhookStore, httpClient HTTPClient) *WebhookWorker {
+func NewWebhookWorker(webhookStore port.WebhookStore, httpClient HTTPClient, opts ...WebhookWorkerOption) *WebhookWorker {
 	if httpClient == nil {
 		httpClient = &http.Client{
 			Timeout: 10 * time.Second,
 		}
 	}
-	return &WebhookWorker{
+	w := &WebhookWorker{
 		webhookStore: webhookStore,
 		httpClient:   httpClient,
+		ssrfChecker:  netutil.IsPrivateOrReservedHost,
 	}
+	for _, o := range opts {
+		o(w)
+	}
+	return w
 }
 
 // Work processes a single webhook delivery job.
@@ -58,11 +78,17 @@ func (w *WebhookWorker) Work(ctx context.Context, job *goriver.Job[WebhookJobArg
 		return goriver.JobCancel(fmt.Errorf("webhook: endpoint %s is disabled", args.WebhookID))
 	}
 
-	// 2. Sign payload with HMAC-SHA256.
+	// 2. SSRF guard — resolve webhook URL at delivery time to block DNS rebinding.
+	parsed, err := url.Parse(wh.URL)
+	if err != nil || w.ssrfChecker(parsed.Hostname()) {
+		return goriver.JobCancel(fmt.Errorf("webhook URL blocked: %s", wh.URL))
+	}
+
+	// 3. Sign payload with HMAC-SHA256.
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	signature := signPayload(wh.Secret, timestamp, args.Payload)
 
-	// 3. POST to webhook URL with headers.
+	// 4. POST to webhook URL with headers.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.URL, bytes.NewReader(args.Payload))
 	if err != nil {
 		return goriver.JobCancel(fmt.Errorf("webhook: invalid url %q: %w", wh.URL, err))
@@ -83,14 +109,12 @@ func (w *WebhookWorker) Work(ctx context.Context, job *goriver.Job[WebhookJobArg
 	// Read body (limited) for error reporting.
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 
-	// 4. Evaluate response status.
+	// 5. Evaluate response status.
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		// Success — reset failure counter.
+		// Success — atomically reset failure counter.
 		if wh.ConsecutiveFailures > 0 {
-			wh.ConsecutiveFailures = 0
-			wh.LastFailureAt = nil
-			if err := w.webhookStore.Update(ctx, wh); err != nil {
+			if err := w.webhookStore.ResetFailureCount(ctx, wh.ID); err != nil {
 				slog.Error("webhook_worker: failed to reset failure counter", "webhook_id", wh.ID, "error", err)
 			}
 		}
@@ -113,34 +137,24 @@ func (w *WebhookWorker) NextRetry(job *goriver.Job[WebhookJobArgs]) time.Time {
 	return time.Now().Add(backoff)
 }
 
-// handleFailure records a transient failure and returns the error for retry.
+// handleFailure records a transient failure atomically and returns the error for retry.
 func (w *WebhookWorker) handleFailure(ctx context.Context, wh *domain.Webhook, err error) error {
-	now := time.Now().UTC()
-	wh.ConsecutiveFailures++
-	wh.LastFailureAt = &now
-
-	// Auto-disable after 10 consecutive failures.
-	if wh.ConsecutiveFailures >= 10 {
-		wh.IsActive = false
-		wh.DisabledAt = &now
-	}
-	if updateErr := w.webhookStore.Update(ctx, wh); updateErr != nil {
-		slog.Error("webhook_worker: failed to update failure counter", "webhook_id", wh.ID, "error", updateErr)
+	failures, isActive, updateErr := w.webhookStore.IncrementFailureCount(ctx, wh.ID)
+	if updateErr != nil {
+		slog.Error("webhook_worker: failed to increment failure counter", "webhook_id", wh.ID, "error", updateErr)
+	} else if !isActive {
+		slog.Warn("webhook_worker: endpoint auto-disabled after consecutive failures", "webhook_id", wh.ID, "failures", failures)
 	}
 	return err
 }
 
-// handlePermanentFailure records a permanent failure and cancels the job.
+// handlePermanentFailure records a permanent failure atomically and cancels the job.
 func (w *WebhookWorker) handlePermanentFailure(ctx context.Context, wh *domain.Webhook, err error) error {
-	now := time.Now().UTC()
-	wh.ConsecutiveFailures++
-	wh.LastFailureAt = &now
-	if wh.ConsecutiveFailures >= 10 {
-		wh.IsActive = false
-		wh.DisabledAt = &now
-	}
-	if updateErr := w.webhookStore.Update(ctx, wh); updateErr != nil {
-		slog.Error("webhook_worker: failed to update failure counter", "webhook_id", wh.ID, "error", updateErr)
+	failures, isActive, updateErr := w.webhookStore.IncrementFailureCount(ctx, wh.ID)
+	if updateErr != nil {
+		slog.Error("webhook_worker: failed to increment failure counter", "webhook_id", wh.ID, "error", updateErr)
+	} else if !isActive {
+		slog.Warn("webhook_worker: endpoint auto-disabled after consecutive failures", "webhook_id", wh.ID, "failures", failures)
 	}
 	return goriver.JobCancel(err)
 }

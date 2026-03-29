@@ -23,6 +23,9 @@ type mockAPIKeyStore struct {
 }
 
 func (m *mockAPIKeyStore) Create(_ context.Context, _ *domain.APIKey) error { return nil }
+func (m *mockAPIKeyStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.APIKey, error) {
+	return nil, domain.ErrNotFound
+}
 func (m *mockAPIKeyStore) GetByHash(ctx context.Context, hash string) (*domain.APIKey, error) {
 	return m.getByHashFn(ctx, hash)
 }
@@ -58,6 +61,9 @@ func (m *mockMemberStore) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*
 func (m *mockMemberStore) GetRolesInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) ([]*domain.MemberRole, error) {
 	return nil, nil
 }
+func (m *mockMemberStore) GetRolesByMembers(_ context.Context, _ []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) {
+	return nil, nil
+}
 func (m *mockMemberStore) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
@@ -74,7 +80,7 @@ func (m *mockOIDCVerifier) Verify(ctx context.Context, rawToken string) (*port.O
 
 func TestAuth_MissingAuthorizationHeader(t *testing.T) {
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -90,7 +96,7 @@ func TestAuth_MissingAuthorizationHeader(t *testing.T) {
 
 func TestAuth_EmptyBearerToken(t *testing.T) {
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -107,7 +113,7 @@ func TestAuth_EmptyBearerToken(t *testing.T) {
 
 func TestAuth_InvalidFormat(t *testing.T) {
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -139,7 +145,7 @@ func TestAuth_ValidAPIKey(t *testing.T) {
 	var gotAuthType, gotWSID any
 
 	e := echo.New()
-	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		gotAuthType = c.Get(middleware.ContextKeyAuthType)
 		gotWSID = c.Get(middleware.ContextKeyWorkspaceID)
@@ -174,7 +180,7 @@ func TestAuth_RevokedAPIKey(t *testing.T) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -197,7 +203,7 @@ func TestAuth_UnknownAPIKey(t *testing.T) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}))
+	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -249,7 +255,7 @@ func TestAuth_ValidOIDCToken(t *testing.T) {
 	var gotRoles any
 
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		gotAuthType = c.Get(middleware.ContextKeyAuthType)
 		gotMember = c.Get(middleware.ContextKeyMember)
@@ -286,7 +292,7 @@ func TestAuth_InvalidOIDCToken(t *testing.T) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, verifier))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, &mockMemberStore{}, verifier, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -318,7 +324,7 @@ func TestAuth_OIDCEmailNotRegistered(t *testing.T) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier))
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -348,7 +354,7 @@ func TestAuth_APIKeyPrefixDetection(t *testing.T) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Auth(apiKeyStore, &mockMemberStore{}, verifier))
+	e.Use(middleware.Auth(apiKeyStore, &mockMemberStore{}, verifier, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})

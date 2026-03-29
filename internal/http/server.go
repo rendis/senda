@@ -2,11 +2,14 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
+	echomw "github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/senda-app/senda/config"
 	"github.com/senda-app/senda/internal/domain"
@@ -27,6 +30,7 @@ type Server struct {
 	apiKeyStore  port.APIKeyStore
 	memberStore  port.MemberStore
 	oidcVerifier port.OIDCVerifier
+	apiKeyPepper string // HMAC pepper for API key hashing (derived from master key)
 
 	// Store dependencies for RBAC middleware.
 	tenantStore port.TenantStore
@@ -93,11 +97,13 @@ func WithPinger(p handler.Pinger) ServerOption {
 }
 
 // WithAuthDeps sets authentication dependencies for the Auth middleware.
-func WithAuthDeps(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifier port.OIDCVerifier) ServerOption {
+// The pepper parameter is the HMAC pepper derived from the master key for API key hashing.
+func WithAuthDeps(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifier port.OIDCVerifier, pepper string) ServerOption {
 	return func(s *Server) {
 		s.apiKeyStore = apiKeyStore
 		s.memberStore = memberStore
 		s.oidcVerifier = oidcVerifier
+		s.apiKeyPepper = pepper
 	}
 }
 
@@ -292,8 +298,23 @@ func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *S
 		opt(s)
 	}
 
-	// Middleware order: Recovery -> RequestID -> Metrics -> Logger -> Scope -> Handler
+	// Middleware order: Recovery -> BodyLimit -> Security -> CORS -> RequestID -> Metrics -> Logger -> Scope -> Handler
 	e.Use(middleware.Recovery(logger))
+	e.Use(echomw.BodyLimit(10 * 1024 * 1024)) // 10 MB
+	e.Use(echomw.SecureWithConfig(echomw.SecureConfig{
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "DENY",
+		HSTSMaxAge:            31536000,
+		ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+	}))
+	if len(cfg.Server.AllowedOrigins) > 0 {
+		e.Use(echomw.CORSWithConfig(echomw.CORSConfig{
+			AllowOrigins: cfg.Server.AllowedOrigins,
+			AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+			AllowHeaders: []string{"Authorization", "Content-Type", "X-Request-ID"},
+		}))
+	}
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Metrics())
 	e.Use(middleware.Logger(logger))
@@ -311,7 +332,12 @@ func (s *Server) registerRoutes() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
 	})
 	s.echo.GET("/healthz", healthH.Health)
-	s.echo.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
+	metricsHandler := echo.WrapHandler(promhttp.Handler())
+	if s.config.Server.MetricsToken != "" {
+		s.echo.GET("/metrics", metricsHandler, metricsTokenAuth(s.config.Server.MetricsToken))
+	} else {
+		s.echo.GET("/metrics", metricsHandler)
+	}
 
 	// Open-tracking pixel — public, no auth.
 	if s.trackingHandler != nil {
@@ -328,15 +354,15 @@ func (s *Server) registerRoutes() {
 
 	// POST /api/v1/send — API Key auth (HT-22).
 	if s.sendHandler != nil {
-		api.POST("/send", s.sendHandler.Send, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		api.POST("/send", s.sendHandler.Send, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
 	}
 
 	// Data-plane email query endpoints — API Key auth.
 	if s.dataPlaneEmailHandler != nil {
-		api.GET("/emails", s.dataPlaneEmailHandler.List, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
-		api.GET("/emails/export", s.dataPlaneEmailHandler.Export, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
-		api.GET("/emails/:tracking_id", s.dataPlaneEmailHandler.GetByTrackingID, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
-		api.GET("/emails/:tracking_id/events", s.dataPlaneEmailHandler.GetEvents, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		api.GET("/emails", s.dataPlaneEmailHandler.List, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
+		api.GET("/emails/export", s.dataPlaneEmailHandler.Export, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
+		api.GET("/emails/:tracking_id", s.dataPlaneEmailHandler.GetByTrackingID, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
+		api.GET("/emails/:tracking_id/events", s.dataPlaneEmailHandler.GetEvents, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
 	}
 
 	// SES webhook ingestion — NO AUTH, uses SNS signature verification (HT-23).
@@ -352,13 +378,13 @@ func (s *Server) registerRoutes() {
 
 	// Current authenticated member profile (OIDC only).
 	if s.memberHandler != nil {
-		api.GET("/members/me", s.memberHandler.Me, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier), middleware.OIDCOnly())
+		api.GET("/members/me", s.memberHandler.Me, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper), middleware.OIDCOnly())
 	}
 
 	// Management API (OIDC only) — only registered when handlers are provided.
 	if s.tenantHandler != nil {
 		mgmt := s.echo.Group("/api/v1/manage")
-		mgmt.Use(middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier))
+		mgmt.Use(middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
 		mgmt.Use(middleware.OIDCOnly())
 
 		// Tenants (superadmin).
@@ -582,4 +608,23 @@ func (s *Server) Start(ctx context.Context) error {
 // Echo returns the underlying echo instance (for testing).
 func (s *Server) Echo() *echo.Echo {
 	return s.echo
+}
+
+// metricsTokenAuth returns middleware that requires a Bearer token matching
+// the configured metrics token. Used to protect the /metrics endpoint.
+// Uses constant-time comparison to prevent timing side-channel attacks.
+func metricsTokenAuth(token string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			auth := c.Request().Header.Get("Authorization")
+			if !strings.HasPrefix(auth, "Bearer ") {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			}
+			provided := strings.TrimPrefix(auth, "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			}
+			return next(c)
+		}
+	}
 }

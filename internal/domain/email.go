@@ -1,10 +1,13 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrStatusConflict = errors.New("status transition conflict")
 
 type EmailStatus string
 
@@ -19,6 +22,26 @@ const (
 	StatusFailed     EmailStatus = "failed"
 	StatusSuppressed EmailStatus = "suppressed"
 )
+
+// EmailEventType represents the type of event that occurred on an email.
+type EmailEventType string
+
+const (
+	EventTypeQueued     EmailEventType = "queued"
+	EventTypeProcessing EmailEventType = "processing"
+	EventTypeSent       EmailEventType = "sent"
+	EventTypeDelivered  EmailEventType = "delivered"
+	EventTypeBounced    EmailEventType = "bounced"
+	EventTypeComplained EmailEventType = "complained"
+	EventTypeOpened     EmailEventType = "opened"
+	EventTypeFailed     EmailEventType = "failed"
+	EventTypeSuppressed EmailEventType = "suppressed"
+)
+
+// StatusToEventType maps an EmailStatus to its corresponding EmailEventType.
+func StatusToEventType(s EmailStatus) EmailEventType {
+	return EmailEventType(s)
+}
 
 type Email struct {
 	ID                uuid.UUID
@@ -45,16 +68,17 @@ type Email struct {
 	InjectorsSnapshot map[string]map[string]any
 	BodyMJML          string // MJML source snapshot (rendered with variables before compile)
 	RetryCount        int
-	MaxRetries        int
-	NextRetryAt       *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	OpenTrackingEnabled bool
+	MaxRetries          int
+	NextRetryAt         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type EmailEvent struct {
 	ID         uuid.UUID
 	EmailID    uuid.UUID
-	EventType  EmailStatus
+	EventType  EmailEventType
 	OccurredAt time.Time
 	Metadata   map[string]any
 	CreatedAt  time.Time

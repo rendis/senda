@@ -21,6 +21,13 @@ const (
 	IdentityStatusFailed   IdentityStatus = "failed"
 )
 
+type IdentitySource string
+
+const (
+	IdentitySourceProvider IdentitySource = "provider"
+	IdentitySourceManual   IdentitySource = "manual"
+)
+
 type AdapterIdentity struct {
 	ID             uuid.UUID
 	AdapterID      uuid.UUID
@@ -28,9 +35,9 @@ type AdapterIdentity struct {
 	IdentityType   IdentityType   // "email" or "domain"
 	Status         IdentityStatus // "verified", "pending", "failed"
 	SendingEnabled bool
-	IsDefault      bool    // only email-type can be default
-	DisplayName    *string // optional friendly name for From header
-	Source         string  // "provider" or "manual"
+	IsDefault      bool           // only email-type can be default
+	DisplayName    *string        // optional friendly name for From header
+	Source         IdentitySource // "provider" or "manual"
 	LastSyncedAt   *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

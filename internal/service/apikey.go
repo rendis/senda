@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,12 +15,15 @@ import (
 
 // APIKeyService handles API key generation, validation, and management.
 type APIKeyService struct {
-	store port.APIKeyStore
+	store  port.APIKeyStore
+	pepper string
 }
 
 // NewAPIKeyService creates a new APIKeyService.
-func NewAPIKeyService(store port.APIKeyStore) *APIKeyService {
-	return &APIKeyService{store: store}
+// The pepper parameter is derived from the master key and used for HMAC-SHA256 hashing of API keys.
+// app.go must pass a stable pepper derived from the master key (e.g. HKDF-derived subkey).
+func NewAPIKeyService(store port.APIKeyStore, pepper string) *APIKeyService {
+	return &APIKeyService{store: store, pepper: pepper}
 }
 
 // Generate creates a new API key for a workspace.
@@ -37,7 +41,7 @@ func (s *APIKeyService) Generate(ctx context.Context, workspaceID uuid.UUID, nam
 		ID:          uuid.Must(uuid.NewV7()),
 		WorkspaceID: workspaceID,
 		Name:        name,
-		KeyHash:     hashKey(fullKey),
+		KeyHash:     hashKeyHMAC(fullKey, s.pepper),
 		KeyPrefix:   "senda_live",
 		KeyHint:     fullKey[len(fullKey)-8:],
 		CreatedBy:   createdBy,
@@ -52,9 +56,9 @@ func (s *APIKeyService) Generate(ctx context.Context, workspaceID uuid.UUID, nam
 }
 
 // Validate checks if a raw key is valid and not revoked.
-// Computes SHA-256(rawKey), looks up by hash, checks revocation, and touches last_used_at.
+// Computes HMAC-SHA256(rawKey, pepper), looks up by hash, checks revocation, and touches last_used_at.
 func (s *APIKeyService) Validate(ctx context.Context, rawKey string) (*domain.APIKey, error) {
-	hash := hashKey(rawKey)
+	hash := hashKeyHMAC(rawKey, s.pepper)
 
 	key, err := s.store.GetByHash(ctx, hash)
 	if err != nil {
@@ -76,22 +80,11 @@ func (s *APIKeyService) Validate(ctx context.Context, rawKey string) (*domain.AP
 // It verifies the key belongs to the given workspace before revoking.
 // If the key is not found in the workspace, returns domain.ErrNotFound.
 func (s *APIKeyService) Revoke(ctx context.Context, workspaceID uuid.UUID, keyID uuid.UUID) error {
-	// Verify the key belongs to this workspace by scanning workspace keys.
-	// APIKeyStore has no GetByID, so we use ListByWorkspace.
-	// Use a large limit to capture all keys; API keys per workspace are bounded in practice.
-	page, err := s.store.ListByWorkspace(ctx, workspaceID, port.ListOptions{Limit: 100})
+	key, err := s.store.GetByID(ctx, keyID)
 	if err != nil {
 		return err
 	}
-
-	found := false
-	for _, k := range page.Items {
-		if k.ID == keyID {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if key.WorkspaceID != workspaceID {
 		return domain.ErrNotFound
 	}
 
@@ -111,7 +104,24 @@ func generateKey() (string, error) {
 	return "senda_live_" + hex.EncodeToString(b), nil
 }
 
-func hashKey(key string) string {
+// hashKeyHMAC computes HMAC-SHA256 of the key using the given pepper.
+// This prevents offline brute-force attacks even if the database is compromised,
+// because the attacker also needs the pepper (derived from the master key).
+func hashKeyHMAC(key, pepper string) string {
+	mac := hmac.New(sha256.New, []byte(pepper))
+	mac.Write([]byte(key))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// HashKeyPlain computes a plain SHA-256 hash of the key.
+// Exported for use by the auth middleware as a backward-compatible fallback
+// for keys created before the HMAC migration.
+func HashKeyPlain(key string) string {
 	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:])
+}
+
+// HashKeyHMAC is the exported version of hashKeyHMAC for use by the auth middleware.
+func HashKeyHMAC(key, pepper string) string {
+	return hashKeyHMAC(key, pepper)
 }

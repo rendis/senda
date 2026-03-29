@@ -29,7 +29,7 @@ func NewAdapterIdentityResponse(ai *domain.AdapterIdentity) AdapterIdentityRespo
 		SendingEnabled: ai.SendingEnabled,
 		IsDefault:      ai.IsDefault,
 		DisplayName:    ai.DisplayName,
-		Source:         ai.Source,
+		Source:         string(ai.Source),
 		CreatedAt:      ai.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:      ai.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}

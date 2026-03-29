@@ -7,7 +7,7 @@ Comprehensive Postman collection for the Senda email orchestration platform API 
 | File                                     | Description                                        |
 | ---------------------------------------- | -------------------------------------------------- |
 | `senda-api-v1.postman_collection.json`   | Full API collection (Postman v2.1 format)          |
-| `senda-local.postman_environment.json`   | Environment for local development (localhost:8080) |
+| `senda-local.postman_environment.json`   | Environment for local development (localhost:8081) |
 | `senda-staging.postman_environment.json` | Environment for staging (placeholder URL)          |
 
 ## Quick Start
@@ -28,7 +28,11 @@ The collection uses Bearer token auth by default. Individual requests inherit th
 
 ### API Key (Data Plane)
 
-The Send endpoint (`POST /api/v1/send`) uses API Key auth via the `X-API-Key` header.
+The send and data-plane email query endpoints use Bearer auth with the raw workspace API key:
+
+```http
+Authorization: Bearer senda_live_...
+```
 
 To get an API key:
 
@@ -59,7 +63,7 @@ The collection is organized into folders matching the API structure:
 | **Domains**        | 5         | OIDC (workspace roles)   | Domain registration and DKIM verification  |
 | **Template Types** | 3         | OIDC (workspace roles)   | Template type CRUD                         |
 | **Templates**      | 9         | OIDC (workspace roles)   | Templates, versions, locales, MJML preview |
-| **Send**           | 1         | API Key / OIDC           | Send emails                                |
+| **Send**           | 1         | Bearer `senda_live_*`    | Send emails                                |
 | **Emails**         | 3         | OIDC (workspace_viewer+) | Email query and event history              |
 | **Suppression**    | 3         | OIDC (workspace roles)   | Suppression list management                |
 | **Audit Log**      | 1         | OIDC (workspace_viewer+) | Workspace audit log                        |
@@ -76,7 +80,7 @@ The collection uses these variables (auto-populated by test scripts):
 | ------------------ | --------------------------- | ----------------------------- |
 | `base_url`         | Environment                 | Server base URL               |
 | `oidc_token`       | Environment                 | OIDC Bearer token             |
-| `api_key`          | Auto (Create API Key)       | API key for send endpoint     |
+| `api_key`          | Auto (Create API Key)       | Workspace API key (`senda_live_*`) |
 | `tenant_code`      | Auto (Create Tenant)        | Current tenant code           |
 | `workspace_code`   | Auto (Create Workspace)     | Current workspace code        |
 | `member_id`        | Auto (Create Member)        | Last created member ID        |

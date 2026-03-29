@@ -58,8 +58,8 @@ func TestForbidden(t *testing.T) {
 
 func TestValidation(t *testing.T) {
 	e := Validation("field required")
-	if e.Code != http.StatusBadRequest {
-		t.Errorf("Code = %d, want %d", e.Code, http.StatusBadRequest)
+	if e.Code != http.StatusUnprocessableEntity {
+		t.Errorf("Code = %d, want %d", e.Code, http.StatusUnprocessableEntity)
 	}
 }
 

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "senda": {
+      "command": "mcp-openapi-proxy",
+      "args": [],
+      "env": {
+        "MCP_SPEC": "./cmd/senda/docs/openapi.yaml",
+        "MCP_BASE_URL": "http://localhost:8081",
+        "MCP_TOOL_PREFIX": "senda",
+        "MCP_AUTH_PROFILE": "senda",
+        "MCP_OIDC_ISSUER": "http://localhost:9090/realms/senda",
+        "MCP_OIDC_CLIENT_ID": "senda-mcp"
+      }
+    }
+  }
+}

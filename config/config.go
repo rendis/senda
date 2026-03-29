@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"reflect"
 	"strconv"
@@ -14,14 +15,16 @@ import (
 
 // Config is the root configuration for the Senda application.
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	OIDC     OIDCConfig     `yaml:"oidc"`
-	Crypto   CryptoConfig   `yaml:"crypto"`
-	SMTP     SMTPConfig     `yaml:"smtp"`
-	SNS      SNSConfig      `yaml:"sns"`
-	Log      LogConfig      `yaml:"log"`
-	Tracking TrackingConfig `yaml:"tracking"`
+	Server        ServerConfig   `yaml:"server"`
+	Database      DatabaseConfig `yaml:"database"`
+	OIDC          OIDCConfig     `yaml:"oidc"`
+	Crypto        CryptoConfig   `yaml:"crypto"`
+	SMTP          SMTPConfig     `yaml:"smtp"`
+	SNS           SNSConfig      `yaml:"sns"`
+	Log           LogConfig      `yaml:"log"`
+	Tracking      TrackingConfig `yaml:"tracking"`
+	Environment   string         `yaml:"environment" env:"SENDA_ENVIRONMENT"`
+	AllowTestAuth bool           `yaml:"allow_test_auth" env:"SENDA_ALLOW_TEST_AUTH" default:"false"`
 }
 
 type SNSConfig struct {
@@ -38,23 +41,26 @@ type ServerConfig struct {
 	ReadTimeout     time.Duration `yaml:"read_timeout" default:"30s"`
 	WriteTimeout    time.Duration `yaml:"write_timeout" default:"30s"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" default:"15s"`
+	AllowedOrigins  []string      `yaml:"allowed_origins"`
+	MetricsToken    string        `yaml:"metrics_token" env:"SENDA_METRICS_TOKEN"`
 }
 
 type DatabaseConfig struct {
 	URL             string `yaml:"url" env:"SENDA_DATABASE_URL" required:"true"`
-	MaxOpenConns    int    `yaml:"max_open_conns" default:"25"`
-	MaxIdleConns    int    `yaml:"max_idle_conns" default:"10"`
+	MaxOpenConns    int    `yaml:"max_open_conns" default:"60"`
+	MinConns        int    `yaml:"min_conns" env:"SENDA_DATABASE_MIN_CONNS" default:"10"`
 	ConnMaxLifetime string `yaml:"conn_max_lifetime" default:"5m"`
 	MigrateOnStart  bool   `yaml:"migrate_on_start" default:"true"`
 	MigrationsPath  string `yaml:"migrations_path" env:"SENDA_MIGRATIONS_PATH" default:"migrations"`
 }
 
 type OIDCConfig struct {
-	Mode         string `yaml:"mode" env:"SENDA_OIDC_MODE" default:"oidc"`
-	DiscoveryURL string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL"`
-	ClientID     string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID"`
-	ClientSecret string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET"`
-	TestSecret   string `yaml:"test_secret" env:"SENDA_OIDC_TEST_SECRET"`
+	Mode             string `yaml:"mode" env:"SENDA_OIDC_MODE" default:"oidc"`
+	DiscoveryURL     string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL"`
+	ClientID         string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID"`
+	ClientSecret     string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET"`
+	TestSecret       string `yaml:"test_secret" env:"SENDA_OIDC_TEST_SECRET"`
+	SkipIssuerCheck  bool   `yaml:"skip_issuer_check" env:"SENDA_OIDC_SKIP_ISSUER_CHECK" default:"false"`
 }
 
 type SMTPConfig struct {
@@ -97,6 +103,17 @@ func Load(path string) (*Config, error) {
 
 	if err := applyEnvOverrides(&cfg); err != nil {
 		return nil, fmt.Errorf("config env overrides: %w", err)
+	}
+
+	// Slice fields not handled by reflection-based env overrides.
+	if v, ok := os.LookupEnv("SENDA_SERVER_ALLOWED_ORIGINS"); ok && v != "" {
+		var origins []string
+		for _, o := range strings.Split(v, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				origins = append(origins, trimmed)
+			}
+		}
+		cfg.Server.AllowedOrigins = origins
 	}
 
 	if err := validate(&cfg); err != nil {
@@ -224,6 +241,14 @@ func validate(cfg *Config) error {
 		!strings.HasPrefix(cfg.Database.URL, "postgres://") &&
 		!strings.HasPrefix(cfg.Database.URL, "postgresql://") {
 		errs = append(errs, fmt.Errorf("database.url must start with postgres:// or postgresql://"))
+	}
+
+	// Production guard: test and dual OIDC modes include an HS256 test verifier.
+	if cfg.OIDC.Mode == "test" || cfg.OIDC.Mode == "dual" {
+		slog.Warn("OIDC mode includes test verifier — must NOT be used in production", "mode", cfg.OIDC.Mode)
+		if cfg.Environment == "production" && !cfg.AllowTestAuth {
+			errs = append(errs, fmt.Errorf("oidc.mode %q is not allowed when environment is \"production\" (set SENDA_ALLOW_TEST_AUTH=true to override)", cfg.OIDC.Mode))
+		}
 	}
 
 	// OIDC validation depends on mode.

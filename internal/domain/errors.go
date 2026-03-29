@@ -32,4 +32,11 @@ var (
 
 	// Pagination errors (HT-19)
 	ErrInvalidCursor = errors.New("invalid cursor")
+
+	// Business-specific errors (send flow)
+	ErrTemplateNotPublished = errors.New("template has no published version")
+	ErrAdapterDisabled      = errors.New("adapter is disabled")
+	ErrRecipientSuppressed  = errors.New("recipient is suppressed")
+	ErrProviderRejected     = errors.New("provider permanently rejected the message")
+	ErrQuotaExhausted       = errors.New("sending quota exhausted")
 )

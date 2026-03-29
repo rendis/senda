@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	goriver "github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
@@ -19,7 +20,7 @@ import (
 
 type mockEmailStore struct {
 	getByTrackingIDFn func(ctx context.Context, trackingID string) (*domain.Email, error)
-	updateStatusFn    func(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
+	updateStatusFn    func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	updateRetryFn     func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
 	addEventFn        func(ctx context.Context, event *domain.EmailEvent) error
 
@@ -42,17 +43,21 @@ type updateRetryCall struct {
 	RetryCount int
 }
 
-func (m *mockEmailStore) Create(ctx context.Context, email *domain.Email) error { return nil }
+func (m *mockEmailStore) Create(_ context.Context, _ *domain.Email) error { return nil }
+func (m *mockEmailStore) CreateTx(_ context.Context, _ pgx.Tx, _ *domain.Email) error { return nil }
+func (m *mockEmailStore) GetByProviderMessageID(_ context.Context, _ string) (*domain.Email, error) {
+	return nil, domain.ErrNotFound
+}
 func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error) {
 	if m.getByTrackingIDFn != nil {
 		return m.getByTrackingIDFn(ctx, trackingID)
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error {
-	m.updateStatusCalls = append(m.updateStatusCalls, updateStatusCall{ID: id, Status: status})
+func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error {
+	m.updateStatusCalls = append(m.updateStatusCalls, updateStatusCall{ID: id, Status: newStatus})
 	if m.updateStatusFn != nil {
-		return m.updateStatusFn(ctx, id, status)
+		return m.updateStatusFn(ctx, id, newStatus, expectedStatus)
 	}
 	return nil
 }
@@ -126,8 +131,9 @@ func (m *mockRateLimiter) SyncBucket(ctx context.Context, adapterID uuid.UUID, m
 }
 
 type mockSender struct {
-	sendFn func(ctx context.Context, msg *port.OutgoingEmail) (string, error)
-	calls  []sendCall
+	sendFn                   func(ctx context.Context, msg *port.OutgoingEmail) (string, error)
+	isPermanentSendErrorFn   func(err error) bool
+	calls                    []sendCall
 }
 
 type sendCall struct {
@@ -143,6 +149,12 @@ func (m *mockSender) Send(ctx context.Context, msg *port.OutgoingEmail) (string,
 }
 func (m *mockSender) Name() string                          { return "mock" }
 func (m *mockSender) HealthCheck(ctx context.Context) error { return nil }
+func (m *mockSender) IsPermanentSendError(err error) bool {
+	if m.isPermanentSendErrorFn != nil {
+		return m.isPermanentSendErrorFn(err)
+	}
+	return false
+}
 
 type mockAdapterStore struct {
 	getByIDFn func(ctx context.Context, id uuid.UUID) (*domain.Adapter, error)
@@ -282,11 +294,11 @@ func TestSendWorker_SuccessfulSend(t *testing.T) {
 	if len(emailStore.addEventCalls) < 2 {
 		t.Fatalf("expected at least 2 events, got %d", len(emailStore.addEventCalls))
 	}
-	if emailStore.addEventCalls[0].Event.EventType != domain.StatusProcessing {
-		t.Errorf("first event = %q, want %q", emailStore.addEventCalls[0].Event.EventType, domain.StatusProcessing)
+	if emailStore.addEventCalls[0].Event.EventType != domain.EventTypeProcessing {
+		t.Errorf("first event = %q, want %q", emailStore.addEventCalls[0].Event.EventType, domain.EventTypeProcessing)
 	}
-	if emailStore.addEventCalls[1].Event.EventType != domain.StatusSent {
-		t.Errorf("second event = %q, want %q", emailStore.addEventCalls[1].Event.EventType, domain.StatusSent)
+	if emailStore.addEventCalls[1].Event.EventType != domain.EventTypeSent {
+		t.Errorf("second event = %q, want %q", emailStore.addEventCalls[1].Event.EventType, domain.EventTypeSent)
 	}
 }
 
@@ -570,6 +582,7 @@ func TestSendWorker_PermanentSendError_Cancels(t *testing.T) {
 		sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
 			return "", errors.New("address not verified in SES")
 		},
+		isPermanentSendErrorFn: func(_ error) bool { return true },
 	}
 	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
@@ -644,6 +657,17 @@ func TestSendWorker_NextRetry_ExponentialBackoff(t *testing.T) {
 }
 
 func TestIsPermanentSendError(t *testing.T) {
+	// With a sender that implements errorClassifier, isPermanentSendError
+	// delegates to the sender's classification.
+	classifierSender := &mockSender{
+		isPermanentSendErrorFn: func(err error) bool {
+			msg := err.Error()
+			return msg == "address not verified in SES" ||
+				msg == "rejected by server" ||
+				msg == "invalid sender" ||
+				msg == "blacklisted address"
+		},
+	}
 	tests := []struct {
 		err       string
 		permanent bool
@@ -656,9 +680,33 @@ func TestIsPermanentSendError(t *testing.T) {
 		{"temporary failure", false},
 	}
 	for _, tt := range tests {
-		got := isPermanentSendError(errors.New(tt.err))
+		got := isPermanentSendError(classifierSender, errors.New(tt.err))
 		if got != tt.permanent {
 			t.Errorf("isPermanentSendError(%q) = %v, want %v", tt.err, got, tt.permanent)
 		}
 	}
+
+	// Without errorClassifier, all errors are treated as transient.
+	plainSender := &plainMockSender{}
+	for _, tt := range tests {
+		got := isPermanentSendError(plainSender, errors.New(tt.err))
+		if got {
+			t.Errorf("isPermanentSendError(%q) with plain sender = true, want false", tt.err)
+		}
+	}
+
+	// Nil sender: all errors are transient.
+	got := isPermanentSendError(nil, errors.New("any error"))
+	if got {
+		t.Error("isPermanentSendError with nil sender should return false")
+	}
 }
+
+// plainMockSender does NOT implement errorClassifier.
+type plainMockSender struct{}
+
+func (p *plainMockSender) Send(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+	return "", nil
+}
+func (p *plainMockSender) Name() string                    { return "plain" }
+func (p *plainMockSender) HealthCheck(_ context.Context) error { return nil }

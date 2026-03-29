@@ -3,7 +3,9 @@ package ses
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"mime"
 	"net/mail"
 	"net/textproto"
@@ -19,6 +21,7 @@ import (
 	sesv1types "github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
+	"github.com/aws/smithy-go"
 
 	"github.com/senda-app/senda/internal/port"
 )
@@ -264,6 +267,26 @@ func mapEventTypes(eventTypes []types.EventType) []sesv1types.EventType {
 	return out
 }
 
+// permanentSESCodes lists SES error codes and whether they are permanent (non-retryable).
+var permanentSESCodes = map[string]bool{
+	"MessageRejected":                    true,
+	"InvalidParameterValue":              true,
+	"MailFromDomainNotVerifiedException": true,
+	"ConfigurationSetDoesNotExist":       true,
+	"AccountSendingPausedException":      false, // transient -- account suspension is temporary
+}
+
+// IsPermanentSendError classifies an SES send error as permanent or transient.
+func (a *Adapter) IsPermanentSendError(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		if perm, known := permanentSESCodes[apiErr.ErrorCode()]; known {
+			return perm
+		}
+	}
+	return false // unknown errors are transient by default
+}
+
 // Send delivers an email via AWS SES v2 using SendRawEmail.
 func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, error) {
 	rawMsg, err := buildRawMessage(msg)
@@ -306,12 +329,22 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// maxIdentityPages caps the number of paginated API calls to prevent runaway pagination.
+const maxIdentityPages = 10
+
 // ListIdentities fetches all sender identities from SES.
 func (a *Adapter) ListIdentities(ctx context.Context) ([]port.ProviderIdentity, error) {
 	var identities []port.ProviderIdentity
 	var nextToken *string
+	pageCount := 0
 
 	for {
+		pageCount++
+		if pageCount > maxIdentityPages {
+			slog.Warn("SES identity pagination capped", "max_pages", maxIdentityPages)
+			break
+		}
+
 		output, err := a.client.ListEmailIdentities(ctx, &sesv2.ListEmailIdentitiesInput{
 			NextToken: nextToken,
 			PageSize:  aws.Int32(1000),

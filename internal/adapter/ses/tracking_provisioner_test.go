@@ -1,4 +1,4 @@
-package service
+package ses
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
 )
 
@@ -126,7 +125,7 @@ func newAccessDeniedErr() error {
 
 func setupProvisioner(sesMock *mockProvisionSES, snsMock *mockProvisionSNS, adapterStore *mockProvisionAdapterStore, crypto *mockProvisionCrypto) *TrackingProvisioner {
 	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
-	p.clientFactory = func(_ aws.Config, _ string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
+	p.clientFactory = func(_ aws.Config, _ string) (SESAPI, SNSAPI) {
 		return sesMock, snsMock
 	}
 	return p
@@ -134,7 +133,7 @@ func setupProvisioner(sesMock *mockProvisionSES, snsMock *mockProvisionSNS, adap
 
 func TestProvision_Success(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
-	cfgJSON, _ := json.Marshal(sesAdapterConfig{
+	cfgJSON, _ := json.Marshal(Config{
 		Region:          "us-east-1",
 		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
@@ -188,7 +187,7 @@ func TestProvision_Success(t *testing.T) {
 
 func TestProvision_AlreadyExists_Idempotent(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
-	cfgJSON, _ := json.Marshal(sesAdapterConfig{
+	cfgJSON, _ := json.Marshal(Config{
 		Region:          "us-east-1",
 		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
@@ -249,7 +248,7 @@ func TestProvision_NonSESAdapter_Fails(t *testing.T) {
 
 func TestProvision_AccessDenied_Fails(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
-	cfgJSON, _ := json.Marshal(sesAdapterConfig{
+	cfgJSON, _ := json.Marshal(Config{
 		Region:          "us-east-1",
 		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
@@ -282,7 +281,7 @@ func TestProvision_AccessDenied_Fails(t *testing.T) {
 
 func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
-	cfgJSON, _ := json.Marshal(sesAdapterConfig{
+	cfgJSON, _ := json.Marshal(Config{
 		Region:          "us-east-1",
 		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
@@ -300,7 +299,7 @@ func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
 	var gotEndpoint string
 
 	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
-	p.clientFactory = func(_ aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
+	p.clientFactory = func(_ aws.Config, endpointURL string) (SESAPI, SNSAPI) {
 		gotEndpoint = endpointURL
 		return &mockProvisionSES{}, &mockProvisionSNS{
 			createTopicARN: "arn:aws:sns:us-east-1:123456789:senda-ses-events-" + adapterID.String()[:8],

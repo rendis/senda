@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
 )
 
@@ -26,30 +27,6 @@ func (m *mockIdentityCrypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func TestDefaultIdentityProviderFactory_SESMissingRegion(t *testing.T) {
-	adapter := &domain.Adapter{ID: uuid.Must(uuid.NewV7()), AdapterType: domain.AdapterTypeSES}
-
-	_, err := service.DefaultIdentityProviderFactory(adapter, []byte(`{}`))
-	if err == nil {
-		t.Fatal("expected validation error for missing SES region")
-	}
-	if !errors.Is(err, domain.ErrValidation) {
-		t.Fatalf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestDefaultIdentityProviderFactory_GmailMissingFields(t *testing.T) {
-	adapter := &domain.Adapter{ID: uuid.Must(uuid.NewV7()), AdapterType: domain.AdapterTypeGmail}
-
-	_, err := service.DefaultIdentityProviderFactory(adapter, []byte(`{"oauth_client_id":"id-only"}`))
-	if err == nil {
-		t.Fatal("expected validation error for missing Gmail OAuth fields")
-	}
-	if !errors.Is(err, domain.ErrValidation) {
-		t.Fatalf("expected ErrValidation, got %v", err)
-	}
-}
-
 func TestIdentityService_SyncIdentities_UnsupportedAdapter(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
 	adapterStore := &mockAdapterStoreSend{
@@ -65,11 +42,16 @@ func TestIdentityService_SyncIdentities_UnsupportedAdapter(t *testing.T) {
 		},
 	}
 
+	// Factory that returns nil for unsupported adapters (like SMTP).
+	nilFactory := func(_ context.Context, _ *domain.Adapter, _ []byte) (port.IdentityProvider, error) {
+		return nil, nil
+	}
+
 	svc := service.NewIdentityService(
 		&mockAdapterIdentityStoreSend{},
 		adapterStore,
 		&mockIdentityCrypto{},
-		nil, // should default to DefaultIdentityProviderFactory
+		nilFactory,
 	)
 
 	_, err := svc.SyncIdentities(context.Background(), adapterID)

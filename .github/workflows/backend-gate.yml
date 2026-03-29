@@ -41,6 +41,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: OpenAPI / MCP docs up to date
+        run: make swagger-check
+
       - name: Unit tests
         run: make test
 

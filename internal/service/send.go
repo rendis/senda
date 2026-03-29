@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/metrics"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/resolution"
 )
@@ -52,13 +54,13 @@ type SendService struct {
 	injectorMerger   *resolution.InjectorMerger
 	adapterResolver  *resolution.AdapterResolver
 	identitySvc      *IdentityService
-	rateLimiter      port.RateLimiter
 	emailStore       port.EmailStore
 	suppression      port.SuppressionStore
 	queue            port.JobQueue
 	renderer         port.VariableRenderer
 	tenantStore      port.TenantStore
 	wsStore          port.WorkspaceStore
+	pool             *pgxpool.Pool
 }
 
 // NewSendService creates a new SendService with the given dependencies.
@@ -67,26 +69,26 @@ func NewSendService(
 	injectorMerger *resolution.InjectorMerger,
 	adapterResolver *resolution.AdapterResolver,
 	identitySvc *IdentityService,
-	rateLimiter port.RateLimiter,
 	emailStore port.EmailStore,
 	suppression port.SuppressionStore,
 	queue port.JobQueue,
 	renderer port.VariableRenderer,
 	tenantStore port.TenantStore,
 	wsStore port.WorkspaceStore,
+	pool *pgxpool.Pool,
 ) *SendService {
 	return &SendService{
 		templateResolver: templateResolver,
 		injectorMerger:   injectorMerger,
 		adapterResolver:  adapterResolver,
 		identitySvc:      identitySvc,
-		rateLimiter:      rateLimiter,
 		emailStore:       emailStore,
 		suppression:      suppression,
 		queue:            queue,
 		renderer:         renderer,
 		tenantStore:      tenantStore,
 		wsStore:          wsStore,
+		pool:             pool,
 	}
 }
 
@@ -122,8 +124,13 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, domain.ErrSystemWorkspaceBlocked
 	}
 
-	// 3. Resolve template (includes kill switch check, published version, locale fallback)
-	resolved, err := s.templateResolver.Resolve(ctx, ws.ID, ref.TemplateType, req.Locale)
+	// 3. Resolve template (includes kill switch check, published version, locale fallback).
+	// If caller didn't specify a locale, fall back to workspace default.
+	locale := req.Locale
+	if (locale == nil || *locale == "") && ws.DefaultLocale != nil && *ws.DefaultLocale != "" {
+		locale = ws.DefaultLocale
+	}
+	resolved, err := s.templateResolver.Resolve(ctx, ws.ID, ref.TemplateType, locale)
 	if err != nil {
 		if errors.Is(err, domain.ErrTemplateDisabled) {
 			slog.Warn("send rejected", "reason", "template_disabled", "template_type", ref.TemplateType, "workspace_id", ws.ID)
@@ -143,16 +150,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 6. Apply provider-level token bucket rate limiting for this adapter.
-	allowed, err := s.rateLimiter.TryAcquire(ctx, adapter.Adapter.ID)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, domain.ErrRateLimited
-	}
-
-	// 7. Resolve from_email from adapter's default identity.
+	// 6. Resolve from_email from adapter's default identity.
 	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter)
 	if err != nil {
 		return nil, err
@@ -162,8 +160,14 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	subject := getLocalizedField(resolved, "subject")
 	fromName := getLocalizedField(resolved, "from_name")
 
-	renderedSubject, _ := s.renderer.Render(subject, injectors, req.Variables)
-	renderedFromName, _ := s.renderer.Render(fromName, injectors, req.Variables)
+	renderedSubject, err := s.renderer.Render(subject, injectors, req.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("render subject: %w", err)
+	}
+	renderedFromName, err := s.renderer.Render(fromName, injectors, req.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("render from_name: %w", err)
+	}
 
 	// 9. Get the MJML body (locale-aware)
 	bodyMJML := getLocalizedBody(resolved)
@@ -190,30 +194,31 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		trackingID := generateTrackingID()
 
 		email := &domain.Email{
-			ID:                uuid.Must(uuid.NewV7()),
-			TrackingID:        trackingID,
-			ExternalID:        req.ExternalID,
-			WorkspaceID:       ws.ID,
-			TenantID:          tenant.ID,
-			TemplateID:        resolved.Template.ID,
-			TemplateVersionID: resolved.Version.ID,
-			TemplateTypeSlug:  ref.TemplateType,
-			TemplateRef:       req.Ref,
-			RecipientEmail:    recipient,
-			CC:                req.CC,
-			BCC:               req.BCC,
-			FromEmail:         fromEmail,
-			FromName:          renderedFromName,
-			ReplyTo:           resolved.Version.ReplyTo,
-			SubjectRendered:   renderedSubject,
-			Locale:            req.Locale,
-			AdapterID:         adapter.Adapter.ID,
-			VariablesSnapshot: req.Variables,
-			InjectorsSnapshot: injectors,
-			BodyMJML:          bodyMJML,
-			MaxRetries:        3,
-			CreatedAt:         now,
-			UpdatedAt:         now,
+			ID:                  uuid.Must(uuid.NewV7()),
+			TrackingID:          trackingID,
+			ExternalID:          req.ExternalID,
+			WorkspaceID:         ws.ID,
+			TenantID:            tenant.ID,
+			TemplateID:          resolved.Template.ID,
+			TemplateVersionID:   resolved.Version.ID,
+			TemplateTypeSlug:    ref.TemplateType,
+			TemplateRef:         req.Ref,
+			RecipientEmail:      recipient,
+			CC:                  req.CC,
+			BCC:                 req.BCC,
+			FromEmail:           fromEmail,
+			FromName:            renderedFromName,
+			ReplyTo:             resolved.Version.ReplyTo,
+			SubjectRendered:     renderedSubject,
+			Locale:              req.Locale,
+			AdapterID:           adapter.Adapter.ID,
+			VariablesSnapshot:   req.Variables,
+			InjectorsSnapshot:   injectors,
+			BodyMJML:            bodyMJML,
+			OpenTrackingEnabled: ws.OpenTrackingEnabled,
+			MaxRetries:          3,
+			CreatedAt:           now,
+			UpdatedAt:           now,
 		}
 
 		if suppressed {
@@ -233,7 +238,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			if err := s.emailStore.AddEvent(ctx, &domain.EmailEvent{
 				ID:         uuid.Must(uuid.NewV7()),
 				EmailID:    email.ID,
-				EventType:  domain.StatusSuppressed,
+				EventType:  domain.EventTypeSuppressed,
 				OccurredAt: now,
 				Metadata:   map[string]any{"reason": reason},
 				CreatedAt:  now,
@@ -247,34 +252,21 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			})
 		} else {
 			email.Status = domain.StatusQueued
-			if err := s.emailStore.Create(ctx, email); err != nil {
+
+			if createErr := s.createAndEnqueue(ctx, email, trackingID, adapter.Adapter.ID); createErr != nil {
 				failCount++
-				lastErr = err
-				slog.Error("failed to create email", "recipient", recipient, "error", err)
+				lastErr = createErr
+				slog.Error("failed to create and enqueue email", "recipient", recipient, "error", createErr)
 				response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
 					To:         recipient,
 					TrackingID: trackingID,
 					Status:     "failed",
-					Error:      err.Error(),
+					Error:      createErr.Error(),
 				})
 				continue
 			}
-			if err := s.queue.EnqueueSend(ctx, &port.SendJob{
-				EmailID:    email.ID,
-				TrackingID: trackingID,
-				AdapterID:  adapter.Adapter.ID,
-			}); err != nil {
-				failCount++
-				lastErr = err
-				slog.Error("failed to enqueue send job", "email_id", email.ID, "recipient", recipient, "error", err)
-				response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
-					To:         recipient,
-					TrackingID: trackingID,
-					Status:     "failed",
-					Error:      err.Error(),
-				})
-				continue
-			}
+
+			metrics.EmailsEnqueued.Inc()
 			response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
 				To:         recipient,
 				TrackingID: trackingID,
@@ -338,6 +330,48 @@ func getLocalizedField(resolved *resolution.ResolvedTemplate, field string) stri
 	default:
 		return ""
 	}
+}
+
+// createAndEnqueue atomically creates an email record and enqueues a send job.
+// When a pool is available, both operations are wrapped in a DB transaction.
+// Falls back to non-transactional path when pool is nil (e.g., in unit tests).
+func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email, trackingID string, adapterID uuid.UUID) error {
+	sendJob := &port.SendJob{
+		EmailID:    email.ID,
+		TrackingID: trackingID,
+		AdapterID:  adapterID,
+	}
+
+	if s.pool != nil {
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+
+		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("create email: %w", err)
+		}
+
+		if err := s.queue.EnqueueSendTx(ctx, tx, sendJob); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("enqueue send: %w", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit tx: %w", err)
+		}
+		return nil
+	}
+
+	// Non-transactional fallback (unit tests without pool).
+	if err := s.emailStore.Create(ctx, email); err != nil {
+		return fmt.Errorf("create email: %w", err)
+	}
+	if err := s.queue.EnqueueSend(ctx, sendJob); err != nil {
+		return fmt.Errorf("enqueue send: %w", err)
+	}
+	return nil
 }
 
 // getLocalizedBody returns the MJML body, preferring locale override if present.

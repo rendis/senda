@@ -32,47 +32,103 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error {
 			recipient_email, cc, bcc, from_email, from_name, reply_to,
 			subject_rendered, body_mjml, locale, status, adapter_id,
 			provider_message_id, variables_snapshot, injectors_snapshot,
-			retry_count, max_retries, next_retry_at
+			open_tracking_enabled, retry_count, max_retries, next_retry_at
 		) VALUES (
 			@id, @tracking_id, @external_id, @workspace_id, @tenant_id,
 			@template_id, @template_version_id, @template_type_slug, @template_ref,
 			@recipient_email, @cc, @bcc, @from_email, @from_name, @reply_to,
 			@subject_rendered, @body_mjml, @locale, @status, @adapter_id,
 			@provider_message_id, @variables_snapshot, @injectors_snapshot,
-			@retry_count, @max_retries, @next_retry_at
+			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
 		) RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":                  email.ID,
-			"tracking_id":         email.TrackingID,
-			"external_id":         email.ExternalID,
-			"workspace_id":        email.WorkspaceID,
-			"tenant_id":           email.TenantID,
-			"template_id":         email.TemplateID,
-			"template_version_id": email.TemplateVersionID,
-			"template_type_slug":  email.TemplateTypeSlug,
-			"template_ref":        email.TemplateRef,
-			"recipient_email":     email.RecipientEmail,
-			"cc":                  email.CC,
-			"bcc":                 email.BCC,
-			"from_email":          email.FromEmail,
-			"from_name":           email.FromName,
-			"reply_to":            email.ReplyTo,
-			"subject_rendered":    email.SubjectRendered,
-			"body_mjml":           email.BodyMJML,
-			"locale":              email.Locale,
-			"status":              email.Status,
-			"adapter_id":          email.AdapterID,
-			"provider_message_id": email.ProviderMessageID,
-			"variables_snapshot":  email.VariablesSnapshot,
-			"injectors_snapshot":  email.InjectorsSnapshot,
-			"retry_count":         email.RetryCount,
-			"max_retries":         email.MaxRetries,
-			"next_retry_at":       email.NextRetryAt,
+			"id":                    email.ID,
+			"tracking_id":           email.TrackingID,
+			"external_id":           email.ExternalID,
+			"workspace_id":          email.WorkspaceID,
+			"tenant_id":             email.TenantID,
+			"template_id":           email.TemplateID,
+			"template_version_id":   email.TemplateVersionID,
+			"template_type_slug":    email.TemplateTypeSlug,
+			"template_ref":          email.TemplateRef,
+			"recipient_email":       email.RecipientEmail,
+			"cc":                    email.CC,
+			"bcc":                   email.BCC,
+			"from_email":            email.FromEmail,
+			"from_name":             email.FromName,
+			"reply_to":              email.ReplyTo,
+			"subject_rendered":      email.SubjectRendered,
+			"body_mjml":             email.BodyMJML,
+			"locale":                email.Locale,
+			"status":                email.Status,
+			"adapter_id":            email.AdapterID,
+			"provider_message_id":   email.ProviderMessageID,
+			"variables_snapshot":    email.VariablesSnapshot,
+			"injectors_snapshot":    email.InjectorsSnapshot,
+			"open_tracking_enabled": email.OpenTrackingEnabled,
+			"retry_count":           email.RetryCount,
+			"max_retries":           email.MaxRetries,
+			"next_retry_at":         email.NextRetryAt,
 		},
 	)
 
 	if err := row.Scan(&email.CreatedAt, &email.UpdatedAt); err != nil {
 		return fmt.Errorf("inserting email: %w", err)
+	}
+
+	return nil
+}
+
+func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error {
+	row := tx.QueryRow(ctx,
+		`INSERT INTO emails (
+			id, tracking_id, external_id, workspace_id, tenant_id,
+			template_id, template_version_id, template_type_slug, template_ref,
+			recipient_email, cc, bcc, from_email, from_name, reply_to,
+			subject_rendered, body_mjml, locale, status, adapter_id,
+			provider_message_id, variables_snapshot, injectors_snapshot,
+			open_tracking_enabled, retry_count, max_retries, next_retry_at
+		) VALUES (
+			@id, @tracking_id, @external_id, @workspace_id, @tenant_id,
+			@template_id, @template_version_id, @template_type_slug, @template_ref,
+			@recipient_email, @cc, @bcc, @from_email, @from_name, @reply_to,
+			@subject_rendered, @body_mjml, @locale, @status, @adapter_id,
+			@provider_message_id, @variables_snapshot, @injectors_snapshot,
+			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
+		) RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":                    email.ID,
+			"tracking_id":           email.TrackingID,
+			"external_id":           email.ExternalID,
+			"workspace_id":          email.WorkspaceID,
+			"tenant_id":             email.TenantID,
+			"template_id":           email.TemplateID,
+			"template_version_id":   email.TemplateVersionID,
+			"template_type_slug":    email.TemplateTypeSlug,
+			"template_ref":          email.TemplateRef,
+			"recipient_email":       email.RecipientEmail,
+			"cc":                    email.CC,
+			"bcc":                   email.BCC,
+			"from_email":            email.FromEmail,
+			"from_name":             email.FromName,
+			"reply_to":              email.ReplyTo,
+			"subject_rendered":      email.SubjectRendered,
+			"body_mjml":             email.BodyMJML,
+			"locale":                email.Locale,
+			"status":                email.Status,
+			"adapter_id":            email.AdapterID,
+			"provider_message_id":   email.ProviderMessageID,
+			"variables_snapshot":    email.VariablesSnapshot,
+			"injectors_snapshot":    email.InjectorsSnapshot,
+			"open_tracking_enabled": email.OpenTrackingEnabled,
+			"retry_count":           email.RetryCount,
+			"max_retries":           email.MaxRetries,
+			"next_retry_at":         email.NextRetryAt,
+		},
+	)
+
+	if err := row.Scan(&email.CreatedAt, &email.UpdatedAt); err != nil {
+		return fmt.Errorf("inserting email (tx): %w", err)
 	}
 
 	return nil
@@ -85,7 +141,8 @@ func (r *EmailRepo) GetByTrackingID(ctx context.Context, trackingID string) (*do
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
 		        subject_rendered, body_mjml, locale, status, adapter_id,
 		        provider_message_id, variables_snapshot, injectors_snapshot,
-		        retry_count, max_retries, next_retry_at, created_at, updated_at
+		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
+		        created_at, updated_at
 		 FROM emails
 		 WHERE tracking_id = @tracking_id`,
 		pgx.NamedArgs{"tracking_id": trackingID},
@@ -101,7 +158,8 @@ func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageI
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
 		        subject_rendered, body_mjml, locale, status, adapter_id,
 		        provider_message_id, variables_snapshot, injectors_snapshot,
-		        retry_count, max_retries, next_retry_at, created_at, updated_at
+		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
+		        created_at, updated_at
 		 FROM emails
 		 WHERE provider_message_id = @provider_message_id`,
 		pgx.NamedArgs{"provider_message_id": providerMessageID},
@@ -110,16 +168,17 @@ func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageI
 	return scanEmail(row)
 }
 
-func (r *EmailRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error {
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE emails SET status = @status, updated_at = now() WHERE id = @id`,
-		pgx.NamedArgs{"id": id, "status": status},
+func (r *EmailRepo) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error {
+	result, err := r.pool.Exec(ctx,
+		`UPDATE emails SET status = @new_status, updated_at = now()
+		 WHERE id = @id AND status = @expected_status`,
+		pgx.NamedArgs{"id": id, "new_status": newStatus, "expected_status": expectedStatus},
 	)
 	if err != nil {
 		return fmt.Errorf("updating email status: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return apperr.NotFound("email %s not found", id)
+	if result.RowsAffected() == 0 {
+		return domain.ErrStatusConflict
 	}
 	return nil
 }
@@ -275,7 +334,8 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
 		        subject_rendered, body_mjml, locale, status, adapter_id,
 		        provider_message_id, variables_snapshot, injectors_snapshot,
-		        retry_count, max_retries, next_retry_at, created_at, updated_at
+		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
+		        created_at, updated_at
 		 FROM emails
 		 WHERE %s
 		 ORDER BY created_at DESC, id DESC
@@ -312,7 +372,8 @@ func scanEmail(row pgx.Row) (*domain.Email, error) {
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,
 		&e.SubjectRendered, &e.BodyMJML, &e.Locale, &e.Status, &e.AdapterID,
 		&e.ProviderMessageID, &e.VariablesSnapshot, &e.InjectorsSnapshot,
-		&e.RetryCount, &e.MaxRetries, &e.NextRetryAt, &e.CreatedAt, &e.UpdatedAt,
+		&e.OpenTrackingEnabled, &e.RetryCount, &e.MaxRetries, &e.NextRetryAt,
+		&e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -331,7 +392,8 @@ func collectEmail(row pgx.CollectableRow) (*domain.Email, error) {
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,
 		&e.SubjectRendered, &e.BodyMJML, &e.Locale, &e.Status, &e.AdapterID,
 		&e.ProviderMessageID, &e.VariablesSnapshot, &e.InjectorsSnapshot,
-		&e.RetryCount, &e.MaxRetries, &e.NextRetryAt, &e.CreatedAt, &e.UpdatedAt,
+		&e.OpenTrackingEnabled, &e.RetryCount, &e.MaxRetries, &e.NextRetryAt,
+		&e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

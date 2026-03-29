@@ -528,9 +528,8 @@ func TestS05_SSRFViaWebhooks(t *testing.T) {
 
 			if payload.shouldFail {
 				require.True(t, resp.StatusCode == http.StatusBadRequest ||
-					resp.StatusCode == http.StatusUnprocessableEntity ||
-					resp.StatusCode == http.StatusCreated, // May not have SSRF protection yet
-					"should reject or accept %s (%s), got %d",
+					resp.StatusCode == http.StatusUnprocessableEntity,
+					"should reject %s (%s), got %d",
 					payload.url, payload.reason, resp.StatusCode)
 			} else {
 				require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK,

@@ -1,4 +1,4 @@
-package service
+package ses
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
 )
 
@@ -48,11 +47,11 @@ type ProvisionStep struct {
 
 // AWSClientFactory creates SES and SNS clients from an AWS config.
 // Abstracted for testability.
-type AWSClientFactory func(cfg aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI)
+type AWSClientFactory func(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI)
 
 // DefaultAWSClientFactory creates real AWS SES v2 and SNS clients.
-func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (sesadapter.SESAPI, sesadapter.SNSAPI) {
-	return sesadapter.NewSESAPIFromAWSConfig(cfg, endpointURL),
+func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI) {
+	return NewSESAPIFromAWSConfig(cfg, endpointURL),
 		sns.NewFromConfig(cfg, func(o *sns.Options) {
 			if endpointURL != "" {
 				o.BaseEndpoint = aws.String(endpointURL)
@@ -89,9 +88,6 @@ func NewTrackingProvisioner(
 	}
 }
 
-// sesAdapterConfig mirrors the encrypted config stored for SES adapters.
-type sesAdapterConfig = sesadapter.Config
-
 // Provision auto-provisions all SES tracking resources for the given adapter.
 func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID) (*ProvisionResult, error) {
 	// 1. Load adapter and verify type.
@@ -108,13 +104,13 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("decrypt adapter config: %w", err)
 	}
-	var adapterCfg sesAdapterConfig
+	var adapterCfg Config
 	if err := json.Unmarshal(decrypted, &adapterCfg); err != nil {
 		return nil, fmt.Errorf("unmarshal adapter config: %w", err)
 	}
 
 	// 3. Build AWS config from adapter credentials.
-	awsCfg, err := sesadapter.LoadAWSConfig(ctx, adapterCfg)
+	awsCfg, err := LoadAWSConfig(ctx, adapterCfg)
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
 	}
@@ -179,7 +175,7 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 	return result, nil
 }
 
-func (p *TrackingProvisioner) createConfigurationSet(ctx context.Context, client sesadapter.SESAPI, name string) ProvisionStep {
+func (p *TrackingProvisioner) createConfigurationSet(ctx context.Context, client SESAPI, name string) ProvisionStep {
 	_, err := client.CreateConfigurationSet(ctx, &sesv2.CreateConfigurationSetInput{
 		ConfigurationSetName: aws.String(name),
 	})
@@ -192,7 +188,7 @@ func (p *TrackingProvisioner) createConfigurationSet(ctx context.Context, client
 	return ProvisionStep{Name: "create_configuration_set", Status: "created", Detail: name}
 }
 
-func (p *TrackingProvisioner) createSNSTopic(ctx context.Context, client sesadapter.SNSAPI, name string) (ProvisionStep, string) {
+func (p *TrackingProvisioner) createSNSTopic(ctx context.Context, client SNSAPI, name string) (ProvisionStep, string) {
 	output, err := client.CreateTopic(ctx, &sns.CreateTopicInput{
 		Name: aws.String(name),
 	})
@@ -204,7 +200,7 @@ func (p *TrackingProvisioner) createSNSTopic(ctx context.Context, client sesadap
 	return ProvisionStep{Name: "create_sns_topic", Status: "created", Detail: arn}, arn
 }
 
-func (p *TrackingProvisioner) createEventDestination(ctx context.Context, client sesadapter.SESAPI, configSetName, topicARN string) ProvisionStep {
+func (p *TrackingProvisioner) createEventDestination(ctx context.Context, client SESAPI, configSetName, topicARN string) ProvisionStep {
 	_, err := client.CreateConfigurationSetEventDestination(ctx, &sesv2.CreateConfigurationSetEventDestinationInput{
 		ConfigurationSetName: aws.String(configSetName),
 		EventDestinationName: aws.String("senda-events"),
@@ -230,7 +226,7 @@ func (p *TrackingProvisioner) createEventDestination(ctx context.Context, client
 	return ProvisionStep{Name: "create_event_destination", Status: "created"}
 }
 
-func (p *TrackingProvisioner) subscribeTopic(ctx context.Context, client sesadapter.SNSAPI, topicARN, endpoint string) (ProvisionStep, string) {
+func (p *TrackingProvisioner) subscribeTopic(ctx context.Context, client SNSAPI, topicARN, endpoint string) (ProvisionStep, string) {
 	output, err := client.Subscribe(ctx, &sns.SubscribeInput{
 		Protocol:              aws.String("https"),
 		TopicArn:              aws.String(topicARN),
@@ -245,7 +241,7 @@ func (p *TrackingProvisioner) subscribeTopic(ctx context.Context, client sesadap
 }
 
 func (p *TrackingProvisioner) saveConfigSetName(ctx context.Context, adapter *domain.Adapter, configSetName string) ProvisionStep {
-	// Decrypt → modify → encrypt → store.
+	// Decrypt -> modify -> encrypt -> store.
 	decrypted, err := p.crypto.Decrypt(adapter.ConfigEncrypted)
 	if err != nil {
 		return ProvisionStep{Name: "save_configuration", Status: "failed", Detail: err.Error()}

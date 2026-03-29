@@ -112,6 +112,46 @@ func (r *WebhookRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *WebhookRepo) ResetFailureCount(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE webhooks SET consecutive_failures = 0, last_failure_at = NULL, updated_at = now()
+		 WHERE id = @id`,
+		pgx.NamedArgs{"id": id},
+	)
+	if err != nil {
+		return fmt.Errorf("resetting webhook failure count: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("webhook %s not found", id)
+	}
+	return nil
+}
+
+func (r *WebhookRepo) IncrementFailureCount(ctx context.Context, id uuid.UUID) (int, bool, error) {
+	var consecutiveFailures int
+	var isActive bool
+
+	err := r.pool.QueryRow(ctx,
+		`UPDATE webhooks SET
+			consecutive_failures = consecutive_failures + 1,
+			last_failure_at = now(),
+			is_active = CASE WHEN consecutive_failures + 1 >= 10 THEN false ELSE is_active END,
+			disabled_at = CASE WHEN consecutive_failures + 1 >= 10 AND disabled_at IS NULL THEN now() ELSE disabled_at END,
+			updated_at = now()
+		 WHERE id = @id
+		 RETURNING consecutive_failures, is_active`,
+		pgx.NamedArgs{"id": id},
+	).Scan(&consecutiveFailures, &isActive)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, apperr.NotFound("webhook %s not found", id)
+		}
+		return 0, false, fmt.Errorf("incrementing webhook failure count: %w", err)
+	}
+
+	return consecutiveFailures, isActive, nil
+}
+
 func (r *WebhookRepo) ListByWorkspace(ctx context.Context, workspaceID uuid.UUID, opts port.ListOptions) (*port.PageResult[domain.Webhook], error) {
 	limit, afterID, err := ApplyPagination(opts)
 	if err != nil {

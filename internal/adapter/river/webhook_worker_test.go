@@ -41,10 +41,14 @@ func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 // --- Mock webhook store ---
 
 type mockWebhookStore struct {
-	getByIDFn func(ctx context.Context, id uuid.UUID) (*domain.Webhook, error)
-	updateFn  func(ctx context.Context, wh *domain.Webhook) error
+	getByIDFn               func(ctx context.Context, id uuid.UUID) (*domain.Webhook, error)
+	updateFn                func(ctx context.Context, wh *domain.Webhook) error
+	incrementFailureCountFn func(ctx context.Context, id uuid.UUID) (int, bool, error)
+	resetFailureCountFn     func(ctx context.Context, id uuid.UUID) error
 
-	updateCalls []*domain.Webhook
+	updateCalls             []*domain.Webhook
+	incrementFailureCalls   []uuid.UUID
+	resetFailureCalls       []uuid.UUID
 }
 
 func (m *mockWebhookStore) Create(ctx context.Context, wh *domain.Webhook) error { return nil }
@@ -68,6 +72,23 @@ func (m *mockWebhookStore) ListByWorkspace(ctx context.Context, workspaceID uuid
 func (m *mockWebhookStore) GetActiveByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Webhook, error) {
 	return nil, nil
 }
+func (m *mockWebhookStore) IncrementFailureCount(ctx context.Context, id uuid.UUID) (int, bool, error) {
+	m.incrementFailureCalls = append(m.incrementFailureCalls, id)
+	if m.incrementFailureCountFn != nil {
+		return m.incrementFailureCountFn(ctx, id)
+	}
+	return 1, true, nil
+}
+func (m *mockWebhookStore) ResetFailureCount(ctx context.Context, id uuid.UUID) error {
+	m.resetFailureCalls = append(m.resetFailureCalls, id)
+	if m.resetFailureCountFn != nil {
+		return m.resetFailureCountFn(ctx, id)
+	}
+	return nil
+}
+
+// noopSSRFChecker always allows the hostname — used in tests to avoid DNS lookups.
+func noopSSRFChecker(_ string) bool { return false }
 
 // --- Test helpers ---
 
@@ -110,7 +131,7 @@ func TestWebhookWorker_SuccessfulDelivery(t *testing.T) {
 		},
 	}
 	httpClient := &mockHTTPClient{}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	payload := []byte(`{"email_id":"abc-123","event":"delivered"}`)
 	job := makeWebhookJob(wh.ID, "email.delivered", payload)
@@ -150,7 +171,7 @@ func TestWebhookWorker_WebhookNotFound_CancelsJob(t *testing.T) {
 			return nil, domain.ErrNotFound
 		},
 	}
-	worker := NewWebhookWorker(store, &mockHTTPClient{})
+	worker := NewWebhookWorker(store, &mockHTTPClient{}, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(uuid.Must(uuid.NewV7()), "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -172,7 +193,7 @@ func TestWebhookWorker_Disabled_CancelsJob(t *testing.T) {
 			return wh, nil
 		},
 	}
-	worker := NewWebhookWorker(store, &mockHTTPClient{})
+	worker := NewWebhookWorker(store, &mockHTTPClient{}, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -201,7 +222,7 @@ func TestWebhookWorker_ServerError_Retries(t *testing.T) {
 			}, nil
 		},
 	}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -215,12 +236,12 @@ func TestWebhookWorker_ServerError_Retries(t *testing.T) {
 		t.Error("expected transient error but got JobCancelError")
 	}
 
-	// Should have incremented failure counter.
-	if len(store.updateCalls) == 0 {
-		t.Fatal("expected webhook store update")
+	// Should have called IncrementFailureCount atomically.
+	if len(store.incrementFailureCalls) == 0 {
+		t.Fatal("expected IncrementFailureCount call")
 	}
-	if store.updateCalls[0].ConsecutiveFailures != 1 {
-		t.Errorf("ConsecutiveFailures = %d, want 1", store.updateCalls[0].ConsecutiveFailures)
+	if store.incrementFailureCalls[0] != wh.ID {
+		t.Errorf("IncrementFailureCount called with %v, want %v", store.incrementFailureCalls[0], wh.ID)
 	}
 }
 
@@ -239,7 +260,7 @@ func TestWebhookWorker_429_Retries(t *testing.T) {
 			}, nil
 		},
 	}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -269,7 +290,7 @@ func TestWebhookWorker_ClientError_PermanentFailure(t *testing.T) {
 			}, nil
 		},
 	}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -296,7 +317,7 @@ func TestWebhookWorker_NetworkError_Retries(t *testing.T) {
 			return nil, errors.New("connection refused")
 		},
 	}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -322,7 +343,7 @@ func TestWebhookWorker_SuccessResetsFailureCounter(t *testing.T) {
 		},
 	}
 	httpClient := &mockHTTPClient{}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	err := worker.Work(context.Background(), job)
@@ -330,15 +351,12 @@ func TestWebhookWorker_SuccessResetsFailureCounter(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should have reset failure counter.
-	if len(store.updateCalls) != 1 {
-		t.Fatalf("expected 1 update call, got %d", len(store.updateCalls))
+	// Should have called ResetFailureCount atomically.
+	if len(store.resetFailureCalls) != 1 {
+		t.Fatalf("expected 1 ResetFailureCount call, got %d", len(store.resetFailureCalls))
 	}
-	if store.updateCalls[0].ConsecutiveFailures != 0 {
-		t.Errorf("ConsecutiveFailures = %d, want 0", store.updateCalls[0].ConsecutiveFailures)
-	}
-	if store.updateCalls[0].LastFailureAt != nil {
-		t.Error("expected LastFailureAt to be nil after success")
+	if store.resetFailureCalls[0] != wh.ID {
+		t.Errorf("ResetFailureCount called with %v, want %v", store.resetFailureCalls[0], wh.ID)
 	}
 }
 
@@ -350,6 +368,10 @@ func TestWebhookWorker_AutoDisableAfter10Failures(t *testing.T) {
 		getByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Webhook, error) {
 			return wh, nil
 		},
+		incrementFailureCountFn: func(_ context.Context, _ uuid.UUID) (int, bool, error) {
+			// Simulate: 10th failure triggers auto-disable.
+			return 10, false, nil
+		},
 	}
 	httpClient := &mockHTTPClient{
 		doFn: func(_ *http.Request) (*http.Response, error) {
@@ -359,23 +381,17 @@ func TestWebhookWorker_AutoDisableAfter10Failures(t *testing.T) {
 			}, nil
 		},
 	}
-	worker := NewWebhookWorker(store, httpClient)
+	worker := NewWebhookWorker(store, httpClient, WithSSRFChecker(noopSSRFChecker))
 
 	job := makeWebhookJob(wh.ID, "email.delivered", []byte("{}"))
 	_ = worker.Work(context.Background(), job)
 
-	if len(store.updateCalls) == 0 {
-		t.Fatal("expected webhook store update")
+	// Should have called IncrementFailureCount atomically.
+	if len(store.incrementFailureCalls) == 0 {
+		t.Fatal("expected IncrementFailureCount call")
 	}
-	updated := store.updateCalls[0]
-	if updated.ConsecutiveFailures != 10 {
-		t.Errorf("ConsecutiveFailures = %d, want 10", updated.ConsecutiveFailures)
-	}
-	if updated.IsActive {
-		t.Error("expected IsActive = false after 10 failures")
-	}
-	if updated.DisabledAt == nil {
-		t.Error("expected DisabledAt to be set")
+	if store.incrementFailureCalls[0] != wh.ID {
+		t.Errorf("IncrementFailureCount called with %v, want %v", store.incrementFailureCalls[0], wh.ID)
 	}
 }
 

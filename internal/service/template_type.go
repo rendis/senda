@@ -14,12 +14,14 @@ import (
 )
 
 // TemplateTypeService handles template type business logic.
+// It only requires TemplateTypeStore (the narrowest sub-interface of TemplateStore).
 type TemplateTypeService struct {
-	store port.TemplateStore
+	store port.TemplateTypeStore
 }
 
 // NewTemplateTypeService creates a new TemplateTypeService.
-func NewTemplateTypeService(store port.TemplateStore) *TemplateTypeService {
+// Accepts port.TemplateTypeStore — any port.TemplateStore also satisfies this.
+func NewTemplateTypeService(store port.TemplateTypeStore) *TemplateTypeService {
 	return &TemplateTypeService{store: store}
 }
 

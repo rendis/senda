@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +15,7 @@ import (
 	gmailadapter "github.com/senda-app/senda/internal/adapter/gmail"
 	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
+	"github.com/senda-app/senda/internal/metrics"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/tracking"
 )
@@ -48,6 +49,21 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 	}
 }
 
+// senderCacheTTL is the duration a cached sender is considered valid.
+const senderCacheTTL = 10 * time.Minute
+
+// cachedSender holds a sender and the time it was created for TTL expiry.
+type cachedSender struct {
+	sender    port.EmailSender
+	createdAt time.Time
+}
+
+// errorClassifier is implemented by adapters that can classify send errors
+// as permanent (non-retryable) or transient.
+type errorClassifier interface {
+	IsPermanentSendError(error) bool
+}
+
 // SendWorker processes email send jobs.
 type SendWorker struct {
 	goriver.WorkerDefaults[SendJobArgs]
@@ -60,8 +76,8 @@ type SendWorker struct {
 	adapterStore    port.AdapterStore
 	crypto          port.Crypto
 	senderFactory   AdapterSenderFactory
-	wsStore         port.WorkspaceStore
 	trackingBaseURL string
+	senderCache     sync.Map // uuid.UUID -> *cachedSender
 }
 
 // NewSendWorker creates a new send worker with all dependencies.
@@ -89,11 +105,6 @@ func NewSendWorker(
 // SendWorkerOption configures optional SendWorker dependencies.
 type SendWorkerOption func(*SendWorker)
 
-// WithWorkspaceStore sets the workspace store for open-tracking lookups.
-func WithWorkspaceStore(ws port.WorkspaceStore) SendWorkerOption {
-	return func(w *SendWorker) { w.wsStore = ws }
-}
-
 // WithTrackingBaseURL sets the base URL for open-tracking pixels.
 func WithTrackingBaseURL(url string) SendWorkerOption {
 	return func(w *SendWorker) { w.trackingBaseURL = url }
@@ -118,6 +129,18 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return goriver.JobCancel(fmt.Errorf("send: email not found for tracking_id=%s: %w", args.TrackingID, err))
 	}
 
+	// 1b. Idempotency guard: skip already-terminal emails.
+	if email.Status == domain.StatusSent || email.Status == domain.StatusFailed || email.Status == domain.StatusSuppressed {
+		return goriver.JobCancel(fmt.Errorf("email already in terminal state: %s", email.Status))
+	}
+	// If processing with provider ID set, it was sent but status update failed -- just update status.
+	if email.Status == domain.StatusProcessing && email.ProviderMessageID != nil && *email.ProviderMessageID != "" {
+		if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent, domain.StatusProcessing); err != nil {
+			return fmt.Errorf("send: recover sent status: %w", err)
+		}
+		return nil
+	}
+
 	// 2. Rate limiter check (before status transition so email stays "queued" if denied).
 	allowed, err := w.rateLimiter.TryAcquire(ctx, args.AdapterID)
 	if err != nil {
@@ -130,13 +153,17 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 
 	// 3. Mark as processing + add event.
 	now := time.Now().UTC()
-	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusProcessing); err != nil {
+	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusProcessing, domain.StatusQueued); err != nil {
+		if errors.Is(err, domain.ErrStatusConflict) {
+			return goriver.JobCancel(fmt.Errorf("send: email %s already claimed (status conflict)", email.ID))
+		}
 		return fmt.Errorf("send: update status to processing: %w", err)
 	}
+	email.Status = domain.StatusProcessing // Update in-memory state for downstream callers (failPermanently)
 	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		EmailID:    email.ID,
-		EventType:  domain.StatusProcessing,
+		EventType:  domain.EventTypeProcessing,
 		OccurredAt: now,
 		CreatedAt:  now,
 	}); err != nil {
@@ -155,12 +182,9 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.failPermanently(ctx, email, fmt.Errorf("send: compile mjml: %w", err))
 	}
 
-	// 6. Inject open-tracking pixel if workspace has it enabled.
-	if w.trackingBaseURL != "" && w.wsStore != nil {
-		ws, wsErr := w.wsStore.GetByID(ctx, email.WorkspaceID)
-		if wsErr == nil && ws.OpenTrackingEnabled {
-			bodyHTML = tracking.InjectOpenPixel(bodyHTML, w.trackingBaseURL, email.TrackingID)
-		}
+	// 6. Inject open-tracking pixel if email has it enabled (denormalized from workspace at enqueue time).
+	if w.trackingBaseURL != "" && email.OpenTrackingEnabled {
+		bodyHTML = tracking.InjectOpenPixel(bodyHTML, w.trackingBaseURL, email.TrackingID)
 	}
 
 	// 7. Build outgoing email.
@@ -192,9 +216,11 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		}
 		return fmt.Errorf("send: resolve sender: %w", err)
 	}
+	sendStart := time.Now()
 	providerMsgID, err := sender.Send(ctx, outgoing)
+	metrics.EmailSendDuration.WithLabelValues(sender.Name()).Observe(time.Since(sendStart).Seconds())
 	if err != nil {
-		return w.handleSendError(ctx, email, job.Attempt, err)
+		return w.handleSendError(ctx, email, sender, job.Attempt, err)
 	}
 
 	// 9. Persist provider message ID for webhook event matching.
@@ -205,14 +231,15 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	}
 
 	// 10. Success: update status to sent, add event.
-	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent); err != nil {
+	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent, domain.StatusProcessing); err != nil {
 		return fmt.Errorf("send: update status to sent: %w", err)
 	}
+	metrics.EmailsSent.WithLabelValues("sent", sender.Name(), email.TenantID.String(), email.WorkspaceID.String()).Inc()
 	sentAt := time.Now().UTC()
 	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		EmailID:    email.ID,
-		EventType:  domain.StatusSent,
+		EventType:  domain.EventTypeSent,
 		OccurredAt: sentAt,
 		Metadata:   map[string]any{"provider_message_id": providerMsgID},
 		CreatedAt:  sentAt,
@@ -230,8 +257,8 @@ func (w *SendWorker) NextRetry(job *goriver.Job[SendJobArgs]) time.Time {
 }
 
 // handleSendError determines if an error is transient or permanent.
-func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, attempt int, sendErr error) error {
-	if isPermanentSendError(sendErr) {
+func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, sender port.EmailSender, attempt int, sendErr error) error {
+	if isPermanentSendError(sender, sendErr) {
 		return w.failPermanently(ctx, email, sendErr)
 	}
 	// Transient error: let River retry with exponential backoff.
@@ -244,14 +271,15 @@ func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, a
 
 // failPermanently marks the email as failed and cancels the job.
 func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, reason error) error {
-	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusFailed); err != nil {
+	metrics.EmailsFailed.Inc()
+	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusFailed, email.Status); err != nil {
 		slog.Error("send_worker: failed to update status to failed", "email_id", email.ID, "error", err)
 	}
 	now := time.Now().UTC()
 	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		EmailID:    email.ID,
-		EventType:  domain.StatusFailed,
+		EventType:  domain.EventTypeFailed,
 		OccurredAt: now,
 		Metadata:   map[string]any{"error": reason.Error()},
 		CreatedAt:  now,
@@ -271,6 +299,16 @@ func (w *SendWorker) resolveSender(ctx context.Context, adapterID uuid.UUID) (po
 	if w.adapterStore == nil || w.crypto == nil {
 		return nil, fmt.Errorf("%w: adapter runtime sender is not configured", domain.ErrValidation)
 	}
+
+	// Check sender cache before creating a new one.
+	if cached, ok := w.senderCache.Load(adapterID); ok {
+		cs := cached.(*cachedSender)
+		if time.Since(cs.createdAt) < senderCacheTTL {
+			return cs.sender, nil
+		}
+		w.senderCache.Delete(adapterID) // expired
+	}
+
 	factory := w.senderFactory
 	if factory == nil {
 		factory = DefaultAdapterSenderFactory
@@ -291,23 +329,19 @@ func (w *SendWorker) resolveSender(ctx context.Context, adapterID uuid.UUID) (po
 	if sender == nil {
 		return nil, fmt.Errorf("%w: adapter sender factory returned nil for %s", domain.ErrValidation, adapter.AdapterType)
 	}
+
+	w.senderCache.Store(adapterID, &cachedSender{sender: sender, createdAt: time.Now()})
 	return sender, nil
 }
 
 // isPermanentSendError checks if the error indicates a permanent failure.
-func isPermanentSendError(err error) bool {
-	msg := err.Error()
-	permanentPrefixes := []string{
-		"invalid",
-		"rejected",
-		"blacklisted",
-		"address not verified",
-	}
-	lower := strings.ToLower(msg)
-	for _, prefix := range permanentPrefixes {
-		if strings.Contains(lower, prefix) {
-			return true
-		}
+// It delegates to the sender's adapter-specific classifier (SES, Gmail).
+// If the sender doesn't implement errorClassifier, the error is treated as
+// transient so River will retry with backoff. This avoids brittle string
+// matching -- all real permanent error detection lives in the typed adapters.
+func isPermanentSendError(sender port.EmailSender, err error) bool {
+	if classifier, ok := sender.(errorClassifier); ok {
+		return classifier.IsPermanentSendError(err)
 	}
 	return false
 }

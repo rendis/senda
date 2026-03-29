@@ -18,7 +18,7 @@ func TestConnect(t *testing.T) {
 	cfg := config.DatabaseConfig{
 		URL:             connStr,
 		MaxOpenConns:    5,
-		MaxIdleConns:    2,
+		MinConns:    2,
 		ConnMaxLifetime: "5m",
 		MigrateOnStart:  false,
 	}

@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/http/handler"
@@ -17,6 +20,66 @@ import (
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
 )
+
+// mockTxBeginner returns a no-op mock transaction for handler tests.
+type mockTxBeginner struct {
+	tx pgx.Tx
+}
+
+func (m *mockTxBeginner) Begin(_ context.Context) (pgx.Tx, error) {
+	if m.tx != nil {
+		return m.tx, nil
+	}
+	return &mockTx{}, nil
+}
+
+// mockHandlerRow implements pgx.Row for handler onboarding tests.
+type mockHandlerRow struct {
+	scanFn func(dest ...any) error
+}
+
+func (r *mockHandlerRow) Scan(dest ...any) error {
+	if r.scanFn != nil {
+		return r.scanFn(dest...)
+	}
+	now := time.Now().UTC()
+	for _, d := range dest {
+		switch v := d.(type) {
+		case *time.Time:
+			*v = now
+		case *int64:
+			*v = 0
+		}
+	}
+	return nil
+}
+
+type mockTx struct {
+	queryRowFn func(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error)  { return &mockTx{}, nil }
+func (m *mockTx) Commit(_ context.Context) error            { return nil }
+func (m *mockTx) Rollback(_ context.Context) error          { return nil }
+func (m *mockTx) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
+	return 0, nil
+}
+func (m *mockTx) SendBatch(_ context.Context, _ *pgx.Batch) pgx.BatchResults { return nil }
+func (m *mockTx) LargeObjects() pgx.LargeObjects                             { return pgx.LargeObjects{} }
+func (m *mockTx) Prepare(_ context.Context, _, _ string) (*pgconn.StatementDescription, error) {
+	return nil, nil
+}
+func (m *mockTx) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+	return pgconn.NewCommandTag("SELECT 1"), nil
+}
+func (m *mockTx) Query(_ context.Context, _ string, _ ...any) (pgx.Rows, error) { return nil, nil }
+func (m *mockTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if m.queryRowFn != nil {
+		return m.queryRowFn(ctx, sql, args...)
+	}
+	return &mockHandlerRow{}
+}
+func (m *mockTx) Conn() *pgx.Conn { return nil }
 
 // --- Mocks for onboarding ---
 
@@ -58,6 +121,9 @@ func (m *mockMemberStoreOnb) GetRoles(_ context.Context, _ uuid.UUID) ([]*domain
 	return nil, nil
 }
 func (m *mockMemberStoreOnb) GetRolesInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) ([]*domain.MemberRole, error) {
+	return nil, nil
+}
+func (m *mockMemberStoreOnb) GetRolesByMembers(_ context.Context, _ []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) {
 	return nil, nil
 }
 
@@ -133,7 +199,7 @@ func setupOnboardingTest(ms port.MemberStore, ts port.TenantStore, ws port.Works
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 
-	svc := service.NewOnboardingService(ms, ts, ws, as)
+	svc := service.NewOnboardingService(&mockTxBeginner{}, ms, ts, ws, as)
 	h := handler.NewOnboardingHandler(svc, v)
 
 	e.GET("/api/v1/onboarding/status", h.Status)
@@ -391,16 +457,30 @@ func TestOnboardingHandler_Setup_ValidationError_MissingTenantName(t *testing.T)
 }
 
 func TestOnboardingHandler_Setup_Conflict(t *testing.T) {
-	ms := &mockMemberStoreOnb{
-		countAllFn: func(_ context.Context) (int64, error) { return 1, nil },
-	}
+	// Use a mockTx that returns count=1 so Setup detects existing members.
+	conflictTx := &mockTx{queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+		if strings.Contains(sql, "SELECT COUNT") {
+			return &mockHandlerRow{scanFn: func(dest ...any) error {
+				if p, ok := dest[0].(*int64); ok {
+					*p = 1
+				}
+				return nil
+			}}
+		}
+		return &mockHandlerRow{}
+	}}
 	v := &mockOIDCVerifier{
 		verifyFn: func(_ context.Context, _ string) (*port.OIDCClaims, error) {
 			return &port.OIDCClaims{Subject: "s", Email: "a@b.com", Issuer: "i"}, nil
 		},
 	}
 
-	e, _ := setupOnboardingTest(ms, &mockTenantStoreOnb{}, &mockWorkspaceStoreOnb{}, &mockAuditStoreOnb{}, v)
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	svc := service.NewOnboardingService(&mockTxBeginner{tx: conflictTx}, &mockMemberStoreOnb{}, &mockTenantStoreOnb{}, &mockWorkspaceStoreOnb{}, &mockAuditStoreOnb{})
+	h := handler.NewOnboardingHandler(svc, v)
+	e.GET("/api/v1/onboarding/status", h.Status)
+	e.POST("/api/v1/onboarding/setup", h.Setup)
 
 	body := `{"tenant_code":"acme","tenant_name":"Acme"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/onboarding/setup", strings.NewReader(body))

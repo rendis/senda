@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +15,7 @@ import (
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
+	"github.com/senda-app/senda/pkg/netutil"
 )
 
 // WebhookHandler handles CRUD operations for webhooks and test dispatch.
@@ -255,7 +256,27 @@ func generateWebhookSecret() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// isValidWebhookURL performs basic URL validation (must be HTTPS).
+// isValidWebhookURL validates that the webhook URL is a proper HTTPS URL
+// pointing to a public (non-private, non-reserved) host.
 func isValidWebhookURL(u string) bool {
-	return strings.HasPrefix(u, "https://") && len(u) > len("https://")
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return false
+	}
+	hostname := parsed.Hostname()
+	if hostname == "" {
+		return false
+	}
+	// Block private/reserved IPs
+	if isPrivateOrReservedHost(hostname) {
+		return false
+	}
+	return true
+}
+
+// isPrivateOrReservedHost delegates to the shared netutil.IsPrivateOrReservedHost.
+// The shared utility should also be called by webhook_worker.go at delivery time
+// to guard against DNS rebinding attacks. The orchestrator will wire it.
+func isPrivateOrReservedHost(hostname string) bool {
+	return netutil.IsPrivateOrReservedHost(hostname)
 }

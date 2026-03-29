@@ -49,6 +49,18 @@ func (r *APIKeyRepo) Create(ctx context.Context, key *domain.APIKey) error {
 	return nil
 }
 
+func (r *APIKeyRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, workspace_id, name, key_hash, key_prefix, key_hint, created_by,
+		        last_used_at, revoked_at, created_at
+		 FROM api_keys
+		 WHERE id = @id AND revoked_at IS NULL`,
+		pgx.NamedArgs{"id": id},
+	)
+
+	return scanAPIKey(row)
+}
+
 func (r *APIKeyRepo) GetByHash(ctx context.Context, hash string) (*domain.APIKey, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, workspace_id, name, key_hash, key_prefix, key_hint, created_by,

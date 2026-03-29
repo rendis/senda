@@ -29,7 +29,7 @@ server:
 database:
   url: "postgres://user:pass@localhost:5432/senda"
   max_open_conns: 50
-  max_idle_conns: 20
+  min_conns: 20
   conn_max_lifetime: "10m"
   migrate_on_start: false
 oidc:
@@ -72,8 +72,8 @@ log:
 	if cfg.Database.MaxOpenConns != 50 {
 		t.Errorf("Database.MaxOpenConns = %d, want 50", cfg.Database.MaxOpenConns)
 	}
-	if cfg.Database.MaxIdleConns != 20 {
-		t.Errorf("Database.MaxIdleConns = %d, want 20", cfg.Database.MaxIdleConns)
+	if cfg.Database.MinConns != 20 {
+		t.Errorf("Database.MinConns = %d, want 20", cfg.Database.MinConns)
 	}
 	if cfg.Database.ConnMaxLifetime != "10m" {
 		t.Errorf("Database.ConnMaxLifetime = %q, want %q", cfg.Database.ConnMaxLifetime, "10m")
@@ -139,11 +139,11 @@ crypto:
 	if cfg.Server.ShutdownTimeout != 15*time.Second {
 		t.Errorf("default Server.ShutdownTimeout = %v, want %v", cfg.Server.ShutdownTimeout, 15*time.Second)
 	}
-	if cfg.Database.MaxOpenConns != 25 {
-		t.Errorf("default Database.MaxOpenConns = %d, want 25", cfg.Database.MaxOpenConns)
+	if cfg.Database.MaxOpenConns != 60 {
+		t.Errorf("default Database.MaxOpenConns = %d, want 60", cfg.Database.MaxOpenConns)
 	}
-	if cfg.Database.MaxIdleConns != 10 {
-		t.Errorf("default Database.MaxIdleConns = %d, want 10", cfg.Database.MaxIdleConns)
+	if cfg.Database.MinConns != 10 {
+		t.Errorf("default Database.MinConns = %d, want 10", cfg.Database.MinConns)
 	}
 	if cfg.Database.ConnMaxLifetime != "5m" {
 		t.Errorf("default Database.ConnMaxLifetime = %q, want %q", cfg.Database.ConnMaxLifetime, "5m")

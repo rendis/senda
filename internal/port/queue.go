@@ -4,12 +4,16 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // JobQueue manages background job processing.
 type JobQueue interface {
 	// EnqueueSend enqueues an email send job.
 	EnqueueSend(ctx context.Context, job *SendJob) error
+
+	// EnqueueSendTx enqueues an email send job within an existing transaction.
+	EnqueueSendTx(ctx context.Context, tx pgx.Tx, job *SendJob) error
 
 	// EnqueueWebhook enqueues a webhook delivery.
 	EnqueueWebhook(ctx context.Context, job *WebhookJob) error

@@ -19,7 +19,10 @@ type OIDCVerifier struct {
 // New creates a real OIDC verifier by performing provider discovery.
 // discoveryURL is the full .well-known URL or the issuer URL.
 // clientID is used for audience validation.
-func New(ctx context.Context, discoveryURL, clientID string) (*OIDCVerifier, error) {
+// skipIssuerCheck controls whether issuer validation is skipped (useful when
+// the backend reaches the OIDC provider via an internal hostname that differs
+// from the JWT issuer URL, e.g. Docker networking).
+func New(ctx context.Context, discoveryURL, clientID string, skipIssuerCheck bool) (*OIDCVerifier, error) {
 	issuer := strings.TrimSuffix(discoveryURL, "/.well-known/openid-configuration")
 
 	provider, err := oidc.NewProvider(ctx, issuer)
@@ -28,11 +31,8 @@ func New(ctx context.Context, discoveryURL, clientID string) (*OIDCVerifier, err
 	}
 
 	verifier := provider.Verifier(&oidc.Config{
-		ClientID: clientID,
-		// Skip issuer check because in Docker the backend reaches Keycloak via
-		// internal hostname (keycloak:8080) while the JWT issuer is the external
-		// URL (localhost:9090). Both are the same Keycloak instance.
-		SkipIssuerCheck: true,
+		ClientID:        clientID,
+		SkipIssuerCheck: skipIssuerCheck,
 	})
 
 	return &OIDCVerifier{verifier: verifier}, nil

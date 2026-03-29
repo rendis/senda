@@ -39,6 +39,28 @@ func (m *mockInjectorStore) SetValue(_ context.Context, _ *domain.InjectorValue)
 func (m *mockInjectorStore) GetValues(ctx context.Context, defID uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error) {
 	return m.getValuesFn(ctx, defID, chain)
 }
+func (m *mockInjectorStore) GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
+	result := make(map[uuid.UUID][]*domain.InjectorField, len(defIDs))
+	for _, id := range defIDs {
+		fields, err := m.getFieldsFn(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result[id] = fields
+	}
+	return result, nil
+}
+func (m *mockInjectorStore) GetAllValuesByDefinitions(ctx context.Context, defIDs []uuid.UUID, chain []uuid.NullUUID) (map[uuid.UUID][]*domain.InjectorValue, error) {
+	result := make(map[uuid.UUID][]*domain.InjectorValue, len(defIDs))
+	for _, id := range defIDs {
+		values, err := m.getValuesFn(ctx, id, chain)
+		if err != nil {
+			return nil, err
+		}
+		result[id] = values
+	}
+	return result, nil
+}
 
 // --- Helper to build a mock ChainResolver that returns a pre-built chain ---
 

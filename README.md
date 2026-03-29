@@ -160,17 +160,17 @@ from public pages, the dashboard menu, and `/global/settings`.
 
 ```bash
 curl -X POST http://localhost:8081/api/v1/send \
-  -H "Authorization: ApiKey senda_live_YOUR_KEY" \
+  -H "Authorization: Bearer senda_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": "user@example.com",
-    "template_type": "acme:main:welcome-email",
+    "ref": "acme:main:welcome-email",
+    "to": ["user@example.com"],
     "variables": { "name": "Jane", "activation_url": "https://..." },
     "locale": "es"
   }'
 ```
 
-Response: `{ "tracking_id": "snd_...", "status": "queued" }`
+Response: `{ "status": "queued", "tracking_ids": [{ "to": "user@example.com", "tracking_id": "snd_..." }] }`
 
 Check the email in [Mailpit UI](http://localhost:8026).
 
@@ -283,7 +283,7 @@ graph TD
 flowchart LR
     REQ[Request] --> CHECK{Auth Header?}
 
-    CHECK -->|"ApiKey senda_live_..."| AK[API Key Auth]
+    CHECK -->|"Bearer senda_live_..."| AK[Workspace API Key Auth]
     CHECK -->|"Bearer eyJ..."| OIDC[OIDC Auth]
 
     AK --> WS[Workspace-scoped]
@@ -333,15 +333,216 @@ See [`config/config.example.yaml`](config/config.example.yaml) for all options.
 
 | Group           | Base Path                                      | Auth    | Description                           |
 | --------------- | ---------------------------------------------- | ------- | ------------------------------------- |
-| Health          | `/health`, `/healthz`, `/metrics`              | None    | Liveness, readiness, Prometheus       |
-| Data Plane      | `/api/v1/send`, `/api/v1/emails`               | API Key | Send emails, query status             |
-| Onboarding      | `/api/v1/onboarding`                           | Mixed   | Initial platform setup                |
-| Management      | `/api/v1/manage/tenants/.../workspaces/...`    | OIDC    | CRUD for all resources                |
-| Global          | `/api/v1/manage/global/...`                    | OIDC    | Global-scope resource management      |
-| Webhooks (SES)  | `/api/v1/webhooks/ses/inbound`                 | SNS sig | Provider event ingestion              |
-| Tracking        | `/t/o/:tracking_id`                            | None    | Open-tracking pixel                   |
+| Health          | `/health`, `/healthz`, `/metrics`              | None              | Liveness, readiness, Prometheus  |
+| Data Plane      | `/api/v1/send`, `/api/v1/emails`               | Bearer `senda_live_*` | Send emails, query status      |
+| Onboarding      | `/api/v1/onboarding`                           | Mixed             | Initial platform setup           |
+| Management      | `/api/v1/manage/tenants/.../workspaces/...`    | OIDC              | CRUD for all resources           |
+| Global          | `/api/v1/manage/global/...`                    | OIDC              | Global-scope resource management |
+| Webhooks (SES)  | `/api/v1/webhooks/ses/inbound`                 | SNS sig           | Provider event ingestion         |
+| Tracking        | `/t/o/:tracking_id`                            | None              | Open-tracking pixel              |
 
 > Full API reference: [docs/API.md](docs/API.md) | Postman collection: [docs/postman/](docs/postman/)
+
+## MCP Integration
+
+Senda ships a single MCP server definition named `senda`, backed by
+[`mcp-openapi-proxy`](https://github.com/rendis/mcp-openapi-proxy) and the committed
+OpenAPI 3 spec at [`cmd/senda/docs/openapi.yaml`](cmd/senda/docs/openapi.yaml).
+
+- `make swagger` regenerates:
+  - `cmd/senda/openapi_generated.go`
+  - `cmd/senda/docs/swagger.yaml` (Swag / Swagger 2.0)
+  - `cmd/senda/docs/openapi.yaml` (OpenAPI 3 for MCP)
+- `make swagger-check` runs the generation flow and fails if those files were not committed.
+- CI runs `make swagger-check`, so route/spec drift is caught in pull requests.
+
+### 1. Install `mcp-openapi-proxy`
+
+```bash
+go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest
+```
+
+### 2. Refresh the committed OpenAPI spec
+
+```bash
+make swagger
+```
+
+Use this whenever you add, remove, or rename HTTP routes.
+
+### 3. Use the project-local MCP config
+
+The repo includes [`/Users/rendis/Documents/Projects/Libraries/senda/.mcp.json`](/Users/rendis/Documents/Projects/Libraries/senda/.mcp.json):
+
+```json
+{
+  "mcpServers": {
+    "senda": {
+      "command": "mcp-openapi-proxy",
+      "env": {
+        "MCP_SPEC": "./cmd/senda/docs/openapi.yaml",
+        "MCP_BASE_URL": "http://localhost:8081",
+        "MCP_TOOL_PREFIX": "senda",
+        "MCP_AUTH_PROFILE": "senda",
+        "MCP_OIDC_ISSUER": "http://localhost:9090/realms/senda",
+        "MCP_OIDC_CLIENT_ID": "senda-mcp"
+      }
+    }
+  }
+}
+```
+
+This exposes one MCP server with three tools:
+
+- `senda_list_endpoints` — discover the registered OpenAPI operations and their `toolName`
+- `senda_describe_endpoint` — inspect one operation's path params, query params, headers, cookies, and request body shape
+- `senda_call_endpoint` — execute one endpoint by `toolName`
+
+The proxy contract is intentionally generic: always list endpoints first, then use the returned
+`toolName` when describing or calling an operation.
+
+### 4. Authentication model
+
+Senda uses **two bearer schemes with different semantics**:
+
+- `ManagementBearer` → OIDC access token for management-plane endpoints
+- `WorkspaceAPIKeyBearer` → workspace API key with the raw format `senda_live_...`
+
+Use the scheme-specific environment variable for the workspace API key:
+
+```bash
+export MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN="senda_live_..."
+```
+
+Avoid setting a global `MCP_AUTH_TOKEN` in Senda. A single global bearer token is ambiguous when
+the spec contains both OIDC and workspace API key bearer schemes.
+
+### 5. Local workflow with API key
+
+1. Start the local stack:
+
+   ```bash
+   make dev
+   ```
+
+2. Create a workspace API key from the dashboard or via:
+
+   ```bash
+   POST /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/api-keys
+   ```
+
+3. Export it for the MCP proxy:
+
+   ```bash
+   export MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN="senda_live_..."
+   ```
+
+4. Start your MCP client and use the `senda_*` tools.
+
+This token is used for `/api/v1/send` and the data-plane email query endpoints under `/api/v1/emails`.
+
+### 6. Local workflow with OIDC
+
+The dev Keycloak realm includes a dedicated public client named `senda-mcp` for
+`mcp-openapi-proxy login`. It uses Authorization Code + PKCE with loopback redirects on
+`127.0.0.1`.
+
+1. Start the local stack:
+
+   ```bash
+   make dev
+   ```
+
+2. Run login against the repo config:
+
+   ```bash
+   mcp-openapi-proxy login --mcp-config ./.mcp.json --server senda
+   ```
+
+3. Complete the browser flow against local Keycloak (`http://localhost:9090/realms/senda`).
+4. Re-open your MCP client if needed.
+
+After login, management-plane endpoints can use the cached OIDC token under the `senda` auth profile.
+If you also exported `MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN`, the proxy will use:
+
+- the workspace API key for data-plane endpoints
+- the cached OIDC token for management endpoints
+
+### 7. MCP client setup
+
+#### Claude Code
+
+Claude Code reads the committed root `.mcp.json`, so in most cases you only need to open the repo
+and install `mcp-openapi-proxy`.
+
+#### Codex
+
+Add this to `~/.codex/config.toml` or your workspace-level Codex config:
+
+```toml
+[mcp_servers.senda]
+command = "mcp-openapi-proxy"
+
+[mcp_servers.senda.env]
+MCP_SPEC = "/Users/rendis/Documents/Projects/Libraries/senda/cmd/senda/docs/openapi.yaml"
+MCP_BASE_URL = "http://localhost:8081"
+MCP_TOOL_PREFIX = "senda"
+MCP_AUTH_PROFILE = "senda"
+MCP_OIDC_ISSUER = "http://localhost:9090/realms/senda"
+MCP_OIDC_CLIENT_ID = "senda-mcp"
+```
+
+If you want Codex to call the data plane too, also add:
+
+```toml
+MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN = "senda_live_..."
+```
+
+#### Gemini CLI
+
+Add this to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "senda": {
+      "command": "mcp-openapi-proxy",
+      "env": {
+        "MCP_SPEC": "/Users/rendis/Documents/Projects/Libraries/senda/cmd/senda/docs/openapi.yaml",
+        "MCP_BASE_URL": "http://localhost:8081",
+        "MCP_TOOL_PREFIX": "senda",
+        "MCP_AUTH_PROFILE": "senda",
+        "MCP_OIDC_ISSUER": "http://localhost:9090/realms/senda",
+        "MCP_OIDC_CLIENT_ID": "senda-mcp"
+      }
+    }
+  }
+}
+```
+
+Optionally add:
+
+```json
+"MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN": "senda_live_..."
+```
+
+inside `env` when you need data-plane access.
+
+### 8. Troubleshooting
+
+- **`401 workspace context required (API key auth)`**  
+  You called a data-plane endpoint with an OIDC token. Export
+  `MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN=senda_live_...`.
+- **`mcp-openapi-proxy login` cannot find the server**  
+  Run it with `--mcp-config ./.mcp.json --server senda`.
+- **OIDC login fails locally**  
+  Verify `make dev` is running, Keycloak is available at `http://localhost:9090`, and the realm
+  contains the public client `senda-mcp`.
+- **MCP is missing newly added endpoints**  
+  Run `make swagger` and commit the regenerated files.
+- **CI fails on `make swagger-check`**  
+  Re-run `make swagger`, review the diff, and commit:
+  `cmd/senda/openapi_generated.go`, `cmd/senda/docs/swagger.yaml`, and `cmd/senda/docs/openapi.yaml`.
 
 ## Development
 
@@ -357,6 +558,8 @@ See [`config/config.example.yaml`](config/config.example.yaml) for all options.
 |             | `make test-integration`| Integration tests (TestContainers)           |
 |             | `make test-e2e`        | E2E deterministic gate                       |
 |             | `make test-e2e-chaos`  | E2E chaos suite (non-blocking)               |
+| OpenAPI     | `make swagger`         | Generate Swagger 2 + OpenAPI 3 docs for MCP  |
+|             | `make swagger-check`   | Verify generated OpenAPI artifacts are committed |
 | System      | `make system-pr`       | PR system gate (functional + UI flow; visual opt-in) |
 |             | `make system-nightly`  | Full nightly gate (+ security + a11y; visual opt-in) |
 | Database    | `make migrate-up`      | Apply all pending migrations                 |

@@ -511,6 +511,18 @@ func (r *TemplateRepo) Publish(ctx context.Context, versionID uuid.UUID) error {
 		return fmt.Errorf("looking up template version: %w", err)
 	}
 
+	// Lock the template row to prevent concurrent publishes
+	var lockedID uuid.UUID
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM templates WHERE id = @template_id FOR UPDATE`,
+		pgx.NamedArgs{"template_id": templateID},
+	).Scan(&lockedID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NotFound("template %s not found", templateID)
+		}
+		return fmt.Errorf("lock template: %w", err)
+	}
+
 	// Archive existing published version for this template
 	_, err = tx.Exec(ctx,
 		`UPDATE template_versions

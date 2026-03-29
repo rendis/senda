@@ -9,15 +9,38 @@ import (
 	"github.com/senda-app/senda/internal/domain"
 )
 
+// validTransitions defines forward-only status transitions.
+var validTransitions = map[domain.EmailStatus][]domain.EmailStatus{
+	domain.StatusSent:       {domain.StatusDelivered, domain.StatusBounced, domain.StatusComplained},
+	domain.StatusDelivered:  {domain.StatusBounced, domain.StatusComplained, domain.StatusOpened},
+	domain.StatusOpened:     {domain.StatusBounced, domain.StatusComplained},
+	domain.StatusProcessing: {domain.StatusSent, domain.StatusFailed},
+}
+
+// isValidTransition checks whether transitioning from -> to is allowed.
+func isValidTransition(from, to domain.EmailStatus) bool {
+	allowed, ok := validTransitions[from]
+	if !ok {
+		return false
+	}
+	for _, s := range allowed {
+		if s == to {
+			return true
+		}
+	}
+	return false
+}
+
 // EmailLookup is a local interface for finding emails by provider message ID.
-// The main EmailStore in port/ does not have GetByProviderMessageID yet.
+// This method is also available on port.EmailStore; the local interface exists
+// to keep EventProcessor loosely coupled (it only needs lookup, not the full store).
 type EmailLookup interface {
 	GetByProviderMessageID(ctx context.Context, providerMessageID string) (*domain.Email, error)
 }
 
 // EmailStatusUpdater is a local interface for updating email status and adding events.
 type EmailStatusUpdater interface {
-	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
+	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	AddEvent(ctx context.Context, event *domain.EmailEvent) error
 }
 
@@ -63,6 +86,14 @@ func NewEventProcessor(
 }
 
 // Process handles a single provider event.
+//
+// Dedup strategy: duplicate events are suppressed by the forward-only status
+// machine (validTransitions). Once an email reaches a given status, a second
+// event of the same type will fail the isValidTransition check and be silently
+// skipped. This avoids the need for a separate dedup table or query. Provider
+// message ID + event type uniqueness is enforced implicitly: the same event
+// type cannot move the status forward twice because the source status has
+// already advanced past the point where that transition is valid.
 func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEvent) error {
 	// 1. Look up the email by provider message ID.
 	email, err := p.emailLookup.GetByProviderMessageID(ctx, event.ProviderMessageID)
@@ -85,17 +116,28 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 		return nil
 	}
 
-	// 3. Update email status.
-	if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
+	// 3. Validate status transition is forward-only.
+	if !isValidTransition(email.Status, status) {
+		p.logger.WarnContext(ctx, "skipping invalid status transition",
+			"email_id", email.ID,
+			"current_status", email.Status,
+			"target_status", status,
+			"event_type", event.Type,
+		)
+		return nil
+	}
+
+	// 4. Update email status.
+	if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status, email.Status); err != nil {
 		return err
 	}
 
-	// 4. Add email event.
+	// 5. Add email event.
 	metadata := buildEventMetadata(event)
 	emailEvent := &domain.EmailEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		EmailID:    email.ID,
-		EventType:  status,
+		EventType:  domain.StatusToEventType(status),
 		OccurredAt: event.Timestamp,
 		Metadata:   metadata,
 		CreatedAt:  time.Now().UTC(),
@@ -104,7 +146,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 		return err
 	}
 
-	// 5. Suppression side-effects.
+	// 6. Suppression side-effects.
 	if err := p.handleSuppression(ctx, event, email); err != nil {
 		p.logger.ErrorContext(ctx, "failed to add suppression entry",
 			"email_id", email.ID,
@@ -114,7 +156,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 		// Don't return error — suppression failure should not block event processing.
 	}
 
-	// 6. Dispatch to workspace webhooks.
+	// 7. Dispatch to workspace webhooks.
 	if p.webhookService != nil {
 		webhookPayload := map[string]any{
 			"email_id":            email.ID.String(),
@@ -154,12 +196,21 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 	// Don't overwrite bounced/complained/failed, and don't re-set opened.
 	if event.Type == domain.EventOpened {
 		if email.Status == domain.StatusSent || email.Status == domain.StatusDelivered {
-			if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
+			if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status, email.Status); err != nil {
 				return err
 			}
 		}
 	} else {
-		if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status); err != nil {
+		if !isValidTransition(email.Status, status) {
+			p.logger.WarnContext(ctx, "skipping invalid transition in ProcessDirect",
+				"email_id", email.ID,
+				"current_status", email.Status,
+				"target_status", status,
+				"event_type", event.Type,
+			)
+			return nil
+		}
+		if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status, email.Status); err != nil {
 			return err
 		}
 	}
@@ -170,7 +221,7 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 	emailEvent := &domain.EmailEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		EmailID:    email.ID,
-		EventType:  status,
+		EventType:  domain.StatusToEventType(status),
 		OccurredAt: event.Timestamp,
 		Metadata:   metadata,
 		CreatedAt:  time.Now().UTC(),

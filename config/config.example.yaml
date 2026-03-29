@@ -28,8 +28,8 @@ database:
   # Maximum number of open connections to the database
   max_open_conns: 25
 
-  # Maximum number of idle connections in the pool
-  max_idle_conns: 10
+  # Minimum number of connections maintained in the pool
+  min_conns: 10
 
   # Maximum amount of time a connection may be reused
   conn_max_lifetime: "5m"

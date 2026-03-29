@@ -281,29 +281,3 @@ func TestPGCache_GetMiss(t *testing.T) {
 	}
 }
 
-func TestPGCache_StartCleanup(t *testing.T) {
-	cache, _ := setupCache(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	value := mustJSON(t, "cleanup-me")
-
-	if err := cache.Set(ctx, "cleanup-key", value, 1*time.Second); err != nil {
-		t.Fatalf("Set() error: %v", err)
-	}
-
-	// Start cleanup with a short interval
-	cache.StartCleanup(ctx, 500*time.Millisecond)
-
-	// Wait for TTL to expire and cleanup to run
-	time.Sleep(3 * time.Second)
-
-	_, err := cache.Get(ctx, "cleanup-key")
-	if err == nil {
-		t.Fatal("Get() expected error after cleanup, got nil")
-	}
-	var appErr *apperr.AppError
-	if !errors.As(err, &appErr) || appErr.Code != 404 {
-		t.Errorf("Get() expected 404 AppError after cleanup, got: %v", err)
-	}
-}

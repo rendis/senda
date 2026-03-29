@@ -79,6 +79,12 @@ func (m *mockInjectorStore) GetValues(ctx context.Context, defID uuid.UUID, chai
 	}
 	return nil, nil
 }
+func (m *mockInjectorStore) GetAllFieldsByDefinitions(_ context.Context, _ []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
+	return nil, nil
+}
+func (m *mockInjectorStore) GetAllValuesByDefinitions(_ context.Context, _ []uuid.UUID, _ []uuid.NullUUID) (map[uuid.UUID][]*domain.InjectorValue, error) {
+	return nil, nil
+}
 
 // --- Helpers ---
 

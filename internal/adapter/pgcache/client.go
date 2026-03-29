@@ -73,19 +73,3 @@ func (c *PGCache) DeletePattern(ctx context.Context, pattern string) error {
 	return nil
 }
 
-// StartCleanup launches a background goroutine that periodically deletes expired cache entries.
-// It stops when the context is cancelled.
-func (c *PGCache) StartCleanup(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				_, _ = c.pool.Exec(ctx, "DELETE FROM cache WHERE expires_at < now()")
-			}
-		}
-	}()
-}

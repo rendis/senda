@@ -3,6 +3,7 @@ package resolution
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/senda-app/senda/internal/port"
@@ -40,10 +41,14 @@ func (c *CacheInvalidator) InvalidateDomainValidation(ctx context.Context, works
 }
 
 // InvalidateTenantWorkspaces removes cached resolution chains for all
-// workspaces belonging to a tenant. This is best-effort: list errors are ignored.
+// workspaces belonging to a tenant. If listing workspaces fails, it falls back
+// to a global invalidation so stale data is never served.
 func (c *CacheInvalidator) InvalidateTenantWorkspaces(ctx context.Context, tenantID uuid.UUID) {
 	workspaces, _, err := c.workspaceStore.ListByTenant(ctx, tenantID, port.ListOptions{Limit: 1000})
 	if err != nil {
+		slog.Error("failed to list workspaces for cache invalidation, falling back to global",
+			"tenant_id", tenantID, "error", err)
+		c.InvalidateGlobal(ctx)
 		return
 	}
 	for _, ws := range workspaces {
@@ -51,8 +56,20 @@ func (c *CacheInvalidator) InvalidateTenantWorkspaces(ctx context.Context, tenan
 	}
 }
 
-// InvalidateGlobal removes all cached resolution chains and adapter data.
+// InvalidateResolvedTemplates removes cached resolved templates for a workspace.
+// Call this when a template is published, disabled, or its type changes.
+func (c *CacheInvalidator) InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID) {
+	_ = c.cache.DeletePattern(ctx, fmt.Sprintf("resolved_template:%s:*", workspaceID.String()))
+}
+
+// InvalidateAllResolvedTemplates removes all cached resolved templates across all workspaces.
+func (c *CacheInvalidator) InvalidateAllResolvedTemplates(ctx context.Context) {
+	_ = c.cache.DeletePattern(ctx, "resolved_template:*")
+}
+
+// InvalidateGlobal removes all cached resolution chains, adapter data, and resolved templates.
 func (c *CacheInvalidator) InvalidateGlobal(ctx context.Context) {
 	_ = c.cache.DeletePattern(ctx, "chain:*")
 	_ = c.cache.DeletePattern(ctx, "adapter:*")
+	_ = c.cache.DeletePattern(ctx, "resolved_template:*")
 }

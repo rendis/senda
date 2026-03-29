@@ -9,7 +9,7 @@ Complete API reference for Senda v1. All endpoints under `/api/v1/` unless noted
 | Scheme     | Header                                 | Plane      | Scope                                      |
 | ---------- | -------------------------------------- | ---------- | ------------------------------------------ |
 | OIDC / JWT | `Authorization: Bearer <oidc_token>`   | Management | User identity, RBAC role determines access |
-| API Key    | `Authorization: ApiKey senda_live_xxx` | Data       | Workspace-scoped, used by applications     |
+| API Key    | `Authorization: Bearer senda_live_xxx` | Data       | Workspace-scoped, used by applications     |
 
 API keys are scoped to a single workspace. Management tokens carry the member's RBAC role evaluated against the resource hierarchy.
 
@@ -30,7 +30,7 @@ API keys are scoped to a single workspace. Management tokens carry the member's 
 All errors use a consistent JSON structure via `pkg/apperr`:
 
 ```json
-{ "code": 422, "message": "template_type is required" }
+{ "code": 422, "message": "ref is required" }
 ```
 
 ### Error Codes
@@ -94,26 +94,39 @@ When `next_cursor` is `null` or absent, there are no more pages.
 
 ---
 
-## Data Plane (API Key Auth)
+## Data Plane (Workspace API Key Auth)
 
-All requests require `Authorization: ApiKey senda_live_xxx`. The key implicitly scopes operations to its workspace.
+All requests require `Authorization: Bearer senda_live_xxx`. The raw key implicitly scopes operations
+to its workspace. Management OIDC tokens are not accepted on these endpoints because the handlers
+require workspace context derived from the API key.
 
 ### POST /api/v1/send
 
-| Field           | Type     | Required | Description                                                  |
-| --------------- | -------- | -------- | ------------------------------------------------------------ |
-| `to`            | string   | yes      | Recipient email address                                      |
-| `template_type` | string   | yes      | Slug in `tenant:workspace:slug` format                       |
-| `variables`     | object   | no       | Key-value pairs for template interpolation                   |
-| `locale`        | string   | no       | BCP-47 locale (e.g., `en`, `es-419`). Falls back to default. |
-| `cc`            | string[] | no       | CC recipients                                                |
-| `bcc`           | string[] | no       | BCC recipients                                               |
-| `external_id`   | string   | no       | Caller-provided idempotency/correlation ID                   |
+| Field         | Type     | Required | Description                                                  |
+| ------------- | -------- | -------- | ------------------------------------------------------------ |
+| `ref`         | string   | yes      | Template ref in `tenant:workspace:template_type_slug` format |
+| `to`          | string[] | yes      | One or more recipient email addresses (max 50)               |
+| `variables`   | object   | no       | Key-value pairs for template interpolation                   |
+| `locale`      | string   | no       | BCP-47 locale (e.g., `en`, `es-419`). Falls back to default. |
+| `cc`          | string[] | no       | CC recipients                                                |
+| `bcc`         | string[] | no       | BCC recipients                                               |
+| `external_id` | string   | no       | Caller-provided idempotency/correlation ID                   |
 
 **Response (202):**
 
 ```json
-{ "tracking_id": "019012ab-7c3d-7def-8abc-1234567890ab", "status": "queued" }
+{
+  "status": "queued",
+  "tracking_ids": [
+    {
+      "to": "user@example.com",
+      "tracking_id": "019012ab-7c3d-7def-8abc-1234567890ab"
+    }
+  ],
+  "external_id": "signup-jane-20260226",
+  "template_resolved": "acme:production:welcome-email",
+  "template_version": 3
+}
 ```
 
 **Full curl example:**
@@ -121,10 +134,10 @@ All requests require `Authorization: ApiKey senda_live_xxx`. The key implicitly 
 ```bash
 curl -X POST https://senda.example.com/api/v1/send \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey senda_live_sk_abc123def456" \
+  -H "Authorization: Bearer senda_live_sk_abc123def456" \
   -d '{
-    "to": "user@example.com",
-    "template_type": "acme:production:welcome-email",
+    "ref": "acme:production:welcome-email",
+    "to": ["user@example.com"],
     "variables": {
       "first_name": "Jane",
       "activation_url": "https://app.example.com/activate?token=xyz"

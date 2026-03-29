@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down clean help
+.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -6,6 +6,10 @@ DATABASE_URL ?= postgres://senda:senda@localhost:5432/senda?sslmode=disable
 SENDA_BASE_URL ?= http://localhost:8090
 MAILPIT_URL ?= http://localhost:9025
 SENDA_E2E_JWT_SECRET ?= e2e-test-jwt-secret-at-least-32-characters-long
+SWAG_VERSION ?= v1.16.6
+SWAGGER_DOCS_DIR := cmd/senda/docs
+SWAGGER_V2 := $(SWAGGER_DOCS_DIR)/swagger.yaml
+OPENAPI_V3 := $(SWAGGER_DOCS_DIR)/openapi.yaml
 
 E2E_ENV := SENDA_BASE_URL=$(SENDA_BASE_URL) \
            MAILPIT_URL=$(MAILPIT_URL) \
@@ -91,6 +95,18 @@ migrate-down: ## Roll back last migration
 ## Lint
 lint: ## Run linter
 	golangci-lint run ./...
+
+## OpenAPI / MCP
+swagger: ## Generate swag-based Swagger 2 + OpenAPI 3 docs and validate route coverage
+	go run ./cmd/openapi generate-docs --out cmd/senda/openapi_generated.go
+	go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION) init -g cmd/senda/main.go -o $(SWAGGER_DOCS_DIR) --parseDependency --parseInternal
+	go run ./cmd/openapi convert --swagger $(SWAGGER_V2) --out $(OPENAPI_V3)
+	rm -f $(SWAGGER_DOCS_DIR)/swagger.json
+	go run ./cmd/openapi validate --spec $(OPENAPI_V3)
+
+swagger-check: ## Regenerate OpenAPI docs and fail if generated artifacts were not committed
+	$(MAKE) swagger
+	git diff --exit-code -- cmd/senda/openapi_generated.go $(SWAGGER_V2) $(OPENAPI_V3)
 
 ## Cleanup
 clean: ## Remove build artifacts

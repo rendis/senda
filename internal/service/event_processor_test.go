@@ -26,16 +26,16 @@ func (m *mockEmailLookup) GetByProviderMessageID(ctx context.Context, providerMe
 }
 
 type mockEmailStatusUpdater struct {
-	updateStatusFn func(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
+	updateStatusFn func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	addEventFn     func(ctx context.Context, event *domain.EmailEvent) error
 	statuses       []domain.EmailStatus
 	events         []*domain.EmailEvent
 }
 
-func (m *mockEmailStatusUpdater) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error {
-	m.statuses = append(m.statuses, status)
+func (m *mockEmailStatusUpdater) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error {
+	m.statuses = append(m.statuses, newStatus)
 	if m.updateStatusFn != nil {
-		return m.updateStatusFn(ctx, id, status)
+		return m.updateStatusFn(ctx, id, newStatus, expectedStatus)
 	}
 	return nil
 }
@@ -126,6 +126,7 @@ func newEventProcessorFixture() *eventProcessorFixture {
 				WorkspaceID:    wsID,
 				TrackingID:     "trk_abc123",
 				RecipientEmail: "alice@user.com",
+				Status:         domain.StatusSent,
 			}, nil
 		}
 		return nil, domain.ErrNotFound
@@ -227,7 +228,7 @@ func TestEventProcessor_Delivery_HappyPath(t *testing.T) {
 	if len(f.updater.events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(f.updater.events))
 	}
-	if f.updater.events[0].EventType != domain.StatusDelivered {
+	if f.updater.events[0].EventType != domain.EventTypeDelivered {
 		t.Fatalf("expected event type 'delivered', got %q", f.updater.events[0].EventType)
 	}
 	if f.updater.events[0].EmailID != f.emailID {
@@ -367,6 +368,19 @@ func TestEventProcessor_Complaint_WorkspaceSuppression(t *testing.T) {
 
 func TestEventProcessor_Open_NoSuppression(t *testing.T) {
 	f := newEventProcessorFixture()
+	// An email must be delivered before it can be opened.
+	f.lookup.getByProviderMessageIDFn = func(_ context.Context, providerMessageID string) (*domain.Email, error) {
+		if providerMessageID == "ses-msg-123" {
+			return &domain.Email{
+				ID:             f.emailID,
+				WorkspaceID:    f.workspaceID,
+				TrackingID:     "trk_abc123",
+				RecipientEmail: "alice@user.com",
+				Status:         domain.StatusDelivered,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
 	proc := f.buildProcessor()
 
 	err := proc.Process(context.Background(), f.openEvent())
@@ -407,7 +421,7 @@ func TestEventProcessor_EmailNotFound(t *testing.T) {
 
 func TestEventProcessor_UpdateStatusError_PropagatesError(t *testing.T) {
 	f := newEventProcessorFixture()
-	f.updater.updateStatusFn = func(_ context.Context, _ uuid.UUID, _ domain.EmailStatus) error {
+	f.updater.updateStatusFn = func(_ context.Context, _ uuid.UUID, _, _ domain.EmailStatus) error {
 		return errors.New("db update failed")
 	}
 

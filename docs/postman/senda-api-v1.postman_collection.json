@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "senda-api-v1-collection",
     "name": "Senda API v1",
-    "description": "Comprehensive Postman collection for the Senda email orchestration platform API.\n\n## Authentication\n\n**OIDC (Management API):** Bearer token in Authorization header.\n\n**API Key (Data Plane):** `X-API-Key` header with the full key returned at creation.\n\n## Hierarchy\n\nSenda uses a 3-level hierarchy: Global -> Tenant -> Workspace. Resources are scoped to a workspace (or global for superadmin operations).\n\n## Pagination\n\nAll list endpoints use cursor-based pagination with `cursor` and `limit` query parameters. Responses include `next_cursor` and `has_more` fields.",
+    "description": "Comprehensive Postman collection for the Senda email orchestration platform API.\n\n## Authentication\n\n**OIDC (Management API):** Bearer token in Authorization header.\n\n**API Key (Data Plane):** `Authorization: Bearer senda_live_...` with the full key returned at creation.\n\n## Hierarchy\n\nSenda uses a 3-level hierarchy: Global -> Tenant -> Workspace. Resources are scoped to a workspace (or global for superadmin operations).\n\n## Pagination\n\nAll list endpoints use cursor-based pagination with `cursor` and `limit` query parameters. Responses include `next_cursor` and `has_more` fields.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -2067,7 +2067,7 @@
     },
     {
       "name": "Send",
-      "description": "Data-plane email sending. Supports both API Key and OIDC auth.",
+      "description": "Data-plane email sending. Requires a workspace API key in `Authorization: Bearer senda_live_...`.",
       "item": [
         {
           "name": "Send Email",
@@ -2104,7 +2104,7 @@
                 "send"
               ]
             },
-            "description": "Send an email using a template reference.\n\n**Auth:** API Key (X-API-Key header) or OIDC Bearer token\n\n**Ref format:** `tenant_code:workspace_code:template_type_slug`\n\n**Response:** 202 Accepted with tracking IDs for each recipient."
+            "description": "Send an email using a template reference.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Ref format:** `tenant_code:workspace_code:template_type_slug`\n\n**Response:** 202 Accepted with tracking IDs for each recipient."
           },
           "response": [],
           "event": [

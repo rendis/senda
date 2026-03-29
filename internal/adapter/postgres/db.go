@@ -24,7 +24,8 @@ func Connect(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 	}
 
 	poolCfg.MaxConns = int32(cfg.MaxOpenConns)
-	poolCfg.MinConns = int32(cfg.MaxIdleConns)
+	poolCfg.MinConns = int32(cfg.MinConns)
+	poolCfg.MaxConnIdleTime = 5 * time.Minute
 
 	if cfg.ConnMaxLifetime != "" {
 		d, err := time.ParseDuration(cfg.ConnMaxLifetime)

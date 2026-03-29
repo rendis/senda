@@ -3,6 +3,11 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
+	EmailsEnqueued = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "senda_emails_enqueued_total",
+		Help: "Total emails accepted and enqueued for sending",
+	})
+
 	EmailsSent = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "senda_emails_sent_total",
@@ -10,6 +15,11 @@ var (
 		},
 		[]string{"status", "adapter", "tenant", "workspace"},
 	)
+
+	EmailsFailed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "senda_emails_failed_total",
+		Help: "Total emails that failed permanently",
+	})
 
 	EmailSendDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -65,7 +75,7 @@ var (
 // Register registers all Senda metrics with the default Prometheus registry.
 func Register() {
 	prometheus.MustRegister(
-		EmailsSent, EmailSendDuration,
+		EmailsEnqueued, EmailsSent, EmailsFailed, EmailSendDuration,
 		HTTPRequestDuration, HTTPRequestsTotal,
 		QueueDepth, ProviderErrors, BounceRate,
 	)

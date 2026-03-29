@@ -21,15 +21,16 @@ import (
 // --- Mock MemberStore ---
 
 type mockMemberStore struct {
-	createFn       func(ctx context.Context, m *domain.Member) error
-	getByEmailFn   func(ctx context.Context, email string) (*domain.Member, error)
-	getByIDFn      func(ctx context.Context, id uuid.UUID) (*domain.Member, error)
-	countAllFn     func(ctx context.Context) (int64, error)
-	listAllFn      func(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error)
-	addRoleFn      func(ctx context.Context, role *domain.MemberRole) error
-	removeRoleFn   func(ctx context.Context, roleID uuid.UUID) error
-	getRolesFn     func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
-	getRolesInScopeFn func(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
+	createFn            func(ctx context.Context, m *domain.Member) error
+	getByEmailFn        func(ctx context.Context, email string) (*domain.Member, error)
+	getByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.Member, error)
+	countAllFn          func(ctx context.Context) (int64, error)
+	listAllFn           func(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error)
+	addRoleFn           func(ctx context.Context, role *domain.MemberRole) error
+	removeRoleFn        func(ctx context.Context, roleID uuid.UUID) error
+	getRolesFn          func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
+	getRolesInScopeFn   func(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
+	getRolesByMembersFn func(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error)
 }
 
 func (m *mockMemberStore) Create(ctx context.Context, member *domain.Member) error {
@@ -85,6 +86,24 @@ func (m *mockMemberStore) GetRolesInScope(ctx context.Context, memberID uuid.UUI
 		return m.getRolesInScopeFn(ctx, memberID, scopeType, scopeID)
 	}
 	return nil, nil
+}
+func (m *mockMemberStore) GetRolesByMembers(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) {
+	if m.getRolesByMembersFn != nil {
+		return m.getRolesByMembersFn(ctx, memberIDs)
+	}
+	// Fallback: aggregate from per-member getRolesFn if available.
+	if m.getRolesFn != nil {
+		result := make(map[uuid.UUID][]*domain.MemberRole, len(memberIDs))
+		for _, id := range memberIDs {
+			roles, err := m.getRolesFn(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			result[id] = roles
+		}
+		return result, nil
+	}
+	return make(map[uuid.UUID][]*domain.MemberRole), nil
 }
 
 func setupMemberTest(ms port.MemberStore) *echo.Echo {

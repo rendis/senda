@@ -14,6 +14,7 @@ import (
 
 // TrackingHandler serves the open-tracking pixel endpoint.
 type TrackingHandler struct {
+	lifecycleCtx   context.Context
 	emailStore     trackingEmailLookup
 	eventProcessor *service.EventProcessor
 	logger         *slog.Logger
@@ -25,8 +26,10 @@ type trackingEmailLookup interface {
 }
 
 // NewTrackingHandler creates a new TrackingHandler.
-func NewTrackingHandler(es trackingEmailLookup, ep *service.EventProcessor, logger *slog.Logger) *TrackingHandler {
-	return &TrackingHandler{emailStore: es, eventProcessor: ep, logger: logger}
+// The lifecycleCtx should be the server's lifecycle context so background
+// goroutines are cancelled on graceful shutdown rather than leaked.
+func NewTrackingHandler(lifecycleCtx context.Context, es trackingEmailLookup, ep *service.EventProcessor, logger *slog.Logger) *TrackingHandler {
+	return &TrackingHandler{lifecycleCtx: lifecycleCtx, emailStore: es, eventProcessor: ep, logger: logger}
 }
 
 // HandleOpen serves GET /t/o/:tracking_id — returns a 1x1 transparent GIF
@@ -39,8 +42,9 @@ func (h *TrackingHandler) HandleOpen(c *echo.Context) error {
 
 	// Fire-and-forget: record open event in a goroutine so the pixel
 	// response is never delayed by database calls.
+	// Uses lifecycleCtx so the goroutine is cancelled on server shutdown.
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(h.lifecycleCtx, 5*time.Second)
 		defer cancel()
 
 		email, err := h.emailStore.GetByTrackingID(ctx, trackingID)

@@ -35,12 +35,20 @@ func (h *MemberHandler) List(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
+	// Batch fetch all roles in a single query instead of N+1.
+	memberIDs := make([]uuid.UUID, len(members))
+	for i, m := range members {
+		memberIDs[i] = m.ID
+	}
+
+	rolesByMember, err := h.store.GetRolesByMembers(ctx, memberIDs)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
 	items := make([]response.MemberWithRolesResponse, len(members))
 	for i, m := range members {
-		roles, err := h.store.GetRoles(ctx, m.ID)
-		if err != nil {
-			return mapStoreError(c, err)
-		}
+		roles := rolesByMember[m.ID]
 		roleResponses := make([]response.MemberRoleResponse, len(roles))
 		for j, r := range roles {
 			roleResponses[j] = response.NewMemberRoleResponse(r)

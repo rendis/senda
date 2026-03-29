@@ -24,7 +24,6 @@ import (
 	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
 )
 
 func TestAWS01_SESAdapterEndpointURLAndTrackingProvisioner(t *testing.T) {
@@ -76,7 +75,7 @@ func TestAWS01_SESAdapterEndpointURLAndTrackingProvisioner(t *testing.T) {
 	aesCrypto, err := crypto.NewAESCrypto(DefaultMasterKey)
 	require.NoError(t, err)
 
-	provisioner := service.NewTrackingProvisioner(
+	provisioner := sesadapter.NewTrackingProvisioner(
 		postgres.NewAdapterRepo(pool),
 		aesCrypto,
 		replay.server.URL,

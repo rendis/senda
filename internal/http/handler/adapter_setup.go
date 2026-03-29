@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
+	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
 )
 
 // AdapterSetupHandler serves tracking setup guides and auto-provisioning for adapters.
@@ -18,11 +18,11 @@ type AdapterSetupHandler struct {
 	tsStore     port.TenantStore
 	wsStore     port.WorkspaceStore
 	webhookURL  string // base URL for the SES inbound webhook
-	provisioner *service.TrackingProvisioner
+	provisioner *sesadapter.TrackingProvisioner
 }
 
 // NewAdapterSetupHandler creates a new AdapterSetupHandler.
-func NewAdapterSetupHandler(as port.AdapterStore, ts port.TenantStore, ws port.WorkspaceStore, webhookURL string, provisioner *service.TrackingProvisioner) *AdapterSetupHandler {
+func NewAdapterSetupHandler(as port.AdapterStore, ts port.TenantStore, ws port.WorkspaceStore, webhookURL string, provisioner *sesadapter.TrackingProvisioner) *AdapterSetupHandler {
 	return &AdapterSetupHandler{store: as, tsStore: ts, wsStore: ws, webhookURL: webhookURL, provisioner: provisioner}
 }
 
@@ -177,7 +177,7 @@ func (h *AdapterSetupHandler) autoProvision(c *echo.Context, workspaceID *uuid.U
 
 	result, err := h.provisioner.Provision(c.Request().Context(), adapterID)
 	if err != nil {
-		if service.IsAccessDenied(err) {
+		if sesadapter.IsAccessDenied(err) {
 			return c.JSON(http.StatusForbidden, map[string]any{
 				"error":   "INSUFFICIENT_PERMISSIONS",
 				"message": "The adapter's AWS credentials lack permissions for auto-provisioning. Use the setup guide for manual configuration.",

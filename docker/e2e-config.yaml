@@ -7,7 +7,7 @@ database:
   migrate_on_start: true
   migrations_path: "/migrations"
   max_open_conns: 25
-  max_idle_conns: 10
+  min_conns: 10
 
 oidc:
   mode: "test"

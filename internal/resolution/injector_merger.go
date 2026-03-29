@@ -55,27 +55,39 @@ func (m *InjectorMerger) Resolve(ctx context.Context, workspaceID uuid.UUID) (Me
 		}
 	}
 
+	// Collect all winning definition IDs for batch fetch.
+	defIDs := make([]uuid.UUID, 0, len(bestByName))
+	for _, entry := range bestByName {
+		defIDs = append(defIDs, entry.defID)
+	}
+
+	// Batch fetch all fields and values in two queries instead of 2*N.
+	allFields, err := m.store.GetAllFieldsByDefinitions(ctx, defIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	allValues, err := m.store.GetAllValuesByDefinitions(ctx, defIDs, chain.Scopes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build pre-indexed lookup for O(1) field value resolution.
+	valIdx := buildValueIndex(allValues)
+
 	result := make(MergedInjectors, len(bestByName))
 
 	for name, entry := range bestByName {
-		fields, err := m.store.GetFieldsByDefinition(ctx, entry.defID)
-		if err != nil {
-			return nil, err
-		}
-
-		values, err := m.store.GetValues(ctx, entry.defID, chain.Scopes)
-		if err != nil {
-			return nil, err
-		}
+		fields := allFields[entry.defID]
 
 		fieldMap := make(map[string]any, len(fields))
 		for _, f := range fields {
 			fieldMap[f.FieldName] = nil // default: no value
 		}
 
-		// Index values by field+scope for priority resolution
+		defIdx := valIdx[entry.defID]
 		for _, f := range fields {
-			resolved := resolveFieldValue(f.FieldName, values, chain.Scopes)
+			resolved := resolveFieldValueIndexed(f.FieldName, chain.Scopes, defIdx)
 			fieldMap[f.FieldName] = resolved
 		}
 
@@ -85,21 +97,68 @@ func (m *InjectorMerger) Resolve(ctx context.Context, workspaceID uuid.UUID) (Me
 	return result, nil
 }
 
-// resolveFieldValue finds the highest-priority value for a field
-// by iterating through scopes in order.
-func resolveFieldValue(fieldName string, values []*domain.InjectorValue, scopes []uuid.NullUUID) any {
-	for _, scope := range scopes {
+// valueIndex maps defID -> fieldName -> scopeKey -> *InjectorValue for O(1) lookup.
+type valueIndex map[uuid.UUID]map[string]map[string]*domain.InjectorValue
+
+// buildValueIndex constructs a pre-indexed lookup from the batch-fetched values.
+func buildValueIndex(allValues map[uuid.UUID][]*domain.InjectorValue) valueIndex {
+	idx := make(valueIndex, len(allValues))
+	for defID, values := range allValues {
+		if idx[defID] == nil {
+			idx[defID] = make(map[string]map[string]*domain.InjectorValue)
+		}
 		for _, v := range values {
-			if v.FieldName != fieldName {
-				continue
+			if idx[defID][v.FieldName] == nil {
+				idx[defID][v.FieldName] = make(map[string]*domain.InjectorValue)
 			}
-			if matchScope(v.WorkspaceID, scope) {
-				var parsed any
-				if err := json.Unmarshal([]byte(v.Value), &parsed); err != nil {
-					return v.Value // fallback to raw string
-				}
-				return parsed
-			}
+			key := scopeKey(v.WorkspaceID)
+			idx[defID][v.FieldName][key] = v
+		}
+	}
+	return idx
+}
+
+// scopeKey returns a string key for a workspace scope pointer.
+// nil (global) maps to the empty string.
+func scopeKey(wsID *uuid.UUID) string {
+	if wsID == nil {
+		return ""
+	}
+	return wsID.String()
+}
+
+// scopeKeyFromNullUUID returns a string key from a uuid.NullUUID.
+func scopeKeyFromNullUUID(scope uuid.NullUUID) string {
+	if !scope.Valid {
+		return ""
+	}
+	return scope.UUID.String()
+}
+
+// parseJSONValue attempts to parse a JSON string into a Go value.
+// Falls back to the raw string on parse failure.
+func parseJSONValue(raw string) any {
+	var parsed any
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return raw
+	}
+	return parsed
+}
+
+// resolveFieldValueIndexed uses the pre-built index for O(1) field value lookup
+// per scope, iterating scopes in priority order.
+func resolveFieldValueIndexed(fieldName string, scopes []uuid.NullUUID, fieldIdx map[string]map[string]*domain.InjectorValue) any {
+	if fieldIdx == nil {
+		return nil
+	}
+	scopeValues, ok := fieldIdx[fieldName]
+	if !ok {
+		return nil
+	}
+	for _, scope := range scopes {
+		key := scopeKeyFromNullUUID(scope)
+		if v, found := scopeValues[key]; found {
+			return parseJSONValue(v.Value)
 		}
 	}
 	return nil

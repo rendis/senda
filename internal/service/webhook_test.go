@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
 	"github.com/senda-app/senda/internal/service"
@@ -60,6 +61,12 @@ func (m *mockWebhookStore) GetActiveByWorkspace(ctx context.Context, workspaceID
 	}
 	return nil, nil
 }
+func (m *mockWebhookStore) IncrementFailureCount(_ context.Context, _ uuid.UUID) (int, bool, error) {
+	return 0, true, nil
+}
+func (m *mockWebhookStore) ResetFailureCount(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
 
 // --- Mock JobQueue for webhook tests ---
 
@@ -72,6 +79,9 @@ func (m *mockJobQueue) EnqueueSend(ctx context.Context, job *port.SendJob) error
 	if m.enqueueSendFn != nil {
 		return m.enqueueSendFn(ctx, job)
 	}
+	return nil
+}
+func (m *mockJobQueue) EnqueueSendTx(_ context.Context, _ pgx.Tx, _ *port.SendJob) error {
 	return nil
 }
 func (m *mockJobQueue) EnqueueWebhook(ctx context.Context, job *port.WebhookJob) error {

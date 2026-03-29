@@ -201,6 +201,68 @@ func (r *InjectorRepo) GetValues(ctx context.Context, defID uuid.UUID, chain []u
 	return vals, nil
 }
 
+func (r *InjectorRepo) GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
+	if len(defIDs) == 0 {
+		return make(map[uuid.UUID][]*domain.InjectorField), nil
+	}
+
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, injector_definition_id, field_name, field_type, description, position
+		 FROM injector_fields
+		 WHERE injector_definition_id = ANY(@def_ids)
+		 ORDER BY injector_definition_id, position`,
+		pgx.NamedArgs{"def_ids": defIDs},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("batch querying injector fields: %w", err)
+	}
+
+	fields, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.InjectorField])
+	if err != nil {
+		return nil, fmt.Errorf("collecting batch injector fields: %w", err)
+	}
+
+	result := make(map[uuid.UUID][]*domain.InjectorField, len(defIDs))
+	for _, f := range fields {
+		result[f.InjectorDefinitionID] = append(result[f.InjectorDefinitionID], f)
+	}
+	return result, nil
+}
+
+func (r *InjectorRepo) GetAllValuesByDefinitions(ctx context.Context, defIDs []uuid.UUID, chain []uuid.NullUUID) (map[uuid.UUID][]*domain.InjectorValue, error) {
+	if len(defIDs) == 0 {
+		return make(map[uuid.UUID][]*domain.InjectorValue), nil
+	}
+
+	scopes, includeGlobal := splitChain(chain)
+
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, injector_definition_id, field_name, workspace_id, value, updated_at
+		 FROM injector_values
+		 WHERE injector_definition_id = ANY(@def_ids)
+		   AND (workspace_id = ANY(@scopes) OR (@include_global::bool AND workspace_id IS NULL))`,
+		pgx.NamedArgs{
+			"def_ids":        defIDs,
+			"scopes":         scopes,
+			"include_global": includeGlobal,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("batch querying injector values: %w", err)
+	}
+
+	vals, err := pgx.CollectRows(rows, scanInjectorValue)
+	if err != nil {
+		return nil, fmt.Errorf("collecting batch injector values: %w", err)
+	}
+
+	result := make(map[uuid.UUID][]*domain.InjectorValue, len(defIDs))
+	for _, v := range vals {
+		result[v.InjectorDefinitionID] = append(result[v.InjectorDefinitionID], v)
+	}
+	return result, nil
+}
+
 // scanInjectorDefinition scans a single InjectorDefinition from a row.
 func scanInjectorDefinition(row pgx.Row) (*domain.InjectorDefinition, error) {
 	var d domain.InjectorDefinition

@@ -61,8 +61,8 @@ type mockEmailUpdaterPW struct {
 	events   []*domain.EmailEvent
 }
 
-func (m *mockEmailUpdaterPW) UpdateStatus(_ context.Context, _ uuid.UUID, status domain.EmailStatus) error {
-	m.statuses = append(m.statuses, status)
+func (m *mockEmailUpdaterPW) UpdateStatus(_ context.Context, _ uuid.UUID, newStatus, _ domain.EmailStatus) error {
+	m.statuses = append(m.statuses, newStatus)
 	return nil
 }
 
@@ -139,6 +139,7 @@ func newProviderWebhookFixture() *providerWebhookFixture {
 				WorkspaceID:    wsID,
 				TrackingID:     "trk_test",
 				RecipientEmail: "alice@user.com",
+				Status:         domain.StatusSent,
 			}, nil
 		}
 		return nil, domain.ErrNotFound

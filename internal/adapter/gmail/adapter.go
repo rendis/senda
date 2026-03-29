@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"mime"
 	"net/mail"
@@ -15,6 +16,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gm "google.golang.org/api/gmail/v1"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
 	"github.com/senda-app/senda/internal/port"
@@ -83,6 +85,16 @@ func NewAdapterFromConfig(ctx context.Context, cfg GmailConfig) (*Adapter, error
 	}
 
 	return &Adapter{client: &liveGmailAPI{svc: svc}}, nil
+}
+
+// IsPermanentSendError classifies a Gmail send error as permanent or transient.
+// 4xx errors (except 429 Too Many Requests) are permanent; 5xx and 429 are transient.
+func (a *Adapter) IsPermanentSendError(err error) bool {
+	var gErr *googleapi.Error
+	if errors.As(err, &gErr) {
+		return gErr.Code >= 400 && gErr.Code < 500 && gErr.Code != 429
+	}
+	return false
 }
 
 // Send delivers an email via Gmail API.

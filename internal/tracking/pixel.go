@@ -1,6 +1,9 @@
 package tracking
 
-import "strings"
+import (
+	"fmt"
+	"regexp"
+)
 
 // TransparentGIF is a minimal 1x1 transparent GIF (43 bytes).
 var TransparentGIF = []byte{
@@ -22,6 +25,10 @@ var TransparentGIF = []byte{
 	0x3b, // trailer
 }
 
+// bodyCloseRe matches </body> case-insensitively using byte offsets that are
+// safe for multi-byte UTF-8 strings (unlike strings.ToLower + LastIndex).
+var bodyCloseRe = regexp.MustCompile(`(?i)</body>`)
+
 // InjectOpenPixel inserts an open-tracking <img> tag before </body> in the
 // compiled HTML. If there is no </body> tag the HTML is returned unchanged.
 func InjectOpenPixel(html, baseURL, trackingID string) string {
@@ -29,15 +36,12 @@ func InjectOpenPixel(html, baseURL, trackingID string) string {
 		return html
 	}
 
-	const marker = "</body>"
-	idx := strings.LastIndex(strings.ToLower(html), marker)
-	if idx == -1 {
-		return html
+	loc := bodyCloseRe.FindStringIndex(html)
+	if loc == nil {
+		return html // no </body> found, return as-is
 	}
+	idx := loc[0]
 
-	// Find the actual case-preserving position.
-	idx = len(html) - len(html[idx:])
-
-	pixel := `<img src="` + baseURL + `/t/o/` + trackingID + `" width="1" height="1" alt="" style="display:none" />`
+	pixel := fmt.Sprintf(`<img src="%s/t/o/%s" width="1" height="1" alt="" style="display:none" />`, baseURL, trackingID)
 	return html[:idx] + pixel + html[idx:]
 }

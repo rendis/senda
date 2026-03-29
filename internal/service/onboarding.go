@@ -2,12 +2,20 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/port"
 )
+
+// TxBeginner abstracts transaction creation so the service can be tested
+// without a real pgxpool.Pool.
+type TxBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 // OnboardingRequest holds the data needed to set up the first tenant.
 type OnboardingRequest struct {
@@ -24,6 +32,7 @@ type OnboardingResult struct {
 
 // OnboardingService handles the first-use onboarding flow.
 type OnboardingService struct {
+	pool        TxBeginner
 	memberStore port.MemberStore
 	tenantStore port.TenantStore
 	wsStore     port.WorkspaceStore
@@ -31,13 +40,16 @@ type OnboardingService struct {
 }
 
 // NewOnboardingService creates a new OnboardingService.
+// pool can be *pgxpool.Pool or any TxBeginner implementation.
 func NewOnboardingService(
+	pool TxBeginner,
 	ms port.MemberStore,
 	ts port.TenantStore,
 	ws port.WorkspaceStore,
 	as port.AuditLogStore,
 ) *OnboardingService {
 	return &OnboardingService{
+		pool:        pool,
 		memberStore: ms,
 		tenantStore: ts,
 		wsStore:     ws,
@@ -57,14 +69,28 @@ func (s *OnboardingService) Status(ctx context.Context) (bool, error) {
 // Setup creates the first member + superadmin role + tenant_admin role + tenant + _system workspace.
 // Guard: only works when CountAll() == 0, else returns domain.ErrConflict.
 //
-// TOCTOU mitigation: after creating the member, re-check the count. If another
-// concurrent Setup call raced and also created a member, the count will be > 1
-// and we return ErrConflict. The DB's unique constraints on tenant code and
-// member email provide an additional safety net.
+// Concurrency safety: acquires a PostgreSQL advisory lock (pg_advisory_xact_lock)
+// within a transaction to serialize all concurrent Setup calls. This eliminates
+// the TOCTOU race between CountAll and Create. The lock is automatically released
+// when the transaction commits or rolls back.
 func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, req *OnboardingRequest) (*OnboardingResult, error) {
-	count, err := s.memberStore.CountAll(ctx)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Advisory lock — serializes all concurrent setup calls.
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext('senda_onboarding'))"); err != nil {
+		return nil, fmt.Errorf("advisory lock: %w", err)
+	}
+
+	// All subsequent operations run on tx (not the pool) for full atomicity.
+	// If any step fails, the deferred tx.Rollback undoes everything.
+
+	var count int64
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM members`).Scan(&count); err != nil {
+		return nil, fmt.Errorf("count members: %w", err)
 	}
 	if count != 0 {
 		return nil, domain.ErrConflict
@@ -78,24 +104,19 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		Email:       claims.Email,
 		OIDCSubject: &claims.Subject,
 		OIDCIssuer:  &claims.Issuer,
-		CreatedAt:   now,
-		UpdatedAt:   now,
 	}
-	if err := s.memberStore.Create(ctx, member); err != nil {
-		// If member creation fails due to unique constraint (concurrent setup),
-		// treat as conflict.
-		return nil, err
-	}
-
-	// Re-check count after member creation to detect concurrent setup race.
-	// If another goroutine also passed the initial check and created a member,
-	// count will now be > 1.
-	postCount, err := s.memberStore.CountAll(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if postCount > 1 {
-		return nil, domain.ErrConflict
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO members (id, email, oidc_subject, oidc_issuer)
+		 VALUES (@id, @email, @oidc_subject, @oidc_issuer)
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":           member.ID,
+			"email":        member.Email,
+			"oidc_subject": member.OIDCSubject,
+			"oidc_issuer":  member.OIDCIssuer,
+		},
+	).Scan(&member.CreatedAt, &member.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create member: %w", err)
 	}
 
 	// 2. Add superadmin role (global scope).
@@ -104,22 +125,38 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		MemberID:  member.ID,
 		Role:      domain.RoleSuperadmin,
 		ScopeType: domain.ScopeGlobal,
-		CreatedAt: now,
 	}
-	if err := s.memberStore.AddRole(ctx, superadminRole); err != nil {
-		return nil, err
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO member_roles (id, member_id, role, scope_type)
+		 VALUES (@id, @member_id, @role, @scope_type)
+		 RETURNING created_at`,
+		pgx.NamedArgs{
+			"id":         superadminRole.ID,
+			"member_id":  superadminRole.MemberID,
+			"role":       superadminRole.Role,
+			"scope_type": superadminRole.ScopeType,
+		},
+	).Scan(&superadminRole.CreatedAt); err != nil {
+		return nil, fmt.Errorf("add superadmin role: %w", err)
 	}
 
 	// 3. Create tenant.
 	tenant := &domain.Tenant{
-		ID:        uuid.Must(uuid.NewV7()),
-		Code:      req.TenantCode,
-		Name:      req.TenantName,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:   uuid.Must(uuid.NewV7()),
+		Code: req.TenantCode,
+		Name: req.TenantName,
 	}
-	if err := s.tenantStore.Create(ctx, tenant); err != nil {
-		return nil, err
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO tenants (id, code, name)
+		 VALUES (@id, @code, @name)
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":   tenant.ID,
+			"code": tenant.Code,
+			"name": tenant.Name,
+		},
+	).Scan(&tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create tenant: %w", err)
 	}
 
 	// 4. Add tenant_admin role (tenant scope).
@@ -129,45 +166,68 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		Role:      domain.RoleTenantAdmin,
 		ScopeType: domain.ScopeTenant,
 		TenantID:  &tenant.ID,
-		CreatedAt: now,
 	}
-	if err := s.memberStore.AddRole(ctx, tenantAdminRole); err != nil {
-		return nil, err
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO member_roles (id, member_id, role, scope_type, tenant_id)
+		 VALUES (@id, @member_id, @role, @scope_type, @tenant_id)
+		 RETURNING created_at`,
+		pgx.NamedArgs{
+			"id":         tenantAdminRole.ID,
+			"member_id":  tenantAdminRole.MemberID,
+			"role":       tenantAdminRole.Role,
+			"scope_type": tenantAdminRole.ScopeType,
+			"tenant_id":  tenantAdminRole.TenantID,
+		},
+	).Scan(&tenantAdminRole.CreatedAt); err != nil {
+		return nil, fmt.Errorf("add tenant admin role: %w", err)
 	}
 
 	// 5. Create _system workspace.
 	ws := &domain.Workspace{
-		ID:        uuid.Must(uuid.NewV7()),
-		TenantID:  tenant.ID,
-		Code:      "_system",
-		Name:      "System",
-		IsSystem:  true,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:       uuid.Must(uuid.NewV7()),
+		TenantID: tenant.ID,
+		Code:     "_system",
+		Name:     "System",
+		IsSystem: true,
 	}
-	if err := s.wsStore.Create(ctx, ws); err != nil {
-		return nil, err
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale)
+		 VALUES (@id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale)
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":                     ws.ID,
+			"tenant_id":             ws.TenantID,
+			"code":                  ws.Code,
+			"name":                  ws.Name,
+			"is_system":             ws.IsSystem,
+			"open_tracking_enabled": false,
+			"default_locale":        ws.DefaultLocale,
+		},
+	).Scan(&ws.CreatedAt, &ws.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create system workspace: %w", err)
 	}
 
-	// 6. Audit log.
-	auditEntry := &domain.AuditLog{
-		ID:         uuid.Must(uuid.NewV7()),
-		ActorID:    member.ID,
-		ActorEmail: member.Email,
-		Action:     domain.AuditCreate,
-		EntityType: "onboarding",
-		EntityID:   tenant.ID,
-		TenantID:   &tenant.ID,
-		ScopeType:  domain.ScopeGlobal,
-		Changes: map[string]any{
-			"tenant_code":  tenant.Code,
-			"tenant_name":  tenant.Name,
-			"member_email": member.Email,
+	// 6. Audit log (best-effort, on tx for atomicity).
+	_, _ = tx.Exec(ctx,
+		`INSERT INTO audit_logs (id, actor_id, actor_email, action, entity_type, entity_id, tenant_id, scope_type, changes, created_at)
+		 VALUES (@id, @actor_id, @actor_email, @action, @entity_type, @entity_id, @tenant_id, @scope_type, @changes, @created_at)`,
+		pgx.NamedArgs{
+			"id":           uuid.Must(uuid.NewV7()),
+			"actor_id":     member.ID,
+			"actor_email":  member.Email,
+			"action":       domain.AuditCreate,
+			"entity_type":  "onboarding",
+			"entity_id":    tenant.ID,
+			"tenant_id":    &tenant.ID,
+			"scope_type":   domain.ScopeGlobal,
+			"changes":      map[string]any{"tenant_code": tenant.Code, "tenant_name": tenant.Name, "member_email": member.Email},
+			"created_at":   now,
 		},
-		CreatedAt: now,
+	)
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
 	}
-	// Audit log failures should not block onboarding.
-	_ = s.auditStore.Append(ctx, auditEntry)
 
 	return &OnboardingResult{
 		Member:    member,

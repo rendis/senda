@@ -2,14 +2,14 @@ package middleware
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/http/response"
 	"github.com/senda-app/senda/internal/port"
+	"github.com/senda-app/senda/internal/service"
 )
 
 const (
@@ -29,7 +29,8 @@ const (
 )
 
 // Auth returns middleware that authenticates requests via API key or OIDC bearer token.
-func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifier port.OIDCVerifier) echo.MiddlewareFunc {
+// The pepper parameter is the HMAC pepper derived from the master key, used for API key hashing.
+func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifier port.OIDCVerifier, pepper string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			header := c.Request().Header.Get("Authorization")
@@ -49,7 +50,7 @@ func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifi
 			ctx := c.Request().Context()
 
 			if strings.HasPrefix(token, apiKeyPrefix) {
-				return authenticateAPIKey(c, ctx, token, apiKeyStore, next)
+				return authenticateAPIKey(c, ctx, token, apiKeyStore, pepper, next)
 			}
 
 			return authenticateOIDC(c, ctx, token, oidcVerifier, memberStore, next)
@@ -57,12 +58,21 @@ func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifi
 	}
 }
 
-func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, store port.APIKeyStore, next echo.HandlerFunc) error {
-	hash := sha256Hex(token)
-
+func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, store port.APIKeyStore, pepper string, next echo.HandlerFunc) error {
+	// Try HMAC-SHA256 hash first (new keys).
+	hash := service.HashKeyHMAC(token, pepper)
 	key, err := store.GetByHash(ctx, hash)
 	if err != nil {
-		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid API key")
+		// Fallback to plain SHA-256 for keys created before the HMAC migration.
+		plainHash := service.HashKeyPlain(token)
+		key, err = store.GetByHash(ctx, plainHash)
+		if err != nil {
+			return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid API key")
+		}
+		slog.Warn("API key authenticated via legacy SHA-256 hash; re-generate key to use HMAC",
+			slog.String("key_prefix", key.KeyPrefix),
+			slog.String("key_hint", key.KeyHint),
+		)
 	}
 
 	if key.RevokedAt != nil {
@@ -101,9 +111,4 @@ func authenticateOIDC(c *echo.Context, ctx context.Context, token string, verifi
 	c.Set(ContextKeyRoles, roles)
 
 	return next(c)
-}
-
-func sha256Hex(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
 }

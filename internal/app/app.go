@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,6 +20,7 @@ import (
 	"github.com/senda-app/senda/internal/adapter/pgcache"
 	"github.com/senda-app/senda/internal/adapter/postgres"
 	"github.com/senda-app/senda/internal/adapter/river"
+	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
 	smtpadapter "github.com/senda-app/senda/internal/adapter/smtp"
 	"github.com/senda-app/senda/internal/adapter/sns"
 	"github.com/senda-app/senda/internal/adapter/testauth"
@@ -41,6 +45,15 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	pool, err := postgres.Connect(ctx, cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("app: connect db: %w", err)
+	}
+
+	// 1b. Pre-heat connection pool to MinConns.
+	for i := 0; i < cfg.Database.MinConns; i++ {
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			break
+		}
+		conn.Release()
 	}
 
 	// 2. Run application migrations.
@@ -87,7 +100,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 
 	// 6. Resolution engine.
 	chainResolver := resolution.NewChainResolver(wsRepo, cache)
-	templateResolver := resolution.NewTemplateResolver(templateRepo, chainResolver)
+	templateResolver := resolution.NewTemplateResolver(templateRepo, cache, chainResolver)
 	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver)
 	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
 
@@ -106,7 +119,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	}
 	if cfg.Tracking.BaseURL != "" {
 		sendWorkerOpts = append(sendWorkerOpts,
-			river.WithWorkspaceStore(wsRepo),
 			river.WithTrackingBaseURL(cfg.Tracking.BaseURL),
 		)
 		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)
@@ -122,18 +134,19 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 
 	// 9. Services.
 	webhookSvc := service.NewWebhookService(webhookRepo, riverClient)
-	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, service.DefaultIdentityProviderFactory)
+	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, DefaultIdentityProviderFactory)
 	sendSvc := service.NewSendService(
 		templateResolver, injectorMerger, adapterResolver,
 		identitySvc,
-		rateLimiter,
 		emailRepo, suppressionRepo, riverClient, renderer,
 		tenantRepo, wsRepo,
+		pool,
 	)
-	apiKeySvc := service.NewAPIKeyService(apiKeyRepo)
+	apiKeyPepper := deriveAPIKeyPepper(cfg.Crypto.MasterKey)
+	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, apiKeyPepper)
 	templateTypeSvc := service.NewTemplateTypeService(templateRepo)
 	templateSvc := service.NewTemplateService(templateRepo, compiler)
-	onboardingSvc := service.NewOnboardingService(memberRepo, tenantRepo, wsRepo, auditRepo)
+	onboardingSvc := service.NewOnboardingService(pool, memberRepo, tenantRepo, wsRepo, auditRepo)
 
 	// 10. OIDC verifier.
 	var oidcVerifier port.OIDCVerifier
@@ -144,7 +157,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	case "dual":
 		// Dual mode: try real OIDC first (Keycloak), fall back to test HS256.
 		// Used in E2E so both the frontend (Keycloak tokens) and test suite (HS256) work.
-		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID)
+		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID, cfg.OIDC.SkipIssuerCheck)
 		if oidcErr != nil {
 			pool.Close()
 			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
@@ -153,7 +166,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 		oidcVerifier = testauth.NewChainVerifier(realVerifier, testVerifier)
 		logger.Info("using dual OIDC verifier (real + test fallback)", "discovery_url", cfg.OIDC.DiscoveryURL)
 	default:
-		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID)
+		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID, cfg.OIDC.SkipIssuerCheck)
 		if oidcErr != nil {
 			pool.Close()
 			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
@@ -184,9 +197,9 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	onboardingH := handler.NewOnboardingHandler(onboardingSvc, oidcVerifier)
 	identityH := handler.NewIdentityHandler(identitySvc, adapterIdentityRepo, tenantRepo, wsRepo)
 	// Tracking auto-provisioner (nil if no tracking base URL).
-	var trackingProvisioner *service.TrackingProvisioner
+	var trackingProvisioner *sesadapter.TrackingProvisioner
 	if cfg.Tracking.BaseURL != "" {
-		trackingProvisioner = service.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger)
+		trackingProvisioner = sesadapter.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger)
 	}
 	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner)
 	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
@@ -211,7 +224,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	}
 
 	// 14. Open-tracking handler.
-	trackingH := handler.NewTrackingHandler(emailRepo, eventProcessor, logger)
+	trackingH := handler.NewTrackingHandler(ctx, emailRepo, eventProcessor, logger)
 
 	// 14b. Media handler (video thumbnail composite).
 	mediaH := handler.NewMediaHandler(logger)
@@ -219,7 +232,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*A
 	// 15. Assemble server.
 	opts := []sendahttp.ServerOption{
 		sendahttp.WithPinger(&dbPinger{pool: pool}),
-		sendahttp.WithAuthDeps(apiKeyRepo, memberRepo, oidcVerifier),
+		sendahttp.WithAuthDeps(apiKeyRepo, memberRepo, oidcVerifier, apiKeyPepper),
 		sendahttp.WithTenantStore(tenantRepo),
 		sendahttp.WithWorkspaceStore(wsRepo),
 		sendahttp.WithConfigStore(configRepo),
@@ -294,4 +307,11 @@ func runRiverMigrations(ctx context.Context, pool *pgxpool.Pool, logger *slog.Lo
 		logger.Info("river migrations applied", "versions", len(res.Versions))
 	}
 	return nil
+}
+
+// deriveAPIKeyPepper derives a pepper for API key HMAC from the master key using HMAC-SHA256.
+func deriveAPIKeyPepper(masterKey string) string {
+	mac := hmac.New(sha256.New, []byte(masterKey))
+	mac.Write([]byte("senda-api-key-pepper-v1"))
+	return hex.EncodeToString(mac.Sum(nil))
 }

@@ -210,6 +210,34 @@ func (r *MemberRepo) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domai
 	return roles, nil
 }
 
+func (r *MemberRepo) GetRolesByMembers(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) {
+	if len(memberIDs) == 0 {
+		return make(map[uuid.UUID][]*domain.MemberRole), nil
+	}
+
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, member_id, role, scope_type, tenant_id, workspace_id, created_at, created_by
+		 FROM member_roles
+		 WHERE member_id = ANY(@member_ids)
+		 ORDER BY member_id, created_at`,
+		pgx.NamedArgs{"member_ids": memberIDs},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("batch querying member roles: %w", err)
+	}
+
+	roles, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.MemberRole])
+	if err != nil {
+		return nil, fmt.Errorf("collecting batch member roles: %w", err)
+	}
+
+	result := make(map[uuid.UUID][]*domain.MemberRole, len(memberIDs))
+	for _, r := range roles {
+		result[r.MemberID] = append(result[r.MemberID], r)
+	}
+	return result, nil
+}
+
 func (r *MemberRepo) GetRolesInScope(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error) {
 	var rows pgx.Rows
 	var err error

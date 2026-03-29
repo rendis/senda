@@ -46,7 +46,7 @@ func Forbidden(msg string, args ...any) *AppError {
 
 func Validation(msg string, args ...any) *AppError {
 	return &AppError{
-		Code:    http.StatusBadRequest,
+		Code:    http.StatusUnprocessableEntity,
 		Message: fmt.Sprintf(msg, args...),
 	}
 }

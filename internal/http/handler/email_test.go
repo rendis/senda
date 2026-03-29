@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v5"
 	"github.com/senda-app/senda/internal/domain"
 	"github.com/senda-app/senda/internal/http/handler"
@@ -38,15 +39,19 @@ func (m *mockEmailStore) Create(ctx context.Context, email *domain.Email) error 
 	}
 	return nil
 }
+func (m *mockEmailStore) CreateTx(_ context.Context, _ pgx.Tx, _ *domain.Email) error { return nil }
+func (m *mockEmailStore) GetByProviderMessageID(_ context.Context, _ string) (*domain.Email, error) {
+	return nil, domain.ErrNotFound
+}
 func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error) {
 	if m.getByTrackingIDFn != nil {
 		return m.getByTrackingIDFn(ctx, trackingID)
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error {
+func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, _ domain.EmailStatus) error {
 	if m.updateStatusFn != nil {
-		return m.updateStatusFn(ctx, id, status)
+		return m.updateStatusFn(ctx, id, newStatus)
 	}
 	return nil
 }
@@ -213,7 +218,7 @@ func TestEmailHandler_GetByTrackingID_Success(t *testing.T) {
 		},
 		getEventsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.EmailEvent, error) {
 			return []*domain.EmailEvent{
-				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.StatusSent, OccurredAt: now, CreatedAt: now},
+				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.EventTypeSent, OccurredAt: now, CreatedAt: now},
 			}, nil
 		},
 	}
@@ -297,8 +302,8 @@ func TestEmailHandler_GetEvents_Success(t *testing.T) {
 		},
 		getEventsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.EmailEvent, error) {
 			return []*domain.EmailEvent{
-				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.StatusQueued, OccurredAt: now, CreatedAt: now},
-				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.StatusSent, OccurredAt: now, CreatedAt: now},
+				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.EventTypeQueued, OccurredAt: now, CreatedAt: now},
+				{ID: uuid.Must(uuid.NewV7()), EmailID: emailID, EventType: domain.EventTypeSent, OccurredAt: now, CreatedAt: now},
 			}, nil
 		},
 	}

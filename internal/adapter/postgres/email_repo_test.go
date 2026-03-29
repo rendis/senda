@@ -189,7 +189,7 @@ func TestEmailRepo_AddEvent_GetEvents(t *testing.T) {
 	event := &domain.EmailEvent{
 		ID:         uuid.New(),
 		EmailID:    email.ID,
-		EventType:  domain.StatusSent,
+		EventType:  domain.EventTypeSent,
 		OccurredAt: time.Now().UTC(),
 		Metadata:   map[string]any{"provider": "ses"},
 	}
@@ -209,7 +209,7 @@ func TestEmailRepo_AddEvent_GetEvents(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].EventType != domain.StatusSent {
+	if events[0].EventType != domain.EventTypeSent {
 		t.Errorf("expected event type sent, got %s", events[0].EventType)
 	}
 }
