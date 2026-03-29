@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // TestOIDCVerifier implements port.OIDCVerifier using HS256 JWTs

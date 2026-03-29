@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	pgadapter "github.com/senda-app/senda/internal/adapter/pgcache"
-	"github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/pkg/apperr"
+	pgadapter "github.com/rendis/senda/internal/adapter/pgcache"
+	"github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/pkg/apperr"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

@@ -14,7 +14,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // adapterReadWriter is the minimal interface needed by TrackingProvisioner.

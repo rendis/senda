@@ -13,7 +13,7 @@
 ## First-Time Setup
 
 ```bash
-git clone https://github.com/senda-app/senda.git
+git clone https://github.com/rendis/senda.git
 cd senda
 make dev          # starts senda + postgres + keycloak + mailpit
 # wait ~30s for keycloak health check
@@ -24,7 +24,7 @@ curl localhost:8081/health  # verify backend
 
 ## Backend Development
 
-- **Module:** `github.com/senda-app/senda`
+- **Module:** `github.com/rendis/senda`
 - **Go version:** 1.25.1
 - **Hot reload:** Provided by [Air](https://github.com/air-verse/air) via `docker/Dockerfile.dev`
 - **Auto-rebuild:** Code changes under `internal/` trigger automatic rebuild inside the container

@@ -1,6 +1,6 @@
 package sdk
 
-import "github.com/senda-app/senda/internal/port"
+import "github.com/rendis/senda/internal/port"
 
 // Injector is the interface users implement to provide custom injectable
 // values. Resolved fields merge with DB injectors and become available

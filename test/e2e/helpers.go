@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/senda-app/senda/internal/adapter/testauth"
+	"github.com/rendis/senda/internal/adapter/testauth"
 	"github.com/stretchr/testify/require"
 )
 

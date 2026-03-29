@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // safeHeaderKeyRe allows only alphanumeric characters and hyphens in custom header keys.

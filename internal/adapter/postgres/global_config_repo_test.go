@@ -7,8 +7,8 @@ import (
 	"math"
 	"testing"
 
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/internal/domain"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/internal/domain"
 )
 
 func TestGlobalConfigRepo_Get_SeedData(t *testing.T) {

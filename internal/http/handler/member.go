@@ -7,12 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/pagination"
-	"github.com/senda-app/senda/internal/http/request"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/pagination"
+	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // MemberHandler handles CRUD operations for members and their roles.

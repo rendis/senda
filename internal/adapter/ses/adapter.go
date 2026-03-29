@@ -23,7 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/smithy-go"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // safeHeaderKeyRe allows only alphanumeric characters and hyphens in custom header keys.

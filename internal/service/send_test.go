@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/resolution"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
+	"github.com/rendis/senda/internal/service"
 )
 
 // --- Send-specific mocks (suffixed to avoid collisions with other test files) ---

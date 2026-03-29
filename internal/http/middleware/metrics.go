@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/metrics"
+	"github.com/rendis/senda/internal/metrics"
 )
 
 // uuidRegex matches UUID v1-v7 patterns in URL path segments.

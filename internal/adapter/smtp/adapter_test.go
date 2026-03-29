@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 	"github.com/stretchr/testify/require"
 )
 

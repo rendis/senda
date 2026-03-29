@@ -1,6 +1,6 @@
 package response
 
-import "github.com/senda-app/senda/internal/domain"
+import "github.com/rendis/senda/internal/domain"
 
 // SuppressionWorkspaceResponse is the JSON response for a workspace suppression entry.
 type SuppressionWorkspaceResponse struct {

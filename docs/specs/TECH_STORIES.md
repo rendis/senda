@@ -33,7 +33,7 @@
 **Spec:** §9 (Estructura de Carpetas), §18 (Docker Compose)
 
 **Entregables:**
-- `go.mod` inicializado con módulo `github.com/senda-app/senda`
+- `go.mod` inicializado con módulo `github.com/rendis/senda`
 - Estructura de carpetas: `cmd/senda/`, `internal/{domain,port,service,resolution,adapter,http}/`, `migrations/`, `config/`, `pkg/`, `docker/`
 - `docker-compose.yml` con postgres:16-alpine + pg_cron (`shared_preload_libraries`), caddy (profile https)
 - `Dockerfile` (multi-stage: build + alpine runtime)

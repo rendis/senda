@@ -14,11 +14,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/handler"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
 )
 
 // mockTxBeginner returns a no-op mock transaction for handler tests.

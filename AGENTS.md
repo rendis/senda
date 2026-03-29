@@ -4,7 +4,7 @@
 
 Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements a 3-level hierarchy (Global → Tenant → Workspace) with inheritance chain resolution for templates, injectors, and adapters.
 
-- **Module:** `github.com/senda-app/senda`
+- **Module:** `github.com/rendis/senda`
 - **Backend:** Go 1.25+ / PostgreSQL 16 + pg_cron / Echo v5 / River (PG-native queue) / pgx v5 / gomjml / golang-migrate
 - **Frontend:** Next.js 16 / React 19 / TypeScript 5 / Tailwind v4 / shadcn/ui (in `web/`)
 - **Architecture:** Hexagonal (Ports & Adapters) — domain has zero infra dependencies
@@ -438,7 +438,7 @@ grep "dependencies:" stories/backlog/HT-XX.md
 2. **Read the referenced TECH_SPEC sections** (listed in `spec_sections` front matter)
 3. **Write tests first** (TDD — Red → Green → Refactor)
 4. **Follow project conventions:**
-   - Go module: `github.com/senda-app/senda`
+   - Go module: `github.com/rendis/senda`
    - Folder structure per §9 of TECH_SPEC
    - Interfaces in `internal/port/`
    - Domain models in `internal/domain/`
@@ -576,7 +576,7 @@ my-senda-app/
 │       └── institution.go   Custom injector: institution data
 ├── internal/                Private data sources (MongoDB, APIs, etc.)
 ├── config.yaml              Senda config (DB, OIDC, providers)
-└── go.mod                   requires github.com/senda-app/senda
+└── go.mod                   requires github.com/rendis/senda
 ```
 
 ---

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
 )
 
 func setupRateLimiter(t *testing.T) (*pgadapter.ProviderRateLimiter, *pgxpool.Pool) {

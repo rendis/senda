@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/senda-app/senda/internal/openapi"
+	"github.com/rendis/senda/internal/openapi"
 )
 
 func main() {

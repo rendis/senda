@@ -1,6 +1,6 @@
 package sdk
 
-import "github.com/senda-app/senda/internal/port"
+import "github.com/rendis/senda/internal/port"
 
 // InjectorContext is the read-only context passed to code injectors and
 // the init function during send resolution. See port.InjectorContext for

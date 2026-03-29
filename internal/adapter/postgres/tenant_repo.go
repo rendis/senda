@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/pkg/apperr"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // TenantRepo implements port.TenantStore using PostgreSQL.

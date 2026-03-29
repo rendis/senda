@@ -10,10 +10,10 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/echotest"
-	"github.com/senda-app/senda/config"
-	sendahttp "github.com/senda-app/senda/internal/http"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/config"
+	sendahttp "github.com/rendis/senda/internal/http"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 func testConfig() *config.Config {

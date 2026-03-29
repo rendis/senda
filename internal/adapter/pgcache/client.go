@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/pkg/apperr"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // PGCache implements port.Cache using a PostgreSQL UNLOGGED table.

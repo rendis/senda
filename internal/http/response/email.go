@@ -1,7 +1,7 @@
 package response
 
 import (
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // EmailResponse is the JSON response for an email record.

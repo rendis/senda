@@ -1,6 +1,6 @@
 package response
 
-import "github.com/senda-app/senda/internal/service"
+import "github.com/rendis/senda/internal/service"
 
 // SendEmailResponse is the JSON response for POST /api/v1/send.
 type SendEmailResponse struct {

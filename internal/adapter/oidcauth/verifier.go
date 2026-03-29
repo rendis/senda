@@ -7,7 +7,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // OIDCVerifier implements port.OIDCVerifier using a real OIDC provider (e.g. Keycloak).

@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v5/echotest"
-	"github.com/senda-app/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/http/handler"
 )
 
 // makeTestJPEG returns raw JPEG bytes for a solid-colour 200×150 image.

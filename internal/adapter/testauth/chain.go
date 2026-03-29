@@ -3,7 +3,7 @@ package testauth
 import (
 	"context"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // ChainVerifier tries multiple OIDCVerifiers in order,

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // GlobalConfigRepo implements port.GlobalConfigStore using PostgreSQL.

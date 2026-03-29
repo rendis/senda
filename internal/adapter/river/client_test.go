@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	goriver "github.com/riverqueue/river"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // --- Job Args tests ---

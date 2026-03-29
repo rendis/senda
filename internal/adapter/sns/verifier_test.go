@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/senda-app/senda/internal/adapter/sns"
+	"github.com/rendis/senda/internal/adapter/sns"
 )
 
 // testCert generates a self-signed RSA cert+key pair for testing.

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/senda-app/senda/internal/teststack"
+	"github.com/rendis/senda/internal/teststack"
 )
 
 func cmdStack(args []string) error {

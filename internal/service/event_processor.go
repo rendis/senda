@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // validTransitions defines forward-only status transitions.

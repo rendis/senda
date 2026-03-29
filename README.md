@@ -51,7 +51,7 @@ Most email services are either too simple (no multi-tenancy) or too complex (Kaf
 
 ```bash
 # 1. Clone and start
-git clone https://github.com/senda-app/senda.git && cd senda
+git clone https://github.com/rendis/senda.git && cd senda
 make dev
 
 # 2. Verify (wait ~30s for Keycloak)
@@ -79,7 +79,7 @@ Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with 
 Senda can be imported as a Go module. Register custom **code injectors** to feed business-specific data into templates, add an **init function** for shared per-request context, and wire **lifecycle hooks** for your infrastructure.
 
 ```bash
-go get github.com/senda-app/senda
+go get github.com/rendis/senda
 ```
 
 ```go
@@ -87,7 +87,7 @@ package main
 
 import (
     "context"
-    "github.com/senda-app/senda/sdk"
+    "github.com/rendis/senda/sdk"
 )
 
 func main() {
@@ -146,7 +146,7 @@ func (i *StudentInjector) Timeout() time.Duration   { return 10 * time.Second }
 
 **What's internal (config):** Email senders (SES/Gmail/SMTP), cache, crypto, queue, rate limiter, auth, middleware, resolution engine. All managed via YAML config.
 
-Update Senda independently — `go get -u github.com/senda-app/senda@latest` — your extensions keep working.
+Update Senda independently — `go get -u github.com/rendis/senda@latest` — your extensions keep working.
 
 ---
 

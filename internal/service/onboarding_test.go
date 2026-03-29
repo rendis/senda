@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
 )
 
 // mockTxBeginner is a test-only TxBeginner that returns a mock transaction.

@@ -1,7 +1,7 @@
 package response
 
 import (
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // MemberResponse is the JSON response for a single member.

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // CacheInvalidator provides methods to invalidate resolution cache entries

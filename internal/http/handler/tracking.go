@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/service"
-	"github.com/senda-app/senda/internal/tracking"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/internal/tracking"
 )
 
 // TrackingHandler serves the open-tracking pixel endpoint.

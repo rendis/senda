@@ -11,12 +11,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/handler"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
 )
 
 // --- Mock TemplateStore ---

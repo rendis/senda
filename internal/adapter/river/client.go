@@ -13,7 +13,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 // SendJobArgs are the args for the send email worker.

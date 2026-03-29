@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 // OIDCOnly returns middleware that rejects non-OIDC authentication.

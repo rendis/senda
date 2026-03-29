@@ -2,8 +2,8 @@ package handler
 
 import (
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // resolveWorkspace looks up a workspace by :tenant_code and :workspace_code path params.

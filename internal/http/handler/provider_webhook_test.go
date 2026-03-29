@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5/echotest"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/handler"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/service"
 )
 
 // --- Provider webhook mocks ---

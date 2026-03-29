@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // TxBeginner abstracts transaction creation so the service can be tested

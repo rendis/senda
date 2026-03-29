@@ -19,11 +19,11 @@ import (
 
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
 	awssns "github.com/aws/aws-sdk-go-v2/service/sns"
-	"github.com/senda-app/senda/internal/adapter/crypto"
-	"github.com/senda-app/senda/internal/adapter/postgres"
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/adapter/crypto"
+	"github.com/rendis/senda/internal/adapter/postgres"
+	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 func TestAWS01_SESAdapterEndpointURLAndTrackingProvisioner(t *testing.T) {

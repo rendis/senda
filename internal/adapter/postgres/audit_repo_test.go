@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 func newTestAuditLog(tenantID *uuid.UUID) *domain.AuditLog {

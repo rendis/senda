@@ -2,8 +2,8 @@
 package main
 
 import (
-	"github.com/senda-app/senda/internal/http/request"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 var (

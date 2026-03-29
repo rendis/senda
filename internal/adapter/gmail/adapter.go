@@ -19,7 +19,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/port"
 )
 
 var safeHeaderKeyRe = regexp.MustCompile(`^[A-Za-z0-9-]+$`)

@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
 )
 
 const (

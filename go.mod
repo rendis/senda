@@ -1,4 +1,4 @@
-module github.com/senda-app/senda
+module github.com/rendis/senda
 
 go 1.25.1
 

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 func setupSendErrorContext(t *testing.T) (*echo.Context, *httptest.ResponseRecorder) {

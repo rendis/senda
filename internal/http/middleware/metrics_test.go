@@ -8,8 +8,8 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/metrics"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/metrics"
 )
 
 // resetHTTPMetrics re-creates the HTTP metrics collectors fresh

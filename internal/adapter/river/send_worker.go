@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	goriver "github.com/riverqueue/river"
 
-	gmailadapter "github.com/senda-app/senda/internal/adapter/gmail"
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/metrics"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/tracking"
+	gmailadapter "github.com/rendis/senda/internal/adapter/gmail"
+	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/metrics"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/tracking"
 )
 
 // AdapterSenderFactory creates a provider sender from a resolved adapter config.

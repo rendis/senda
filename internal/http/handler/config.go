@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/request"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // OIDCInfo holds read-only OIDC configuration exposed in the config response.

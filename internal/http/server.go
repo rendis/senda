@@ -11,12 +11,12 @@ import (
 	"github.com/labstack/echo/v5"
 	echomw "github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/senda-app/senda/config"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/handler"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // Server wraps the Echo instance with application configuration and logger.

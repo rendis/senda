@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/handler"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 // --- Helpers ---

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/pkg/apperr"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // TemplateTypeService handles template type business logic.

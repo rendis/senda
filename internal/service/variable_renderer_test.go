@@ -3,7 +3,7 @@ package service_test
 import (
 	"testing"
 
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/service"
 )
 
 func TestVariableRenderer_Render_EventVars(t *testing.T) {

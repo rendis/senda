@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/pkg/apperr"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 func createTestMember(ctx context.Context, t *testing.T, repo *pgadapter.MemberRepo) *domain.Member {

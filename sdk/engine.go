@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/senda-app/senda/config"
-	"github.com/senda-app/senda/internal/app"
-	"github.com/senda-app/senda/internal/metrics"
+	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/internal/app"
+	"github.com/rendis/senda/internal/metrics"
 )
 
 // Engine is the main entry point for running Senda as a library.

@@ -1,7 +1,7 @@
 package response
 
 import (
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // OIDCConfigResponse is the read-only OIDC section of the config response.

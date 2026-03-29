@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/service"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/service"
 )
 
 func TestTemplateTypeService_Create_Success(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // DashboardStatsParams defines the scope and time range for dashboard queries.

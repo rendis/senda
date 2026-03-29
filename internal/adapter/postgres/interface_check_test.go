@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/senda-app/senda/internal/port"
+import "github.com/rendis/senda/internal/port"
 
 // Compile-time interface satisfaction checks.
 var (

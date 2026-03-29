@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/senda-app/senda/internal/adapter/mjml"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/adapter/mjml"
+	"github.com/rendis/senda/internal/port"
 )
 
 func TestCompiler_ImplementsInterface(t *testing.T) {

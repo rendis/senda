@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/senda-app/senda/internal/adapter/crypto"
+	"github.com/rendis/senda/internal/adapter/crypto"
 )
 
 const validMasterKey = "this-is-a-valid-master-key-32chars!"

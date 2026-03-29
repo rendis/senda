@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // AuditRepo implements port.AuditLogStore using PostgreSQL.

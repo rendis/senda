@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/config"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/config"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
 )
 
 func TestConnect(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/middleware"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // DataPlaneEmailHandler handles API-key-scoped email query endpoints.

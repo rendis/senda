@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/senda-app/senda/sdk"
+	"github.com/rendis/senda/sdk"
 )
 
 // @title           Senda API

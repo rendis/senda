@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	sendaresponse "github.com/senda-app/senda/internal/http/response"
+	sendaresponse "github.com/rendis/senda/internal/http/response"
 )
 
 const (

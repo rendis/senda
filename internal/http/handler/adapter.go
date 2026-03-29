@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/pagination"
-	"github.com/senda-app/senda/internal/http/request"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/pagination"
+	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // AdapterHandler handles CRUD operations for email adapters.

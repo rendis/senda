@@ -1,9 +1,9 @@
 # Extensibility Guide
 
-Senda can be used as a Go library. Import `github.com/senda-app/senda/sdk`, create an Engine, register your extensions, and call `Run()`. Update Senda independently — your extensions keep working.
+Senda can be used as a Go library. Import `github.com/rendis/senda/sdk`, create an Engine, register your extensions, and call `Run()`. Update Senda independently — your extensions keep working.
 
 ```bash
-go get github.com/senda-app/senda
+go get github.com/rendis/senda
 ```
 
 ---
@@ -454,7 +454,7 @@ my-senda-app/
 │   └── shared/                   JWT utilities, helpers
 ├── settings/
 │   └── app.yaml                  Senda YAML configuration
-├── go.mod                        requires github.com/senda-app/senda
+├── go.mod                        requires github.com/rendis/senda
 └── go.sum
 ```
 
@@ -467,7 +467,7 @@ import (
     "log/slog"
     "os"
 
-    "github.com/senda-app/senda/sdk"
+    "github.com/rendis/senda/sdk"
     "my-senda-app/extensions"
 )
 
@@ -490,7 +490,7 @@ package extensions
 import (
     "context"
     "my-senda-app/extensions/injectors"
-    "github.com/senda-app/senda/sdk"
+    "github.com/rendis/senda/sdk"
 )
 
 var mongoClient *mongo.Client
@@ -538,7 +538,7 @@ import (
     "fmt"
     "time"
 
-    "github.com/senda-app/senda/sdk"
+    "github.com/rendis/senda/sdk"
 )
 
 // AdmissionInjector provides admission-related fields to email templates.

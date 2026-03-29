@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5/echotest"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/http/pagination"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/pagination"
 )
 
 func TestEncodeDecode_Roundtrip(t *testing.T) {

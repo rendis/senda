@@ -12,8 +12,8 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/senda-app/senda/config"
-	"github.com/senda-app/senda/pkg/apperr"
+	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // Connect creates a new pgxpool.Pool from the given DatabaseConfig.

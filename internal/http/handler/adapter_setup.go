@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/domain"
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
 )
 
 // AdapterSetupHandler serves tracking setup guides and auto-provisioning for adapters.

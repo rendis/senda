@@ -1,8 +1,8 @@
 package response
 
 import (
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // AdapterResponse is the JSON response for an adapter.

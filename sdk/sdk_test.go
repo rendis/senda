@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/senda-app/senda/sdk"
+	"github.com/rendis/senda/sdk"
 )
 
 // testInjector is a minimal Injector implementation for compile verification.

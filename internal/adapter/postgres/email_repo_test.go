@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // emailTestDeps holds common dependencies for email tests.

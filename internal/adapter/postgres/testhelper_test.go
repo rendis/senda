@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

@@ -1,6 +1,6 @@
 package response
 
-import "github.com/senda-app/senda/internal/domain"
+import "github.com/rendis/senda/internal/domain"
 
 // AdapterIdentityResponse is the JSON response for an adapter identity.
 type AdapterIdentityResponse struct {

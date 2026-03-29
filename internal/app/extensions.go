@@ -1,6 +1,6 @@
 package app
 
-import "github.com/senda-app/senda/internal/port"
+import "github.com/rendis/senda/internal/port"
 
 // Extensions holds user-provided extensions registered via the SDK Engine.
 // When nil or empty, Senda runs with built-in behavior only.

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/senda-app/senda/internal/adapter/testauth"
+	"github.com/rendis/senda/internal/adapter/testauth"
 )
 
 const (

@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/request"
-	"github.com/senda-app/senda/internal/http/response"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/internal/service"
-	"github.com/senda-app/senda/pkg/slug"
+	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/pkg/slug"
 )
 
 // OnboardingHandler handles the first-use onboarding endpoints.

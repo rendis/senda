@@ -185,7 +185,7 @@ go test -tags=e2e -v ./test/e2e/...
 === RUN   TestF02_SetupWorkspace/POST_/injectors_create_global_injector
     helpers.go:115: Status: 201 Created ✓
 ...
-ok  	github.com/senda-app/senda/test/e2e	15.234s
+ok  	github.com/rendis/senda/test/e2e	15.234s
 ```
 
 ---

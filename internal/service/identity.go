@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // IdentityProviderFactory creates an IdentityProvider from an adapter and its decrypted config.

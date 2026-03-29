@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/senda-app/senda/internal/domain"
+	"github.com/rendis/senda/internal/domain"
 )
 
 func TestDefaultIdentityProviderFactory_SESMissingRegion(t *testing.T) {

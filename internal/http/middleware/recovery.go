@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/response"
+	"github.com/rendis/senda/internal/http/response"
 )
 
 // Recovery returns middleware that recovers from panics in downstream handlers.

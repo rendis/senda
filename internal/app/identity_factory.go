@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	gmailadapter "github.com/senda-app/senda/internal/adapter/gmail"
-	sesadapter "github.com/senda-app/senda/internal/adapter/ses"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	gmailadapter "github.com/rendis/senda/internal/adapter/gmail"
+	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // DefaultIdentityProviderFactory creates IdentityProvider instances based on adapter type.

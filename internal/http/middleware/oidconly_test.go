@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v5"
-	"github.com/senda-app/senda/internal/http/middleware"
+	"github.com/rendis/senda/internal/http/middleware"
 )
 
 func TestOIDCOnly_OIDCPassesThrough(t *testing.T) {

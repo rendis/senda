@@ -16,8 +16,8 @@ import (
 	goriver "github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 // --- Mock HTTP client ---

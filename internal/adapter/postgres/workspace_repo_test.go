@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	pgadapter "github.com/senda-app/senda/internal/adapter/postgres"
-	"github.com/senda-app/senda/internal/domain"
-	"github.com/senda-app/senda/internal/port"
-	"github.com/senda-app/senda/pkg/apperr"
+	pgadapter "github.com/rendis/senda/internal/adapter/postgres"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // createTestTenant is a helper that creates a tenant for workspace tests.
