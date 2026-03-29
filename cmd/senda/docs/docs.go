@@ -48,7 +48,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailListResponse"
                         }
                     },
                     "400": {
@@ -191,7 +191,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailDetailResponse"
                         }
                     },
                     "400": {
@@ -267,7 +267,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailEventResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailEventResponse"
                         }
                     },
                     "400": {
@@ -334,7 +334,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.ConfigResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.ConfigResponse"
                         }
                     },
                     "400": {
@@ -405,7 +405,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateConfigRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateConfigRequest"
                         }
                     }
                 ],
@@ -413,7 +413,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.ConfigResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.ConfigResponse"
                         }
                     },
                     "400": {
@@ -494,7 +494,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterListResponse"
                         }
                     },
                     "400": {
@@ -565,7 +565,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateAdapterRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateAdapterRequest"
                         }
                     }
                 ],
@@ -573,7 +573,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -649,7 +649,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -727,7 +727,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest"
                         }
                     }
                 ],
@@ -735,7 +735,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -961,7 +961,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -1039,7 +1039,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest"
                         }
                     }
                 ],
@@ -1047,7 +1047,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterIdentityResponse"
                         }
                     },
                     "400": {
@@ -1365,7 +1365,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -1522,7 +1522,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AuditLogListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AuditLogListResponse"
                         }
                     },
                     "400": {
@@ -1589,7 +1589,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardStatsResponse"
                         }
                     },
                     "400": {
@@ -1656,7 +1656,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorListResponse"
                         }
                     },
                     "400": {
@@ -1727,7 +1727,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateInjectorRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest"
                         }
                     }
                 ],
@@ -1735,7 +1735,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {
@@ -1811,7 +1811,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {
@@ -1892,7 +1892,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeListResponse"
                         }
                     },
                     "400": {
@@ -1963,7 +1963,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest"
                         }
                     }
                 ],
@@ -1971,7 +1971,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeResponse"
                         }
                     },
                     "400": {
@@ -2047,7 +2047,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeResponse"
                         }
                     },
                     "400": {
@@ -2135,7 +2135,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateListResponse"
                         }
                     },
                     "400": {
@@ -2208,7 +2208,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateTemplateRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateTemplateRequest"
                         }
                     }
                 ],
@@ -2216,7 +2216,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateResponse"
                         }
                     },
                     "400": {
@@ -2448,7 +2448,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.MJMLPreviewRequest"
                         }
                     }
                 ],
@@ -2456,7 +2456,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MJMLPreviewResponse"
                         }
                     },
                     "400": {
@@ -2608,7 +2608,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionListResponse"
                         }
                     },
                     "400": {
@@ -2686,7 +2686,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateVersionRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateVersionRequest"
                         }
                     }
                 ],
@@ -2694,7 +2694,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -2777,7 +2777,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -2862,7 +2862,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateVersionRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateVersionRequest"
                         }
                     }
                 ],
@@ -2870,7 +2870,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -2953,7 +2953,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -3043,7 +3043,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -3135,7 +3135,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SetLocaleRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SetLocaleRequest"
                         }
                     }
                 ],
@@ -3143,7 +3143,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -3235,7 +3235,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SetLocaleRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SetLocaleRequest"
                         }
                     }
                 ],
@@ -3243,7 +3243,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -3495,7 +3495,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberListResponse"
                         }
                     },
                     "400": {
@@ -3566,7 +3566,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateMemberRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateMemberRequest"
                         }
                     }
                 ],
@@ -3574,7 +3574,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberResponse"
                         }
                     },
                     "400": {
@@ -3650,7 +3650,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse"
                         }
                     },
                     "400": {
@@ -3730,7 +3730,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.AddRoleRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.AddRoleRequest"
                         }
                     }
                 ],
@@ -3738,7 +3738,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberRoleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberRoleResponse"
                         }
                     },
                     "400": {
@@ -3902,7 +3902,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantListResponse"
                         }
                     },
                     "400": {
@@ -3973,7 +3973,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateTenantRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateTenantRequest"
                         }
                     }
                 ],
@@ -3981,7 +3981,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantResponse"
                         }
                     },
                     "400": {
@@ -4057,7 +4057,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantResponse"
                         }
                     },
                     "400": {
@@ -4135,7 +4135,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateTenantRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateTenantRequest"
                         }
                     }
                 ],
@@ -4143,7 +4143,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantResponse"
                         }
                     },
                     "400": {
@@ -4217,7 +4217,7 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantResponse"
                         }
                     },
                     "400": {
@@ -4293,7 +4293,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardStatsResponse"
                         }
                     },
                     "400": {
@@ -4381,7 +4381,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceListResponse"
                         }
                     },
                     "400": {
@@ -4459,7 +4459,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateWorkspaceRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateWorkspaceRequest"
                         }
                     }
                 ],
@@ -4467,7 +4467,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceResponse"
                         }
                     },
                     "400": {
@@ -4550,7 +4550,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceResponse"
                         }
                     },
                     "400": {
@@ -4635,7 +4635,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateWorkspaceRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateWorkspaceRequest"
                         }
                     }
                 ],
@@ -4643,7 +4643,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceResponse"
                         }
                     },
                     "400": {
@@ -4724,7 +4724,7 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceResponse"
                         }
                     },
                     "400": {
@@ -4819,7 +4819,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterListResponse"
                         }
                     },
                     "400": {
@@ -4904,7 +4904,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateAdapterRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateAdapterRequest"
                         }
                     }
                 ],
@@ -4912,7 +4912,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -5002,7 +5002,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -5094,7 +5094,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest"
                         }
                     }
                 ],
@@ -5102,7 +5102,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -5370,7 +5370,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -5462,7 +5462,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest"
                         }
                     }
                 ],
@@ -5470,7 +5470,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterIdentityResponse"
                         }
                     },
                     "400": {
@@ -5844,7 +5844,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                         }
                     },
                     "400": {
@@ -6029,7 +6029,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.APIKeyListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.APIKeyListResponse"
                         }
                     },
                     "400": {
@@ -6114,7 +6114,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateAPIKeyRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateAPIKeyRequest"
                         }
                     }
                 ],
@@ -6122,7 +6122,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.APIKeyCreatedResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.APIKeyCreatedResponse"
                         }
                     },
                     "400": {
@@ -6307,7 +6307,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AuditLogListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AuditLogListResponse"
                         }
                     },
                     "400": {
@@ -6390,7 +6390,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardStatsResponse"
                         }
                     },
                     "400": {
@@ -6485,7 +6485,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailListResponse"
                         }
                     },
                     "400": {
@@ -6575,7 +6575,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailDetailResponse"
                         }
                     },
                     "400": {
@@ -6665,7 +6665,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailEventResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailEventResponse"
                         }
                     },
                     "400": {
@@ -6748,7 +6748,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorListResponse"
                         }
                     },
                     "400": {
@@ -6833,7 +6833,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateInjectorRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest"
                         }
                     }
                 ],
@@ -6841,7 +6841,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {
@@ -6931,7 +6931,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {
@@ -7025,7 +7025,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SetInjectorValuesRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SetInjectorValuesRequest"
                         }
                     }
                 ],
@@ -7120,7 +7120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.AddSuppressionRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.AddSuppressionRequest"
                         }
                     }
                 ],
@@ -7128,7 +7128,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.SuppressionWorkspaceResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SuppressionWorkspaceResponse"
                         }
                     },
                     "400": {
@@ -7218,7 +7218,7 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.SuppressionCheckResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SuppressionCheckResponse"
                         }
                     },
                     "400": {
@@ -7401,7 +7401,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeListResponse"
                         }
                     },
                     "400": {
@@ -7486,7 +7486,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest"
                         }
                     }
                 ],
@@ -7494,7 +7494,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeResponse"
                         }
                     },
                     "400": {
@@ -7584,7 +7584,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeResponse"
                         }
                     },
                     "400": {
@@ -7686,7 +7686,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateListResponse"
                         }
                     },
                     "400": {
@@ -7773,7 +7773,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateTemplateRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateTemplateRequest"
                         }
                     }
                 ],
@@ -7781,7 +7781,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateResponse"
                         }
                     },
                     "400": {
@@ -8055,7 +8055,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.MJMLPreviewRequest"
                         }
                     }
                 ],
@@ -8063,7 +8063,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MJMLPreviewResponse"
                         }
                     },
                     "400": {
@@ -8243,7 +8243,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionListResponse"
                         }
                     },
                     "400": {
@@ -8335,7 +8335,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateVersionRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateVersionRequest"
                         }
                     }
                 ],
@@ -8343,7 +8343,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -8440,7 +8440,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -8539,7 +8539,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateVersionRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateVersionRequest"
                         }
                     }
                 ],
@@ -8547,7 +8547,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -8644,7 +8644,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                         }
                     },
                     "400": {
@@ -8748,7 +8748,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -8854,7 +8854,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SetLocaleRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SetLocaleRequest"
                         }
                     }
                 ],
@@ -8862,7 +8862,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -8968,7 +8968,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SetLocaleRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SetLocaleRequest"
                         }
                     }
                 ],
@@ -8976,7 +8976,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse"
                         }
                     },
                     "400": {
@@ -9270,7 +9270,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WebhookListResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WebhookListResponse"
                         }
                     },
                     "400": {
@@ -9355,7 +9355,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateWebhookRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateWebhookRequest"
                         }
                     }
                 ],
@@ -9363,7 +9363,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WebhookCreatedResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WebhookCreatedResponse"
                         }
                     },
                     "400": {
@@ -9453,7 +9453,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WebhookResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WebhookResponse"
                         }
                     },
                     "400": {
@@ -9545,7 +9545,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.UpdateWebhookRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.UpdateWebhookRequest"
                         }
                     }
                 ],
@@ -9553,7 +9553,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WebhookResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WebhookResponse"
                         }
                     },
                     "400": {
@@ -9798,7 +9798,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse"
                         }
                     },
                     "400": {
@@ -9871,7 +9871,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.OnboardingSetupRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.OnboardingSetupRequest"
                         }
                     }
                 ],
@@ -9879,7 +9879,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OnboardingSetupResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OnboardingSetupResponse"
                         }
                     },
                     "400": {
@@ -9941,7 +9941,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OnboardingStatusResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OnboardingStatusResponse"
                         }
                     },
                     "400": {
@@ -10014,7 +10014,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.SendEmailRequest"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SendEmailRequest"
                         }
                     }
                 ],
@@ -10022,7 +10022,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.SendEmailResponse"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SendEmailResponse"
                         }
                     },
                     "400": {
@@ -10497,7 +10497,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.AddRoleRequest": {
+        "github_com_rendis_senda_internal_http_request.AddRoleRequest": {
             "type": "object",
             "properties": {
                 "role": {
@@ -10514,7 +10514,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.AddSuppressionRequest": {
+        "github_com_rendis_senda_internal_http_request.AddSuppressionRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -10528,7 +10528,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.AlertsUpdate": {
+        "github_com_rendis_senda_internal_http_request.AlertsUpdate": {
             "type": "object",
             "properties": {
                 "bounce_threshold_percent": {
@@ -10539,7 +10539,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateAPIKeyRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateAPIKeyRequest": {
             "type": "object",
             "properties": {
                 "name": {
@@ -10547,7 +10547,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateAdapterRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateAdapterRequest": {
             "type": "object",
             "properties": {
                 "adapter_type": {
@@ -10570,7 +10570,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateInjectorField": {
+        "github_com_rendis_senda_internal_http_request.CreateInjectorField": {
             "type": "object",
             "properties": {
                 "description": {
@@ -10587,7 +10587,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateInjectorRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateInjectorRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -10596,7 +10596,7 @@ const docTemplate = `{
                 "fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.CreateInjectorField"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorField"
                     }
                 },
                 "name": {
@@ -10604,7 +10604,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest": {
             "type": "object",
             "properties": {
                 "display_name": {
@@ -10615,7 +10615,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateMemberRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateMemberRequest": {
             "type": "object",
             "properties": {
                 "display_name": {
@@ -10626,7 +10626,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateTemplateRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateTemplateRequest": {
             "type": "object",
             "properties": {
                 "template_type_id": {
@@ -10634,7 +10634,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -10657,7 +10657,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateTenantRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateTenantRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -10668,7 +10668,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateVersionRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateVersionRequest": {
             "type": "object",
             "properties": {
                 "body_mjml": {
@@ -10697,7 +10697,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateWebhookRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateWebhookRequest": {
             "type": "object",
             "properties": {
                 "events": {
@@ -10712,7 +10712,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.CreateWorkspaceRequest": {
+        "github_com_rendis_senda_internal_http_request.CreateWorkspaceRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -10726,7 +10726,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.DomainUpdate": {
+        "github_com_rendis_senda_internal_http_request.DomainUpdate": {
             "type": "object",
             "properties": {
                 "recheck_interval_hours": {
@@ -10734,7 +10734,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.EmailDefaultsUpdate": {
+        "github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate": {
             "type": "object",
             "properties": {
                 "backoff_base_seconds": {
@@ -10748,7 +10748,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.InjectorFieldValue": {
+        "github_com_rendis_senda_internal_http_request.InjectorFieldValue": {
             "type": "object",
             "properties": {
                 "field_name": {
@@ -10759,7 +10759,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest": {
+        "github_com_rendis_senda_internal_http_request.MJMLPreviewRequest": {
             "type": "object",
             "properties": {
                 "mjml": {
@@ -10767,7 +10767,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.OnboardingSetupRequest": {
+        "github_com_rendis_senda_internal_http_request.OnboardingSetupRequest": {
             "type": "object",
             "properties": {
                 "tenant_code": {
@@ -10778,7 +10778,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.SendEmailRequest": {
+        "github_com_rendis_senda_internal_http_request.SendEmailRequest": {
             "type": "object",
             "properties": {
                 "bcc": {
@@ -10814,18 +10814,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.SetInjectorValuesRequest": {
+        "github_com_rendis_senda_internal_http_request.SetInjectorValuesRequest": {
             "type": "object",
             "properties": {
                 "values": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.InjectorFieldValue"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.InjectorFieldValue"
                     }
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.SetLocaleRequest": {
+        "github_com_rendis_senda_internal_http_request.SetLocaleRequest": {
             "type": "object",
             "properties": {
                 "body_mjml": {
@@ -10848,7 +10848,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest": {
+        "github_com_rendis_senda_internal_http_request.UpdateAdapterRequest": {
             "type": "object",
             "properties": {
                 "config": {
@@ -10871,21 +10871,21 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.UpdateConfigRequest": {
+        "github_com_rendis_senda_internal_http_request.UpdateConfigRequest": {
             "type": "object",
             "properties": {
                 "alerts": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.AlertsUpdate"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.AlertsUpdate"
                 },
                 "domain": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.DomainUpdate"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.DomainUpdate"
                 },
                 "email_defaults": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_request.EmailDefaultsUpdate"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate"
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.UpdateTenantRequest": {
+        "github_com_rendis_senda_internal_http_request.UpdateTenantRequest": {
             "type": "object",
             "properties": {
                 "name": {
@@ -10893,7 +10893,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.UpdateWebhookRequest": {
+        "github_com_rendis_senda_internal_http_request.UpdateWebhookRequest": {
             "type": "object",
             "properties": {
                 "events": {
@@ -10910,7 +10910,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_request.UpdateWorkspaceRequest": {
+        "github_com_rendis_senda_internal_http_request.UpdateWorkspaceRequest": {
             "type": "object",
             "properties": {
                 "default_locale": {
@@ -10924,7 +10924,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.APIKeyCreatedResponse": {
+        "github_com_rendis_senda_internal_http_response.APIKeyCreatedResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -10947,7 +10947,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.APIKeyListResponse": {
+        "github_com_rendis_senda_internal_http_response.APIKeyListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -10956,7 +10956,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.APIKeyResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.APIKeyResponse"
                     }
                 },
                 "next_cursor": {
@@ -10964,7 +10964,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.APIKeyResponse": {
+        "github_com_rendis_senda_internal_http_response.APIKeyResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -10990,7 +10990,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse": {
+        "github_com_rendis_senda_internal_http_response.AdapterIdentityResponse": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -11031,7 +11031,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AdapterListResponse": {
+        "github_com_rendis_senda_internal_http_response.AdapterListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11040,7 +11040,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AdapterResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse"
                     }
                 },
                 "next_cursor": {
@@ -11048,7 +11048,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AdapterResponse": {
+        "github_com_rendis_senda_internal_http_response.AdapterResponse": {
             "type": "object",
             "properties": {
                 "adapter_type": {
@@ -11077,7 +11077,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AlertsConfigResponse": {
+        "github_com_rendis_senda_internal_http_response.AlertsConfigResponse": {
             "type": "object",
             "properties": {
                 "bounce_threshold_percent": {
@@ -11088,7 +11088,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AuditLogListResponse": {
+        "github_com_rendis_senda_internal_http_response.AuditLogListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11097,7 +11097,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AuditLogResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AuditLogResponse"
                     }
                 },
                 "next_cursor": {
@@ -11105,7 +11105,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.AuditLogResponse": {
+        "github_com_rendis_senda_internal_http_response.AuditLogResponse": {
             "type": "object",
             "properties": {
                 "action": {
@@ -11148,24 +11148,24 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.ConfigResponse": {
+        "github_com_rendis_senda_internal_http_response.ConfigResponse": {
             "type": "object",
             "properties": {
                 "alerts": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.AlertsConfigResponse"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.AlertsConfigResponse"
                 },
                 "domain": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DomainConfigResponse"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DomainConfigResponse"
                 },
                 "email_defaults": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailDefaultsConfigResponse"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse"
                 },
                 "oidc": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OIDCConfigResponse"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OIDCConfigResponse"
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardActivityResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardActivityResp": {
             "type": "object",
             "properties": {
                 "action": {
@@ -11185,7 +11185,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardAdapterTotalsResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardAdapterTotalsResp": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -11198,11 +11198,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "totals": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardTotalsResp"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardTotalsResp"
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardRatesResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardRatesResp": {
             "type": "object",
             "properties": {
                 "bounce_rate": {
@@ -11216,7 +11216,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardRecentEmailResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardRecentEmailResp": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11239,42 +11239,42 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardStatsResponse": {
+        "github_com_rendis_senda_internal_http_response.DashboardStatsResponse": {
             "type": "object",
             "properties": {
                 "by_adapter": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardAdapterTotalsResp"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardAdapterTotalsResp"
                     }
                 },
                 "rates": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardRatesResp"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardRatesResp"
                 },
                 "recent_activity": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardActivityResp"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardActivityResp"
                     }
                 },
                 "recent_emails": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardRecentEmailResp"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardRecentEmailResp"
                     }
                 },
                 "time_series": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardTimePointResp"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardTimePointResp"
                     }
                 },
                 "totals": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.DashboardTotalsResp"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.DashboardTotalsResp"
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardTimePointResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardTimePointResp": {
             "type": "object",
             "properties": {
                 "bounced": {
@@ -11294,7 +11294,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DashboardTotalsResp": {
+        "github_com_rendis_senda_internal_http_response.DashboardTotalsResp": {
             "type": "object",
             "properties": {
                 "bounced": {
@@ -11314,7 +11314,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.DomainConfigResponse": {
+        "github_com_rendis_senda_internal_http_response.DomainConfigResponse": {
             "type": "object",
             "properties": {
                 "recheck_interval_hours": {
@@ -11322,7 +11322,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.EmailDefaultsConfigResponse": {
+        "github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse": {
             "type": "object",
             "properties": {
                 "backoff_base_seconds": {
@@ -11336,7 +11336,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.EmailDetailResponse": {
+        "github_com_rendis_senda_internal_http_response.EmailDetailResponse": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -11360,7 +11360,7 @@ const docTemplate = `{
                 "events": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailEventResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailEventResponse"
                     }
                 },
                 "external_id": {
@@ -11419,7 +11419,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.EmailEventResponse": {
+        "github_com_rendis_senda_internal_http_response.EmailEventResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11443,7 +11443,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.EmailListResponse": {
+        "github_com_rendis_senda_internal_http_response.EmailListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11452,7 +11452,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.EmailResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailResponse"
                     }
                 },
                 "next_cursor": {
@@ -11460,7 +11460,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.EmailResponse": {
+        "github_com_rendis_senda_internal_http_response.EmailResponse": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -11537,7 +11537,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.InjectorDefinitionResponse": {
+        "github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11560,7 +11560,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.InjectorDetailResponse": {
+        "github_com_rendis_senda_internal_http_response.InjectorDetailResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11572,7 +11572,7 @@ const docTemplate = `{
                 "fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorFieldResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorFieldResponse"
                     }
                 },
                 "id": {
@@ -11587,7 +11587,7 @@ const docTemplate = `{
                 "values": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorValueResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorValueResponse"
                     }
                 },
                 "workspace_id": {
@@ -11595,7 +11595,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.InjectorFieldResponse": {
+        "github_com_rendis_senda_internal_http_response.InjectorFieldResponse": {
             "type": "object",
             "properties": {
                 "description": {
@@ -11615,18 +11615,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.InjectorListResponse": {
+        "github_com_rendis_senda_internal_http_response.InjectorListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.InjectorDefinitionResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse"
                     }
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.InjectorValueResponse": {
+        "github_com_rendis_senda_internal_http_response.InjectorValueResponse": {
             "type": "object",
             "properties": {
                 "field_name": {
@@ -11646,7 +11646,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse": {
+        "github_com_rendis_senda_internal_http_response.MJMLPreviewResponse": {
             "type": "object",
             "properties": {
                 "html": {
@@ -11654,7 +11654,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.MemberListResponse": {
+        "github_com_rendis_senda_internal_http_response.MemberListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11663,7 +11663,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse"
                     }
                 },
                 "next_cursor": {
@@ -11671,7 +11671,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.MemberResponse": {
+        "github_com_rendis_senda_internal_http_response.MemberResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11691,7 +11691,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.MemberRoleResponse": {
+        "github_com_rendis_senda_internal_http_response.MemberRoleResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11717,7 +11717,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse": {
+        "github_com_rendis_senda_internal_http_response.MemberWithRolesResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11735,7 +11735,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.MemberRoleResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.MemberRoleResponse"
                     }
                 },
                 "updated_at": {
@@ -11743,7 +11743,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OIDCConfigResponse": {
+        "github_com_rendis_senda_internal_http_response.OIDCConfigResponse": {
             "type": "object",
             "properties": {
                 "client_id": {
@@ -11757,7 +11757,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OnboardingMemberSummary": {
+        "github_com_rendis_senda_internal_http_response.OnboardingMemberSummary": {
             "type": "object",
             "properties": {
                 "email": {
@@ -11768,21 +11768,21 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OnboardingSetupResponse": {
+        "github_com_rendis_senda_internal_http_response.OnboardingSetupResponse": {
             "type": "object",
             "properties": {
                 "member": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OnboardingMemberSummary"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OnboardingMemberSummary"
                 },
                 "tenant": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OnboardingTenantSummary"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OnboardingTenantSummary"
                 },
                 "workspace": {
-                    "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.OnboardingWorkspaceSummary"
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OnboardingWorkspaceSummary"
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OnboardingStatusResponse": {
+        "github_com_rendis_senda_internal_http_response.OnboardingStatusResponse": {
             "type": "object",
             "properties": {
                 "needs_onboarding": {
@@ -11790,7 +11790,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OnboardingTenantSummary": {
+        "github_com_rendis_senda_internal_http_response.OnboardingTenantSummary": {
             "type": "object",
             "properties": {
                 "code": {
@@ -11804,7 +11804,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.OnboardingWorkspaceSummary": {
+        "github_com_rendis_senda_internal_http_response.OnboardingWorkspaceSummary": {
             "type": "object",
             "properties": {
                 "code": {
@@ -11818,7 +11818,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.SendEmailResponse": {
+        "github_com_rendis_senda_internal_http_response.SendEmailResponse": {
             "type": "object",
             "properties": {
                 "external_id": {
@@ -11836,12 +11836,12 @@ const docTemplate = `{
                 "tracking_ids": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TrackingEntryResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TrackingEntryResponse"
                     }
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.SuppressionCheckResponse": {
+        "github_com_rendis_senda_internal_http_response.SuppressionCheckResponse": {
             "type": "object",
             "properties": {
                 "email": {
@@ -11855,7 +11855,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.SuppressionWorkspaceResponse": {
+        "github_com_rendis_senda_internal_http_response.SuppressionWorkspaceResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11881,7 +11881,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateListResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11890,7 +11890,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateResponse"
                     }
                 },
                 "next_cursor": {
@@ -11898,7 +11898,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -11921,7 +11921,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateTypeListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -11930,7 +11930,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateTypeResponse"
                     }
                 },
                 "next_cursor": {
@@ -11938,7 +11938,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateTypeResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateTypeResponse": {
             "type": "object",
             "properties": {
                 "adapter_id": {
@@ -11973,18 +11973,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateVersionListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateVersionResponse"
                     }
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse": {
             "type": "object",
             "properties": {
                 "body_mjml": {
@@ -12022,7 +12022,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TemplateVersionResponse": {
+        "github_com_rendis_senda_internal_http_response.TemplateVersionResponse": {
             "type": "object",
             "properties": {
                 "body_mjml": {
@@ -12075,7 +12075,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TenantListResponse": {
+        "github_com_rendis_senda_internal_http_response.TenantListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -12084,7 +12084,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.TenantResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TenantResponse"
                     }
                 },
                 "next_cursor": {
@@ -12092,7 +12092,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TenantResponse": {
+        "github_com_rendis_senda_internal_http_response.TenantResponse": {
             "type": "object",
             "properties": {
                 "code": {
@@ -12112,7 +12112,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.TrackingEntryResponse": {
+        "github_com_rendis_senda_internal_http_response.TrackingEntryResponse": {
             "type": "object",
             "properties": {
                 "to": {
@@ -12123,7 +12123,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.WebhookCreatedResponse": {
+        "github_com_rendis_senda_internal_http_response.WebhookCreatedResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -12149,7 +12149,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.WebhookListResponse": {
+        "github_com_rendis_senda_internal_http_response.WebhookListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -12158,7 +12158,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WebhookResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WebhookResponse"
                     }
                 },
                 "next_cursor": {
@@ -12166,7 +12166,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.WebhookResponse": {
+        "github_com_rendis_senda_internal_http_response.WebhookResponse": {
             "type": "object",
             "properties": {
                 "consecutive_failures": {
@@ -12201,7 +12201,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.WorkspaceListResponse": {
+        "github_com_rendis_senda_internal_http_response.WorkspaceListResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -12210,7 +12210,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_senda-app_senda_internal_http_response.WorkspaceResponse"
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.WorkspaceResponse"
                     }
                 },
                 "next_cursor": {
@@ -12218,7 +12218,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_senda-app_senda_internal_http_response.WorkspaceResponse": {
+        "github_com_rendis_senda_internal_http_response.WorkspaceResponse": {
             "type": "object",
             "properties": {
                 "code": {

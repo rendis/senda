@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://senda-app.github.io/schemas/system-run-result.schema.json",
+  "$id": "https://rendis.github.io/schemas/system-run-result.schema.json",
   "title": "System Test Run Result",
   "type": "object",
   "required": [

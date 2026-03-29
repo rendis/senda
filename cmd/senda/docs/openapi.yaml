@@ -28,7 +28,7 @@ components:
                 status:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.AddRoleRequest:
+        github_com_rendis_senda_internal_http_request.AddRoleRequest:
             properties:
                 role:
                     type: string
@@ -39,7 +39,7 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.AddSuppressionRequest:
+        github_com_rendis_senda_internal_http_request.AddSuppressionRequest:
             properties:
                 email:
                     type: string
@@ -48,19 +48,19 @@ components:
                 reason:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.AlertsUpdate:
+        github_com_rendis_senda_internal_http_request.AlertsUpdate:
             properties:
                 bounce_threshold_percent:
                     type: number
                 complaint_threshold_percent:
                     type: number
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateAPIKeyRequest:
+        github_com_rendis_senda_internal_http_request.CreateAPIKeyRequest:
             properties:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateAdapterRequest:
+        github_com_rendis_senda_internal_http_request.CreateAdapterRequest:
             properties:
                 adapter_type:
                     type: string
@@ -75,7 +75,7 @@ components:
                 rate_limit_per_second:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateInjectorField:
+        github_com_rendis_senda_internal_http_request.CreateInjectorField:
             properties:
                 description:
                     type: string
@@ -86,37 +86,37 @@ components:
                 position:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateInjectorRequest:
+        github_com_rendis_senda_internal_http_request.CreateInjectorRequest:
             properties:
                 description:
                     type: string
                 fields:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateInjectorField'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateInjectorField'
                     type: array
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest:
+        github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest:
             properties:
                 display_name:
                     type: string
                 identity:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateMemberRequest:
+        github_com_rendis_senda_internal_http_request.CreateMemberRequest:
             properties:
                 display_name:
                     type: string
                 email:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateTemplateRequest:
+        github_com_rendis_senda_internal_http_request.CreateTemplateRequest:
             properties:
                 template_type_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest:
+        github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest:
             properties:
                 adapter_id:
                     type: string
@@ -131,14 +131,14 @@ components:
                         type: integer
                     type: array
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateTenantRequest:
+        github_com_rendis_senda_internal_http_request.CreateTenantRequest:
             properties:
                 code:
                     type: string
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateVersionRequest:
+        github_com_rendis_senda_internal_http_request.CreateVersionRequest:
             properties:
                 body_mjml:
                     type: string
@@ -157,7 +157,7 @@ components:
                 subject:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateWebhookRequest:
+        github_com_rendis_senda_internal_http_request.CreateWebhookRequest:
             properties:
                 events:
                     description: e.g., ["email.sent", "email.delivered"] or ["*"]
@@ -167,7 +167,7 @@ components:
                 url:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.CreateWorkspaceRequest:
+        github_com_rendis_senda_internal_http_request.CreateWorkspaceRequest:
             properties:
                 code:
                     type: string
@@ -176,12 +176,12 @@ components:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.DomainUpdate:
+        github_com_rendis_senda_internal_http_request.DomainUpdate:
             properties:
                 recheck_interval_hours:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_request.EmailDefaultsUpdate:
+        github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate:
             properties:
                 backoff_base_seconds:
                     type: integer
@@ -190,26 +190,26 @@ components:
                 max_retries:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_request.InjectorFieldValue:
+        github_com_rendis_senda_internal_http_request.InjectorFieldValue:
             properties:
                 field_name:
                     type: string
                 value:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest:
+        github_com_rendis_senda_internal_http_request.MJMLPreviewRequest:
             properties:
                 mjml:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.OnboardingSetupRequest:
+        github_com_rendis_senda_internal_http_request.OnboardingSetupRequest:
             properties:
                 tenant_code:
                     type: string
                 tenant_name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.SendEmailRequest:
+        github_com_rendis_senda_internal_http_request.SendEmailRequest:
             properties:
                 bcc:
                     items:
@@ -233,14 +233,14 @@ components:
                     additionalProperties: {}
                     type: object
             type: object
-        github_com_senda-app_senda_internal_http_request.SetInjectorValuesRequest:
+        github_com_rendis_senda_internal_http_request.SetInjectorValuesRequest:
             properties:
                 values:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.InjectorFieldValue'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.InjectorFieldValue'
                     type: array
             type: object
-        github_com_senda-app_senda_internal_http_request.SetLocaleRequest:
+        github_com_rendis_senda_internal_http_request.SetLocaleRequest:
             properties:
                 body_mjml:
                     type: string
@@ -255,7 +255,7 @@ components:
                 subject:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest:
+        github_com_rendis_senda_internal_http_request.UpdateAdapterRequest:
             properties:
                 config:
                     items:
@@ -270,21 +270,21 @@ components:
                 rate_limit_per_second:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_request.UpdateConfigRequest:
+        github_com_rendis_senda_internal_http_request.UpdateConfigRequest:
             properties:
                 alerts:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.AlertsUpdate'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.AlertsUpdate'
                 domain:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.DomainUpdate'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.DomainUpdate'
                 email_defaults:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.EmailDefaultsUpdate'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate'
             type: object
-        github_com_senda-app_senda_internal_http_request.UpdateTenantRequest:
+        github_com_rendis_senda_internal_http_request.UpdateTenantRequest:
             properties:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.UpdateWebhookRequest:
+        github_com_rendis_senda_internal_http_request.UpdateWebhookRequest:
             properties:
                 events:
                     items:
@@ -295,7 +295,7 @@ components:
                 url:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_request.UpdateWorkspaceRequest:
+        github_com_rendis_senda_internal_http_request.UpdateWorkspaceRequest:
             properties:
                 default_locale:
                     type: string
@@ -304,7 +304,7 @@ components:
                 open_tracking_enabled:
                     type: boolean
             type: object
-        github_com_senda-app_senda_internal_http_response.APIKeyCreatedResponse:
+        github_com_rendis_senda_internal_http_response.APIKeyCreatedResponse:
             properties:
                 created_at:
                     type: string
@@ -319,18 +319,18 @@ components:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.APIKeyListResponse:
+        github_com_rendis_senda_internal_http_response.APIKeyListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.APIKeyResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.APIKeyResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.APIKeyResponse:
+        github_com_rendis_senda_internal_http_response.APIKeyResponse:
             properties:
                 created_at:
                     type: string
@@ -347,7 +347,7 @@ components:
                 revoked_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse:
+        github_com_rendis_senda_internal_http_response.AdapterIdentityResponse:
             properties:
                 adapter_id:
                     type: string
@@ -374,18 +374,18 @@ components:
                 updated_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.AdapterListResponse:
+        github_com_rendis_senda_internal_http_response.AdapterListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.AdapterResponse:
+        github_com_rendis_senda_internal_http_response.AdapterResponse:
             properties:
                 adapter_type:
                     type: string
@@ -404,25 +404,25 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.AlertsConfigResponse:
+        github_com_rendis_senda_internal_http_response.AlertsConfigResponse:
             properties:
                 bounce_threshold_percent:
                     type: number
                 complaint_threshold_percent:
                     type: number
             type: object
-        github_com_senda-app_senda_internal_http_response.AuditLogListResponse:
+        github_com_rendis_senda_internal_http_response.AuditLogListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AuditLogResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AuditLogResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.AuditLogResponse:
+        github_com_rendis_senda_internal_http_response.AuditLogResponse:
             properties:
                 action:
                     type: string
@@ -451,18 +451,18 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.ConfigResponse:
+        github_com_rendis_senda_internal_http_response.ConfigResponse:
             properties:
                 alerts:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AlertsConfigResponse'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AlertsConfigResponse'
                 domain:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DomainConfigResponse'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DomainConfigResponse'
                 email_defaults:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailDefaultsConfigResponse'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse'
                 oidc:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OIDCConfigResponse'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OIDCConfigResponse'
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardActivityResp:
+        github_com_rendis_senda_internal_http_response.DashboardActivityResp:
             properties:
                 action:
                     type: string
@@ -475,7 +475,7 @@ components:
                 id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardAdapterTotalsResp:
+        github_com_rendis_senda_internal_http_response.DashboardAdapterTotalsResp:
             properties:
                 adapter_id:
                     type: string
@@ -484,9 +484,9 @@ components:
                 adapter_type:
                     type: string
                 totals:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardTotalsResp'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardTotalsResp'
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardRatesResp:
+        github_com_rendis_senda_internal_http_response.DashboardRatesResp:
             properties:
                 bounce_rate:
                     type: number
@@ -495,7 +495,7 @@ components:
                 delivery_rate:
                     type: number
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardRecentEmailResp:
+        github_com_rendis_senda_internal_http_response.DashboardRecentEmailResp:
             properties:
                 created_at:
                     type: string
@@ -510,30 +510,30 @@ components:
                 tracking_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardStatsResponse:
+        github_com_rendis_senda_internal_http_response.DashboardStatsResponse:
             properties:
                 by_adapter:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardAdapterTotalsResp'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardAdapterTotalsResp'
                     type: array
                 rates:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardRatesResp'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardRatesResp'
                 recent_activity:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardActivityResp'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardActivityResp'
                     type: array
                 recent_emails:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardRecentEmailResp'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardRecentEmailResp'
                     type: array
                 time_series:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardTimePointResp'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardTimePointResp'
                     type: array
                 totals:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardTotalsResp'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardTotalsResp'
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardTimePointResp:
+        github_com_rendis_senda_internal_http_response.DashboardTimePointResp:
             properties:
                 bounced:
                     type: integer
@@ -546,7 +546,7 @@ components:
                 sent:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.DashboardTotalsResp:
+        github_com_rendis_senda_internal_http_response.DashboardTotalsResp:
             properties:
                 bounced:
                     type: integer
@@ -559,12 +559,12 @@ components:
                 sent:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.DomainConfigResponse:
+        github_com_rendis_senda_internal_http_response.DomainConfigResponse:
             properties:
                 recheck_interval_hours:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.EmailDefaultsConfigResponse:
+        github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse:
             properties:
                 backoff_base_seconds:
                     type: integer
@@ -573,7 +573,7 @@ components:
                 max_retries:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.EmailDetailResponse:
+        github_com_rendis_senda_internal_http_response.EmailDetailResponse:
             properties:
                 adapter_id:
                     type: string
@@ -589,7 +589,7 @@ components:
                     type: string
                 events:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailEventResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailEventResponse'
                     type: array
                 external_id:
                     type: string
@@ -628,7 +628,7 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.EmailEventResponse:
+        github_com_rendis_senda_internal_http_response.EmailEventResponse:
             properties:
                 created_at:
                     type: string
@@ -644,18 +644,18 @@ components:
                 occurred_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.EmailListResponse:
+        github_com_rendis_senda_internal_http_response.EmailListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.EmailResponse:
+        github_com_rendis_senda_internal_http_response.EmailResponse:
             properties:
                 adapter_id:
                     type: string
@@ -706,7 +706,7 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.InjectorDefinitionResponse:
+        github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse:
             properties:
                 created_at:
                     type: string
@@ -721,7 +721,7 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.InjectorDetailResponse:
+        github_com_rendis_senda_internal_http_response.InjectorDetailResponse:
             properties:
                 created_at:
                     type: string
@@ -729,7 +729,7 @@ components:
                     type: string
                 fields:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorFieldResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorFieldResponse'
                     type: array
                 id:
                     type: string
@@ -739,12 +739,12 @@ components:
                     type: string
                 values:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorValueResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorValueResponse'
                     type: array
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.InjectorFieldResponse:
+        github_com_rendis_senda_internal_http_response.InjectorFieldResponse:
             properties:
                 description:
                     type: string
@@ -757,14 +757,14 @@ components:
                 position:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.InjectorListResponse:
+        github_com_rendis_senda_internal_http_response.InjectorListResponse:
             properties:
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorDefinitionResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse'
                     type: array
             type: object
-        github_com_senda-app_senda_internal_http_response.InjectorValueResponse:
+        github_com_rendis_senda_internal_http_response.InjectorValueResponse:
             properties:
                 field_name:
                     type: string
@@ -777,23 +777,23 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse:
+        github_com_rendis_senda_internal_http_response.MJMLPreviewResponse:
             properties:
                 html:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.MemberListResponse:
+        github_com_rendis_senda_internal_http_response.MemberListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.MemberResponse:
+        github_com_rendis_senda_internal_http_response.MemberResponse:
             properties:
                 created_at:
                     type: string
@@ -806,7 +806,7 @@ components:
                 updated_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.MemberRoleResponse:
+        github_com_rendis_senda_internal_http_response.MemberRoleResponse:
             properties:
                 created_at:
                     type: string
@@ -823,7 +823,7 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse:
+        github_com_rendis_senda_internal_http_response.MemberWithRolesResponse:
             properties:
                 created_at:
                     type: string
@@ -835,12 +835,12 @@ components:
                     type: string
                 roles:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberRoleResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberRoleResponse'
                     type: array
                 updated_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.OIDCConfigResponse:
+        github_com_rendis_senda_internal_http_response.OIDCConfigResponse:
             properties:
                 client_id:
                     type: string
@@ -849,28 +849,28 @@ components:
                 discovery_url:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.OnboardingMemberSummary:
+        github_com_rendis_senda_internal_http_response.OnboardingMemberSummary:
             properties:
                 email:
                     type: string
                 id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.OnboardingSetupResponse:
+        github_com_rendis_senda_internal_http_response.OnboardingSetupResponse:
             properties:
                 member:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OnboardingMemberSummary'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OnboardingMemberSummary'
                 tenant:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OnboardingTenantSummary'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OnboardingTenantSummary'
                 workspace:
-                    $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OnboardingWorkspaceSummary'
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OnboardingWorkspaceSummary'
             type: object
-        github_com_senda-app_senda_internal_http_response.OnboardingStatusResponse:
+        github_com_rendis_senda_internal_http_response.OnboardingStatusResponse:
             properties:
                 needs_onboarding:
                     type: boolean
             type: object
-        github_com_senda-app_senda_internal_http_response.OnboardingTenantSummary:
+        github_com_rendis_senda_internal_http_response.OnboardingTenantSummary:
             properties:
                 code:
                     type: string
@@ -879,7 +879,7 @@ components:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.OnboardingWorkspaceSummary:
+        github_com_rendis_senda_internal_http_response.OnboardingWorkspaceSummary:
             properties:
                 code:
                     type: string
@@ -888,7 +888,7 @@ components:
                 name:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.SendEmailResponse:
+        github_com_rendis_senda_internal_http_response.SendEmailResponse:
             properties:
                 external_id:
                     type: string
@@ -900,10 +900,10 @@ components:
                     type: integer
                 tracking_ids:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TrackingEntryResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TrackingEntryResponse'
                     type: array
             type: object
-        github_com_senda-app_senda_internal_http_response.SuppressionCheckResponse:
+        github_com_rendis_senda_internal_http_response.SuppressionCheckResponse:
             properties:
                 email:
                     type: string
@@ -912,7 +912,7 @@ components:
                 suppressed:
                     type: boolean
             type: object
-        github_com_senda-app_senda_internal_http_response.SuppressionWorkspaceResponse:
+        github_com_rendis_senda_internal_http_response.SuppressionWorkspaceResponse:
             properties:
                 created_at:
                     type: string
@@ -929,18 +929,18 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateListResponse:
+        github_com_rendis_senda_internal_http_response.TemplateListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateResponse:
+        github_com_rendis_senda_internal_http_response.TemplateResponse:
             properties:
                 created_at:
                     type: string
@@ -955,18 +955,18 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse:
+        github_com_rendis_senda_internal_http_response.TemplateTypeListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateTypeResponse:
+        github_com_rendis_senda_internal_http_response.TemplateTypeResponse:
             properties:
                 adapter_id:
                     type: string
@@ -989,14 +989,14 @@ components:
                 workspace_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse:
+        github_com_rendis_senda_internal_http_response.TemplateVersionListResponse:
             properties:
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     type: array
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse:
+        github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse:
             properties:
                 body_mjml:
                     type: string
@@ -1021,7 +1021,7 @@ components:
                 updated_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TemplateVersionResponse:
+        github_com_rendis_senda_internal_http_response.TemplateVersionResponse:
             properties:
                 body_mjml:
                     type: string
@@ -1056,18 +1056,18 @@ components:
                 version_number:
                     type: integer
             type: object
-        github_com_senda-app_senda_internal_http_response.TenantListResponse:
+        github_com_rendis_senda_internal_http_response.TenantListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TenantResponse:
+        github_com_rendis_senda_internal_http_response.TenantResponse:
             properties:
                 code:
                     type: string
@@ -1080,14 +1080,14 @@ components:
                 updated_at:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.TrackingEntryResponse:
+        github_com_rendis_senda_internal_http_response.TrackingEntryResponse:
             properties:
                 to:
                     type: string
                 tracking_id:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.WebhookCreatedResponse:
+        github_com_rendis_senda_internal_http_response.WebhookCreatedResponse:
             properties:
                 created_at:
                     type: string
@@ -1104,18 +1104,18 @@ components:
                 url:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.WebhookListResponse:
+        github_com_rendis_senda_internal_http_response.WebhookListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WebhookResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WebhookResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.WebhookResponse:
+        github_com_rendis_senda_internal_http_response.WebhookResponse:
             properties:
                 consecutive_failures:
                     type: integer
@@ -1138,18 +1138,18 @@ components:
                 url:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.WorkspaceListResponse:
+        github_com_rendis_senda_internal_http_response.WorkspaceListResponse:
             properties:
                 has_more:
                     type: boolean
                 items:
                     items:
-                        $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceResponse'
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceResponse'
                     type: array
                 next_cursor:
                     type: string
             type: object
-        github_com_senda-app_senda_internal_http_response.WorkspaceResponse:
+        github_com_rendis_senda_internal_http_response.WorkspaceResponse:
             properties:
                 code:
                     type: string
@@ -1207,7 +1207,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailListResponse'
                     description: OK
                 "400":
                     content:
@@ -1271,7 +1271,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailDetailResponse'
                     description: OK
                 "400":
                     content:
@@ -1335,7 +1335,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailEventResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailEventResponse'
                     description: OK
                 "400":
                     content:
@@ -1449,7 +1449,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.ConfigResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.ConfigResponse'
                     description: OK
                 "400":
                     content:
@@ -1504,7 +1504,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateConfigRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateConfigRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -1513,7 +1513,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.ConfigResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.ConfigResponse'
                     description: OK
                 "400":
                     content:
@@ -1581,7 +1581,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterListResponse'
                     description: OK
                 "400":
                     content:
@@ -1636,7 +1636,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateAdapterRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateAdapterRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -1645,7 +1645,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: Created
                 "400":
                     content:
@@ -1772,7 +1772,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -1834,7 +1834,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -1843,7 +1843,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -1971,7 +1971,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -2033,7 +2033,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -2042,7 +2042,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterIdentityResponse'
                     description: Created
                 "400":
                     content:
@@ -2310,7 +2310,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -2442,7 +2442,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AuditLogListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AuditLogListResponse'
                     description: OK
                 "400":
                     content:
@@ -2499,7 +2499,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardStatsResponse'
                     description: OK
                 "400":
                     content:
@@ -2556,7 +2556,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorListResponse'
                     description: OK
                 "400":
                     content:
@@ -2611,7 +2611,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateInjectorRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -2620,7 +2620,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: Created
                 "400":
                     content:
@@ -2684,7 +2684,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: OK
                 "400":
                     content:
@@ -2752,7 +2752,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeListResponse'
                     description: OK
                 "400":
                     content:
@@ -2807,7 +2807,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -2816,7 +2816,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeResponse'
                     description: Created
                 "400":
                     content:
@@ -2880,7 +2880,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeResponse'
                     description: OK
                 "400":
                     content:
@@ -2954,7 +2954,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateListResponse'
                     description: OK
                 "400":
                     content:
@@ -3010,7 +3010,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateTemplateRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateTemplateRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3019,7 +3019,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateResponse'
                     description: Created
                 "400":
                     content:
@@ -3210,7 +3210,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.MJMLPreviewRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3219,7 +3219,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MJMLPreviewResponse'
                     description: OK
                 "400":
                     content:
@@ -3347,7 +3347,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionListResponse'
                     description: OK
                 "400":
                     content:
@@ -3409,7 +3409,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateVersionRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateVersionRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3418,7 +3418,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: Created
                 "400":
                     content:
@@ -3488,7 +3488,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -3556,7 +3556,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateVersionRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateVersionRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3565,7 +3565,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -3635,7 +3635,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -3786,7 +3786,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: OK
                 "400":
                     content:
@@ -3860,7 +3860,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SetLocaleRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SetLocaleRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3869,7 +3869,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: Created
                 "400":
                     content:
@@ -3943,7 +3943,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SetLocaleRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SetLocaleRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3952,7 +3952,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: OK
                 "400":
                     content:
@@ -4090,7 +4090,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberListResponse'
                     description: OK
                 "400":
                     content:
@@ -4145,7 +4145,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateMemberRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateMemberRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -4154,7 +4154,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberResponse'
                     description: Created
                 "400":
                     content:
@@ -4218,7 +4218,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse'
                     description: OK
                 "400":
                     content:
@@ -4281,7 +4281,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.AddRoleRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.AddRoleRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -4290,7 +4290,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberRoleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberRoleResponse'
                     description: Created
                 "400":
                     content:
@@ -4428,7 +4428,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantListResponse'
                     description: OK
                 "400":
                     content:
@@ -4483,7 +4483,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateTenantRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateTenantRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -4492,7 +4492,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantResponse'
                     description: Created
                 "400":
                     content:
@@ -4556,7 +4556,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantResponse'
                     description: No Content
                 "400":
                     content:
@@ -4619,7 +4619,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantResponse'
                     description: OK
                 "400":
                     content:
@@ -4681,7 +4681,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateTenantRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateTenantRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -4690,7 +4690,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TenantResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TenantResponse'
                     description: OK
                 "400":
                     content:
@@ -4754,7 +4754,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardStatsResponse'
                     description: OK
                 "400":
                     content:
@@ -4828,7 +4828,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceListResponse'
                     description: OK
                 "400":
                     content:
@@ -4890,7 +4890,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateWorkspaceRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateWorkspaceRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -4899,7 +4899,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceResponse'
                     description: Created
                 "400":
                     content:
@@ -4969,7 +4969,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceResponse'
                     description: No Content
                 "400":
                     content:
@@ -5038,7 +5038,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceResponse'
                     description: OK
                 "400":
                     content:
@@ -5106,7 +5106,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateWorkspaceRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateWorkspaceRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -5115,7 +5115,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WorkspaceResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WorkspaceResponse'
                     description: OK
                 "400":
                     content:
@@ -5195,7 +5195,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterListResponse'
                     description: OK
                 "400":
                     content:
@@ -5263,7 +5263,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateAdapterRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateAdapterRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -5272,7 +5272,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: Created
                 "400":
                     content:
@@ -5423,7 +5423,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -5497,7 +5497,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateAdapterRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -5506,7 +5506,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -5658,7 +5658,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -5732,7 +5732,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateManualIdentityRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateManualIdentityRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -5741,7 +5741,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterIdentityResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterIdentityResponse'
                     description: Created
                 "400":
                     content:
@@ -6057,7 +6057,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AdapterResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AdapterResponse'
                     description: OK
                 "400":
                     content:
@@ -6213,7 +6213,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.APIKeyListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.APIKeyListResponse'
                     description: OK
                 "400":
                     content:
@@ -6281,7 +6281,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateAPIKeyRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateAPIKeyRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -6290,7 +6290,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.APIKeyCreatedResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.APIKeyCreatedResponse'
                     description: Created
                 "400":
                     content:
@@ -6446,7 +6446,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.AuditLogListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.AuditLogListResponse'
                     description: OK
                 "400":
                     content:
@@ -6516,7 +6516,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.DashboardStatsResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DashboardStatsResponse'
                     description: OK
                 "400":
                     content:
@@ -6596,7 +6596,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailListResponse'
                     description: OK
                 "400":
                     content:
@@ -6672,7 +6672,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailDetailResponse'
                     description: OK
                 "400":
                     content:
@@ -6748,7 +6748,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.EmailEventResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailEventResponse'
                     description: OK
                 "400":
                     content:
@@ -6818,7 +6818,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorListResponse'
                     description: OK
                 "400":
                     content:
@@ -6886,7 +6886,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateInjectorRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -6895,7 +6895,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: Created
                 "400":
                     content:
@@ -6971,7 +6971,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.InjectorDetailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: OK
                 "400":
                     content:
@@ -7046,7 +7046,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SetInjectorValuesRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SetInjectorValuesRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -7124,7 +7124,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.AddSuppressionRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.AddSuppressionRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -7133,7 +7133,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.SuppressionWorkspaceResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SuppressionWorkspaceResponse'
                     description: Created
                 "400":
                     content:
@@ -7284,7 +7284,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.SuppressionCheckResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SuppressionCheckResponse'
                     description: No Content
                 "400":
                     content:
@@ -7364,7 +7364,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeListResponse'
                     description: OK
                 "400":
                     content:
@@ -7432,7 +7432,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateTemplateTypeRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateTemplateTypeRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -7441,7 +7441,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeResponse'
                     description: Created
                 "400":
                     content:
@@ -7517,7 +7517,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateTypeResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateTypeResponse'
                     description: OK
                 "400":
                     content:
@@ -7603,7 +7603,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateListResponse'
                     description: OK
                 "400":
                     content:
@@ -7672,7 +7672,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateTemplateRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateTemplateRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -7681,7 +7681,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateResponse'
                     description: Created
                 "400":
                     content:
@@ -7908,7 +7908,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.MJMLPreviewRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.MJMLPreviewRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -7917,7 +7917,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MJMLPreviewResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MJMLPreviewResponse'
                     description: OK
                 "400":
                     content:
@@ -8069,7 +8069,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionListResponse'
                     description: OK
                 "400":
                     content:
@@ -8143,7 +8143,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateVersionRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateVersionRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -8152,7 +8152,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: Created
                 "400":
                     content:
@@ -8234,7 +8234,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -8314,7 +8314,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateVersionRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateVersionRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -8323,7 +8323,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -8405,7 +8405,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionResponse'
                     description: OK
                 "400":
                     content:
@@ -8580,7 +8580,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: OK
                 "400":
                     content:
@@ -8666,7 +8666,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SetLocaleRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SetLocaleRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -8675,7 +8675,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: Created
                 "400":
                     content:
@@ -8761,7 +8761,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SetLocaleRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SetLocaleRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -8770,7 +8770,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.TemplateVersionLocaleResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateVersionLocaleResponse'
                     description: OK
                 "400":
                     content:
@@ -8932,7 +8932,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WebhookListResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WebhookListResponse'
                     description: OK
                 "400":
                     content:
@@ -9000,7 +9000,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.CreateWebhookRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateWebhookRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -9009,7 +9009,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WebhookCreatedResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WebhookCreatedResponse'
                     description: Created
                 "400":
                     content:
@@ -9160,7 +9160,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WebhookResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WebhookResponse'
                     description: OK
                 "400":
                     content:
@@ -9234,7 +9234,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.UpdateWebhookRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.UpdateWebhookRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -9243,7 +9243,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.WebhookResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.WebhookResponse'
                     description: OK
                 "400":
                     content:
@@ -9376,7 +9376,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.MemberWithRolesResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.MemberWithRolesResponse'
                     description: OK
                 "400":
                     content:
@@ -9432,7 +9432,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.OnboardingSetupRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.OnboardingSetupRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -9441,7 +9441,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OnboardingSetupResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OnboardingSetupResponse'
                     description: Created
                 "400":
                     content:
@@ -9498,7 +9498,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.OnboardingStatusResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OnboardingStatusResponse'
                     description: OK
                 "400":
                     content:
@@ -9552,7 +9552,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_request.SendEmailRequest'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SendEmailRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -9561,7 +9561,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/github_com_senda-app_senda_internal_http_response.SendEmailResponse'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SendEmailResponse'
                     description: Accepted
                 "400":
                     content:

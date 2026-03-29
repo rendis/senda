@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://senda-app.github.io/schemas/screen-manifest.schema.json",
+  "$id": "https://rendis.github.io/schemas/screen-manifest.schema.json",
   "title": "System Screen Manifest",
   "type": "object",
   "required": ["version", "matrixDefaults", "screens"],
