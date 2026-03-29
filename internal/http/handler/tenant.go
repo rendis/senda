@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -198,5 +199,9 @@ func mapStoreError(c *echo.Context, err error) error {
 		return response.WriteError(c, appErr.Code, code, appErr.Message)
 	}
 
+	slog.ErrorContext(c.Request().Context(), "unhandled store error",
+		slog.String("error", err.Error()),
+		slog.String("path", c.Request().URL.Path),
+	)
 	return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 }
