@@ -9,7 +9,7 @@
         "MCP_TOOL_PREFIX": "senda",
         "MCP_AUTH_PROFILE": "senda",
         "MCP_OIDC_ISSUER": "http://localhost:9090/realms/senda",
-        "MCP_OIDC_CLIENT_ID": "senda-mcp"
+        "MCP_OIDC_CLIENT_ID": "tether-mcp"
       }
     }
   }
