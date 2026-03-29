@@ -1,31 +1,34 @@
 "use client";
 
+const basePath = process.env.__NEXT_ROUTER_BASEPATH || "";
+
 let logoutStarted = false;
 
 function sanitizeCallbackUrl(callbackUrl?: string): string {
   if (typeof window === "undefined") {
-    return "/login";
+    return `${basePath}/login`;
   }
 
   try {
-    const url = new URL(callbackUrl ?? "/login", window.location.origin);
+    const raw = callbackUrl ?? `${basePath}/login`;
+    const url = new URL(raw, window.location.origin);
     if (url.origin !== window.location.origin) {
-      return "/login";
+      return `${basePath}/login`;
     }
-    return `${url.pathname}${url.search}${url.hash}` || "/login";
+    return `${url.pathname}${url.search}${url.hash}` || `${basePath}/login`;
   } catch {
-    return "/login";
+    return `${basePath}/login`;
   }
 }
 
-export function startFederatedLogout(callbackUrl = "/login") {
+export function startFederatedLogout(callbackUrl?: string) {
   if (typeof window === "undefined" || logoutStarted) {
     return;
   }
 
   logoutStarted = true;
-  const safeCallbackUrl = sanitizeCallbackUrl(callbackUrl);
+  const safeCallbackUrl = sanitizeCallbackUrl(callbackUrl ?? `${basePath}/login`);
   window.location.assign(
-    `/logout?callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
+    `${basePath}/logout?callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
   );
 }

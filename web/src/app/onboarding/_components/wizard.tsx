@@ -84,7 +84,7 @@ export function OnboardingWizard() {
       <PublicThemeToggle />
       <header className="sr-only">
         <nav aria-label="Public navigation">
-          <a href="/login">Back to login</a>
+          <a href={`${process.env.__NEXT_ROUTER_BASEPATH || ""}/login`}>Back to login</a>
         </nav>
       </header>
       <main className="flex min-h-screen items-center justify-center bg-page px-4 py-10 sm:px-6">
