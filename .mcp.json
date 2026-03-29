@@ -4,7 +4,7 @@
       "command": "mcp-openapi-proxy",
       "args": [],
       "env": {
-        "MCP_SPEC": "./cmd/senda/docs/openapi.yaml",
+        "MCP_SPEC": "https://raw.githubusercontent.com/rendis/senda/main/cmd/senda/docs/openapi.yaml",
         "MCP_BASE_URL": "http://localhost:8081",
         "MCP_TOOL_PREFIX": "senda",
         "MCP_AUTH_PROFILE": "senda",
