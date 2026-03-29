@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 
+function getPublicOrigin(request: NextRequest): string {
+  return process.env.AUTH_URL || `https://${request.headers.get("host")}` || request.nextUrl.origin;
+}
+
 function sanitizeCallbackUrl(
   request: NextRequest,
   rawCallbackUrl: string | null,
 ): URL {
+  const origin = getPublicOrigin(request);
   try {
-    const candidate = new URL(rawCallbackUrl ?? "/login", request.nextUrl.origin);
-    if (candidate.origin !== request.nextUrl.origin) {
-      return new URL("/login", request.nextUrl.origin);
+    const candidate = new URL(rawCallbackUrl ?? "/login", origin);
+    if (candidate.origin !== new URL(origin).origin) {
+      return new URL("/login", origin);
     }
 
     return new URL(
       `${candidate.pathname}${candidate.search}${candidate.hash}`,
-      request.nextUrl.origin,
+      origin,
     );
   } catch {
-    return new URL("/login", request.nextUrl.origin);
+    return new URL("/login", origin);
   }
 }
 
