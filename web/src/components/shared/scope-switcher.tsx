@@ -23,7 +23,10 @@ import {
   usePaginatedWorkspaces,
 } from "@/hooks/use-scope-data";
 import { cn } from "@/lib/utils";
+import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 import type { Tenant, Workspace } from "@/types/api";
+
+const WORKSPACE_PATH_RE = /^\/t\/[^/]+\/w\/[^/]+/;
 
 interface ScopeSwitcherProps {
   collapsed?: boolean;
@@ -92,6 +95,9 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
         : "text-scope-system";
 
   function navigateTo(path: string) {
+    if (WORKSPACE_PATH_RE.test(path)) {
+      setLastWorkspacePath(path);
+    }
     setOpen(false);
     router.push(path);
   }

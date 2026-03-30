@@ -20,6 +20,18 @@ import type {
   GmailConfig,
 } from "@/types/adapters";
 
+const ADAPTER_DEFAULTS: Record<AdapterType, { rateLimit: number; region?: string; description: string }> = {
+  ses: {
+    rateLimit: 14,
+    region: "us-east-1",
+    description: "AWS SES production default is 14/sec. Sandbox accounts are limited to 1/sec.",
+  },
+  gmail: {
+    rateLimit: 2,
+    description: "Gmail API with Workspace delegation supports ~2 emails/sec per delegated user.",
+  },
+};
+
 interface AdapterFormCreateProps {
   mode?: "create";
   trigger: React.ReactNode;
@@ -48,13 +60,13 @@ export function AdapterForm(props: AdapterFormProps) {
     defaults?.adapter_type ?? "ses"
   );
   const [rateLimit, setRateLimit] = useState(
-    defaults?.rate_limit_per_second?.toString() ?? ""
+    defaults?.rate_limit_per_second?.toString() ?? ADAPTER_DEFAULTS["ses"].rateLimit.toString()
   );
   const [isDefault, setIsDefault] = useState(defaults?.is_default ?? false);
 
   // SES fields
   const [sesRegion, setSesRegion] = useState(
-    (isEdit && defaults?.config_meta?.region) || ""
+    (isEdit && defaults?.config_meta?.region) || ADAPTER_DEFAULTS["ses"].region || ""
   );
   const [sesAccessKey, setSesAccessKey] = useState("");
   const [sesSecretKey, setSesSecretKey] = useState("");
@@ -69,10 +81,10 @@ export function AdapterForm(props: AdapterFormProps) {
     if (!isEdit) {
       setName("");
       setAdapterType("ses");
-      setRateLimit("");
+      setRateLimit(ADAPTER_DEFAULTS["ses"].rateLimit.toString());
       setIsDefault(false);
     }
-    setSesRegion(isEdit ? defaults?.config_meta?.region ?? "" : "");
+    setSesRegion(isEdit ? defaults?.config_meta?.region ?? "" : ADAPTER_DEFAULTS["ses"].region || "");
     setSesAccessKey("");
     setSesSecretKey("");
     setGmailServiceAccountJSON("");
@@ -151,7 +163,13 @@ export function AdapterForm(props: AdapterFormProps) {
           <Label>Type</Label>
           <Select
             value={adapterType}
-            onValueChange={(v) => setAdapterType(v as AdapterType)}
+            onValueChange={(v) => {
+              const newType = v as AdapterType;
+              setAdapterType(newType);
+              if (!isEdit) {
+                setRateLimit(ADAPTER_DEFAULTS[newType].rateLimit.toString());
+              }
+            }}
             disabled={isEdit}
           >
             <SelectTrigger className="w-full">
@@ -174,6 +192,9 @@ export function AdapterForm(props: AdapterFormProps) {
             placeholder="14"
             className="font-mono"
           />
+          <p className="text-xs text-muted-foreground">
+            {ADAPTER_DEFAULTS[adapterType].description}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">

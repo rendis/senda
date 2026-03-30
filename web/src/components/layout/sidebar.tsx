@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -36,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { startFederatedLogout } from "@/lib/logout";
+import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 
 function getUserInitials(name?: string | null, email?: string | null): string {
   if (name) {
@@ -92,6 +94,12 @@ export function AppSidebar({
   } else if (level === "workspace" && tenantCode && workspaceCode) {
     basePath = `/t/${tenantCode}/w/${workspaceCode}`;
   }
+
+  useEffect(() => {
+    if (level === "workspace" && tenantCode && workspaceCode) {
+      setLastWorkspacePath(`/t/${tenantCode}/w/${workspaceCode}`);
+    }
+  }, [level, tenantCode, workspaceCode]);
 
   const displayName = session?.user?.name ?? session?.user?.email ?? "User";
   const initials = getUserInitials(session?.user?.name, session?.user?.email);

@@ -17,6 +17,47 @@ declare module "@auth/core/jwt" {
   }
 }
 
+async function refreshAccessToken(refreshToken: string) {
+  const issuer = process.env.AUTH_OIDC_ISSUER;
+  const maxRetries = 3;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 500 * Math.pow(3, attempt - 1)));
+    }
+
+    try {
+      const response = await fetch(
+        `${issuer}/protocol/openid-connect/token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: process.env.AUTH_OIDC_ID!,
+            client_secret: process.env.AUTH_OIDC_SECRET!,
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+          }),
+        }
+      );
+
+      const tokens = await response.json();
+      if (!response.ok) throw tokens;
+      return tokens as {
+        id_token?: string;
+        access_token?: string;
+        expires_in: number;
+        refresh_token?: string;
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     {
@@ -26,6 +67,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       issuer: process.env.AUTH_OIDC_ISSUER,
       clientId: process.env.AUTH_OIDC_ID,
       clientSecret: process.env.AUTH_OIDC_SECRET,
+      authorization: {
+        params: {
+          scope: "openid profile email offline_access",
+        },
+      },
     },
   ],
   session: {
@@ -63,40 +109,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       try {
-        const issuer = process.env.AUTH_OIDC_ISSUER;
-        const response = await fetch(
-          `${issuer}/protocol/openid-connect/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              client_id: process.env.AUTH_OIDC_ID!,
-              client_secret: process.env.AUTH_OIDC_SECRET!,
-              grant_type: "refresh_token",
-              refresh_token: token.refreshToken,
-            }),
-          }
-        );
-
-        const tokens = await response.json();
-
-        if (!response.ok) throw tokens;
-
+        const tokens = await refreshAccessToken(token.refreshToken);
         return {
           ...token,
           idToken: tokens.id_token as string | undefined,
           accessToken: tokens.access_token as string | undefined,
-          expiresAt: Math.floor(
-            Date.now() / 1000 + (tokens.expires_in as number)
-          ),
-          refreshToken:
-            (tokens.refresh_token as string | undefined) ?? token.refreshToken,
+          expiresAt: Math.floor(Date.now() / 1000 + tokens.expires_in),
+          refreshToken: tokens.refresh_token ?? token.refreshToken,
           error: undefined,
         };
       } catch (error) {
-        console.error("Error refreshing token", error);
+        console.error("Error refreshing token after retries", error);
         token.error = "RefreshTokenError";
         return token;
       }

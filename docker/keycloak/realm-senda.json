@@ -11,6 +11,8 @@
   "accessTokenLifespan": 1800,
   "ssoSessionIdleTimeout": 86400,
   "ssoSessionMaxLifespan": 604800,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespan": 5184000,
   "clients": [
     {
       "clientId": "senda-web",
@@ -31,7 +33,8 @@
       "defaultClientScopes": [
         "openid",
         "profile",
-        "email"
+        "email",
+        "offline_access"
       ],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:3000/login"

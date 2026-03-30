@@ -2,18 +2,25 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogIn } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { PublicThemeToggle } from "@/components/shared/public-theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
+import { getLastWorkspacePath } from "@/hooks/use-last-workspace";
 
 export default function LoginPage() {
   const t = useTranslations("login");
   const { data: session, status } = useSession();
   const router = useRouter();
   const signingOut = useRef(false);
+  const [callbackUrl, setCallbackUrl] = useState("/global");
+
+  useEffect(() => {
+    const saved = getLastWorkspacePath();
+    if (saved) setCallbackUrl(saved);
+  }, []);
 
   useEffect(() => {
     // If the session has a token refresh error, sign out to clear the
@@ -24,11 +31,11 @@ export default function LoginPage() {
       return;
     }
 
-    // Normal case: already authenticated → go to dashboard.
+    // Normal case: already authenticated → go to last workspace or dashboard.
     if (status === "authenticated" && !session?.error) {
-      router.replace("/global");
+      router.replace(callbackUrl);
     }
-  }, [status, session?.error, router]);
+  }, [status, session?.error, router, callbackUrl]);
 
   if (status === "loading" || (status === "authenticated" && !session?.error)) {
     return null;
@@ -53,7 +60,7 @@ export default function LoginPage() {
 
           {/* OIDC Button */}
           <Button
-            onClick={() => signIn("oidc", { callbackUrl: "/global" })}
+            onClick={() => signIn("oidc", { callbackUrl })}
             className="h-11 w-full gap-2.5 rounded-md text-sm font-medium"
           >
             <LogIn className="h-[18px] w-[18px]" />
