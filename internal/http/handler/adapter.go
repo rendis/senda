@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,17 +16,36 @@ import (
 	"github.com/rendis/senda/internal/port"
 )
 
+// AdapterSenderFactory creates an EmailSender from a resolved adapter and its decrypted config.
+type AdapterSenderFactory func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error)
+
 // AdapterHandler handles CRUD operations for email adapters.
 type AdapterHandler struct {
-	store   port.AdapterStore
-	crypto  port.Crypto
-	tsStore port.TenantStore
-	wsStore port.WorkspaceStore
+	store         port.AdapterStore
+	crypto        port.Crypto
+	tsStore       port.TenantStore
+	wsStore       port.WorkspaceStore
+	senderFactory AdapterSenderFactory
+	identityStore port.AdapterIdentityStore
 }
 
 // NewAdapterHandler creates a new AdapterHandler.
-func NewAdapterHandler(as port.AdapterStore, crypto port.Crypto, ts port.TenantStore, ws port.WorkspaceStore) *AdapterHandler {
-	return &AdapterHandler{store: as, crypto: crypto, tsStore: ts, wsStore: ws}
+func NewAdapterHandler(
+	as port.AdapterStore,
+	crypto port.Crypto,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	sf AdapterSenderFactory,
+	is port.AdapterIdentityStore,
+) *AdapterHandler {
+	return &AdapterHandler{
+		store:         as,
+		crypto:        crypto,
+		tsStore:       ts,
+		wsStore:       ws,
+		senderFactory: sf,
+		identityStore: is,
+	}
 }
 
 // Create handles POST /tenants/:tenant_code/workspaces/:workspace_code/adapters.
@@ -257,15 +278,102 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 }
 
 // TestConnection handles POST .../adapters/:id/test (workspace scope).
-// Stub — returns 501 until real adapter connectivity check is built.
 func (h *AdapterHandler) TestConnection(c *echo.Context) error {
-	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "adapter connection test not yet available")
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return h.testSend(c, &ws.ID)
 }
 
 // TestConnectionGlobal handles POST /global/adapters/:id/test.
-// Stub — returns 501 until real adapter connectivity check is built.
 func (h *AdapterHandler) TestConnectionGlobal(c *echo.Context) error {
-	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "adapter connection test not yet available")
+	return h.testSend(c, nil)
+}
+
+// testSendTimeout is the maximum duration for a synchronous test send.
+const testSendTimeout = 30 * time.Second
+
+func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error {
+	adapterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
+	}
+
+	var req request.TestAdapterRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	var fieldErrors []response.FieldError
+	if req.To == "" {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "to", Message: "is required"})
+	}
+	if req.Subject == "" {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "subject", Message: "is required"})
+	}
+	if req.Body == "" {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "body", Message: "is required"})
+	}
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	ctx := c.Request().Context()
+	adapter, err := h.store.GetByID(ctx, adapterID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	if !sameScope(adapter.WorkspaceID, workspaceID) {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
+	if err != nil {
+		return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to decrypt adapter config")
+	}
+
+	sender, err := h.senderFactory(ctx, adapter, decrypted)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "ADAPTER_ERROR", fmt.Sprintf("failed to create sender: %v", err))
+	}
+
+	identity, err := h.identityStore.GetDefault(ctx, adapterID)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity configured for this adapter")
+	}
+
+	var displayName string
+	if identity.DisplayName != nil {
+		displayName = *identity.DisplayName
+	}
+
+	msg := &port.OutgoingEmail{
+		From: port.EmailAddress{
+			Name:    displayName,
+			Address: identity.Identity,
+		},
+		To:       port.EmailAddress{Address: req.To},
+		Subject:  req.Subject,
+		BodyHTML: req.Body,
+		BodyText: req.Body,
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, testSendTimeout)
+	defer cancel()
+
+	providerMsgID, err := sender.Send(sendCtx, msg)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "SEND_FAILED", fmt.Sprintf("test send failed: %v", err))
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"status":              "sent",
+		"provider_message_id": providerMsgID,
+		"from":                identity.Identity,
+	})
 }
 
 // mergeConfigField decrypts the adapter config, sets a field, and re-encrypts.

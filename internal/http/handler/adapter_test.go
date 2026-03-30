@@ -86,15 +86,78 @@ func (m *mockCrypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	return ciphertext[4:], nil
 }
 
+// --- Mock AdapterIdentityStore ---
+
+type mockAdapterIdentityStore struct {
+	getDefaultFn func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
+}
+
+func (m *mockAdapterIdentityStore) Create(_ context.Context, _ *domain.AdapterIdentity) error { return nil }
+func (m *mockAdapterIdentityStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+	return nil, nil
+}
+func (m *mockAdapterIdentityStore) Update(_ context.Context, _ *domain.AdapterIdentity) error {
+	return nil
+}
+func (m *mockAdapterIdentityStore) Delete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockAdapterIdentityStore) ListByAdapter(_ context.Context, _ uuid.UUID) ([]*domain.AdapterIdentity, error) {
+	return nil, nil
+}
+func (m *mockAdapterIdentityStore) GetDefault(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
+	if m.getDefaultFn != nil {
+		return m.getDefaultFn(ctx, adapterID)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockAdapterIdentityStore) SetDefault(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
+func (m *mockAdapterIdentityStore) UpsertBatch(_ context.Context, _ uuid.UUID, _ []*domain.AdapterIdentity) error {
+	return nil
+}
+func (m *mockAdapterIdentityStore) DeleteStale(_ context.Context, _ uuid.UUID, _ []string) error {
+	return nil
+}
+
+// --- Mock EmailSender ---
+
+type mockEmailSender struct {
+	sendFn func(ctx context.Context, msg *port.OutgoingEmail) (string, error)
+}
+
+func (m *mockEmailSender) Send(ctx context.Context, msg *port.OutgoingEmail) (string, error) {
+	if m.sendFn != nil {
+		return m.sendFn(ctx, msg)
+	}
+	return "mock-msg-id", nil
+}
+func (m *mockEmailSender) Name() string                        { return "mock" }
+func (m *mockEmailSender) HealthCheck(_ context.Context) error { return nil }
+
 // --- Helpers ---
 
+func noopSenderFactory(_ context.Context, _ *domain.Adapter, _ []byte) (port.EmailSender, error) {
+	return &mockEmailSender{}, nil
+}
+
 func setupAdapterTest(as port.AdapterStore, crypto port.Crypto, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.AdapterHandler) {
+	return setupAdapterTestFull(as, crypto, ts, ws, noopSenderFactory, &mockAdapterIdentityStore{})
+}
+
+func setupAdapterTestFull(
+	as port.AdapterStore,
+	crypto port.Crypto,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	sf handler.AdapterSenderFactory,
+	is port.AdapterIdentityStore,
+) (*echo.Echo, *handler.AdapterHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
-	h := handler.NewAdapterHandler(as, crypto, ts, ws)
+	h := handler.NewAdapterHandler(as, crypto, ts, ws, sf, is)
 
 	// Workspace-scoped routes.
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters", h.Create)
@@ -102,6 +165,7 @@ func setupAdapterTest(as port.AdapterStore, crypto port.Crypto, ts port.TenantSt
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id", h.Get)
 	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id", h.Update)
 	e.DELETE("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id", h.SoftDelete)
+	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id/test", h.TestConnection)
 
 	// Global routes.
 	e.POST("/api/v1/manage/global/adapters", h.CreateGlobal)
@@ -109,6 +173,7 @@ func setupAdapterTest(as port.AdapterStore, crypto port.Crypto, ts port.TenantSt
 	e.GET("/api/v1/manage/global/adapters/:id", h.GetGlobal)
 	e.PUT("/api/v1/manage/global/adapters/:id", h.UpdateGlobal)
 	e.DELETE("/api/v1/manage/global/adapters/:id", h.SoftDeleteGlobal)
+	e.POST("/api/v1/manage/global/adapters/:id/test", h.TestConnectionGlobal)
 
 	return e, h
 }
@@ -349,6 +414,131 @@ func TestAdapterHandler_GlobalCreate_Success(t *testing.T) {
 	}
 	if created.WorkspaceID != nil {
 		t.Fatal("expected nil workspace ID for global adapter")
+	}
+}
+
+func TestAdapterHandler_TestSend_Success(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Adapter, error) {
+			return &domain.Adapter{
+				ID: adapterID, WorkspaceID: &ws.ID, Name: "SES", AdapterType: domain.AdapterTypeSES,
+				ConfigEncrypted: []byte("enc:test"), CreatedAt: now, UpdatedAt: now,
+			}, nil
+		},
+	}
+
+	var sentMsg *port.OutgoingEmail
+	sf := func(_ context.Context, _ *domain.Adapter, _ []byte) (port.EmailSender, error) {
+		return &mockEmailSender{
+			sendFn: func(_ context.Context, msg *port.OutgoingEmail) (string, error) {
+				sentMsg = msg
+				return "test-provider-id-123", nil
+			},
+		}, nil
+	}
+
+	displayName := "Test Sender"
+	is := &mockAdapterIdentityStore{
+		getDefaultFn: func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+			return &domain.AdapterIdentity{
+				ID:          uuid.Must(uuid.NewV7()),
+				AdapterID:   adapterID,
+				Identity:    "sender@example.com",
+				DisplayName: &displayName,
+				IsDefault:   true,
+			}, nil
+		},
+	}
+
+	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, sf, is)
+
+	body := `{"to":"recipient@example.com","subject":"Test Email","body":"<h1>Hello</h1>"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp["status"] != "sent" {
+		t.Fatalf("expected status=sent, got %s", resp["status"])
+	}
+	if resp["provider_message_id"] != "test-provider-id-123" {
+		t.Fatalf("expected provider_message_id=test-provider-id-123, got %s", resp["provider_message_id"])
+	}
+	if resp["from"] != "sender@example.com" {
+		t.Fatalf("expected from=sender@example.com, got %s", resp["from"])
+	}
+
+	if sentMsg == nil {
+		t.Fatal("expected email to be sent")
+	}
+	if sentMsg.To.Address != "recipient@example.com" {
+		t.Fatalf("expected to=recipient@example.com, got %s", sentMsg.To.Address)
+	}
+	if sentMsg.Subject != "Test Email" {
+		t.Fatalf("expected subject=Test Email, got %s", sentMsg.Subject)
+	}
+	if sentMsg.From.Name != "Test Sender" {
+		t.Fatalf("expected from name=Test Sender, got %s", sentMsg.From.Name)
+	}
+}
+
+func TestAdapterHandler_TestSend_MissingFields(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	e, _ := setupAdapterTest(&mockAdapterStore{}, &mockCrypto{}, ts, wsStore)
+
+	adapterID := uuid.Must(uuid.NewV7())
+	body := `{"to":"","subject":"","body":""}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdapterHandler_TestSend_NoDefaultIdentity(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Adapter, error) {
+			return &domain.Adapter{
+				ID: adapterID, WorkspaceID: &ws.ID, Name: "SES", AdapterType: domain.AdapterTypeSES,
+				ConfigEncrypted: []byte("enc:test"), CreatedAt: now, UpdatedAt: now,
+			}, nil
+		},
+	}
+
+	is := &mockAdapterIdentityStore{} // GetDefault returns ErrNotFound by default
+
+	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, noopSenderFactory, is)
+
+	body := `{"to":"recipient@example.com","subject":"Test","body":"Hello"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

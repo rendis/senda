@@ -320,12 +320,14 @@ func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, er
 // Name returns the adapter identifier.
 func (a *Adapter) Name() string { return "ses" }
 
-// HealthCheck verifies the SES service is reachable.
+// HealthCheck verifies the SES service is reachable by listing one identity.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
-	// Send a minimal request to verify connectivity.
-	// We use GetAccount which is lightweight.
-	// Since we only have the SESAPI interface (SendEmail), we do a no-op check.
-	// In production, inject a broader SES client for health checks.
+	_, err := a.client.ListEmailIdentities(ctx, &sesv2.ListEmailIdentitiesInput{
+		PageSize: aws.Int32(1),
+	})
+	if err != nil {
+		return fmt.Errorf("ses: health check: %w", err)
+	}
 	return nil
 }
 

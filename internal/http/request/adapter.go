@@ -20,6 +20,13 @@ type UpdateAdapterRequest struct {
 	ConfigurationSetName *string          `json:"configuration_set_name,omitempty"`
 }
 
+// TestAdapterRequest is the request body for POST adapters/:id/test.
+type TestAdapterRequest struct {
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+}
+
 // CreateManualIdentityRequest is the request body for POST adapters/:id/identities.
 type CreateManualIdentityRequest struct {
 	Identity    string  `json:"identity"`

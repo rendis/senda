@@ -192,7 +192,8 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		ClientSecretSet: cfg.OIDC.ClientSecret != "",
 	})
 	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo)
-	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo)
+	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo,
+		river.DefaultAdapterSenderFactory, adapterIdentityRepo)
 	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo)
 	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo)
 	sendH := handler.NewSendHandler(sendSvc)
