@@ -307,7 +307,7 @@ func TestAdapterHandler_Update_ReencryptsConfig(t *testing.T) {
 		getByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Adapter, error) {
 			return &domain.Adapter{
 				ID: adapterID, WorkspaceID: &ws.ID, Name: "SES", AdapterType: domain.AdapterTypeSES,
-				ConfigEncrypted: []byte("enc:old"), IsDefault: false, CreatedAt: now, UpdatedAt: now,
+				ConfigEncrypted: []byte(`enc:{"region":"us-east-1"}`), IsDefault: false, CreatedAt: now, UpdatedAt: now,
 			}, nil
 		},
 		updateFn: func(_ context.Context, a *domain.Adapter) error {

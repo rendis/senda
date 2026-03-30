@@ -29,8 +29,8 @@ func newSESIdentityProvider(ctx context.Context, decryptedConfig []byte) (port.I
 	if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal SES config: %w", err)
 	}
-	if cfg.Region == "" {
-		return nil, fmt.Errorf("%w: missing SES region", domain.ErrValidation)
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
 	}
 
 	provider, err := sesadapter.NewAdapterFromConfig(ctx, cfg)
@@ -45,8 +45,8 @@ func newGmailIdentityProvider(ctx context.Context, decryptedConfig []byte) (port
 	if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal Gmail config: %w", err)
 	}
-	if cfg.OAuthClientID == "" || cfg.OAuthClientSecret == "" || cfg.RefreshToken == "" {
-		return nil, fmt.Errorf("%w: missing required Gmail OAuth fields", domain.ErrValidation)
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
 	}
 
 	provider, err := gmailadapter.NewAdapterFromConfig(ctx, cfg)

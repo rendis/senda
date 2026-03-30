@@ -1,34 +1,33 @@
 package gmail
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"mime"
-	"net/mail"
-	"net/textproto"
-	"regexp"
-	"strings"
-	"time"
 
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gm "google.golang.org/api/gmail/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
+	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
 )
 
-var safeHeaderKeyRe = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
-
 // GmailConfig holds the decrypted configuration for a Gmail adapter.
+// Uses a Google Cloud Service Account with domain-wide delegation.
 type GmailConfig struct {
-	OAuthClientID     string `json:"oauth_client_id"`
-	OAuthClientSecret string `json:"oauth_client_secret"`
-	RefreshToken      string `json:"refresh_token"`
+	ServiceAccountJSON string `json:"service_account_json"`
+	DelegateEmail      string `json:"delegate_email"`
+}
+
+// Validate checks that required fields are present.
+func (c GmailConfig) Validate() error {
+	if c.ServiceAccountJSON == "" || c.DelegateEmail == "" {
+		return fmt.Errorf("missing service_account_json or delegate_email")
+	}
+	return nil
 }
 
 // GmailAPI abstracts the Gmail API for testability.
@@ -64,22 +63,19 @@ func NewAdapter(client GmailAPI) *Adapter {
 	return &Adapter{client: client}
 }
 
-// NewAdapterFromConfig creates a Gmail adapter using OAuth2 credentials.
+// NewAdapterFromConfig creates a Gmail adapter using a Service Account with domain-wide delegation.
 func NewAdapterFromConfig(ctx context.Context, cfg GmailConfig) (*Adapter, error) {
-	oauthCfg := &oauth2.Config{
-		ClientID:     cfg.OAuthClientID,
-		ClientSecret: cfg.OAuthClientSecret,
-		Endpoint:     google.Endpoint,
-		Scopes: []string{
-			gm.GmailSendScope,
-			gm.GmailSettingsBasicScope,
-		},
+	jwtCfg, err := google.JWTConfigFromJSON(
+		[]byte(cfg.ServiceAccountJSON),
+		gm.GmailSendScope,
+		gm.GmailSettingsBasicScope,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("gmail: parse service account key: %w", err)
 	}
+	jwtCfg.Subject = cfg.DelegateEmail
 
-	token := &oauth2.Token{RefreshToken: cfg.RefreshToken}
-	httpClient := oauthCfg.Client(ctx, token)
-
-	svc, err := gm.NewService(ctx, option.WithHTTPClient(httpClient))
+	svc, err := gm.NewService(ctx, option.WithHTTPClient(jwtCfg.Client(ctx)))
 	if err != nil {
 		return nil, fmt.Errorf("gmail: create service: %w", err)
 	}
@@ -99,7 +95,7 @@ func (a *Adapter) IsPermanentSendError(err error) bool {
 
 // Send delivers an email via Gmail API.
 func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, error) {
-	rawMsg, err := buildRawMessage(msg)
+	rawMsg, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
 		return "", fmt.Errorf("gmail: build message: %w", err)
 	}
@@ -165,98 +161,3 @@ func (a *Adapter) ProviderName() string { return "gmail" }
 var _ port.EmailSender = (*Adapter)(nil)
 var _ port.IdentityProvider = (*Adapter)(nil)
 
-func buildRawMessage(msg *port.OutgoingEmail) ([]byte, error) {
-	var buf bytes.Buffer
-
-	headers := textproto.MIMEHeader{}
-	headers.Set("From", formatAddress(msg.From))
-	headers.Set("To", formatAddress(msg.To))
-	headers.Set("Subject", mime.QEncoding.Encode("UTF-8", msg.Subject))
-	headers.Set("Date", time.Now().UTC().Format(time.RFC1123Z))
-	headers.Set("MIME-Version", "1.0")
-
-	if len(msg.CC) > 0 {
-		addrs := make([]string, len(msg.CC))
-		for i, cc := range msg.CC {
-			addrs[i] = formatAddress(cc)
-		}
-		headers.Set("Cc", strings.Join(addrs, ", "))
-	}
-	if msg.ReplyTo != nil {
-		headers.Set("Reply-To", formatAddress(*msg.ReplyTo))
-	}
-
-	for k, v := range msg.Headers {
-		if !safeHeaderKeyRe.MatchString(k) {
-			continue
-		}
-		headers.Set(k, sanitizeHeaderValue(v))
-	}
-
-	hasHTML := msg.BodyHTML != ""
-	hasText := msg.BodyText != ""
-
-	if hasHTML && hasText {
-		boundary := "senda-boundary-" + msg.TrackingID
-		headers.Set("Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", boundary))
-		writeHeaders(&buf, headers)
-
-		fmt.Fprintf(&buf, "\r\n--%s\r\n", boundary)
-		fmt.Fprintf(&buf, "Content-Type: text/plain; charset=UTF-8\r\n")
-		fmt.Fprintf(&buf, "Content-Transfer-Encoding: 8bit\r\n\r\n")
-		buf.WriteString(msg.BodyText)
-
-		fmt.Fprintf(&buf, "\r\n--%s\r\n", boundary)
-		fmt.Fprintf(&buf, "Content-Type: text/html; charset=UTF-8\r\n")
-		fmt.Fprintf(&buf, "Content-Transfer-Encoding: 8bit\r\n\r\n")
-		buf.WriteString(msg.BodyHTML)
-
-		fmt.Fprintf(&buf, "\r\n--%s--\r\n", boundary)
-	} else if hasHTML {
-		headers.Set("Content-Type", "text/html; charset=UTF-8")
-		writeHeaders(&buf, headers)
-		buf.WriteString("\r\n")
-		buf.WriteString(msg.BodyHTML)
-	} else {
-		headers.Set("Content-Type", "text/plain; charset=UTF-8")
-		writeHeaders(&buf, headers)
-		buf.WriteString("\r\n")
-		buf.WriteString(msg.BodyText)
-	}
-
-	return buf.Bytes(), nil
-}
-
-func formatAddress(addr port.EmailAddress) string {
-	if addr.Name == "" {
-		return addr.Address
-	}
-	return (&mail.Address{Name: addr.Name, Address: addr.Address}).String()
-}
-
-func writeHeaders(buf *bytes.Buffer, headers textproto.MIMEHeader) {
-	order := []string{"From", "To", "Cc", "Reply-To", "Subject", "Date", "Mime-Version", "Content-Type"}
-	written := make(map[string]bool)
-	for _, key := range order {
-		if vals, ok := headers[key]; ok {
-			for _, v := range vals {
-				fmt.Fprintf(buf, "%s: %s\r\n", key, v)
-			}
-			written[key] = true
-		}
-	}
-	for key, vals := range headers {
-		if written[key] {
-			continue
-		}
-		for _, v := range vals {
-			fmt.Fprintf(buf, "%s: %s\r\n", key, v)
-		}
-	}
-}
-
-func sanitizeHeaderValue(v string) string {
-	v = strings.ReplaceAll(v, "\r", "")
-	v = strings.ReplaceAll(v, "\n", "")
-	return v
-}

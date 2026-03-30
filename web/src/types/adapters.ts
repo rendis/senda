@@ -8,6 +8,7 @@ export interface Adapter {
   adapter_type: AdapterType;
   is_default: boolean;
   rate_limit_per_second?: number;
+  config_meta?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -19,11 +20,9 @@ export interface SesConfig {
   secret_access_key: string;
 }
 
-/** Gmail adapter config (for creation/update) */
+/** Gmail adapter config (for creation/update) — Service Account with delegation */
 export interface GmailConfig {
-  oauth_client_id: string;
-  oauth_client_secret: string;
-  refresh_token: string;
+  service_account_json: string;
   delegate_email: string;
 }
 

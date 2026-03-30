@@ -79,6 +79,9 @@ func (h *AdapterHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
 	if len(req.Config) == 0 {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "config", Message: "is required"})
 	}
+	if len(fieldErrors) == 0 {
+		fieldErrors = append(fieldErrors, validateConfig(domain.AdapterType(req.AdapterType), req.Config)...)
+	}
 	if len(fieldErrors) > 0 {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 	}
@@ -97,6 +100,7 @@ func (h *AdapterHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
 		ConfigEncrypted:    encrypted,
 		IsDefault:          req.IsDefault,
 		RateLimitPerSecond: req.RateLimitPerSecond,
+		ConfigMeta:         extractPublicConfigFields(domain.AdapterType(req.AdapterType), req.Config),
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -212,23 +216,42 @@ func (h *AdapterHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
 		}
 		adapter.Name = *req.Name
 	}
-	if req.Config != nil {
-		encrypted, err := h.crypto.Encrypt(*req.Config)
+	if req.Config != nil || req.ConfigurationSetName != nil {
+		cfgMap, err := h.decryptConfigMap(adapter)
+		if err != nil {
+			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+		}
+		if req.Config != nil {
+			var patch map[string]any
+			if err := json.Unmarshal(*req.Config, &patch); err != nil {
+				return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+			}
+			for k, v := range patch {
+				if s, ok := v.(string); ok && s == "" {
+					continue
+				}
+				cfgMap[k] = v
+			}
+		}
+		if req.ConfigurationSetName != nil {
+			cfgMap["configuration_set_name"] = *req.ConfigurationSetName
+		}
+		updated, err := json.Marshal(cfgMap)
+		if err != nil {
+			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+		}
+		encrypted, err := h.crypto.Encrypt(updated)
 		if err != nil {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		}
 		adapter.ConfigEncrypted = encrypted
+		adapter.ConfigMeta = extractPublicConfigFields(adapter.AdapterType, updated)
 	}
 	if req.IsDefault != nil {
 		adapter.IsDefault = *req.IsDefault
 	}
 	if req.RateLimitPerSecond != nil {
 		adapter.RateLimitPerSecond = *req.RateLimitPerSecond
-	}
-	if req.ConfigurationSetName != nil {
-		if err := h.mergeConfigField(adapter, "configuration_set_name", *req.ConfigurationSetName); err != nil {
-			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
-		}
 	}
 
 	adapter.UpdatedAt = time.Now().UTC()
@@ -332,7 +355,7 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 
 	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
 	if err != nil {
-		return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to decrypt adapter config")
+		return response.WriteError(c, http.StatusUnprocessableEntity, "CONFIG_ERROR", "adapter config is corrupted — please update the adapter with valid credentials")
 	}
 
 	sender, err := h.senderFactory(ctx, adapter, decrypted)
@@ -340,21 +363,24 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 		return response.WriteError(c, http.StatusUnprocessableEntity, "ADAPTER_ERROR", fmt.Sprintf("failed to create sender: %v", err))
 	}
 
+	var from port.EmailAddress
 	identity, err := h.identityStore.GetDefault(ctx, adapterID)
-	if err != nil {
-		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity configured for this adapter")
-	}
-
-	var displayName string
-	if identity.DisplayName != nil {
-		displayName = *identity.DisplayName
+	if err == nil {
+		from.Address = identity.Identity
+		if identity.DisplayName != nil {
+			from.Name = *identity.DisplayName
+		}
+	} else {
+		if de := adapter.ConfigMeta["delegate_email"]; de != "" {
+			from.Address = de
+		}
+		if from.Address == "" {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
+		}
 	}
 
 	msg := &port.OutgoingEmail{
-		From: port.EmailAddress{
-			Name:    displayName,
-			Address: identity.Identity,
-		},
+		From: from,
 		To:       port.EmailAddress{Address: req.To},
 		Subject:  req.Subject,
 		BodyHTML: req.Body,
@@ -372,31 +398,74 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 	return c.JSON(http.StatusOK, map[string]string{
 		"status":              "sent",
 		"provider_message_id": providerMsgID,
-		"from":                identity.Identity,
+		"from":                from.Address,
 	})
 }
 
-// mergeConfigField decrypts the adapter config, sets a field, and re-encrypts.
-func (h *AdapterHandler) mergeConfigField(adapter *domain.Adapter, key string, value any) error {
+// decryptConfigMap decrypts the adapter config and unmarshals it into a map.
+func (h *AdapterHandler) decryptConfigMap(adapter *domain.Adapter) (map[string]any, error) {
 	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var m map[string]any
+	if err := json.Unmarshal(decrypted, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// extractPublicConfigFields extracts non-sensitive fields from raw config JSON for storage in config_meta.
+func extractPublicConfigFields(adapterType domain.AdapterType, rawConfig []byte) map[string]string {
 	var cfgMap map[string]any
-	if err := json.Unmarshal(decrypted, &cfgMap); err != nil {
-		return err
+	if json.Unmarshal(rawConfig, &cfgMap) != nil {
+		return nil
 	}
-	cfgMap[key] = value
-	updated, err := json.Marshal(cfgMap)
-	if err != nil {
-		return err
+	meta := make(map[string]string)
+	switch adapterType {
+	case domain.AdapterTypeSES:
+		if v, ok := cfgMap["region"].(string); ok && v != "" {
+			meta["region"] = v
+		}
+	case domain.AdapterTypeGmail:
+		if v, ok := cfgMap["delegate_email"].(string); ok && v != "" {
+			meta["delegate_email"] = v
+		}
 	}
-	encrypted, err := h.crypto.Encrypt(updated)
-	if err != nil {
-		return err
+	if len(meta) == 0 {
+		return nil
 	}
-	adapter.ConfigEncrypted = encrypted
-	return nil
+	return meta
+}
+
+// validateConfig checks that required fields are present for the adapter type.
+func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []response.FieldError {
+	var cfgMap map[string]any
+	if json.Unmarshal(config, &cfgMap) != nil {
+		return []response.FieldError{{Field: "config", Message: "must be a valid JSON object"}}
+	}
+	str := func(key string) string {
+		if v, ok := cfgMap[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+
+	var errs []response.FieldError
+	switch adapterType {
+	case domain.AdapterTypeSES:
+		if str("region") == "" {
+			errs = append(errs, response.FieldError{Field: "config.region", Message: "is required"})
+		}
+	case domain.AdapterTypeGmail:
+		if str("service_account_json") == "" {
+			errs = append(errs, response.FieldError{Field: "config.service_account_json", Message: "is required"})
+		}
+		if str("delegate_email") == "" {
+			errs = append(errs, response.FieldError{Field: "config.delegate_email", Message: "is required"})
+		}
+	}
+	return errs
 }
 
 func isValidAdapterType(t string) bool {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plug, Plus, MoreHorizontal, Check, Trash2, Zap } from "lucide-react";
+import { Plug, Plus, MoreHorizontal, Check, Trash2, Zap, Pencil } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useAdapterList,
   useCreateAdapter,
   useDeleteAdapter,
+  useUpdateAdapter,
   useTestAdapterSend,
 } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
@@ -55,6 +56,7 @@ function AdaptersTable() {
   const scopedPath = useScopedPath();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Adapter | null>(null);
+  const [editTarget, setEditTarget] = useState<Adapter | null>(null);
   const [testTarget, setTestTarget] = useState<Adapter | null>(null);
 
   const {
@@ -95,6 +97,19 @@ function AdaptersTable() {
       cell: ({ row }) => <AdapterTypeBadge type={row.original.adapter_type} />,
     },
     {
+      id: "sender",
+      header: "SENDER",
+      cell: ({ row }) => {
+        const meta = row.original.config_meta;
+        const value = meta?.delegate_email || meta?.region || "\u2014";
+        return (
+          <span className="font-mono text-[13px] text-muted-foreground">
+            {value}
+          </span>
+        );
+      },
+    },
+    {
       id: "scope",
       header: "SCOPE",
       cell: () => <ScopeIndicator scope="workspace" />,
@@ -127,6 +142,7 @@ function AdaptersTable() {
         <AdapterActions
           adapter={row.original}
           onDelete={setDeleteTarget}
+          onEdit={setEditTarget}
           onTest={setTestTarget}
         />
       ),
@@ -182,6 +198,16 @@ function AdaptersTable() {
         }
       />
 
+      {/* Edit dialog */}
+      {editTarget && (
+        <EditAdapterDialog
+          key={editTarget.id}
+          adapter={editTarget}
+          open={!!editTarget}
+          onOpenChange={(open) => !open && setEditTarget(null)}
+        />
+      )}
+
       {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
@@ -213,10 +239,12 @@ function AdaptersTable() {
 function AdapterActions({
   adapter,
   onDelete,
+  onEdit,
   onTest,
 }: {
   adapter: Adapter;
   onDelete: (a: Adapter) => void;
+  onEdit: (a: Adapter) => void;
   onTest: (a: Adapter) => void;
 }) {
   return (
@@ -227,6 +255,10 @@ function AdapterActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onEdit(adapter)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onTest(adapter)}>
           <Zap className="mr-2 h-4 w-4" />
           Test Send
@@ -240,6 +272,32 @@ function AdapterActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function EditAdapterDialog({
+  adapter,
+  open,
+  onOpenChange,
+}: {
+  adapter: Adapter;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const scopedPath = useScopedPath();
+  const updateAdapter = useUpdateAdapter(scopedPath, adapter.id);
+
+  return (
+    <AdapterForm
+      mode="edit"
+      adapter={adapter}
+      trigger={<span />}
+      open={open}
+      onOpenChange={onOpenChange}
+      onSubmit={async (data) => {
+        await updateAdapter.mutateAsync(data);
+      }}
+    />
   );
 }
 

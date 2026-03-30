@@ -1,18 +1,12 @@
 package ses
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"mime"
-	"net/mail"
-	"net/textproto"
 	"net/url"
-	"regexp"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -23,11 +17,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/smithy-go"
 
+	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
 )
-
-// safeHeaderKeyRe allows only alphanumeric characters and hyphens in custom header keys.
-var safeHeaderKeyRe = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 // Config holds the decrypted configuration for an SES adapter.
 type Config struct {
@@ -36,6 +28,14 @@ type Config struct {
 	SecretAccessKey      string `json:"secret_access_key,omitempty"`
 	EndpointURL          string `json:"endpoint_url,omitempty"`
 	ConfigurationSetName string `json:"configuration_set_name,omitempty"`
+}
+
+// Validate checks that required fields are present.
+func (c Config) Validate() error {
+	if c.Region == "" {
+		return fmt.Errorf("missing SES region")
+	}
+	return nil
 }
 
 // SESAPI abstracts the SES v2 API for testability.
@@ -289,7 +289,7 @@ func (a *Adapter) IsPermanentSendError(err error) bool {
 
 // Send delivers an email via AWS SES v2 using SendRawEmail.
 func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, error) {
-	rawMsg, err := buildRawMessage(msg)
+	rawMsg, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
 		return "", fmt.Errorf("ses: build raw message: %w", err)
 	}
@@ -396,112 +396,6 @@ func (a *Adapter) ProviderName() string { return "ses" }
 // Compile-time interface checks.
 var _ port.EmailSender = (*Adapter)(nil)
 var _ port.IdentityProvider = (*Adapter)(nil)
-
-// buildRawMessage constructs a RFC 5322 MIME message from an OutgoingEmail.
-func buildRawMessage(msg *port.OutgoingEmail) ([]byte, error) {
-	var buf bytes.Buffer
-
-	// Headers.
-	headers := textproto.MIMEHeader{}
-	headers.Set("From", formatAddress(msg.From))
-	headers.Set("To", formatAddress(msg.To))
-	headers.Set("Subject", mime.QEncoding.Encode("UTF-8", msg.Subject))
-	headers.Set("Date", time.Now().UTC().Format(time.RFC1123Z))
-	headers.Set("MIME-Version", "1.0")
-
-	if len(msg.CC) > 0 {
-		addrs := make([]string, len(msg.CC))
-		for i, cc := range msg.CC {
-			addrs[i] = formatAddress(cc)
-		}
-		headers.Set("Cc", strings.Join(addrs, ", "))
-	}
-	if msg.ReplyTo != nil {
-		headers.Set("Reply-To", formatAddress(*msg.ReplyTo))
-	}
-
-	// Custom headers — sanitize to prevent header injection.
-	for k, v := range msg.Headers {
-		if !safeHeaderKeyRe.MatchString(k) {
-			continue // skip keys with unsafe characters
-		}
-		headers.Set(k, sanitizeHeaderValue(v))
-	}
-
-	// Determine content type.
-	hasHTML := msg.BodyHTML != ""
-	hasText := msg.BodyText != ""
-
-	if hasHTML && hasText {
-		// multipart/alternative
-		boundary := "senda-boundary-" + msg.TrackingID
-		headers.Set("Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", boundary))
-		writeHeaders(&buf, headers)
-
-		fmt.Fprintf(&buf, "\r\n--%s\r\n", boundary)
-		fmt.Fprintf(&buf, "Content-Type: text/plain; charset=UTF-8\r\n")
-		fmt.Fprintf(&buf, "Content-Transfer-Encoding: 8bit\r\n\r\n")
-		buf.WriteString(msg.BodyText)
-
-		fmt.Fprintf(&buf, "\r\n--%s\r\n", boundary)
-		fmt.Fprintf(&buf, "Content-Type: text/html; charset=UTF-8\r\n")
-		fmt.Fprintf(&buf, "Content-Transfer-Encoding: 8bit\r\n\r\n")
-		buf.WriteString(msg.BodyHTML)
-
-		fmt.Fprintf(&buf, "\r\n--%s--\r\n", boundary)
-	} else if hasHTML {
-		headers.Set("Content-Type", "text/html; charset=UTF-8")
-		writeHeaders(&buf, headers)
-		buf.WriteString("\r\n")
-		buf.WriteString(msg.BodyHTML)
-	} else {
-		headers.Set("Content-Type", "text/plain; charset=UTF-8")
-		writeHeaders(&buf, headers)
-		buf.WriteString("\r\n")
-		buf.WriteString(msg.BodyText)
-	}
-
-	return buf.Bytes(), nil
-}
-
-// formatAddress formats an EmailAddress for SMTP headers.
-func formatAddress(addr port.EmailAddress) string {
-	if addr.Name == "" {
-		return addr.Address
-	}
-	return (&mail.Address{Name: addr.Name, Address: addr.Address}).String()
-}
-
-// writeHeaders writes MIME headers to a buffer.
-func writeHeaders(buf *bytes.Buffer, headers textproto.MIMEHeader) {
-	// Write headers in a deterministic order for common fields.
-	order := []string{"From", "To", "Cc", "Reply-To", "Subject", "Date", "Mime-Version", "Content-Type"}
-	written := make(map[string]bool)
-	for _, key := range order {
-		if vals, ok := headers[key]; ok {
-			for _, v := range vals {
-				fmt.Fprintf(buf, "%s: %s\r\n", key, v)
-			}
-			written[key] = true
-		}
-	}
-	// Write remaining headers.
-	for key, vals := range headers {
-		if written[key] {
-			continue
-		}
-		for _, v := range vals {
-			fmt.Fprintf(buf, "%s: %s\r\n", key, v)
-		}
-	}
-}
-
-// sanitizeHeaderValue strips CR and LF characters to prevent header injection attacks.
-func sanitizeHeaderValue(v string) string {
-	v = strings.ReplaceAll(v, "\r", "")
-	v = strings.ReplaceAll(v, "\n", "")
-	return v
-}
 
 // buildDestination constructs the SES Destination with To, CC, and BCC addresses.
 // SES requires Destination to be set for BCC delivery even when using raw messages.

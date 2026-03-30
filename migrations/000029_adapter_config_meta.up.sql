@@ -1,0 +1,1 @@
+ALTER TABLE adapters ADD COLUMN config_meta JSONB NOT NULL DEFAULT '{}';

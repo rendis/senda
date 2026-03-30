@@ -109,6 +109,13 @@ func coalesceJSON(m map[string]any) map[string]any {
 	return m
 }
 
+func coalesceStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
+}
+
 // RunMigrationsDown reverts all migrations from the given path.
 func RunMigrationsDown(dbURL string, migrationsPath string) error {
 	m, err := migrate.New(

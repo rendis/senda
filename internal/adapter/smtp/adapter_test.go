@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestBuildRawMessage_PlainText(t *testing.T) {
 		TrackingID: "trk-001",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	require.NoError(t, err)
 	body := string(raw)
 
@@ -36,7 +37,7 @@ func TestBuildRawMessage_HTMLOnly(t *testing.T) {
 		TrackingID: "trk-002",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	require.NoError(t, err)
 	body := string(raw)
 
@@ -54,7 +55,7 @@ func TestBuildRawMessage_Multipart(t *testing.T) {
 		TrackingID: "trk-003",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	require.NoError(t, err)
 	body := string(raw)
 
@@ -77,7 +78,7 @@ func TestBuildRawMessage_WithCCAndReplyTo(t *testing.T) {
 		TrackingID: "trk-004",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	require.NoError(t, err)
 	body := string(raw)
 
@@ -86,7 +87,7 @@ func TestBuildRawMessage_WithCCAndReplyTo(t *testing.T) {
 }
 
 func TestSanitizeHeaderValue_StripsNewlines(t *testing.T) {
-	result := sanitizeHeaderValue("value\r\ninjected: bad")
+	result := sendamime.SanitizeHeaderValue("value\r\ninjected: bad")
 	require.Equal(t, "valueinjected: bad", result)
 }
 
@@ -115,7 +116,7 @@ func TestBuildRawMessage_HeaderInjectionPrevented(t *testing.T) {
 		},
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	require.NoError(t, err)
 	body := string(raw)
 

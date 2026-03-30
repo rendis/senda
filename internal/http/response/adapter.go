@@ -6,16 +6,17 @@ import (
 )
 
 // AdapterResponse is the JSON response for an adapter.
-// SECURITY: ConfigEncrypted is never exposed.
+// SECURITY: ConfigEncrypted is never exposed. Only non-sensitive metadata is shown.
 type AdapterResponse struct {
-	ID                 string  `json:"id"`
-	WorkspaceID        *string `json:"workspace_id,omitempty"`
-	Name               string  `json:"name"`
-	AdapterType        string  `json:"adapter_type"`
-	IsDefault          bool    `json:"is_default"`
-	RateLimitPerSecond int     `json:"rate_limit_per_second"`
-	CreatedAt          string  `json:"created_at"`
-	UpdatedAt          string  `json:"updated_at"`
+	ID                 string            `json:"id"`
+	WorkspaceID        *string           `json:"workspace_id,omitempty"`
+	Name               string            `json:"name"`
+	AdapterType        string            `json:"adapter_type"`
+	IsDefault          bool              `json:"is_default"`
+	RateLimitPerSecond int               `json:"rate_limit_per_second"`
+	ConfigMeta         map[string]string `json:"config_meta,omitempty"`
+	CreatedAt          string            `json:"created_at"`
+	UpdatedAt          string            `json:"updated_at"`
 }
 
 // AdapterListResponse is the JSON response for a paginated list of adapters.
@@ -33,6 +34,7 @@ func NewAdapterResponse(a *domain.Adapter) AdapterResponse {
 		AdapterType:        string(a.AdapterType),
 		IsDefault:          a.IsDefault,
 		RateLimitPerSecond: a.RateLimitPerSecond,
+		ConfigMeta:         a.ConfigMeta,
 		CreatedAt:          a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:          a.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}

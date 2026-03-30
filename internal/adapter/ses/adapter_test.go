@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 
+	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
 )
 
@@ -277,9 +278,9 @@ func TestBuildRawMessage_HTMLOnly(t *testing.T) {
 		TrackingID: "trk_test",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
-		t.Fatalf("buildRawMessage() error = %v", err)
+		t.Fatalf("BuildRawMessage() error = %v", err)
 	}
 
 	rawStr := string(raw)
@@ -311,9 +312,9 @@ func TestFormatAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatAddress(tt.addr)
+			result := sendamime.FormatAddress(tt.addr)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("formatAddress() = %q, expected to contain %q", result, tt.contains)
+				t.Errorf("FormatAddress() = %q, expected to contain %q", result, tt.contains)
 			}
 		})
 	}
@@ -429,9 +430,9 @@ func TestBuildRawMessage_HeaderInjection_ValueSanitized(t *testing.T) {
 		},
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
-		t.Fatalf("buildRawMessage() error = %v", err)
+		t.Fatalf("BuildRawMessage() error = %v", err)
 	}
 
 	rawStr := string(raw)
@@ -469,9 +470,9 @@ func TestBuildRawMessage_HeaderInjection_UnsafeKeySkipped(t *testing.T) {
 		},
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
-		t.Fatalf("buildRawMessage() error = %v", err)
+		t.Fatalf("BuildRawMessage() error = %v", err)
 	}
 
 	rawStr := string(raw)
@@ -499,9 +500,9 @@ func TestBuildRawMessage_ContentTransferEncoding_8bit(t *testing.T) {
 		TrackingID: "trk_encoding",
 	}
 
-	raw, err := buildRawMessage(msg)
+	raw, err := sendamime.BuildRawMessage(msg)
 	if err != nil {
-		t.Fatalf("buildRawMessage() error = %v", err)
+		t.Fatalf("BuildRawMessage() error = %v", err)
 	}
 
 	rawStr := string(raw)
@@ -527,7 +528,7 @@ func TestSanitizeHeaderValue(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := sanitizeHeaderValue(tt.input)
+		got := sendamime.SanitizeHeaderValue(tt.input)
 		if got != tt.expected {
 			t.Errorf("sanitizeHeaderValue(%q) = %q, want %q", tt.input, got, tt.expected)
 		}

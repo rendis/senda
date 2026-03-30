@@ -31,8 +31,8 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 			return nil, fmt.Errorf("%w: unmarshal SES config: %v", domain.ErrValidation, err)
 		}
-		if cfg.Region == "" {
-			return nil, fmt.Errorf("%w: missing SES region", domain.ErrValidation)
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
 		}
 		return sesadapter.NewAdapterFromConfig(ctx, cfg)
 	case domain.AdapterTypeGmail:
@@ -40,8 +40,8 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
 			return nil, fmt.Errorf("%w: unmarshal Gmail config: %v", domain.ErrValidation, err)
 		}
-		if cfg.OAuthClientID == "" || cfg.OAuthClientSecret == "" || cfg.RefreshToken == "" {
-			return nil, fmt.Errorf("%w: missing required Gmail OAuth fields", domain.ErrValidation)
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
 		}
 		return gmailadapter.NewAdapterFromConfig(ctx, cfg)
 	default:

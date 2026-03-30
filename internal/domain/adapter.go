@@ -14,14 +14,15 @@ const (
 )
 
 type Adapter struct {
-	ID                  uuid.UUID
-	WorkspaceID         *uuid.UUID // nil = global
-	Name                string
-	AdapterType         AdapterType
-	ConfigEncrypted     []byte // AES-256-GCM encrypted JSON
-	IsDefault           bool
-	RateLimitPerSecond  int
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	DeletedAt           *time.Time
+	ID                 uuid.UUID
+	WorkspaceID        *uuid.UUID        // nil = global
+	Name               string
+	AdapterType        AdapterType
+	ConfigEncrypted    []byte            // AES-256-GCM encrypted JSON
+	IsDefault          bool
+	RateLimitPerSecond int
+	ConfigMeta         map[string]string // non-sensitive config fields (region, delegate_email)
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	DeletedAt          *time.Time
 }

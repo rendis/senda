@@ -25,8 +25,8 @@ func NewAdapterRepo(pool *pgxpool.Pool) *AdapterRepo {
 
 func (r *AdapterRepo) Create(ctx context.Context, adapter *domain.Adapter) error {
 	row := r.pool.QueryRow(ctx,
-		`INSERT INTO adapters (id, name, workspace_id, adapter_type, config_encrypted, is_default, rate_limit_per_second)
-		 VALUES (@id, @name, @workspace_id, @adapter_type, @config_encrypted, @is_default, @rate_limit_per_second)
+		`INSERT INTO adapters (id, name, workspace_id, adapter_type, config_encrypted, is_default, rate_limit_per_second, config_meta)
+		 VALUES (@id, @name, @workspace_id, @adapter_type, @config_encrypted, @is_default, @rate_limit_per_second, @config_meta)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":                   adapter.ID,
@@ -36,6 +36,7 @@ func (r *AdapterRepo) Create(ctx context.Context, adapter *domain.Adapter) error
 			"config_encrypted":     adapter.ConfigEncrypted,
 			"is_default":           adapter.IsDefault,
 			"rate_limit_per_second": adapter.RateLimitPerSecond,
+			"config_meta":          coalesceStringMap(adapter.ConfigMeta),
 		},
 	)
 
@@ -52,7 +53,7 @@ func (r *AdapterRepo) Create(ctx context.Context, adapter *domain.Adapter) error
 func (r *AdapterRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Adapter, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-		        created_at, updated_at, deleted_at
+		        config_meta, created_at, updated_at, deleted_at
 		 FROM adapters
 		 WHERE id = @id AND deleted_at IS NULL`,
 		pgx.NamedArgs{"id": id},
@@ -69,6 +70,7 @@ func (r *AdapterRepo) Update(ctx context.Context, adapter *domain.Adapter) error
 		     config_encrypted = @config_encrypted,
 		     is_default = @is_default,
 		     rate_limit_per_second = @rate_limit_per_second,
+		     config_meta = @config_meta,
 		     updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
 		 RETURNING updated_at`,
@@ -79,6 +81,7 @@ func (r *AdapterRepo) Update(ctx context.Context, adapter *domain.Adapter) error
 			"config_encrypted":     adapter.ConfigEncrypted,
 			"is_default":           adapter.IsDefault,
 			"rate_limit_per_second": adapter.RateLimitPerSecond,
+			"config_meta":          coalesceStringMap(adapter.ConfigMeta),
 		},
 	)
 
@@ -111,7 +114,7 @@ func (r *AdapterRepo) ListInChain(ctx context.Context, scopes []uuid.NullUUID) (
 
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-		        created_at, updated_at, deleted_at
+		        config_meta, created_at, updated_at, deleted_at
 		 FROM adapters
 		 WHERE (workspace_id = ANY(@scopes) OR (@include_global::bool AND workspace_id IS NULL))
 		   AND deleted_at IS NULL
@@ -146,7 +149,7 @@ func (r *AdapterRepo) ListByWorkspace(ctx context.Context, workspaceID *uuid.UUI
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
 				`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-				        created_at, updated_at, deleted_at
+				        config_meta, created_at, updated_at, deleted_at
 				 FROM adapters
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
 				 ORDER BY id DESC
@@ -156,7 +159,7 @@ func (r *AdapterRepo) ListByWorkspace(ctx context.Context, workspaceID *uuid.UUI
 		} else {
 			rows, err = r.pool.Query(ctx,
 				`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-				        created_at, updated_at, deleted_at
+				        config_meta, created_at, updated_at, deleted_at
 				 FROM adapters
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL
 				 ORDER BY id DESC
@@ -168,7 +171,7 @@ func (r *AdapterRepo) ListByWorkspace(ctx context.Context, workspaceID *uuid.UUI
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
 				`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-				        created_at, updated_at, deleted_at
+				        config_meta, created_at, updated_at, deleted_at
 				 FROM adapters
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
 				 ORDER BY id DESC
@@ -178,7 +181,7 @@ func (r *AdapterRepo) ListByWorkspace(ctx context.Context, workspaceID *uuid.UUI
 		} else {
 			rows, err = r.pool.Query(ctx,
 				`SELECT id, workspace_id, name, adapter_type, config_encrypted, is_default, rate_limit_per_second,
-				        created_at, updated_at, deleted_at
+				        config_meta, created_at, updated_at, deleted_at
 				 FROM adapters
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL
 				 ORDER BY id DESC
@@ -212,7 +215,7 @@ func scanAdapter(row pgx.Row) (*domain.Adapter, error) {
 	var a domain.Adapter
 	err := row.Scan(
 		&a.ID, &a.WorkspaceID, &a.Name, &a.AdapterType, &a.ConfigEncrypted,
-		&a.IsDefault, &a.RateLimitPerSecond,
+		&a.IsDefault, &a.RateLimitPerSecond, &a.ConfigMeta,
 		&a.CreatedAt, &a.UpdatedAt, &a.DeletedAt,
 	)
 	if err != nil {
