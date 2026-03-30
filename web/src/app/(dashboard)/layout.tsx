@@ -17,7 +17,7 @@ function authHeaders(idToken?: string): HeadersInit | undefined {
 async function checkOnboarding(idToken?: string) {
   try {
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+      process.env.SENDA_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
     const res = await fetch(`${apiUrl}/api/v1/onboarding/status`, {
       cache: "no-store",
       headers: authHeaders(idToken),
@@ -31,19 +31,22 @@ async function checkOnboarding(idToken?: string) {
   }
 }
 
-async function fetchMembership(idToken?: string): Promise<MemberWithRoles | null> {
+async function fetchMembership(idToken?: string): Promise<MemberWithRoles | null | "unauthenticated"> {
   if (!idToken) {
-    return null;
+    return "unauthenticated";
   }
 
   try {
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+      process.env.SENDA_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
     const res = await fetch(`${apiUrl}/api/v1/members/me`, {
       cache: "no-store",
       headers: authHeaders(idToken),
     });
-    if (res.status === 403 || res.status === 401) {
+    if (res.status === 401) {
+      return "unauthenticated";
+    }
+    if (res.status === 403) {
       return null;
     }
     if (!res.ok) {
@@ -119,6 +122,9 @@ export default async function DashboardLayout({
   }
 
   const membership = await fetchMembership(idToken);
+  if (membership === "unauthenticated") {
+    redirect("/login");
+  }
   if (!membership || !hasScopeAccess(membership.roles ?? [], pathname)) {
     redirect("/access-denied");
   }
