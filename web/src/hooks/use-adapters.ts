@@ -92,23 +92,31 @@ export function useDeleteAdapter(scopedPath: string) {
   });
 }
 
-export function useTestAdapterConnection(scopedPath: string, id: string) {
+export interface TestAdapterRequest {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export interface TestAdapterResponse {
+  status: string;
+  provider_message_id: string;
+  from: string;
+}
+
+export function useTestAdapterSend(scopedPath: string, id: string) {
   const api = useApi();
 
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (data: TestAdapterRequest) =>
       api
-        .post(`${scopedPath}/adapters/${id}/test`)
-        .json<{ success: boolean; message?: string }>(),
+        .post(`${scopedPath}/adapters/${id}/test`, { json: data })
+        .json<TestAdapterResponse>(),
     onSuccess: (data) => {
-      if (data.success) {
-        toast.success("Connection successful");
-      } else {
-        toast.error(data.message ?? "Connection failed");
-      }
+      toast.success(`Test email sent from ${data.from}`);
     },
     onError: () => {
-      toast.error("Connection test failed");
+      toast.error("Test send failed");
     },
   });
 }

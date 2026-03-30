@@ -7,7 +7,7 @@ import {
   useAdapterList,
   useCreateAdapter,
   useDeleteAdapter,
-  useTestAdapterConnection,
+  useTestAdapterSend,
 } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -17,6 +17,15 @@ import { AdapterTypeBadge } from "./adapter-type-badge";
 import { AdapterForm } from "./adapter-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +55,7 @@ function AdaptersTable() {
   const scopedPath = useScopedPath();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Adapter | null>(null);
+  const [testTarget, setTestTarget] = useState<Adapter | null>(null);
 
   const {
     data: listData,
@@ -113,7 +123,13 @@ function AdaptersTable() {
     {
       id: "actions",
       enableSorting: false,
-      cell: ({ row }) => <AdapterActions adapter={row.original} onDelete={setDeleteTarget} />,
+      cell: ({ row }) => (
+        <AdapterActions
+          adapter={row.original}
+          onDelete={setDeleteTarget}
+          onTest={setTestTarget}
+        />
+      ),
     },
   ];
 
@@ -181,6 +197,15 @@ function AdaptersTable() {
         }}
         loading={deleteAdapter.isPending}
       />
+
+      {/* Test send dialog */}
+      {testTarget && (
+        <TestSendDialog
+          adapter={testTarget}
+          open={!!testTarget}
+          onOpenChange={(open) => !open && setTestTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -188,13 +213,12 @@ function AdaptersTable() {
 function AdapterActions({
   adapter,
   onDelete,
+  onTest,
 }: {
   adapter: Adapter;
   onDelete: (a: Adapter) => void;
+  onTest: (a: Adapter) => void;
 }) {
-  const scopedPath = useScopedPath();
-  const testConnection = useTestAdapterConnection(scopedPath, adapter.id);
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -203,12 +227,9 @@ function AdapterActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          onClick={() => testConnection.mutate()}
-          disabled={testConnection.isPending}
-        >
+        <DropdownMenuItem onClick={() => onTest(adapter)}>
           <Zap className="mr-2 h-4 w-4" />
-          Test Connection
+          Test Send
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onDelete(adapter)}
@@ -219,5 +240,93 @@ function AdapterActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function TestSendDialog({
+  adapter,
+  open,
+  onOpenChange,
+}: {
+  adapter: Adapter;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const scopedPath = useScopedPath();
+  const testSend = useTestAdapterSend(scopedPath, adapter.id);
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("Test email from Senda");
+  const [body, setBody] = useState(
+    "<h1>Test Email</h1><p>This is a test email sent from Senda to verify the adapter configuration.</p>"
+  );
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    testSend.mutate(
+      { to, subject, body },
+      { onSuccess: () => onOpenChange(false) }
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Test Send — {adapter.name}</DialogTitle>
+            <DialogDescription>
+              Send a test email through this adapter to verify it works.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="test-to">Recipient</Label>
+              <Input
+                id="test-to"
+                type="email"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="recipient@example.com"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="test-subject">Subject</Label>
+              <Input
+                id="test-subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Test email"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="test-body">Body (HTML)</Label>
+              <textarea
+                id="test-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+                required
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={testSend.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={testSend.isPending}>
+              {testSend.isPending ? "Sending..." : "Send Test"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
