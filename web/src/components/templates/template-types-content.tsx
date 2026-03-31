@@ -4,27 +4,38 @@ import { useState, useMemo } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import {
-  MoreHorizontal,
   Plus,
   Search,
   FileType,
   TriangleAlert,
+  Pencil,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
-import { useTemplateTypes, useCreateTemplateType } from "@/hooks/use-template-types";
+import { generateSlug } from "@/lib/validations/slug";
+import { useTemplateTypes, useCreateTemplateType, useUpdateTemplateType, useDeleteTemplateType } from "@/hooks/use-template-types";
+import { useAdapterList } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { FormDialog } from "@/components/shared/form-dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { TemplateType } from "@/types/templates";
 import { toast } from "sonner";
 
@@ -51,10 +62,21 @@ function TemplateTypesTable() {
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useTemplateTypes(scopedPath);
   const createMutation = useCreateTemplateType(scopedPath);
+  const deleteMutation = useDeleteTemplateType(scopedPath);
+  const { data: adapterData } = useAdapterList(scopedPath);
+  const adapters = useMemo(
+    () => adapterData?.pages.flatMap((p) => p.items) ?? [],
+    [adapterData]
+  );
 
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<TemplateType | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
+  const [newAdapterId, setNewAdapterId] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [editTarget, setEditTarget] = useState<TemplateType | null>(null);
 
   const allItems = useMemo(
     () => data?.pages.flatMap((p) => p.items) ?? [],
@@ -105,17 +127,23 @@ function TemplateTypesTable() {
     {
       accessorKey: "adapter_id",
       header: "ADAPTER",
-      cell: ({ row }) =>
-        row.original.adapter_id ? (
-          <span className="font-mono text-xs text-foreground">
-            {row.original.adapter_id}
+      cell: ({ row }) => {
+        const aid = row.original.adapter_id;
+        if (!aid) {
+          return (
+            <span className="inline-flex items-center gap-1 text-status-complained text-xs">
+              <TriangleAlert className="h-3.5 w-3.5" />
+              No adapter
+            </span>
+          );
+        }
+        const adapter = adapters.find((a) => a.id === aid);
+        return (
+          <span className="text-xs text-foreground">
+            {adapter?.name ?? aid.slice(0, 8)}
           </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-status-complained text-xs">
-            <TriangleAlert className="h-3.5 w-3.5" />
-            No adapter
-          </span>
-        ),
+        );
+      },
     },
     {
       accessorKey: "scope_level",
@@ -127,20 +155,32 @@ function TemplateTypesTable() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => router.push(buildTypePath(row.original.slug))}
-            >
-              View templates
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(buildTypePath(row.original.slug))}>
+                <Eye className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View templates</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditTarget(row.original)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(row.original)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete</TooltipContent>
+          </Tooltip>
+        </div>
       ),
     },
   ];
@@ -151,10 +191,13 @@ function TemplateTypesTable() {
       await createMutation.mutateAsync({
         slug: newSlug.trim(),
         name: newName.trim(),
+        adapter_id: newAdapterId || undefined,
       });
       toast.success("Template type created");
       setNewSlug("");
       setNewName("");
+      setNewAdapterId("");
+      setSlugTouched(false);
     } catch {
       toast.error("Failed to create template type");
     }
@@ -179,6 +222,8 @@ function TemplateTypesTable() {
               New Template Type
             </Button>
           }
+          open={createOpen}
+          onOpenChange={setCreateOpen}
           title="Create Template Type"
           description="Define a new template type for this scope."
           submitLabel="Create"
@@ -186,24 +231,34 @@ function TemplateTypesTable() {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="tt-slug">Slug</Label>
-              <Input
-                id="tt-slug"
-                placeholder="welcome-email"
-                value={newSlug}
-                onChange={(e) => setNewSlug(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
               <Label htmlFor="tt-name">Name</Label>
               <Input
                 id="tt-name"
                 placeholder="Welcome Email"
                 value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setNewName(name);
+                  if (!slugTouched) {
+                    setNewSlug(generateSlug(name));
+                  }
+                }}
               />
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tt-slug">Slug</Label>
+              <Input
+                id="tt-slug"
+                placeholder="welcome-email"
+                value={newSlug}
+                onChange={(e) => {
+                  setNewSlug(e.target.value);
+                  setSlugTouched(true);
+                }}
+                className="font-mono"
+              />
+            </div>
+            <AdapterSelect adapters={adapters} value={newAdapterId} onChange={setNewAdapterId} />
           </div>
         </FormDialog>
       </div>
@@ -221,7 +276,7 @@ function TemplateTypesTable() {
             title="No template types"
             description="Create your first template type to organize your email templates."
             action={
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Template Type
               </Button>
@@ -229,6 +284,102 @@ function TemplateTypesTable() {
           />
         }
       />
+
+      {editTarget && (
+        <EditTemplateTypeDialog
+          templateType={editTarget}
+          adapters={adapters}
+          open={!!editTarget}
+          onOpenChange={(open) => !open && setEditTarget(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Template Type"
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.slug, {
+              onSuccess: () => toast.success("Template type deleted"),
+              onError: () => toast.error("Failed to delete template type"),
+            });
+            setDeleteTarget(null);
+          }
+        }}
+        loading={deleteMutation.isPending}
+      />
+    </div>
+  );
+}
+
+function EditTemplateTypeDialog({
+  templateType,
+  adapters,
+  open,
+  onOpenChange,
+}: {
+  templateType: TemplateType;
+  adapters: { id: string; name: string; adapter_type: string }[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const scopedPath = useScopedPath();
+  const updateMutation = useUpdateTemplateType(scopedPath, templateType.slug);
+  const [adapterId, setAdapterId] = useState(templateType.adapter_id ?? "");
+
+  async function handleSubmit() {
+    try {
+      await updateMutation.mutateAsync({
+        adapter_id: adapterId || undefined,
+      });
+      toast.success("Template type updated");
+    } catch {
+      toast.error("Failed to update");
+    }
+  }
+
+  return (
+    <FormDialog
+      trigger={<span />}
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Edit — ${templateType.name}`}
+      description="Change the adapter assigned to this template type."
+      submitLabel="Update"
+      onSubmit={handleSubmit}
+    >
+      <AdapterSelect adapters={adapters} value={adapterId} onChange={setAdapterId} />
+    </FormDialog>
+  );
+}
+
+function AdapterSelect({
+  adapters,
+  value,
+  onChange,
+}: {
+  adapters: { id: string; name: string; adapter_type: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Adapter</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select adapter..." />
+        </SelectTrigger>
+        <SelectContent>
+          {adapters.map((a) => (
+            <SelectItem key={a.id} value={a.id}>
+              {a.name} ({a.adapter_type})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

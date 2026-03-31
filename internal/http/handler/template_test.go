@@ -28,7 +28,7 @@ func setupTemplateTest(store port.TemplateStore, compiler port.TemplateCompiler,
 	e.Use(middleware.Scope())
 
 	svc := service.NewTemplateService(store, compiler)
-	h := handler.NewTemplateHandler(svc, store, ts, ws)
+	h := handler.NewTemplateHandler(svc, store, ts, ws, nil)
 
 	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
 

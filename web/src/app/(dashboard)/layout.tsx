@@ -44,7 +44,10 @@ async function fetchMembership(idToken?: string): Promise<MemberWithRoles | null
       headers: authHeaders(idToken),
     });
     if (res.status === 401) {
-      return "unauthenticated";
+      // Token may have just expired — don't treat as unauthenticated.
+      // The JWT callback will refresh the token for the next request.
+      // Returning null here shows access-denied instead of login loop.
+      return null;
     }
     if (res.status === 403) {
       return null;
@@ -105,12 +108,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // If token refresh failed, redirect to login so the user re-authenticates.
-  // Can't call signIn() here because Server Components can't modify cookies.
+  // Get session — the proxy.ts authorized callback already handles login
+  // redirects when auth fails completely. Here we only need the session data.
   const session = await auth();
-  if (session?.error === "RefreshTokenError") {
-    redirect("/login");
-  }
 
   const idToken = session?.idToken;
   const pathname =

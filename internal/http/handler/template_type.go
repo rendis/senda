@@ -88,6 +88,90 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspaceID *uuid.UUID) er
 	return c.JSON(http.StatusCreated, response.NewTemplateTypeResponse(tt))
 }
 
+// Delete handles DELETE /tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug.
+func (h *TemplateTypeHandler) Delete(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.deleteType(c, &ws.ID)
+}
+
+// DeleteGlobal handles DELETE /global/template-types/:slug.
+func (h *TemplateTypeHandler) DeleteGlobal(c *echo.Context) error {
+	return h.deleteType(c, nil)
+}
+
+func (h *TemplateTypeHandler) deleteType(c *echo.Context, workspaceID *uuid.UUID) error {
+	slugParam := c.Param("slug")
+
+	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	if !sameScope(tt.WorkspaceID, workspaceID) {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	if err := h.svc.DeleteType(c.Request().Context(), tt.ID); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+// Update handles PUT /tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug.
+func (h *TemplateTypeHandler) Update(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.update(c, &ws.ID)
+}
+
+// UpdateGlobal handles PUT /global/template-types/:slug.
+func (h *TemplateTypeHandler) UpdateGlobal(c *echo.Context) error {
+	return h.update(c, nil)
+}
+
+func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
+	slugParam := c.Param("slug")
+
+	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	if !sameScope(tt.WorkspaceID, workspaceID) {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	var req request.UpdateTemplateTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	if req.Name != nil {
+		tt.Name = *req.Name
+	}
+	if req.AdapterID != nil {
+		if *req.AdapterID == "" {
+			tt.AdapterID = nil
+		} else {
+			parsed, err := uuid.Parse(*req.AdapterID)
+			if err != nil {
+				return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid adapter_id")
+			}
+			tt.AdapterID = &parsed
+		}
+	}
+
+	if err := h.svc.Update(c.Request().Context(), tt); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+}
+
 // Get handles GET /tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug.
 func (h *TemplateTypeHandler) Get(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)

@@ -55,6 +55,16 @@ func (s *TemplateTypeService) Create(ctx context.Context, slug, name string, des
 	return tt, nil
 }
 
+// Update updates a template type (name, adapter_id).
+func (s *TemplateTypeService) Update(ctx context.Context, tt *domain.TemplateType) error {
+	return s.store.UpdateType(ctx, tt)
+}
+
+// DeleteType soft-deletes a template type.
+func (s *TemplateTypeService) DeleteType(ctx context.Context, id uuid.UUID) error {
+	return s.store.SoftDeleteType(ctx, id)
+}
+
 // GetBySlug retrieves a template type by slug within a resolution chain.
 func (s *TemplateTypeService) GetBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
 	return s.store.GetTypeBySlug(ctx, slug, chain)

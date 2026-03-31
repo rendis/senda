@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -17,15 +18,16 @@ import (
 
 // TemplateHandler handles template, version, locale CRUD, and MJML preview.
 type TemplateHandler struct {
-	svc     *service.TemplateService
-	store   port.TemplateStore
-	tsStore port.TenantStore
-	wsStore port.WorkspaceStore
+	svc         *service.TemplateService
+	store       port.TemplateStore
+	tsStore     port.TenantStore
+	wsStore     port.WorkspaceStore
+	testSendSvc *service.TestSendService
 }
 
 // NewTemplateHandler creates a new TemplateHandler.
-func NewTemplateHandler(svc *service.TemplateService, store port.TemplateStore, ts port.TenantStore, ws port.WorkspaceStore) *TemplateHandler {
-	return &TemplateHandler{svc: svc, store: store, tsStore: ts, wsStore: ws}
+func NewTemplateHandler(svc *service.TemplateService, store port.TemplateStore, ts port.TenantStore, ws port.WorkspaceStore, testSendSvc *service.TestSendService) *TemplateHandler {
+	return &TemplateHandler{svc: svc, store: store, tsStore: ts, wsStore: ws, testSendSvc: testSendSvc}
 }
 
 // CreateTemplate handles POST .../templates.
@@ -237,9 +239,88 @@ func (h *TemplateHandler) UpdateVersion(c *echo.Context) error {
 }
 
 // TestSend handles POST .../templates/:template_id/test-send.
-// Stub — returns 501 until real SendService integration is built.
 func (h *TemplateHandler) TestSend(c *echo.Context) error {
-	return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "test send not yet available")
+	if h.testSendSvc == nil {
+		return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "test send not configured")
+	}
+
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	var req struct {
+		RecipientEmail string         `json:"recipient_email"`
+		Variables      map[string]any `json:"variables"`
+		Locale         *string        `json:"locale"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+	if req.RecipientEmail == "" {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "recipient_email is required")
+	}
+
+	result, err := h.testSendSvc.Send(c.Request().Context(), &service.TestSendRequest{
+		TemplateID:     templateID,
+		RecipientEmail: req.RecipientEmail,
+		Variables:      req.Variables,
+		Locale:         req.Locale,
+	})
+	if err != nil {
+		return mapTestSendError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"status":              "sent",
+		"provider_message_id": result.ProviderMessageID,
+		"from":                result.FromAddress,
+	})
+}
+
+func mapTestSendError(c *echo.Context, err error) error {
+	switch {
+	case errors.Is(err, domain.ErrNoPublishedVersion):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_PUBLISHED_VERSION", "no published version")
+	case errors.Is(err, domain.ErrNoAdapterConfigured):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_ADAPTER", "no adapter assigned to template type")
+	case errors.Is(err, domain.ErrNoDefaultIdentity):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no sender identity configured")
+	case errors.Is(err, domain.ErrNotFound):
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	default:
+		return response.WriteError(c, http.StatusUnprocessableEntity, "SEND_FAILED", fmt.Sprintf("test send failed: %v", err))
+	}
+}
+
+// DeleteTemplate handles DELETE .../templates/:template_id.
+func (h *TemplateHandler) DeleteTemplate(c *echo.Context) error {
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if err := h.svc.DeleteTemplate(c.Request().Context(), templateID); err != nil {
+		if errors.Is(err, domain.ErrHasPublishedVersion) {
+			return response.WriteError(c, http.StatusConflict, "HAS_PUBLISHED_VERSION", "cannot delete template with a published version")
+		}
+		return mapTemplateError(c, err)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// DeleteVersion handles DELETE .../templates/:template_id/versions/:version_id.
+func (h *TemplateHandler) DeleteVersion(c *echo.Context) error {
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+	if err := h.svc.DeleteVersion(c.Request().Context(), versionID); err != nil {
+		if errors.Is(err, domain.ErrVersionNotDraft) {
+			return response.WriteError(c, http.StatusConflict, "VERSION_NOT_DRAFT", "only draft versions can be deleted")
+		}
+		return mapTemplateError(c, err)
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 // ListVersions handles GET .../templates/:template_id/versions.

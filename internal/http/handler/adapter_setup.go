@@ -19,11 +19,12 @@ type AdapterSetupHandler struct {
 	wsStore     port.WorkspaceStore
 	webhookURL  string // base URL for the SES inbound webhook
 	provisioner *sesadapter.TrackingProvisioner
+	stepStore   port.ProvisioningStepStore
 }
 
 // NewAdapterSetupHandler creates a new AdapterSetupHandler.
-func NewAdapterSetupHandler(as port.AdapterStore, ts port.TenantStore, ws port.WorkspaceStore, webhookURL string, provisioner *sesadapter.TrackingProvisioner) *AdapterSetupHandler {
-	return &AdapterSetupHandler{store: as, tsStore: ts, wsStore: ws, webhookURL: webhookURL, provisioner: provisioner}
+func NewAdapterSetupHandler(as port.AdapterStore, ts port.TenantStore, ws port.WorkspaceStore, webhookURL string, provisioner *sesadapter.TrackingProvisioner, stepStore port.ProvisioningStepStore) *AdapterSetupHandler {
+	return &AdapterSetupHandler{store: as, tsStore: ts, wsStore: ws, webhookURL: webhookURL, provisioner: provisioner, stepStore: stepStore}
 }
 
 // SetupGuide handles GET /adapters/:id/setup-guide (workspace scope).
@@ -122,18 +123,21 @@ func (h *AdapterSetupHandler) buildSESGuide(adapter *domain.Adapter) map[string]
 			"Version": "2012-10-17",
 			"Statement": []map[string]any{
 				{
-					"Effect":   "Allow",
-					"Action":   []string{"ses:SendEmail", "ses:SendRawEmail", "ses:ListEmailIdentities"},
+					"Sid":    "SESSending",
+					"Effect": "Allow",
+					"Action": []string{"ses:SendEmail", "ses:SendRawEmail", "ses:ListEmailIdentities", "ses:GetAccount"},
 					"Resource": "*",
 				},
 				{
-					"Effect":   "Allow",
-					"Action":   []string{"ses:CreateConfigurationSet", "ses:CreateConfigurationSetEventDestination"},
+					"Sid":    "SESManagement",
+					"Effect": "Allow",
+					"Action": []string{"ses:CreateConfigurationSet", "ses:CreateConfigurationSetEventDestination", "ses:ListConfigurationSets"},
 					"Resource": "*",
 				},
 				{
-					"Effect":   "Allow",
-					"Action":   []string{"sns:CreateTopic", "sns:Subscribe"},
+					"Sid":    "SNSForTracking",
+					"Effect": "Allow",
+					"Action": []string{"sns:CreateTopic", "sns:Subscribe", "sns:ListTopics"},
 					"Resource": "*",
 				},
 			},
@@ -193,6 +197,112 @@ func (h *AdapterSetupHandler) autoProvision(c *echo.Context, workspaceID *uuid.U
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+
+// ProvisioningStatus handles GET /adapters/:id/provisioning-status (workspace scope).
+func (h *AdapterSetupHandler) ProvisioningStatus(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.provisioningStatus(c, &ws.ID)
+}
+
+// ProvisioningStatusGlobal handles GET /global/adapters/:id/provisioning-status.
+func (h *AdapterSetupHandler) ProvisioningStatusGlobal(c *echo.Context) error {
+	return h.provisioningStatus(c, nil)
+}
+
+func (h *AdapterSetupHandler) provisioningStatus(c *echo.Context, workspaceID *uuid.UUID) error {
+	adapterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
+	}
+
+	adapter, err := h.store.GetByID(c.Request().Context(), adapterID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	if !sameScope(adapter.WorkspaceID, workspaceID) {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	if h.stepStore == nil {
+		return c.JSON(http.StatusOK, map[string]any{
+			"adapter_id": adapterID.String(),
+			"status":     "not_started",
+			"steps":      []any{},
+		})
+	}
+
+	steps, err := h.stepStore.ListByAdapter(c.Request().Context(), adapterID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	if len(steps) == 0 {
+		return c.JSON(http.StatusOK, map[string]any{
+			"adapter_id": adapterID.String(),
+			"status":     "not_started",
+			"steps":      []any{},
+		})
+	}
+
+	// Derive overall status.
+	overallStatus := "completed"
+	for _, s := range steps {
+		if s.Status == domain.ProvisionStepFailed {
+			overallStatus = "failed"
+			break
+		}
+		if s.Status == domain.ProvisionStepPending {
+			overallStatus = "in_progress"
+		}
+	}
+
+	// If all are pending (never started), it's not_started.
+	allPending := true
+	for _, s := range steps {
+		if s.Status != domain.ProvisionStepPending {
+			allPending = false
+			break
+		}
+	}
+	if allPending {
+		overallStatus = "not_started"
+	}
+
+	stepResponses := make([]map[string]any, 0, len(steps))
+	for _, s := range steps {
+		entry := map[string]any{
+			"name":   s.StepName,
+			"order":  s.StepOrder,
+			"status": string(s.Status),
+		}
+		if s.ResourceName != nil {
+			entry["resource_name"] = *s.ResourceName
+		}
+		if s.ResourceARN != nil {
+			entry["resource_arn"] = *s.ResourceARN
+		}
+		if s.ErrorMessage != nil {
+			entry["error_message"] = *s.ErrorMessage
+		}
+		if s.StartedAt != nil {
+			entry["started_at"] = s.StartedAt
+		}
+		if s.CompletedAt != nil {
+			entry["completed_at"] = s.CompletedAt
+		}
+		stepResponses = append(stepResponses, entry)
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"adapter_id": adapterID.String(),
+		"status":     overallStatus,
+		"steps":      stepResponses,
+	})
 }
 
 func buildGmailGuide(adapter *domain.Adapter) map[string]any {

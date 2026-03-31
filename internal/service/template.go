@@ -143,6 +143,27 @@ func (s *TemplateService) DeleteLocale(ctx context.Context, versionID uuid.UUID,
 	return s.store.DeleteLocale(ctx, versionID, locale)
 }
 
+// DeleteTemplate soft-deletes a template if it has no published version.
+func (s *TemplateService) DeleteTemplate(ctx context.Context, templateID uuid.UUID) error {
+	_, err := s.store.GetPublishedVersion(ctx, templateID)
+	if err == nil {
+		return domain.ErrHasPublishedVersion
+	}
+	return s.store.SoftDeleteTemplate(ctx, templateID)
+}
+
+// DeleteVersion hard-deletes a version if it's in draft status.
+func (s *TemplateService) DeleteVersion(ctx context.Context, versionID uuid.UUID) error {
+	ver, err := s.store.GetVersionByID(ctx, versionID)
+	if err != nil {
+		return err
+	}
+	if ver.Status != domain.VersionStatusDraft {
+		return domain.ErrVersionNotDraft
+	}
+	return s.store.DeleteDraftVersion(ctx, versionID)
+}
+
 // PreviewMJML compiles MJML into HTML for preview.
 func (s *TemplateService) PreviewMJML(ctx context.Context, mjml string) (string, error) {
 	return s.compiler.Compile(ctx, mjml)

@@ -49,6 +49,7 @@ func (m *mockInjectorStore) FindDefinitionByName(ctx context.Context, name strin
 	}
 	return nil, nil
 }
+func (m *mockInjectorStore) SoftDeleteDefinition(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockInjectorStore) ListDefinitionsInChain(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
 	if m.listDefinitionsInChainFn != nil {
 		return m.listDefinitionsInChainFn(ctx, chain)

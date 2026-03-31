@@ -20,9 +20,6 @@ import (
 	"github.com/rendis/senda/internal/tracking"
 )
 
-// AdapterSenderFactory creates a provider sender from a resolved adapter config.
-type AdapterSenderFactory func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error)
-
 // DefaultAdapterSenderFactory builds provider-specific senders from adapter configs.
 func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error) {
 	switch adapter.AdapterType {
@@ -75,7 +72,7 @@ type SendWorker struct {
 	sender          port.EmailSender
 	adapterStore    port.AdapterStore
 	crypto          port.Crypto
-	senderFactory   AdapterSenderFactory
+	senderFactory   port.SenderFactory
 	trackingBaseURL string
 	senderCache     sync.Map // uuid.UUID -> *cachedSender
 }
@@ -111,7 +108,7 @@ func WithTrackingBaseURL(url string) SendWorkerOption {
 }
 
 // WithAdapterRuntime enables adapter-driven sender resolution when no static sender is configured.
-func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, senderFactory AdapterSenderFactory) SendWorkerOption {
+func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, senderFactory port.SenderFactory) SendWorkerOption {
 	return func(w *SendWorker) {
 		w.adapterStore = adapterStore
 		w.crypto = crypto

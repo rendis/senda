@@ -432,10 +432,12 @@ func (s *Server) registerRoutes() {
 				ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/injectors/:name", s.injectorHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.PUT("/injectors/:name/values", s.injectorHandler.SetValues, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.DELETE("/injectors/:name", s.injectorHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 			if s.adapterHandler != nil {
 				ws.GET("/adapters", s.adapterHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/adapters", s.adapterHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/adapters/validate-ses", s.adapterHandler.ValidateSES, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/adapters/:id", s.adapterHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.PUT("/adapters/:id", s.adapterHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/adapters/:id", s.adapterHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
@@ -443,6 +445,7 @@ func (s *Server) registerRoutes() {
 				if s.adapterSetupHandler != nil {
 					ws.GET("/adapters/:id/setup-guide", s.adapterSetupHandler.SetupGuide, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 					ws.POST("/adapters/:id/auto-provision-tracking", s.adapterSetupHandler.AutoProvision, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+					ws.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatus, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				}
 			}
 			if s.identityHandler != nil {
@@ -457,6 +460,8 @@ func (s *Server) registerRoutes() {
 				ws.POST("/template-types", s.templateTypeHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/template-types", s.templateTypeHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/template-types/:slug", s.templateTypeHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.PUT("/template-types/:slug", s.templateTypeHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/template-types/:slug", s.templateTypeHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 
 			// Templates + versions + locales (HT-21).
@@ -477,6 +482,8 @@ func (s *Server) registerRoutes() {
 				ws.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/disable", s.templateHandler.DisableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/enable", s.templateHandler.EnableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/templates/:template_id", s.templateHandler.DeleteTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/templates/:template_id/versions/:version_id", s.templateHandler.DeleteVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 
 			// API keys (HT-27).
@@ -529,6 +536,7 @@ func (s *Server) registerRoutes() {
 				global.POST("/injectors", s.injectorHandler.CreateGlobal)
 				global.GET("/injectors", s.injectorHandler.ListGlobal)
 				global.GET("/injectors/:name", s.injectorHandler.GetGlobal)
+				global.DELETE("/injectors/:name", s.injectorHandler.DeleteGlobal)
 			}
 			if s.adapterHandler != nil {
 				global.GET("/adapters", s.adapterHandler.ListGlobal)
@@ -540,6 +548,7 @@ func (s *Server) registerRoutes() {
 				if s.adapterSetupHandler != nil {
 					global.GET("/adapters/:id/setup-guide", s.adapterSetupHandler.SetupGuideGlobal)
 					global.POST("/adapters/:id/auto-provision-tracking", s.adapterSetupHandler.AutoProvisionGlobal)
+					global.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatusGlobal)
 				}
 			}
 			if s.identityHandler != nil {
@@ -554,6 +563,8 @@ func (s *Server) registerRoutes() {
 				global.POST("/template-types", s.templateTypeHandler.CreateGlobal)
 				global.GET("/template-types", s.templateTypeHandler.ListGlobal)
 				global.GET("/template-types/:slug", s.templateTypeHandler.GetGlobal)
+				global.PUT("/template-types/:slug", s.templateTypeHandler.UpdateGlobal)
+				global.DELETE("/template-types/:slug", s.templateTypeHandler.DeleteGlobal)
 			}
 
 			// Global templates (HT-21).
@@ -577,6 +588,8 @@ func (s *Server) registerRoutes() {
 				global.POST("/templates/:template_id/test-send", s.templateHandler.TestSend)
 				global.POST("/templates/:template_id/disable", s.templateHandler.DisableTemplateGlobal)
 				global.POST("/templates/:template_id/enable", s.templateHandler.EnableTemplateGlobal)
+				global.DELETE("/templates/:template_id", s.templateHandler.DeleteTemplate)
+				global.DELETE("/templates/:template_id/versions/:version_id", s.templateHandler.DeleteVersion)
 			}
 
 			// Global audit log (HT-22).

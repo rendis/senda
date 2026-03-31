@@ -36,6 +36,7 @@ type InjectorStore interface {
 	// Definitions (schema)
 	CreateDefinition(ctx context.Context, def *domain.InjectorDefinition) error
 	GetDefinitionByID(ctx context.Context, id uuid.UUID) (*domain.InjectorDefinition, error)
+	SoftDeleteDefinition(ctx context.Context, id uuid.UUID) error
 	FindDefinitionByName(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error)
 	ListDefinitionsInChain(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error)
 
@@ -55,6 +56,8 @@ type InjectorStore interface {
 // TemplateTypeStore manages template type persistence.
 type TemplateTypeStore interface {
 	CreateType(ctx context.Context, tt *domain.TemplateType) error
+	UpdateType(ctx context.Context, tt *domain.TemplateType) error
+	SoftDeleteType(ctx context.Context, id uuid.UUID) error
 	GetTypeBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
 	FindTypeBySlugInScope(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
 	ListTypes(ctx context.Context, wsID *uuid.UUID, opts ListOptions) ([]*domain.TemplateType, string, error)
@@ -68,6 +71,8 @@ type TemplateVersionStore interface {
 	UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error
 	Publish(ctx context.Context, versionID uuid.UUID) error // archives previous published
 	ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
+	GetLatestVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
+	DeleteDraftVersion(ctx context.Context, versionID uuid.UUID) error
 }
 
 // LocaleStore manages template version locale persistence.
@@ -87,9 +92,12 @@ type TemplateStore interface {
 
 	// Core template methods
 	CreateTemplate(ctx context.Context, tpl *domain.Template) error
+	GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error)
+	GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts ListOptions) ([]*domain.Template, string, error)
 	ResolveTemplate(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
+	SoftDeleteTemplate(ctx context.Context, templateID uuid.UUID) error
 	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 }
 
@@ -221,6 +229,27 @@ type AuditLogStore interface {
 type GlobalConfigStore interface {
 	Get(ctx context.Context) (*domain.GlobalConfig, error)
 	Upsert(ctx context.Context, cfg *domain.GlobalConfig) error
+}
+
+// ProvisioningStepStore manages adapter provisioning step persistence.
+type ProvisioningStepStore interface {
+	// InitSteps creates the provisioning step rows for an adapter (idempotent via ON CONFLICT DO NOTHING).
+	InitSteps(ctx context.Context, adapterID uuid.UUID) error
+
+	// ListByAdapter returns all provisioning steps for an adapter ordered by step_order.
+	ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterProvisioningStep, error)
+
+	// MarkCompleted sets a step to 'completed' with optional resource details.
+	MarkCompleted(ctx context.Context, stepID uuid.UUID, resourceName, resourceARN *string) error
+
+	// MarkFailed sets a step to 'failed' with an error message.
+	MarkFailed(ctx context.Context, stepID uuid.UUID, errMsg string) error
+
+	// ResetFailed resets all failed steps back to 'pending' for retry.
+	ResetFailed(ctx context.Context, adapterID uuid.UUID) error
+
+	// DeleteByAdapter removes all provisioning steps for an adapter.
+	DeleteByAdapter(ctx context.Context, adapterID uuid.UUID) error
 }
 
 // ---- Pagination Types ----

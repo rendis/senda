@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plug, Plus, MoreHorizontal, Check, Trash2, Zap, Pencil } from "lucide-react";
+import { Plug, Plus, Check, Trash2, Zap, Pencil, Mail } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useAdapterList,
@@ -9,6 +9,7 @@ import {
   useDeleteAdapter,
   useUpdateAdapter,
   useTestAdapterSend,
+  useAutoProvision,
 } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -16,6 +17,8 @@ import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { AdapterTypeBadge } from "./adapter-type-badge";
 import { AdapterForm } from "./adapter-form";
+import { ProvisioningStepper } from "./provisioning-stepper";
+import { IdentityPanel } from "./identity-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,13 +31,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Adapter, CreateAdapterRequest } from "@/types/adapters";
+import type { Adapter, CreateAdapterRequest, ProvisioningOverallStatus } from "@/types/adapters";
+import { TrackingStatus } from "./tracking-status";
+import { DefaultSender } from "./default-sender";
 
 export function AdaptersContent() {
   const { level } = useScope();
@@ -58,6 +62,8 @@ function AdaptersTable() {
   const [deleteTarget, setDeleteTarget] = useState<Adapter | null>(null);
   const [editTarget, setEditTarget] = useState<Adapter | null>(null);
   const [testTarget, setTestTarget] = useState<Adapter | null>(null);
+  const [provisionTarget, setProvisionTarget] = useState<Adapter | null>(null);
+  const [identityTarget, setIdentityTarget] = useState<Adapter | null>(null);
 
   const {
     data: listData,
@@ -78,7 +84,11 @@ function AdaptersTable() {
     : allItems;
 
   async function handleCreate(data: CreateAdapterRequest) {
-    await createAdapter.mutateAsync(data);
+    const adapter = await createAdapter.mutateAsync(data);
+    // Auto-trigger provisioning for SES adapters
+    if (data.adapter_type === "ses" && adapter?.id) {
+      setProvisionTarget(adapter);
+    }
   }
 
   const columns: ColumnDef<Adapter, unknown>[] = [
@@ -99,15 +109,9 @@ function AdaptersTable() {
     {
       id: "sender",
       header: "SENDER",
-      cell: ({ row }) => {
-        const meta = row.original.config_meta;
-        const value = meta?.delegate_email || meta?.region || "\u2014";
-        return (
-          <span className="font-mono text-[13px] text-muted-foreground">
-            {value}
-          </span>
-        );
-      },
+      cell: ({ row }) => (
+        <DefaultSender adapter={row.original} scopedPath={scopedPath} />
+      ),
     },
     {
       id: "scope",
@@ -136,6 +140,23 @@ function AdaptersTable() {
       ),
     },
     {
+      id: "tracking",
+      header: "TRACKING",
+      cell: ({ row }) =>
+        row.original.adapter_type === "ses" ? (
+          <TrackingStatus
+            adapterId={row.original.id}
+            scopedPath={scopedPath}
+            onClick={() => setProvisionTarget(row.original)}
+          />
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-muted-foreground/25" />
+            <span className="text-[10px] text-muted-foreground/50">Not supported</span>
+          </div>
+        ),
+    },
+    {
       id: "actions",
       enableSorting: false,
       cell: ({ row }) => (
@@ -144,6 +165,7 @@ function AdaptersTable() {
           onDelete={setDeleteTarget}
           onEdit={setEditTarget}
           onTest={setTestTarget}
+          onIdentities={setIdentityTarget}
         />
       ),
     },
@@ -232,6 +254,24 @@ function AdaptersTable() {
           onOpenChange={(open) => !open && setTestTarget(null)}
         />
       )}
+
+      {/* Provisioning stepper dialog */}
+      {provisionTarget && (
+        <ProvisioningStepper
+          adapter={provisionTarget}
+          open={!!provisionTarget}
+          onOpenChange={(open) => !open && setProvisionTarget(null)}
+        />
+      )}
+
+      {/* Identity panel dialog */}
+      {identityTarget && (
+        <IdentityPanel
+          adapter={identityTarget}
+          open={!!identityTarget}
+          onOpenChange={(open) => !open && setIdentityTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -241,37 +281,51 @@ function AdapterActions({
   onDelete,
   onEdit,
   onTest,
+  onIdentities,
 }: {
   adapter: Adapter;
   onDelete: (a: Adapter) => void;
   onEdit: (a: Adapter) => void;
   onTest: (a: Adapter) => void;
+  onIdentities: (a: Adapter) => void;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onEdit(adapter)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onTest(adapter)}>
-          <Zap className="mr-2 h-4 w-4" />
-          Test Send
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onDelete(adapter)}
-          className="text-destructive"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center justify-end gap-1">
+      {adapter.adapter_type === "ses" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onIdentities(adapter)}>
+              <Mail className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Senders</TooltipContent>
+        </Tooltip>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(adapter)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Edit</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onTest(adapter)}>
+            <Zap className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Test Send</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(adapter)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Delete</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -327,8 +381,8 @@ function TestSendDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(v) => !testSend.isPending && onOpenChange(v)}>
+      <DialogContent onInteractOutside={(e) => testSend.isPending && e.preventDefault()}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Test Send — {adapter.name}</DialogTitle>
@@ -336,7 +390,7 @@ function TestSendDialog({
               Send a test email through this adapter to verify it works.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
+          <fieldset disabled={testSend.isPending} className="flex flex-col gap-4 py-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="test-to">Recipient</Label>
               <Input
@@ -369,7 +423,7 @@ function TestSendDialog({
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
               />
             </div>
-          </div>
+          </fieldset>
           <DialogFooter>
             <Button
               type="button"

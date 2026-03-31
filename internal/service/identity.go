@@ -68,6 +68,13 @@ func (s *IdentityService) SyncIdentities(ctx context.Context, adapterID uuid.UUI
 	keepNames := make([]string, 0, len(providerIdentities))
 
 	for _, pi := range providerIdentities {
+		// Only import domain identities from the provider. Individual email identities
+		// from SES are often sandbox testing artifacts (verified recipients, not senders).
+		// Users add specific sender emails manually via the UI, validated against verified domains.
+		if pi.IdentityType != "domain" {
+			continue
+		}
+
 		identities = append(identities, &domain.AdapterIdentity{
 			ID:             uuid.Must(uuid.NewV7()),
 			AdapterID:      adapterID,

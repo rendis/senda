@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import { UserPlus, Users, MoreHorizontal, ShieldPlus, Trash2, Search } from "lucide-react";
+import { UserPlus, Users, ShieldPlus, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -10,11 +10,10 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { RoleBadge } from "./role-badge";
 import { MemberScopeBadge } from "./scope-badge";
 import { InviteMemberForm } from "./invite-member-form";
@@ -157,33 +156,26 @@ function MembersTable() {
       cell: ({ row }) => {
         const member = row.original;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="p-1 rounded hover:bg-muted">
-                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => setRoleEditorTarget(member)}
-              >
-                <ShieldPlus className="h-4 w-4" />
-                Add Role
-              </DropdownMenuItem>
-              {(member.roles ?? []).map((role) => (
-                <DropdownMenuItem
-                  key={role.id}
-                  variant="destructive"
-                  onClick={() =>
-                    setRevokeTarget({ member, role })
-                  }
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Remove {role.role}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setRoleEditorTarget(member)}>
+                  <ShieldPlus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Add Role</TooltipContent>
+            </Tooltip>
+            {(member.roles ?? []).map((role) => (
+              <Tooltip key={role.id}>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setRevokeTarget({ member, role })}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Remove {role.role}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
         );
       },
     },

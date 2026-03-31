@@ -10,21 +10,30 @@ import type { ScopeLevel } from "@/types/api";
 
 interface InjectorFieldEditorProps {
   field: InjectorField;
-  resolution: InjectorFieldResolution;
+  resolution: InjectorFieldResolution | null;
   currentScope: ScopeLevel;
   onSave: (fieldName: string, value: unknown) => void;
   onDeleteOverride: (fieldName: string) => void;
   saving?: boolean;
 }
 
+const emptyResolution: InjectorFieldResolution = {
+  field_name: "",
+  global_level: null,
+  tenant_level: null,
+  workspace_level: null,
+  effective_value: null,
+};
+
 export function InjectorFieldEditor({
   field,
-  resolution,
+  resolution: rawResolution,
   currentScope,
   onSave,
   onDeleteOverride,
   saving = false,
 }: InjectorFieldEditorProps) {
+  const resolution = rawResolution ?? emptyResolution;
   const workspaceValue = resolution.workspace_level;
   const hasOverride = workspaceValue != null;
   const [localValue, setLocalValue] = useState<string>(

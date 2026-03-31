@@ -57,6 +57,20 @@ func (r *InjectorRepo) GetDefinitionByID(ctx context.Context, id uuid.UUID) (*do
 	return scanInjectorDefinition(row)
 }
 
+func (r *InjectorRepo) SoftDeleteDefinition(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE injector_definitions SET deleted_at = now() WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": id},
+	)
+	if err != nil {
+		return fmt.Errorf("soft-deleting injector: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("injector %s not found", id)
+	}
+	return nil
+}
+
 func (r *InjectorRepo) FindDefinitionByName(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
 	var row pgx.Row
 	if workspaceID == nil {

@@ -166,6 +166,35 @@ func (h *InjectorHandler) get(c *echo.Context, workspaceID *uuid.UUID) error {
 	return c.JSON(http.StatusOK, response.NewInjectorDetailResponse(def, fields, values))
 }
 
+// Delete handles DELETE /tenants/:tenant_code/workspaces/:workspace_code/injectors/:name.
+func (h *InjectorHandler) Delete(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.deleteInjector(c, &ws.ID)
+}
+
+// DeleteGlobal handles DELETE /global/injectors/:name.
+func (h *InjectorHandler) DeleteGlobal(c *echo.Context) error {
+	return h.deleteInjector(c, nil)
+}
+
+func (h *InjectorHandler) deleteInjector(c *echo.Context, workspaceID *uuid.UUID) error {
+	name := c.Param("name")
+	def, err := h.store.FindDefinitionByName(c.Request().Context(), name, workspaceID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	if !sameScope(def.WorkspaceID, workspaceID) {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+	if err := h.store.SoftDeleteDefinition(c.Request().Context(), def.ID); err != nil {
+		return mapStoreError(c, err)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
 // SetValues handles PUT /tenants/:tenant_code/workspaces/:workspace_code/injectors/:name/values.
 func (h *InjectorHandler) SetValues(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)

@@ -37,6 +37,9 @@ type mockTemplateStore struct {
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
 	deleteLocaleFn          func(ctx context.Context, versionID uuid.UUID, locale string) error
 	listTypesFn             func(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error)
+	updateTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
+	getTemplateByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.Template, error)
+	getTypeByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 }
 
 func (m *mockTemplateStore) CreateType(ctx context.Context, tt *domain.TemplateType) error {
@@ -108,6 +111,11 @@ func (m *mockTemplateStore) Publish(ctx context.Context, versionID uuid.UUID) er
 	}
 	return nil
 }
+func (m *mockTemplateStore) GetLatestVersion(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStore) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
 func (m *mockTemplateStore) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -140,6 +148,25 @@ func (m *mockTemplateStore) ListTypes(ctx context.Context, wsID *uuid.UUID, opts
 		return m.listTypesFn(ctx, wsID, opts)
 	}
 	return nil, "", nil
+}
+func (m *mockTemplateStore) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
+	if m.updateTypeFn != nil {
+		return m.updateTypeFn(ctx, tt)
+	}
+	return nil
+}
+func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error) {
+	if m.getTemplateByIDFn != nil {
+		return m.getTemplateByIDFn(ctx, id)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStore) GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+	if m.getTypeByIDFn != nil {
+		return m.getTypeByIDFn(ctx, id)
+	}
+	return nil, domain.ErrNotFound
 }
 
 // --- Mock TemplateCompiler ---

@@ -9,15 +9,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
+	sesadapter "github.com/rendis/senda/internal/adapter/ses"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
+	"github.com/rendis/senda/internal/resolution"
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 )
-
-// AdapterSenderFactory creates an EmailSender from a resolved adapter and its decrypted config.
-type AdapterSenderFactory func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error)
 
 // AdapterHandler handles CRUD operations for email adapters.
 type AdapterHandler struct {
@@ -25,7 +24,7 @@ type AdapterHandler struct {
 	crypto        port.Crypto
 	tsStore       port.TenantStore
 	wsStore       port.WorkspaceStore
-	senderFactory AdapterSenderFactory
+	senderFactory port.SenderFactory
 	identityStore port.AdapterIdentityStore
 }
 
@@ -35,7 +34,7 @@ func NewAdapterHandler(
 	crypto port.Crypto,
 	ts port.TenantStore,
 	ws port.WorkspaceStore,
-	sf AdapterSenderFactory,
+	sf port.SenderFactory,
 	is port.AdapterIdentityStore,
 ) *AdapterHandler {
 	return &AdapterHandler{
@@ -300,6 +299,40 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 	return c.NoContent(http.StatusNoContent)
 }
 
+// ValidateSES handles POST .../adapters/validate-ses.
+// Tests AWS credentials and checks permissions without creating any resources.
+func (h *AdapterHandler) ValidateSES(c *echo.Context) error {
+	var req struct {
+		Region         string `json:"region"`
+		AccessKeyID    string `json:"access_key_id"`
+		SecretAccessKey string `json:"secret_access_key"`
+		EndpointURL    string `json:"endpoint_url,omitempty"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+	if req.Region == "" {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "region is required")
+	}
+
+	cfg := sesadapter.Config{
+		Region:         req.Region,
+		AccessKeyID:    req.AccessKeyID,
+		SecretAccessKey: req.SecretAccessKey,
+		EndpointURL:    req.EndpointURL,
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := sesadapter.ValidateCredentials(ctx, cfg)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_FAILED", fmt.Sprintf("credential validation failed: %v", err))
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
 // TestConnection handles POST .../adapters/:id/test (workspace scope).
 func (h *AdapterHandler) TestConnection(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
@@ -363,20 +396,9 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 		return response.WriteError(c, http.StatusUnprocessableEntity, "ADAPTER_ERROR", fmt.Sprintf("failed to create sender: %v", err))
 	}
 
-	var from port.EmailAddress
-	identity, err := h.identityStore.GetDefault(ctx, adapterID)
-	if err == nil {
-		from.Address = identity.Identity
-		if identity.DisplayName != nil {
-			from.Name = *identity.DisplayName
-		}
-	} else {
-		if de := adapter.ConfigMeta["delegate_email"]; de != "" {
-			from.Address = de
-		}
-		if from.Address == "" {
-			return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
-		}
+	from := resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
+	if from.Address == "" {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
 	}
 
 	msg := &port.OutgoingEmail{

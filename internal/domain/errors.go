@@ -30,6 +30,10 @@ var (
 	ErrIdentityNotFound    = errors.New("adapter identity not found")
 	ErrIdentityNotInDomain = errors.New("email not within adapter's verified domains")
 
+	// Delete errors
+	ErrHasPublishedVersion = errors.New("template has a published version and cannot be deleted")
+	ErrVersionNotDraft     = errors.New("only draft versions can be deleted")
+
 	// Pagination errors (HT-19)
 	ErrInvalidCursor = errors.New("invalid cursor")
 

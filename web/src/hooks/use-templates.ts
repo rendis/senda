@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
+import { toast } from "sonner";
 import type { Template } from "@/types/templates";
 
 export function useTemplatesByType(scopedPath: string, typeSlug: string) {
@@ -30,6 +31,23 @@ export function useCreateTemplate(scopedPath: string) {
         .json<Template>(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["templates", scopedPath] });
+    },
+  });
+}
+
+export function useDeleteTemplate(scopedPath: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (templateId: string) =>
+      api.delete(`${scopedPath}/templates/${templateId}`).then(() => {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates", scopedPath] });
+      toast.success("Template deleted");
+    },
+    onError: () => {
+      toast.error("Cannot delete template (may have a published version)");
     },
   });
 }

@@ -52,6 +52,43 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 	return nil
 }
 
+func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
+	row := r.pool.QueryRow(ctx,
+		`UPDATE template_types
+		 SET name = @name, adapter_id = @adapter_id, updated_at = now()
+		 WHERE id = @id AND deleted_at IS NULL
+		 RETURNING updated_at`,
+		pgx.NamedArgs{
+			"id":         tt.ID,
+			"name":       tt.Name,
+			"adapter_id": tt.AdapterID,
+		},
+	)
+
+	if err := row.Scan(&tt.UpdatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
+		return fmt.Errorf("updating template type: %w", err)
+	}
+
+	return nil
+}
+
+func (r *TemplateRepo) SoftDeleteType(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE template_types SET deleted_at = now() WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": id},
+	)
+	if err != nil {
+		return fmt.Errorf("soft-deleting template type: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template type %s not found", id)
+	}
+	return nil
+}
+
 func (r *TemplateRepo) GetTypeBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
 	scopes, includeGlobal := splitChain(chain)
 
@@ -210,6 +247,26 @@ func (r *TemplateRepo) CreateTemplate(ctx context.Context, tpl *domain.Template)
 	return nil
 }
 
+func (r *TemplateRepo) GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+		 FROM templates
+		 WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": id},
+	)
+	return scanTemplate(row)
+}
+
+func (r *TemplateRepo) GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema, created_at, updated_at, deleted_at
+		 FROM template_types
+		 WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": id},
+	)
+	return scanTemplateType(row)
+}
+
 func (r *TemplateRepo) GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error) {
 	var row pgx.Row
 	if wsID == nil {
@@ -358,6 +415,34 @@ func (r *TemplateRepo) SetDisabled(ctx context.Context, templateID uuid.UUID, ws
 		return apperr.NotFound("template %s not found in scope", templateID)
 	}
 
+	return nil
+}
+
+func (r *TemplateRepo) SoftDeleteTemplate(ctx context.Context, templateID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE templates SET deleted_at = now() WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": templateID},
+	)
+	if err != nil {
+		return fmt.Errorf("soft-deleting template: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("template %s not found", templateID)
+	}
+	return nil
+}
+
+func (r *TemplateRepo) DeleteDraftVersion(ctx context.Context, versionID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`DELETE FROM template_versions WHERE id = @id AND status = 'draft'`,
+		pgx.NamedArgs{"id": versionID},
+	)
+	if err != nil {
+		return fmt.Errorf("deleting draft version: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("draft version %s not found", versionID)
+	}
 	return nil
 }
 
@@ -553,6 +638,21 @@ func (r *TemplateRepo) Publish(ctx context.Context, versionID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (r *TemplateRepo) GetLatestVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, template_id, version_number, status, subject, preview_text,
+		        from_name, reply_to, body_mjml, default_locale,
+		        editor_data, created_by, published_at, archived_at, created_at, updated_at
+		 FROM template_versions
+		 WHERE template_id = @template_id
+		 ORDER BY version_number DESC
+		 LIMIT 1`,
+		pgx.NamedArgs{"template_id": templateID},
+	)
+
+	return scanTemplateVersion(row)
 }
 
 func (r *TemplateRepo) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {

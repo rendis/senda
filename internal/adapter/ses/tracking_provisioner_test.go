@@ -124,7 +124,7 @@ func newAccessDeniedErr() error {
 }
 
 func setupProvisioner(sesMock *mockProvisionSES, snsMock *mockProvisionSNS, adapterStore *mockProvisionAdapterStore, crypto *mockProvisionCrypto) *TrackingProvisioner {
-	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
+	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil, nil)
 	p.clientFactory = func(_ aws.Config, _ string) (SESAPI, SNSAPI) {
 		return sesMock, snsMock
 	}
@@ -298,7 +298,7 @@ func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
 	crypto := &mockProvisionCrypto{decrypted: cfgJSON, encrypted: []byte("encrypted")}
 	var gotEndpoint string
 
-	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil)
+	p := NewTrackingProvisioner(adapterStore, crypto, "https://senda.example.com", nil, nil)
 	p.clientFactory = func(_ aws.Config, endpointURL string) (SESAPI, SNSAPI) {
 		gotEndpoint = endpointURL
 		return &mockProvisionSES{}, &mockProvisionSNS{

@@ -3,13 +3,14 @@
 import { useMemo } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter, useParams } from "next/navigation";
-import { MoreHorizontal, Plus, FileText } from "lucide-react";
+import { Plus, FileText, Pencil, Eye, Send, Trash2 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { useTemplateType } from "@/hooks/use-template-types";
 import {
   useTemplateVersions,
   useCreateTemplateVersion,
   usePublishVersion,
+  useDeleteVersion,
 } from "@/hooks/use-template-version";
 import { useTemplatesByType, useCreateTemplate } from "@/hooks/use-templates";
 import { useApi } from "@/hooks/use-api";
@@ -20,11 +21,10 @@ import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { TemplateVersion } from "@/types/templates";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -92,7 +92,9 @@ export function TemplatesListContent() {
   const api = useApi();
   const createTemplate = useCreateTemplate(scopedPath);
   const createVersion = useCreateTemplateVersion(scopedPath, templateId);
+  const deleteVersion = useDeleteVersion(scopedPath, templateId);
 
+  const [deleteVersionTarget, setDeleteVersionTarget] = useState<TemplateVersion | null>(null);
   const [publishTarget, setPublishTarget] = useState<TemplateVersion | null>(
     null
   );
@@ -213,34 +215,48 @@ export function TemplatesListContent() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {row.original.status === "draft" && (
-              <DropdownMenuItem
-                onClick={() => router.push(buildEditPath(templateId, row.original.id))}
-              >
-                Edit
-              </DropdownMenuItem>
-            )}
-            {row.original.status === "draft" && (
-              <DropdownMenuItem onClick={() => setPublishTarget(row.original)}>
-                Publish
-              </DropdownMenuItem>
-            )}
-            {row.original.status === "published" && (
-              <DropdownMenuItem
-                onClick={() => router.push(buildEditPath(templateId, row.original.id))}
-              >
-                View
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-end gap-1">
+          {row.original.status === "draft" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(buildEditPath(templateId, row.original.id))}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit</TooltipContent>
+            </Tooltip>
+          )}
+          {row.original.status === "draft" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPublishTarget(row.original)}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Publish</TooltipContent>
+            </Tooltip>
+          )}
+          {row.original.status === "draft" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteVersionTarget(row.original)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Delete</TooltipContent>
+            </Tooltip>
+          )}
+          {row.original.status === "published" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(buildEditPath(templateId, row.original.id))}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       ),
     },
   ];
@@ -306,6 +322,24 @@ export function TemplatesListContent() {
         variant="default"
         onConfirm={handlePublish}
         loading={publishMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!deleteVersionTarget}
+        onOpenChange={(open) => !open && setDeleteVersionTarget(null)}
+        title="Delete Draft Version"
+        description={`Are you sure you want to delete version ${deleteVersionTarget?.version_number}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteVersionTarget) {
+            deleteVersion.mutate(deleteVersionTarget.id, {
+              onSuccess: () => toast.success("Draft version deleted"),
+              onError: () => toast.error("Failed to delete version"),
+            });
+            setDeleteVersionTarget(null);
+          }
+        }}
+        loading={deleteVersion.isPending}
       />
     </div>
   );

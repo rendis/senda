@@ -262,6 +262,11 @@ func (m *mockTemplateStoreSend) Publish(ctx context.Context, versionID uuid.UUID
 	}
 	return nil
 }
+func (m *mockTemplateStoreSend) GetLatestVersion(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStoreSend) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateStoreSend) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
 func (m *mockTemplateStoreSend) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -289,6 +294,16 @@ func (m *mockTemplateStoreSend) DeleteLocale(_ context.Context, _ uuid.UUID, _ s
 func (m *mockTemplateStoreSend) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
 	return nil, "", nil
 }
+func (m *mockTemplateStoreSend) UpdateType(_ context.Context, _ *domain.TemplateType) error {
+	return nil
+}
+func (m *mockTemplateStoreSend) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateStoreSend) GetTemplateByID(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStoreSend) GetTypeByID(_ context.Context, _ uuid.UUID) (*domain.TemplateType, error) {
+	return nil, domain.ErrNotFound
+}
 
 type mockInjectorStoreSend struct {
 	listDefinitionsInChainFn func(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error)
@@ -304,6 +319,9 @@ func (m *mockInjectorStoreSend) GetDefinitionByID(_ context.Context, _ uuid.UUID
 }
 func (m *mockInjectorStoreSend) FindDefinitionByName(_ context.Context, _ string, _ *uuid.UUID) (*domain.InjectorDefinition, error) {
 	return nil, nil
+}
+func (m *mockInjectorStoreSend) SoftDeleteDefinition(_ context.Context, _ uuid.UUID) error {
+	return nil
 }
 func (m *mockInjectorStoreSend) ListDefinitionsInChain(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
 	if m.listDefinitionsInChainFn != nil {

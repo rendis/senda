@@ -96,6 +96,11 @@ func (m *mockTemplateStore) Publish(ctx context.Context, versionID uuid.UUID) er
 	}
 	return nil
 }
+func (m *mockTemplateStore) GetLatestVersion(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStore) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
 func (m *mockTemplateStore) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -125,6 +130,14 @@ func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.U
 }
 func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
 	return nil, "", nil
+}
+func (m *mockTemplateStore) UpdateType(_ context.Context, _ *domain.TemplateType) error { return nil }
+func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error              { return nil }
+func (m *mockTemplateStore) GetTemplateByID(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateStore) GetTypeByID(_ context.Context, _ uuid.UUID) (*domain.TemplateType, error) {
+	return nil, domain.ErrNotFound
 }
 
 // --- Mock TemplateCompiler ---

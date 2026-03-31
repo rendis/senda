@@ -34,12 +34,47 @@ export function useTemplateType(scopedPath: string, slug: string) {
   });
 }
 
+export function useUpdateTemplateType(scopedPath: string, slug: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { name?: string; adapter_id?: string }) =>
+      api
+        .put(`${scopedPath}/template-types/${slug}`, { json: data })
+        .json<TemplateType>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["template-types", scopedPath],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["template-type", scopedPath, slug],
+      });
+    },
+  });
+}
+
+export function useDeleteTemplateType(scopedPath: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (slug: string) =>
+      api.delete(`${scopedPath}/template-types/${slug}`).then(() => {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["template-types", scopedPath],
+      });
+    },
+  });
+}
+
 export function useCreateTemplateType(scopedPath: string) {
   const api = useApi();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { slug: string; name: string }) =>
+    mutationFn: (data: { slug: string; name: string; adapter_id?: string }) =>
       api
         .post(`${scopedPath}/template-types`, { json: data })
         .json<TemplateType>(),

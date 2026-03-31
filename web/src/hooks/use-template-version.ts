@@ -141,6 +141,19 @@ export function useTestSend(scopedPath: string, templateId: string) {
   });
 }
 
+export function useDeleteVersion(scopedPath: string, templateId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (versionId: string) =>
+      api.delete(`${scopedPath}/templates/${templateId}/versions/${versionId}`).then(() => {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["template-versions", scopedPath, templateId] });
+    },
+  });
+}
+
 export function useTemplateLocale(
   scopedPath: string,
   templateId: string,

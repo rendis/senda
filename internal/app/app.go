@@ -195,7 +195,8 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo,
 		river.DefaultAdapterSenderFactory, adapterIdentityRepo)
 	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo)
-	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo)
+	testSendSvc := service.NewTestSendService(templateRepo, adapterRepo, adapterIdentityRepo, aesCrypto, compiler, renderer, river.DefaultAdapterSenderFactory)
+	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc)
 	sendH := handler.NewSendHandler(sendSvc)
 	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)
 	dataPlaneEmailH := handler.NewDataPlaneEmailHandler(emailRepo)
@@ -205,11 +206,12 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	onboardingH := handler.NewOnboardingHandler(onboardingSvc, oidcVerifier)
 	identityH := handler.NewIdentityHandler(identitySvc, adapterIdentityRepo, tenantRepo, wsRepo)
 	// Tracking auto-provisioner (nil if no tracking base URL).
+	provisioningStepRepo := postgres.NewProvisioningStepRepo(pool)
 	var trackingProvisioner *sesadapter.TrackingProvisioner
 	if cfg.Tracking.BaseURL != "" {
-		trackingProvisioner = sesadapter.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger)
+		trackingProvisioner = sesadapter.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger, provisioningStepRepo)
 	}
-	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner)
+	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner, provisioningStepRepo)
 	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
 	dashboardH := handler.NewDashboardHandler(dashboardRepo, auditRepo, tenantRepo, wsRepo)
 

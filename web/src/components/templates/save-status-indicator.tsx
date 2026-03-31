@@ -168,7 +168,7 @@ export function SaveStatusIndicator({
       <AnimatePresence mode="wait">
         {textContent && (
           <motion.span
-            key={`${status}-${textContent}`}
+            key={status}
             className={cn("whitespace-nowrap", getTextClass())}
             variants={textVariants}
             initial="initial"

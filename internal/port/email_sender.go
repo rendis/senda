@@ -1,6 +1,10 @@
 package port
 
-import "context"
+import (
+	"context"
+
+	"github.com/rendis/senda/internal/domain"
+)
 
 // EmailSender is the port that email provider adapters must implement.
 // Each adapter (SES, Gmail, etc.) implements this interface.
@@ -28,6 +32,9 @@ type OutgoingEmail struct {
 	Headers    map[string]string
 	TrackingID string
 }
+
+// SenderFactory creates an EmailSender from a resolved adapter and its decrypted config.
+type SenderFactory func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (EmailSender, error)
 
 // EmailAddress represents a named email address.
 type EmailAddress struct {

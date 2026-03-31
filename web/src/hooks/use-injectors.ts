@@ -80,6 +80,23 @@ export function useSetInjectorValues(scopedPath: string, name: string) {
   });
 }
 
+export function useDeleteInjector(scopedPath: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (name: string) =>
+      api.delete(`${scopedPath}/injectors/${name}`).then(() => {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
+      toast.success("Injector deleted");
+    },
+    onError: () => {
+      toast.error("Failed to delete injector");
+    },
+  });
+}
+
 export function useDeleteInjectorOverride(scopedPath: string, name: string) {
   const api = useApi();
   const queryClient = useQueryClient();

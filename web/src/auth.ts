@@ -90,7 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           idToken: account.id_token as string | undefined,
           accessToken: account.access_token as string | undefined,
           refreshToken: account.refresh_token as string | undefined,
-          expiresAt: account.expires_at as number | undefined,
+          expiresAt: (account.expires_at as number | undefined) ?? Math.floor(Date.now() / 1000 + 300),
         };
       }
 

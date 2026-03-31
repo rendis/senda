@@ -42,3 +42,57 @@ export interface UpdateAdapterRequest {
   is_default?: boolean;
   rate_limit_per_second?: number;
 }
+
+/** Adapter identity (verified sender email or domain) */
+export interface AdapterIdentity {
+  id: string;
+  adapter_id: string;
+  identity: string;
+  identity_type: "email" | "domain";
+  status: "verified" | "pending" | "failed";
+  sending_enabled: boolean;
+  is_default: boolean;
+  display_name?: string;
+  source: "provider" | "manual";
+  last_synced_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Provisioning step status */
+export type ProvisioningStepStatusType = "pending" | "completed" | "failed";
+
+/** Overall provisioning status */
+export type ProvisioningOverallStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "failed";
+
+/** Single provisioning step */
+export interface ProvisioningStep {
+  name: string;
+  order: number;
+  status: ProvisioningStepStatusType;
+  resource_name?: string;
+  resource_arn?: string;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+/** Provisioning status response */
+export interface ProvisioningStatusResponse {
+  adapter_id: string;
+  status: ProvisioningOverallStatus;
+  steps: ProvisioningStep[];
+}
+
+/** Provisioning step metadata — single source of truth for labels. */
+export const PROVISIONING_STEPS: Record<string, { label: string; short: string }> = {
+  create_configuration_set: { label: "Create Configuration Set", short: "Config Set" },
+  create_sns_topic:         { label: "Create SNS Topic",         short: "SNS Topic" },
+  create_event_destination: { label: "Configure Event Destination", short: "Event Dest" },
+  subscribe_webhook:        { label: "Subscribe Webhook",        short: "Webhook" },
+  save_configuration:       { label: "Save Configuration",       short: "Save Config" },
+};

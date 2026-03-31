@@ -149,7 +149,7 @@ func setupAdapterTestFull(
 	crypto port.Crypto,
 	ts port.TenantStore,
 	ws port.WorkspaceStore,
-	sf handler.AdapterSenderFactory,
+	sf port.SenderFactory,
 	is port.AdapterIdentityStore,
 ) (*echo.Echo, *handler.AdapterHandler) {
 	e := echo.New()

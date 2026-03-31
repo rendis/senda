@@ -244,3 +244,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(0); }
+  80% { transform: translateX(var(--marquee-offset)); }
+  100% { transform: translateX(var(--marquee-offset)); }
+}
+
+.animate-marquee {
+  animation: marquee-scroll 3s ease-in-out infinite;
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMinimumLoading } from "@/hooks/use-minimum-loading";
-import { Database, ArrowLeft, Plus } from "lucide-react";
+import { Database, ArrowLeft, Plus, Eye, Trash2 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useInjectorList,
@@ -10,7 +10,10 @@ import {
   useSetInjectorValues,
   useDeleteInjectorOverride,
   useCreateInjector,
+  useDeleteInjector,
 } from "@/hooks/use-injectors";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
@@ -19,6 +22,11 @@ import { InjectorForm } from "./injector-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { InjectorDefinition, CreateInjectorRequest } from "@/types/injectors";
 
@@ -53,6 +61,8 @@ function InjectorsTable() {
   } = useInjectorList(scopedPath);
 
   const createInjector = useCreateInjector(scopedPath);
+  const deleteInjector = useDeleteInjector(scopedPath);
+  const [deleteTarget, setDeleteTarget] = useState<InjectorDefinition | null>(null);
 
   const {
     data: detail,
@@ -109,17 +119,19 @@ function InjectorsTable() {
                 {detail.description}
               </p>
             )}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 mt-4">
+              {(detail.fields ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground italic">No fields defined for this injector.</p>
+              )}
               {(detail.fields ?? [])
                 .sort((a, b) => a.position - b.position)
                 .map((field) => {
-                  const resolution = detail.values[field.field_name];
-                  if (!resolution) return null;
+                  const resolution = detail.values?.[field.field_name];
                   return (
                     <InjectorFieldEditor
                       key={field.field_name}
                       field={field}
-                      resolution={resolution}
+                      resolution={resolution ?? null}
                       currentScope={scope.level}
                       onSave={(fieldName, value) =>
                         setValues.mutate({ values: { [fieldName]: value } })
@@ -176,6 +188,29 @@ function InjectorsTable() {
         </span>
       ),
     },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedInjector(row.original.name)}>
+                <Eye className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View details</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(row.original)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete</TooltipContent>
+          </Tooltip>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -225,6 +260,21 @@ function InjectorsTable() {
             }
           />
         }
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Injector"
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? Templates using this injector will no longer receive its values.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteInjector.mutate(deleteTarget.name);
+            setDeleteTarget(null);
+          }
+        }}
+        loading={deleteInjector.isPending}
       />
     </div>
   );

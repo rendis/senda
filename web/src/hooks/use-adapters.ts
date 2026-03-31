@@ -8,6 +8,7 @@ import type {
   Adapter,
   CreateAdapterRequest,
   UpdateAdapterRequest,
+  ProvisioningStatusResponse,
 } from "@/types/adapters";
 import { toast } from "sonner";
 
@@ -118,5 +119,71 @@ export function useTestAdapterSend(scopedPath: string, id: string) {
     onError: () => {
       toast.error("Test send failed");
     },
+  });
+}
+
+export interface SESValidationCheck {
+  name: string;
+  permission: string;
+  status: "ok" | "denied" | "error";
+  description: string;
+  required: boolean;
+}
+
+export interface SESValidationResult {
+  valid: boolean;
+  checks: SESValidationCheck[];
+}
+
+export function useProvisioningStatus(
+  scopedPath: string,
+  id: string,
+  enabled: boolean
+) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return useQuery({
+    queryKey: ["provisioning-status", scopedPath, id],
+    queryFn: () =>
+      api
+        .get(`${scopedPath}/adapters/${id}/provisioning-status`)
+        .json<ProvisioningStatusResponse>(),
+    enabled: ready && !!id && enabled,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "in_progress" ? 1000 : false;
+    },
+  });
+}
+
+export function useAutoProvision(scopedPath: string, id: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      api
+        .post(`${scopedPath}/adapters/${id}/auto-provision-tracking`)
+        .json<Record<string, unknown>>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["provisioning-status", scopedPath, id],
+      });
+    },
+    onError: () => {
+      toast.error("Provisioning failed");
+    },
+  });
+}
+
+export function useValidateSES(scopedPath: string) {
+  const api = useApi();
+
+  return useMutation({
+    mutationFn: (data: { region: string; access_key_id: string; secret_access_key: string }) =>
+      api
+        .post(`${scopedPath}/adapters/validate-ses`, { json: data })
+        .json<SESValidationResult>(),
   });
 }

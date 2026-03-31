@@ -60,15 +60,15 @@ export function TestSendModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(v) => !testSend.isPending && onOpenChange(v)}>
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => testSend.isPending && e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Send Test Email</DialogTitle>
           <DialogDescription>
             Send a test email to verify your template renders correctly.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
+        <fieldset disabled={testSend.isPending} className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="test-email">Recipient Email</Label>
             <Input
@@ -89,7 +89,7 @@ export function TestSendModal({
               placeholder='{"user_name": "Juan", "cta_url": "https://..."}'
             />
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
           <Button
             variant="outline"
