@@ -64,6 +64,20 @@ func signMessage(t *testing.T, key *rsa.PrivateKey, stringToSign string) string 
 	return base64.StdEncoding.EncodeToString(sig)
 }
 
+// signMessageSHA256 signs the string-to-sign using the RSA private key (SHA256 + PKCS1v15).
+func signMessageSHA256(t *testing.T, key *rsa.PrivateKey, stringToSign string) string {
+	t.Helper()
+
+	h := crypto.SHA256.New()
+	h.Write([]byte(stringToSign))
+
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, h.Sum(nil))
+	if err != nil {
+		t.Fatalf("sign sha256: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(sig)
+}
+
 // notificationStringToSign returns the canonical string for a Notification message.
 func notificationStringToSign(msg map[string]string) string {
 	s := "Message\n" + msg["Message"] + "\n"
@@ -127,7 +141,7 @@ func TestVerifier_InvalidSignatureVersion(t *testing.T) {
 		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
 		"Message":          `test`,
 		"Timestamp":        "2026-02-17T10:00:00.000Z",
-		"SignatureVersion": "2",
+		"SignatureVersion": "3",
 		"Signature":        "aGVsbG8=",
 		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
 	}
@@ -200,6 +214,161 @@ func TestVerifier_MalformedJSON(t *testing.T) {
 	}
 	if !errors.Is(err, sns.ErrMalformedMessage) {
 		t.Fatalf("expected ErrMalformedMessage, got: %v", err)
+	}
+}
+
+// roundTripFunc allows tests to replace the HTTP transport with a custom function.
+type roundTripFunc func(r *http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// newVerifierWithCertServer builds a Verifier whose HTTP client redirects any
+// request to certURL to the provided test server, bypassing the actual network.
+func newVerifierWithCertServer(t *testing.T, certServer *httptest.Server, certURL string) *sns.Verifier {
+	t.Helper()
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			// Rewrite the amazonaws.com URL to the local test server.
+			if r.URL.String() == certURL {
+				req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, certServer.URL+"/cert.pem", nil)
+				if err != nil {
+					return nil, err
+				}
+				return certServer.Client().Do(req)
+			}
+			return http.DefaultTransport.RoundTrip(r)
+		}),
+	}
+	return sns.NewVerifier(client)
+}
+
+// TestVerifier_SignatureVersion1_SHA1 verifies that SignatureVersion "1" with a
+// valid SHA1 signature is accepted end-to-end (cert fetched, sig verified).
+func TestVerifier_SignatureVersion1_SHA1(t *testing.T) {
+	_, key, certPEM := testCert(t)
+
+	certServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(certPEM)
+	}))
+	defer certServer.Close()
+
+	const certURL = "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test-v1.pem"
+
+	msg := map[string]string{
+		"Type":             "Notification",
+		"MessageId":        "msg-v1-001",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"Message":          `{"notificationType":"Delivery"}`,
+		"Timestamp":        "2026-02-17T10:00:00.000Z",
+		"SignatureVersion": "1",
+		"SigningCertURL":   certURL,
+	}
+
+	stringToSign := notificationStringToSign(msg)
+	msg["Signature"] = signMessage(t, key, stringToSign)
+
+	body, _ := json.Marshal(msg)
+
+	v := newVerifierWithCertServer(t, certServer, certURL)
+	if err := v.Verify(body); err != nil {
+		t.Fatalf("expected nil error for valid SHA1 signature, got: %v", err)
+	}
+}
+
+// TestVerifier_SignatureVersion2_SHA256 verifies that SignatureVersion "2" with a
+// valid SHA256 signature is accepted end-to-end (cert fetched, sig verified).
+func TestVerifier_SignatureVersion2_SHA256(t *testing.T) {
+	_, key, certPEM := testCert(t)
+
+	certServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(certPEM)
+	}))
+	defer certServer.Close()
+
+	const certURL = "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test-v2.pem"
+
+	msg := map[string]string{
+		"Type":             "Notification",
+		"MessageId":        "msg-v2-001",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"Message":          `{"notificationType":"Delivery"}`,
+		"Timestamp":        "2026-02-17T10:00:00.000Z",
+		"SignatureVersion": "2",
+		"SigningCertURL":   certURL,
+	}
+
+	stringToSign := notificationStringToSign(msg)
+	msg["Signature"] = signMessageSHA256(t, key, stringToSign)
+
+	body, _ := json.Marshal(msg)
+
+	v := newVerifierWithCertServer(t, certServer, certURL)
+	if err := v.Verify(body); err != nil {
+		t.Fatalf("expected nil error for valid SHA256 signature, got: %v", err)
+	}
+}
+
+// TestVerifier_SignatureVersion2_WrongHash verifies that SignatureVersion "2" with a
+// SHA1 signature (wrong algorithm) is rejected with ErrSignatureInvalid.
+func TestVerifier_SignatureVersion2_WrongHash(t *testing.T) {
+	_, key, certPEM := testCert(t)
+
+	certServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(certPEM)
+	}))
+	defer certServer.Close()
+
+	const certURL = "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test-v2-bad.pem"
+
+	msg := map[string]string{
+		"Type":             "Notification",
+		"MessageId":        "msg-v2-bad-001",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"Message":          `{"notificationType":"Delivery"}`,
+		"Timestamp":        "2026-02-17T10:00:00.000Z",
+		"SignatureVersion": "2",
+		"SigningCertURL":   certURL,
+	}
+
+	stringToSign := notificationStringToSign(msg)
+	// Deliberately sign with SHA1 while version says "2" (should use SHA256).
+	msg["Signature"] = signMessage(t, key, stringToSign)
+
+	body, _ := json.Marshal(msg)
+
+	v := newVerifierWithCertServer(t, certServer, certURL)
+	err := v.Verify(body)
+	if err == nil {
+		t.Fatal("expected error for version 2 message signed with SHA1")
+	}
+	if !errors.Is(err, sns.ErrSignatureInvalid) {
+		t.Fatalf("expected ErrSignatureInvalid, got: %v", err)
+	}
+}
+
+// TestVerifier_SignatureVersion3_Rejected verifies that SignatureVersion "3" is
+// rejected with ErrInvalidSignatureVersion (before any cert fetch).
+func TestVerifier_SignatureVersion3_Rejected(t *testing.T) {
+	msg := map[string]string{
+		"Type":             "Notification",
+		"MessageId":        "msg-v3-001",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"Message":          `test`,
+		"Timestamp":        "2026-02-17T10:00:00.000Z",
+		"SignatureVersion": "3",
+		"Signature":        "aGVsbG8=",
+		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
+	}
+
+	body, _ := json.Marshal(msg)
+
+	v := sns.NewVerifier(nil)
+	err := v.Verify(body)
+	if err == nil {
+		t.Fatal("expected error for unsupported signature version 3")
+	}
+	if !errors.Is(err, sns.ErrInvalidSignatureVersion) {
+		t.Fatalf("expected ErrInvalidSignatureVersion, got: %v", err)
 	}
 }
 

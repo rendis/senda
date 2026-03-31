@@ -242,9 +242,15 @@ func (h *SESWebhookHandler) handleNotification(ctx context.Context, c *echo.Cont
 	// Map SES notification to ProviderEvent.
 	event := h.mapSESToProviderEvent(&notification, rawBody)
 	if event == nil {
-		h.logger.WarnContext(ctx, "unhandled SES notification type",
-			"notification_type", notification.NotificationType,
-		)
+		if notification.NotificationType == "Send" {
+			h.logger.DebugContext(ctx, "ignoring SES Send notification (no provider event mapping needed)",
+				"notification_type", notification.NotificationType,
+			)
+		} else {
+			h.logger.WarnContext(ctx, "unhandled SES notification type",
+				"notification_type", notification.NotificationType,
+			)
+		}
 		return c.NoContent(http.StatusOK)
 	}
 
@@ -313,6 +319,11 @@ func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []
 			}
 		}
 
+	case "Send":
+		// Send events are subscribed for completeness but don't map to a provider event.
+		// Status is already set by the SendWorker.
+		return nil
+
 	default:
 		return nil
 	}
@@ -361,7 +372,11 @@ func (c *HTTPSubscriptionConfirmer) ConfirmSubscription(ctx context.Context, sub
 		return err
 	}
 	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("SNS subscription confirmation failed: HTTP %d", resp.StatusCode)
+	}
 	return nil
 }

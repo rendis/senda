@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -780,3 +781,103 @@ func TestSESWebhook_SubscriptionConfirmation_SSRF_InvalidHost(t *testing.T) {
 
 // Suppress unused import warning for time package
 var _ = time.Now
+
+// --- HTTPSubscriptionConfirmer tests (C3) ---
+
+func TestHTTPSubscriptionConfirmer_NonSuccessStatus_ReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	confirmer := handler.NewHTTPSubscriptionConfirmer(srv.Client())
+	err := confirmer.ConfirmSubscription(context.Background(), srv.URL)
+	if err == nil {
+		t.Fatal("expected error for HTTP 403, got nil")
+	}
+}
+
+func TestHTTPSubscriptionConfirmer_SuccessStatus_ReturnsNil(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	confirmer := handler.NewHTTPSubscriptionConfirmer(srv.Client())
+	err := confirmer.ConfirmSubscription(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("expected nil for HTTP 200, got %v", err)
+	}
+}
+
+// --- C17: Send event type silenced ---
+
+// captureHandler is a minimal slog.Handler that records log records for inspection.
+type captureHandler struct {
+	records []slog.Record
+}
+
+func (h *captureHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
+func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
+	h.records = append(h.records, r)
+	return nil
+}
+func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler  { return h }
+func (h *captureHandler) WithGroup(_ string) slog.Handler       { return h }
+
+// snsSendNotification builds an SNS notification wrapping an SES "Send" event.
+func snsSendNotification() []byte {
+	sesEvent := map[string]any{
+		"notificationType": "Send",
+		"mail":             map[string]any{"messageId": "ses-msg-id-001"},
+	}
+	sesJSON, _ := json.Marshal(sesEvent)
+
+	msg := map[string]any{
+		"Type":             "Notification",
+		"MessageId":        "sns-msg-send",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"Message":          string(sesJSON),
+		"Timestamp":        "2026-02-17T10:00:01.000Z",
+		"SignatureVersion": "1",
+		"Signature":        "sig==",
+		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
+	}
+	body, _ := json.Marshal(msg)
+	return body
+}
+
+func TestSESWebhook_SendNotification_NoWarnLog(t *testing.T) {
+	f := newProviderWebhookFixture()
+
+	capture := &captureHandler{}
+	logger := slog.New(capture)
+
+	processor := service.NewEventProcessor(f.lookup, f.updater, f.suppressor, f.dispatcher, nil)
+	h := handler.NewSESWebhookHandler(processor, f.verifier, f.confirmer, logger)
+
+	body := snsSendNotification()
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	// No email status updates — Send events have no provider event mapping.
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no status updates for Send notification, got %v", f.updater.statuses)
+	}
+
+	// No warn-level log must be emitted for Send notifications.
+	for _, r := range capture.records {
+		if r.Level == slog.LevelWarn {
+			t.Errorf("unexpected warn log for Send notification: %s", r.Message)
+		}
+	}
+}

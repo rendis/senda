@@ -108,6 +108,10 @@ func (m *mockEmailStoreSend) AddEvent(ctx context.Context, event *domain.EmailEv
 	}
 	return nil
 }
+func (m *mockEmailStoreSend) AddEventTx(_ context.Context, _ pgx.Tx, event *domain.EmailEvent) error {
+	m.events = append(m.events, event)
+	return nil
+}
 func (m *mockEmailStoreSend) GetEvents(_ context.Context, _ uuid.UUID) ([]*domain.EmailEvent, error) {
 	return nil, nil
 }
@@ -1131,6 +1135,286 @@ func TestSendService_NoDefaultIdentity(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrNoDefaultIdentity) {
 		t.Fatalf("expected ErrNoDefaultIdentity, got %v", err)
+	}
+}
+
+// --- C9: CC/BCC suppression tests ---
+
+func TestSendService_SuppressedCC_FilteredOut(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
+		if email == "suppressed-cc@user.com" {
+			return true, "hard_bounce", nil
+		}
+		return false, "", nil
+	}
+
+	var enqueuedJobs []*port.SendJob
+	f.jq.enqueueSendFn = func(_ context.Context, job *port.SendJob) error {
+		enqueuedJobs = append(enqueuedJobs, job)
+		return nil
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.CC = []string{"clean-cc@user.com", "suppressed-cc@user.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email created, got %d", len(f.emailStore.emails))
+	}
+	email := f.emailStore.emails[0]
+
+	// suppressed-cc@user.com must be filtered out, only clean-cc@user.com remains
+	if len(email.CC) != 1 {
+		t.Fatalf("expected 1 CC after suppression filter, got %d: %v", len(email.CC), email.CC)
+	}
+	if email.CC[0] != "clean-cc@user.com" {
+		t.Fatalf("expected CC[0]='clean-cc@user.com', got %q", email.CC[0])
+	}
+
+	// job still enqueued for the To recipient
+	if len(enqueuedJobs) != 1 {
+		t.Fatalf("expected 1 job enqueued, got %d", len(enqueuedJobs))
+	}
+}
+
+func TestSendService_SuppressedBCC_FilteredOut(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
+		if email == "suppressed-bcc@user.com" {
+			return true, "complained", nil
+		}
+		return false, "", nil
+	}
+
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.BCC = []string{"suppressed-bcc@user.com", "clean-bcc@user.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email created, got %d", len(f.emailStore.emails))
+	}
+	email := f.emailStore.emails[0]
+
+	// suppressed-bcc@user.com must be filtered out, only clean-bcc@user.com remains
+	if len(email.BCC) != 1 {
+		t.Fatalf("expected 1 BCC after suppression filter, got %d: %v", len(email.BCC), email.BCC)
+	}
+	if email.BCC[0] != "clean-bcc@user.com" {
+		t.Fatalf("expected BCC[0]='clean-bcc@user.com', got %q", email.BCC[0])
+	}
+}
+
+// --- C8: Suppressed path atomicity tests ---
+
+// TestSendService_SuppressedPath_BothRecordAndEventExist verifies that sending
+// to a suppressed recipient creates both the email record (StatusSuppressed) and
+// the suppression event, so the two writes are never split across partial failures.
+func TestSendService_SuppressedPath_BothRecordAndEventExist(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
+		if email == "suppressed@user.com" {
+			return true, "hard_bounce", nil
+		}
+		return false, "", nil
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.To = []string{"suppressed@user.com"}
+
+	resp, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Email record must exist with suppressed status.
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email record, got %d", len(f.emailStore.emails))
+	}
+	if f.emailStore.emails[0].Status != domain.StatusSuppressed {
+		t.Fatalf("expected email status %q, got %q", domain.StatusSuppressed, f.emailStore.emails[0].Status)
+	}
+
+	// Suppression event must also exist.
+	if len(f.emailStore.events) != 1 {
+		t.Fatalf("expected 1 suppression event, got %d", len(f.emailStore.events))
+	}
+	evt := f.emailStore.events[0]
+	if evt.EventType != domain.EventTypeSuppressed {
+		t.Fatalf("expected event type %q, got %q", domain.EventTypeSuppressed, evt.EventType)
+	}
+	if evt.EmailID != f.emailStore.emails[0].ID {
+		t.Fatalf("event email_id %s does not match email id %s", evt.EmailID, f.emailStore.emails[0].ID)
+	}
+	// Suppression reason must be captured in metadata.
+	reason, ok := evt.Metadata["reason"]
+	if !ok {
+		t.Fatal("expected 'reason' key in suppression event metadata")
+	}
+	if reason != "hard_bounce" {
+		t.Fatalf("expected reason 'hard_bounce', got %v", reason)
+	}
+
+	// Response entry must have status "suppressed".
+	if len(resp.TrackingIDs) != 1 || resp.TrackingIDs[0].Status != "suppressed" {
+		t.Fatalf("expected tracking status 'suppressed', got %v", resp.TrackingIDs)
+	}
+}
+
+// TestSendService_SuppressedPath_AddEventFailure_EmailStillAccepted verifies that
+// when AddEvent fails during the suppressed path (pool=nil fallback), the error is
+// non-fatal: the email record is still created and the response reports "suppressed".
+// This documents the current best-effort behaviour of the non-transactional fallback.
+func TestSendService_SuppressedPath_AddEventFailure_EmailStillAccepted(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, _ string) (bool, string, error) {
+		return true, "complaint", nil
+	}
+	f.emailStore.addEventFn = func(_ context.Context, _ *domain.EmailEvent) error {
+		return errors.New("event store unavailable")
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.To = []string{"complained@user.com"}
+
+	// AddEvent failure must NOT propagate — it is logged and swallowed.
+	resp, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: AddEvent failure on suppressed path must be non-fatal, got: %v", err)
+	}
+
+	// Email record must still exist.
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email record despite AddEvent failure, got %d", len(f.emailStore.emails))
+	}
+
+	// Response entry must still be "suppressed".
+	if len(resp.TrackingIDs) != 1 || resp.TrackingIDs[0].Status != "suppressed" {
+		t.Fatalf("expected tracking status 'suppressed', got %v", resp.TrackingIDs)
+	}
+}
+
+func TestSendService_AllCCBCC_Suppressed_EmailStillSent(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
+		if email == "suppressed-cc@user.com" || email == "suppressed-bcc@user.com" {
+			return true, "hard_bounce", nil
+		}
+		return false, "", nil
+	}
+
+	var enqueuedJobs []*port.SendJob
+	f.jq.enqueueSendFn = func(_ context.Context, job *port.SendJob) error {
+		enqueuedJobs = append(enqueuedJobs, job)
+		return nil
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.CC = []string{"suppressed-cc@user.com"}
+	req.BCC = []string{"suppressed-bcc@user.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email created (To recipient), got %d", len(f.emailStore.emails))
+	}
+	email := f.emailStore.emails[0]
+
+	// CC and BCC should be empty after all entries suppressed
+	if len(email.CC) != 0 {
+		t.Fatalf("expected empty CC, got %v", email.CC)
+	}
+	if len(email.BCC) != 0 {
+		t.Fatalf("expected empty BCC, got %v", email.BCC)
+	}
+
+	// To recipient still gets the email
+	if len(enqueuedJobs) != 1 {
+		t.Fatalf("expected 1 job enqueued for To recipient, got %d", len(enqueuedJobs))
+	}
+}
+
+// --- C10: Queued event test ---
+
+func TestSendService_QueuedEventRecorded(t *testing.T) {
+	f := newSendFixture()
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.Send(context.Background(), f.happyRequest())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.TrackingIDs) != 1 || resp.TrackingIDs[0].Status != "accepted" {
+		t.Fatalf("expected 1 accepted tracking entry, got %v", resp.TrackingIDs)
+	}
+
+	// At least one event must be EventTypeQueued for the created email
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(f.emailStore.emails))
+	}
+	emailID := f.emailStore.emails[0].ID
+
+	var queuedEvent *domain.EmailEvent
+	for _, ev := range f.emailStore.events {
+		if ev.EmailID == emailID && ev.EventType == domain.EventTypeQueued {
+			queuedEvent = ev
+			break
+		}
+	}
+	if queuedEvent == nil {
+		t.Fatalf("expected EventTypeQueued event for email %s, got events: %v", emailID, f.emailStore.events)
+	}
+}
+
+func TestSendService_QueuedEvent_MultipleRecipients(t *testing.T) {
+	f := newSendFixture()
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.To = []string{"alice@user.com", "bob@user.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.emailStore.emails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(f.emailStore.emails))
+	}
+
+	// Each email must have its own EventTypeQueued event
+	for _, email := range f.emailStore.emails {
+		found := false
+		for _, ev := range f.emailStore.events {
+			if ev.EmailID == email.ID && ev.EventType == domain.EventTypeQueued {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("no EventTypeQueued event found for email %s (%s)", email.ID, email.RecipientEmail)
+		}
 	}
 }
 

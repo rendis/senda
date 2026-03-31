@@ -100,8 +100,14 @@ func WriteHeaders(buf *bytes.Buffer, headers textproto.MIMEHeader) {
 	written := make(map[string]bool)
 	for _, key := range order {
 		if vals, ok := headers[key]; ok {
+			// textproto.MIMEHeader canonicalizes "MIME-Version" to "Mime-Version";
+			// RFC 2045 §4 requires "MIME-Version" on the wire.
+			out := key
+			if key == "Mime-Version" {
+				out = "MIME-Version"
+			}
 			for _, v := range vals {
-				fmt.Fprintf(buf, "%s: %s\r\n", key, v)
+				fmt.Fprintf(buf, "%s: %s\r\n", out, v)
 			}
 			written[key] = true
 		}

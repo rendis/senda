@@ -85,8 +85,15 @@ func (v *Verifier) Verify(message []byte) error {
 		return fmt.Errorf("%w: %v", ErrMalformedMessage, err)
 	}
 
-	// Only SignatureVersion "1" is supported by SNS.
-	if msg.SignatureVersion != "1" {
+	// Determine the hash algorithm from the signature version.
+	// Version "1" uses SHA1; version "2" uses SHA256 (recommended since 2022).
+	var hashAlg crypto.Hash
+	switch msg.SignatureVersion {
+	case "1":
+		hashAlg = crypto.SHA1
+	case "2":
+		hashAlg = crypto.SHA256
+	default:
 		return fmt.Errorf("%w: got %q", ErrInvalidSignatureVersion, msg.SignatureVersion)
 	}
 
@@ -110,15 +117,15 @@ func (v *Verifier) Verify(message []byte) error {
 		return fmt.Errorf("%w: invalid base64 signature", ErrSignatureInvalid)
 	}
 
-	// Verify using RSA + SHA1 (SNS SignatureVersion 1).
+	// Verify using RSA + PKCS1v15 with the selected hash algorithm.
 	rsaKey, ok := cert.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return fmt.Errorf("%w: certificate does not contain an RSA public key", ErrCertParse)
 	}
 
-	hashed := crypto.SHA1.New()
+	hashed := hashAlg.New()
 	hashed.Write([]byte(stringToSign))
-	if err := rsa.VerifyPKCS1v15(rsaKey, crypto.SHA1, hashed.Sum(nil), sig); err != nil {
+	if err := rsa.VerifyPKCS1v15(rsaKey, hashAlg, hashed.Sum(nil), sig); err != nil {
 		return ErrSignatureInvalid
 	}
 

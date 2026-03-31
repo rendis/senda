@@ -49,6 +49,10 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 // senderCacheTTL is the duration a cached sender is considered valid.
 const senderCacheTTL = 10 * time.Minute
 
+// staleProcessingThreshold is how long an email can sit in StatusProcessing
+// without a ProviderMessageID before it is considered crashed (not in-flight).
+const staleProcessingThreshold = 10 * time.Minute
+
 // cachedSender holds a sender and the time it was created for TTL expiry.
 type cachedSender struct {
 	sender    port.EmailSender
@@ -137,6 +141,14 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		}
 		return nil
 	}
+	// If processing with no provider ID, the worker crashed between Send() and SetProviderMessageID.
+	// A recent timestamp means another worker may still be in-flight; an old one is definitely stuck.
+	if email.Status == domain.StatusProcessing && (email.ProviderMessageID == nil || *email.ProviderMessageID == "") {
+		if time.Since(email.UpdatedAt) > staleProcessingThreshold {
+			return w.failPermanently(ctx, email, fmt.Errorf("send: email stuck in processing, likely crashed during send"))
+		}
+		return goriver.JobCancel(fmt.Errorf("send: email %s is processing (no provider ID, recently started — deferring)", email.ID))
+	}
 
 	// 2. Rate limiter check (before status transition so email stays "queued" if denied).
 	allowed, err := w.rateLimiter.TryAcquire(ctx, args.AdapterID)
@@ -164,7 +176,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		OccurredAt: now,
 		CreatedAt:  now,
 	}); err != nil {
-		slog.Error("send_worker: failed to add processing event", "email_id", email.ID, "error", err)
+		slog.Error("send_worker: failed to add processing event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
 	}
 
 	// 4. Render MJML body with variables.
@@ -217,13 +229,13 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	providerMsgID, err := sender.Send(ctx, outgoing)
 	metrics.EmailSendDuration.WithLabelValues(sender.Name()).Observe(time.Since(sendStart).Seconds())
 	if err != nil {
-		return w.handleSendError(ctx, email, sender, job.Attempt, err)
+		return w.handleSendError(ctx, email, sender, job.Attempt, job.MaxAttempts, err)
 	}
 
 	// 9. Persist provider message ID for webhook event matching.
 	if providerMsgID != "" {
 		if err := w.emailStore.SetProviderMessageID(ctx, email.ID, providerMsgID); err != nil {
-			slog.Error("send_worker: failed to set provider_message_id", "email_id", email.ID, "error", err)
+			return fmt.Errorf("send: set provider_message_id: %w", err)
 		}
 	}
 
@@ -241,27 +253,40 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		Metadata:   map[string]any{"provider_message_id": providerMsgID},
 		CreatedAt:  sentAt,
 	}); err != nil {
-		slog.Error("send_worker: failed to add sent event", "email_id", email.ID, "error", err)
+		slog.Error("send_worker: failed to add sent event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
 	}
 
 	return nil
 }
 
-// NextRetry implements exponential backoff: 60s * 2^attempt.
+// sendBackoff returns the exponential backoff duration for a given attempt: 60s * 2^(attempt-1).
+func sendBackoff(attempt int) time.Duration {
+	return time.Duration(60*(1<<uint(attempt-1))) * time.Second
+}
+
+// NextRetry implements exponential backoff for River.
 func (w *SendWorker) NextRetry(job *goriver.Job[SendJobArgs]) time.Time {
-	backoff := time.Duration(60*(1<<uint(job.Attempt-1))) * time.Second
-	return time.Now().Add(backoff)
+	return time.Now().Add(sendBackoff(job.Attempt))
 }
 
 // handleSendError determines if an error is transient or permanent.
-func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, sender port.EmailSender, attempt int, sendErr error) error {
+// When attempt == maxAttempts, a transient error is escalated to a permanent
+// failure so the email is marked Failed instead of being left in Processing.
+func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, sender port.EmailSender, attempt, maxAttempts int, sendErr error) error {
 	if isPermanentSendError(sender, sendErr) {
+		metrics.ProviderErrors.WithLabelValues(sender.Name(), "permanent").Inc()
 		return w.failPermanently(ctx, email, sendErr)
 	}
-	// Transient error: let River retry with exponential backoff.
-	retryAt := time.Now().Add(time.Duration(60*(1<<uint(attempt-1))) * time.Second)
+	// All transient errors are counted once, regardless of retry outcome.
+	metrics.ProviderErrors.WithLabelValues(sender.Name(), "transient").Inc()
+	// Final attempt: escalate to permanent failure.
+	if attempt >= maxAttempts {
+		return w.failPermanently(ctx, email, fmt.Errorf("send: transient error on final attempt (%d/%d): %w", attempt, maxAttempts, sendErr))
+	}
+	// Retries remaining: let River retry with exponential backoff.
+	retryAt := time.Now().Add(sendBackoff(attempt))
 	if err := w.emailStore.UpdateRetry(ctx, email.ID, attempt, &retryAt); err != nil {
-		slog.Error("send_worker: failed to update retry", "email_id", email.ID, "attempt", attempt, "error", err)
+		slog.Error("send_worker: failed to update retry", "email_id", email.ID, "tracking_id", email.TrackingID, "attempt", attempt, "error", err)
 	}
 	return sendErr
 }
@@ -270,7 +295,7 @@ func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, s
 func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, reason error) error {
 	metrics.EmailsFailed.Inc()
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusFailed, email.Status); err != nil {
-		slog.Error("send_worker: failed to update status to failed", "email_id", email.ID, "error", err)
+		slog.Error("send_worker: failed to update status to failed", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
 	}
 	now := time.Now().UTC()
 	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
@@ -281,7 +306,7 @@ func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, r
 		Metadata:   map[string]any{"error": reason.Error()},
 		CreatedAt:  now,
 	}); err != nil {
-		slog.Error("send_worker: failed to add failure event", "email_id", email.ID, "error", err)
+		slog.Error("send_worker: failed to add failure event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
 	}
 	return goriver.JobCancel(reason)
 }

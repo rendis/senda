@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/metrics"
 )
 
 // validTransitions defines forward-only status transitions.
@@ -120,6 +121,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 	if !isValidTransition(email.Status, status) {
 		p.logger.WarnContext(ctx, "skipping invalid status transition",
 			"email_id", email.ID,
+			"tracking_id", email.TrackingID,
 			"current_status", email.Status,
 			"target_status", status,
 			"event_type", event.Type,
@@ -130,6 +132,18 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 	// 4. Update email status.
 	if err := p.emailUpdater.UpdateStatus(ctx, email.ID, status, email.Status); err != nil {
 		return err
+	}
+
+	// 4a. Record bounce/complaint metrics.
+	switch event.Type {
+	case domain.EventBounced:
+		bounceType := "unknown"
+		if event.BounceDetail != nil && event.BounceDetail.BounceType != "" {
+			bounceType = event.BounceDetail.BounceType
+		}
+		metrics.NegativeSignals.WithLabelValues(email.TenantID.String(), email.WorkspaceID.String(), bounceType).Inc()
+	case domain.EventComplained:
+		metrics.NegativeSignals.WithLabelValues(email.TenantID.String(), email.WorkspaceID.String(), "complaint").Inc()
 	}
 
 	// 5. Add email event.
@@ -150,6 +164,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 	if err := p.handleSuppression(ctx, event, email); err != nil {
 		p.logger.ErrorContext(ctx, "failed to add suppression entry",
 			"email_id", email.ID,
+			"tracking_id", email.TrackingID,
 			"event_type", event.Type,
 			"error", err,
 		)
@@ -169,6 +184,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 		if err := p.webhookService.Dispatch(ctx, email.WorkspaceID, "email."+string(event.Type), webhookPayload); err != nil {
 			p.logger.ErrorContext(ctx, "failed to dispatch webhook",
 				"email_id", email.ID,
+				"tracking_id", email.TrackingID,
 				"event_type", event.Type,
 				"error", err,
 			)
@@ -204,6 +220,7 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 		if !isValidTransition(email.Status, status) {
 			p.logger.WarnContext(ctx, "skipping invalid transition in ProcessDirect",
 				"email_id", email.ID,
+				"tracking_id", email.TrackingID,
 				"current_status", email.Status,
 				"target_status", status,
 				"event_type", event.Type,
@@ -232,16 +249,22 @@ func (p *EventProcessor) ProcessDirect(ctx context.Context, email *domain.Email,
 
 	// Dispatch to workspace webhooks.
 	if p.webhookService != nil {
+		providerMsgID := ""
+		if email.ProviderMessageID != nil {
+			providerMsgID = *email.ProviderMessageID
+		}
 		webhookPayload := map[string]any{
-			"email_id":    email.ID.String(),
-			"tracking_id": email.TrackingID,
-			"recipient":   email.RecipientEmail,
-			"status":      string(status),
-			"timestamp":   event.Timestamp.Format(time.RFC3339),
+			"email_id":            email.ID.String(),
+			"tracking_id":         email.TrackingID,
+			"recipient":           email.RecipientEmail,
+			"status":              string(status),
+			"provider_message_id": providerMsgID,
+			"timestamp":           event.Timestamp.Format(time.RFC3339),
 		}
 		if err := p.webhookService.Dispatch(ctx, email.WorkspaceID, "email."+string(event.Type), webhookPayload); err != nil {
 			p.logger.ErrorContext(ctx, "failed to dispatch webhook",
 				"email_id", email.ID,
+				"tracking_id", email.TrackingID,
 				"event_type", event.Type,
 				"error", err,
 			)

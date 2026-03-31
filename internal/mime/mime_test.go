@@ -139,6 +139,29 @@ func TestSanitizeHeaderValue(t *testing.T) {
 	}
 }
 
+// TestWriteHeaders_MIMEVersionCasing verifies that WriteHeaders outputs
+// "MIME-Version" (RFC 2045 canonical casing), not the textproto-canonicalized
+// "Mime-Version" that Go's MIMEHeader.Set produces.
+func TestWriteHeaders_MIMEVersionCasing(t *testing.T) {
+	msg := &port.OutgoingEmail{
+		From:     port.EmailAddress{Address: "a@example.com"},
+		To:       port.EmailAddress{Address: "b@example.com"},
+		Subject:  "casing check",
+		BodyText: "hello",
+	}
+	raw, err := sendamime.BuildRawMessage(msg)
+	if err != nil {
+		t.Fatalf("BuildRawMessage error: %v", err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, "MIME-Version: 1.0") {
+		t.Errorf("expected RFC 2045 casing 'MIME-Version: 1.0', got headers:\n%s", body)
+	}
+	if strings.Contains(body, "Mime-Version:") {
+		t.Errorf("found textproto-canonicalized 'Mime-Version:' — must use 'MIME-Version:'")
+	}
+}
+
 func TestSafeHeaderKeyRe(t *testing.T) {
 	valid := []string{"X-Custom-Header", "Content-Type", "X123"}
 	for _, k := range valid {

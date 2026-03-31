@@ -536,3 +536,121 @@ func TestEventProcessor_BounceMetadata(t *testing.T) {
 		t.Fatalf("expected source 'provider_webhook', got %v", meta["source"])
 	}
 }
+
+// --- C18: ProcessDirect webhook payload parity ---
+
+// buildDirectEmail returns a test email for ProcessDirect scenarios.
+func buildDirectEmail(emailID, wsID uuid.UUID, providerMsgID *string) *domain.Email {
+	return &domain.Email{
+		ID:                emailID,
+		WorkspaceID:       wsID,
+		TrackingID:        "trk_direct_01",
+		RecipientEmail:    "bob@example.com",
+		Status:            domain.StatusDelivered,
+		ProviderMessageID: providerMsgID,
+	}
+}
+
+// TestEventProcessor_ProcessDirect_OpenEvent_PayloadContainsProviderMessageID verifies
+// that ProcessDirect dispatches a webhook payload that includes "provider_message_id"
+// so consumers get the same shape as Process().
+func TestEventProcessor_ProcessDirect_OpenEvent_PayloadContainsProviderMessageID(t *testing.T) {
+	f := newEventProcessorFixture()
+	proc := f.buildProcessor()
+
+	providerMsgID := "ses-msg-direct-999"
+	email := buildDirectEmail(f.emailID, f.workspaceID, &providerMsgID)
+
+	event := &domain.ProviderEvent{
+		Type:              domain.EventOpened,
+		ProviderMessageID: "",
+		Timestamp:         time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+	}
+
+	if err := proc.ProcessDirect(context.Background(), email, event); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.dispatcher.calls) != 1 {
+		t.Fatalf("expected 1 webhook dispatch, got %d", len(f.dispatcher.calls))
+	}
+	call := f.dispatcher.calls[0]
+	if call.EventType != "email.opened" {
+		t.Fatalf("expected event type 'email.opened', got %q", call.EventType)
+	}
+
+	payload, ok := call.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload to be map[string]any, got %T", call.Payload)
+	}
+
+	val, exists := payload["provider_message_id"]
+	if !exists {
+		t.Fatal("expected 'provider_message_id' key in webhook payload, but it was absent")
+	}
+	if val != providerMsgID {
+		t.Fatalf("expected provider_message_id %q, got %q", providerMsgID, val)
+	}
+}
+
+// TestEventProcessor_ProcessDirect_NilProviderMessageID_PayloadContainsEmptyString verifies
+// that when ProviderMessageID is nil (pixel open), the payload uses an empty string
+// rather than omitting the key or panicking.
+func TestEventProcessor_ProcessDirect_NilProviderMessageID_PayloadContainsEmptyString(t *testing.T) {
+	f := newEventProcessorFixture()
+	proc := f.buildProcessor()
+
+	email := buildDirectEmail(f.emailID, f.workspaceID, nil) // nil — pixel open
+
+	event := &domain.ProviderEvent{
+		Type:      domain.EventOpened,
+		Timestamp: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+	}
+
+	if err := proc.ProcessDirect(context.Background(), email, event); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.dispatcher.calls) != 1 {
+		t.Fatalf("expected 1 webhook dispatch, got %d", len(f.dispatcher.calls))
+	}
+	payload, ok := f.dispatcher.calls[0].Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload to be map[string]any, got %T", f.dispatcher.calls[0].Payload)
+	}
+
+	val, exists := payload["provider_message_id"]
+	if !exists {
+		t.Fatal("expected 'provider_message_id' key in webhook payload, but it was absent")
+	}
+	if val != "" {
+		t.Fatalf("expected empty string for nil ProviderMessageID, got %q", val)
+	}
+}
+
+// TestEventProcessor_Process_PayloadContainsProviderMessageID is a sanity check
+// that the existing Process() path also includes provider_message_id.
+func TestEventProcessor_Process_PayloadContainsProviderMessageID(t *testing.T) {
+	f := newEventProcessorFixture()
+	proc := f.buildProcessor()
+
+	if err := proc.Process(context.Background(), f.deliveryEvent()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(f.dispatcher.calls) != 1 {
+		t.Fatalf("expected 1 webhook dispatch, got %d", len(f.dispatcher.calls))
+	}
+	payload, ok := f.dispatcher.calls[0].Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload to be map[string]any, got %T", f.dispatcher.calls[0].Payload)
+	}
+
+	val, exists := payload["provider_message_id"]
+	if !exists {
+		t.Fatal("expected 'provider_message_id' key in Process() webhook payload")
+	}
+	if val != "ses-msg-123" {
+		t.Fatalf("expected 'ses-msg-123', got %q", val)
+	}
+}

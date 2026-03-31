@@ -11,10 +11,12 @@ type SendEmailResponse struct {
 	TemplateVersion  int                    `json:"template_version"`
 }
 
-// TrackingEntryResponse maps a recipient to their tracking ID.
+// TrackingEntryResponse maps a recipient to their tracking ID and per-recipient status.
 type TrackingEntryResponse struct {
 	To         string `json:"to"`
 	TrackingID string `json:"tracking_id"`
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
 }
 
 // NewSendEmailResponse maps a service.SendResponse to the HTTP response.
@@ -24,6 +26,8 @@ func NewSendEmailResponse(r *service.SendResponse) SendEmailResponse {
 		entries[i] = TrackingEntryResponse{
 			To:         e.To,
 			TrackingID: e.TrackingID,
+			Status:     e.Status,
+			Error:      e.Error,
 		}
 	}
 	return SendEmailResponse{

@@ -474,6 +474,7 @@ senda/
 
 |                      | Document                                                           | Description                                    |
 | -------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
+| **Email Flows**      | [docs/EMAIL_FLOWS.md](docs/EMAIL_FLOWS.md)                         | Per-provider email lifecycle, status machine, tracking |
 | **Extensibility**    | [docs/extensibility-guide.md](docs/extensibility-guide.md)         | SDK guide: injectors, init, hooks, examples    |
 | **Architecture**     | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                       | Hexagonal layers, resolution engine, ADRs      |
 | **API**              | [docs/API.md](docs/API.md)                                        | All endpoints, auth schemes, error codes       |

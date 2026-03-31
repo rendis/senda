@@ -112,6 +112,7 @@ type EmailStore interface {
 	SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMessageID string) error
 
 	AddEvent(ctx context.Context, event *domain.EmailEvent) error
+	AddEventTx(ctx context.Context, tx pgx.Tx, event *domain.EmailEvent) error
 	GetEvents(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error)
 
 	// Queries (scoped)

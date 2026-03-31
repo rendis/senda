@@ -19,10 +19,11 @@ import (
 // --- Manual mocks ---
 
 type mockEmailStore struct {
-	getByTrackingIDFn func(ctx context.Context, trackingID string) (*domain.Email, error)
-	updateStatusFn    func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
-	updateRetryFn     func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
-	addEventFn        func(ctx context.Context, event *domain.EmailEvent) error
+	getByTrackingIDFn        func(ctx context.Context, trackingID string) (*domain.Email, error)
+	updateStatusFn           func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
+	updateRetryFn            func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
+	addEventFn               func(ctx context.Context, event *domain.EmailEvent) error
+	setProviderMessageIDFn   func(ctx context.Context, id uuid.UUID, providerMsgID string) error
 
 	updateStatusCalls []updateStatusCall
 	addEventCalls     []addEventCall
@@ -68,7 +69,10 @@ func (m *mockEmailStore) UpdateRetry(ctx context.Context, id uuid.UUID, retryCou
 	}
 	return nil
 }
-func (m *mockEmailStore) SetProviderMessageID(_ context.Context, _ uuid.UUID, _ string) error {
+func (m *mockEmailStore) SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMsgID string) error {
+	if m.setProviderMessageIDFn != nil {
+		return m.setProviderMessageIDFn(ctx, id, providerMsgID)
+	}
 	return nil
 }
 func (m *mockEmailStore) AddEvent(ctx context.Context, event *domain.EmailEvent) error {
@@ -76,6 +80,10 @@ func (m *mockEmailStore) AddEvent(ctx context.Context, event *domain.EmailEvent)
 	if m.addEventFn != nil {
 		return m.addEventFn(ctx, event)
 	}
+	return nil
+}
+func (m *mockEmailStore) AddEventTx(_ context.Context, _ pgx.Tx, event *domain.EmailEvent) error {
+	m.addEventCalls = append(m.addEventCalls, addEventCall{Event: event})
 	return nil
 }
 func (m *mockEmailStore) GetEvents(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error) {
@@ -237,7 +245,8 @@ func makeJob(args SendJobArgs, attempt int) *goriver.Job[SendJobArgs] {
 	return &goriver.Job[SendJobArgs]{
 		Args: args,
 		JobRow: &rivertype.JobRow{
-			Attempt: attempt,
+			Attempt:     attempt,
+			MaxAttempts: 5, // matches SendJobArgs.InsertOpts MaxAttempts
 		},
 	}
 }
@@ -702,11 +711,240 @@ func TestIsPermanentSendError(t *testing.T) {
 	}
 }
 
+func TestSendWorker_SetProviderMessageIDError_ReturnsError(t *testing.T) {
+	email := newTestEmail()
+	dbErr := errors.New("db: connection lost")
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+		setProviderMessageIDFn: func(_ context.Context, _ uuid.UUID, _ string) error {
+			return dbErr
+		},
+	}
+	sender := &mockSender{
+		sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+			return "provider-msg-abc", nil // non-empty provider ID triggers the DB call
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected error when SetProviderMessageID fails, got nil")
+	}
+
+	// Must NOT be a JobCancel — should be retryable.
+	var cancelErr *goriver.JobCancelError
+	if errors.As(err, &cancelErr) {
+		t.Errorf("expected retryable error but got JobCancelError: %v", err)
+	}
+
+	// Status must NOT be updated to Sent — email should not be marked as sent.
+	for _, call := range emailStore.updateStatusCalls {
+		if call.Status == domain.StatusSent {
+			t.Error("status must not be updated to Sent when SetProviderMessageID fails")
+		}
+	}
+}
+
+// --- C1: Transient error on final attempt must fail permanently ---
+
+// TestSendWorker_TransientSendError_FinalAttempt_FailsPermanently verifies that
+// when a transient send error occurs on the last allowed attempt
+// (attempt == MaxAttempts), the worker calls failPermanently() so the email
+// transitions to Failed instead of being orphaned in Processing forever.
+func TestSendWorker_TransientSendError_FinalAttempt_FailsPermanently(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+	}
+	sender := &mockSender{
+		sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+			// transient error — IsPermanentSendError returns false (default)
+			return "", errors.New("connection timeout")
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+
+	// attempt == MaxAttempts (5): this is the last attempt.
+	job := &goriver.Job[SendJobArgs]{
+		Args: SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID},
+		JobRow: &rivertype.JobRow{
+			Attempt:     5,
+			MaxAttempts: 5,
+		},
+	}
+
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Must be JobCancel, not a raw transient error.
+	var cancelErr *goriver.JobCancelError
+	if !errors.As(err, &cancelErr) {
+		t.Errorf("expected JobCancelError on final attempt, got %T: %v", err, err)
+	}
+
+	// Email must have been marked Failed.
+	foundFailed := false
+	for _, call := range emailStore.updateStatusCalls {
+		if call.Status == domain.StatusFailed {
+			foundFailed = true
+			break
+		}
+	}
+	if !foundFailed {
+		t.Error("expected status update to 'failed' on final attempt")
+	}
+
+	// No retry metadata should have been written.
+	if len(emailStore.updateRetryCalls) != 0 {
+		t.Errorf("expected 0 retry updates on final attempt, got %d", len(emailStore.updateRetryCalls))
+	}
+}
+
+// TestSendWorker_TransientSendError_NotFinalAttempt_Retries verifies that a
+// transient error on an intermediate attempt still schedules a retry (regression
+// guard: C1 fix must not accidentally cancel early retries).
+func TestSendWorker_TransientSendError_NotFinalAttempt_Retries(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+	}
+	sender := &mockSender{
+		sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+			return "", errors.New("connection timeout")
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+
+	// attempt < MaxAttempts: still has retries left.
+	job := &goriver.Job[SendJobArgs]{
+		Args: SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID},
+		JobRow: &rivertype.JobRow{
+			Attempt:     3,
+			MaxAttempts: 5,
+		},
+	}
+
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected transient error, got nil")
+	}
+
+	// Must NOT be a JobCancel.
+	var cancelErr *goriver.JobCancelError
+	if errors.As(err, &cancelErr) {
+		t.Error("transient error on non-final attempt must not produce JobCancelError")
+	}
+
+	// Retry metadata must have been written.
+	if len(emailStore.updateRetryCalls) != 1 {
+		t.Errorf("expected 1 retry update, got %d", len(emailStore.updateRetryCalls))
+	}
+}
+
+// --- C2: Crash recovery for Processing without ProviderMessageID ---
+
+// TestSendWorker_ProcessingWithoutProviderID_Stale_FailsPermanently verifies
+// that when the worker finds an email already in Processing with no
+// ProviderMessageID AND the email was last updated more than 10 minutes ago
+// (indicating a crash between Send() and SetProviderMessageID), the worker
+// calls failPermanently() to unblock it.
+func TestSendWorker_ProcessingWithoutProviderID_Stale_FailsPermanently(t *testing.T) {
+	email := newTestEmail()
+	email.Status = domain.StatusProcessing
+	email.ProviderMessageID = nil
+	email.UpdatedAt = time.Now().UTC().Add(-15 * time.Minute) // stale
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+
+	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
+
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Must be JobCancel (permanent failure).
+	var cancelErr *goriver.JobCancelError
+	if !errors.As(err, &cancelErr) {
+		t.Errorf("expected JobCancelError for stale processing email, got %T: %v", err, err)
+	}
+
+	// Email must have been marked Failed.
+	foundFailed := false
+	for _, call := range emailStore.updateStatusCalls {
+		if call.Status == domain.StatusFailed {
+			foundFailed = true
+			break
+		}
+	}
+	if !foundFailed {
+		t.Error("expected status update to 'failed' for stale processing email")
+	}
+}
+
+// TestSendWorker_ProcessingWithoutProviderID_Recent_CancelsJob verifies that
+// when the email is in Processing with no ProviderMessageID but was updated
+// recently (< 10 min), the worker defers to the possible concurrent worker by
+// returning JobCancel without marking the email failed.
+func TestSendWorker_ProcessingWithoutProviderID_Recent_CancelsJob(t *testing.T) {
+	email := newTestEmail()
+	email.Status = domain.StatusProcessing
+	email.ProviderMessageID = nil
+	email.UpdatedAt = time.Now().UTC().Add(-1 * time.Minute) // recent
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+
+	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
+
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Must be JobCancel.
+	var cancelErr *goriver.JobCancelError
+	if !errors.As(err, &cancelErr) {
+		t.Errorf("expected JobCancelError for recent processing email, got %T: %v", err, err)
+	}
+
+	// Email must NOT have been marked Failed — another worker may still own it.
+	for _, call := range emailStore.updateStatusCalls {
+		if call.Status == domain.StatusFailed {
+			t.Error("email should NOT be marked failed when processing is recent (another worker may own it)")
+		}
+	}
+}
+
 // plainMockSender does NOT implement errorClassifier.
 type plainMockSender struct{}
 
 func (p *plainMockSender) Send(_ context.Context, _ *port.OutgoingEmail) (string, error) {
 	return "", nil
 }
-func (p *plainMockSender) Name() string                    { return "plain" }
+func (p *plainMockSender) Name() string                       { return "plain" }
 func (p *plainMockSender) HealthCheck(_ context.Context) error { return nil }

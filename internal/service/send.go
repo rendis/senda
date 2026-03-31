@@ -198,6 +198,17 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	var failCount int
 	var lastErr error
 
+	// Filter CC and BCC through suppression before the recipient loop so that
+	// each email record only carries addresses that are not suppressed.
+	filteredCC, err := s.filterSuppressed(ctx, ws.ID, req.CC)
+	if err != nil {
+		return nil, err
+	}
+	filteredBCC, err := s.filterSuppressed(ctx, ws.ID, req.BCC)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, recipient := range req.To {
 		// Check suppression
 		suppressed, reason, err := s.suppression.IsSuppressed(ctx, ws.ID, recipient)
@@ -218,8 +229,8 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			TemplateTypeSlug:    ref.TemplateType,
 			TemplateRef:         req.Ref,
 			RecipientEmail:      recipient,
-			CC:                  req.CC,
-			BCC:                 req.BCC,
+			CC:                  filteredCC,
+			BCC:                 filteredBCC,
 			FromEmail:           fromEmail,
 			FromName:            renderedFromName,
 			ReplyTo:             resolved.Version.ReplyTo,
@@ -237,7 +248,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 
 		if suppressed {
 			email.Status = domain.StatusSuppressed
-			if err := s.emailStore.Create(ctx, email); err != nil {
+			if err := s.createSuppressed(ctx, email, now, reason); err != nil {
 				failCount++
 				lastErr = err
 				slog.Error("failed to create suppressed email", "recipient", recipient, "error", err)
@@ -248,16 +259,6 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 					Error:      err.Error(),
 				})
 				continue
-			}
-			if err := s.emailStore.AddEvent(ctx, &domain.EmailEvent{
-				ID:         uuid.Must(uuid.NewV7()),
-				EmailID:    email.ID,
-				EventType:  domain.EventTypeSuppressed,
-				OccurredAt: now,
-				Metadata:   map[string]any{"reason": reason},
-				CreatedAt:  now,
-			}); err != nil {
-				slog.Error("failed to add suppression event", "email_id", email.ID, "error", err)
 			}
 			response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
 				To:         recipient,
@@ -355,14 +356,24 @@ func getLocalizedField(resolved *resolution.ResolvedTemplate, field string) stri
 	}
 }
 
-// createAndEnqueue atomically creates an email record and enqueues a send job.
-// When a pool is available, both operations are wrapped in a DB transaction.
-// Falls back to non-transactional path when pool is nil (e.g., in unit tests).
+// createAndEnqueue atomically creates an email record, records a "queued" event,
+// and enqueues a send job. When a pool is available, all three operations are
+// wrapped in a DB transaction. Falls back to non-transactional path when pool
+// is nil (e.g., in unit tests).
 func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email, trackingID string, adapterID uuid.UUID) error {
 	sendJob := &port.SendJob{
 		EmailID:    email.ID,
 		TrackingID: trackingID,
 		AdapterID:  adapterID,
+	}
+
+	now := time.Now().UTC()
+	queuedEvent := &domain.EmailEvent{
+		ID:         uuid.Must(uuid.NewV7()),
+		EmailID:    email.ID,
+		EventType:  domain.EventTypeQueued,
+		OccurredAt: now,
+		CreatedAt:  now,
 	}
 
 	if s.pool != nil {
@@ -381,6 +392,11 @@ func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email,
 			return fmt.Errorf("enqueue send: %w", err)
 		}
 
+		if err := s.emailStore.AddEventTx(ctx, tx, queuedEvent); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("add queued event: %w", err)
+		}
+
 		if err := tx.Commit(ctx); err != nil {
 			return fmt.Errorf("commit tx: %w", err)
 		}
@@ -391,8 +407,58 @@ func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email,
 	if err := s.emailStore.Create(ctx, email); err != nil {
 		return fmt.Errorf("create email: %w", err)
 	}
+	if err := s.emailStore.AddEvent(ctx, queuedEvent); err != nil {
+		slog.Error("failed to add queued event", "email_id", email.ID, "error", err)
+	}
 	if err := s.queue.EnqueueSend(ctx, sendJob); err != nil {
 		return fmt.Errorf("enqueue send: %w", err)
+	}
+	return nil
+}
+
+// createSuppressed atomically creates the email record and the suppression event.
+// When a pool is available, both writes are wrapped in a DB transaction so they
+// cannot be partially applied. Falls back to non-transactional path when pool is
+// nil (e.g., in unit tests).
+func (s *SendService) createSuppressed(ctx context.Context, email *domain.Email, now time.Time, reason string) error {
+	suppressionEvent := &domain.EmailEvent{
+		ID:         uuid.Must(uuid.NewV7()),
+		EmailID:    email.ID,
+		EventType:  domain.EventTypeSuppressed,
+		OccurredAt: now,
+		Metadata:   map[string]any{"reason": reason},
+		CreatedAt:  now,
+	}
+
+	if s.pool != nil {
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+
+		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("create suppressed email: %w", err)
+		}
+
+		if err := s.emailStore.AddEventTx(ctx, tx, suppressionEvent); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("add suppression event: %w", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit tx: %w", err)
+		}
+
+		return nil
+	}
+
+	// Non-transactional fallback (unit tests without pool).
+	if err := s.emailStore.Create(ctx, email); err != nil {
+		return err
+	}
+	if err := s.emailStore.AddEvent(ctx, suppressionEvent); err != nil {
+		slog.Error("failed to add suppression event", "email_id", email.ID, "error", err)
 	}
 	return nil
 }
@@ -403,6 +469,25 @@ func getLocalizedBody(resolved *resolution.ResolvedTemplate) string {
 		return *resolved.Locale.BodyMJML
 	}
 	return resolved.Version.BodyMJML
+}
+
+// filterSuppressed returns only the addresses that are NOT on the suppression
+// list. It preserves order. If addrs is empty it returns nil.
+func (s *SendService) filterSuppressed(ctx context.Context, wsID uuid.UUID, addrs []string) ([]string, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+	result := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		suppressed, _, err := s.suppression.IsSuppressed(ctx, wsID, addr)
+		if err != nil {
+			return nil, fmt.Errorf("check suppression for %s: %w", addr, err)
+		}
+		if !suppressed {
+			result = append(result, addr)
+		}
+	}
+	return result, nil
 }
 
 // generateTrackingID creates a "trk_" prefixed unique tracking ID.

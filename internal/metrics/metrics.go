@@ -47,6 +47,11 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
+	// TODO(queue-depth): River does not expose a lightweight queue-depth API without
+	// a direct DB query. Wiring a periodic sampler requires a dedicated goroutine and
+	// DB access in the metrics layer, which is disproportionate for a single gauge.
+	// Implement once a River queue-stats helper is available or a metrics collector
+	// pattern is established for background jobs.
 	QueueDepth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "senda_queue_depth",
@@ -63,12 +68,12 @@ var (
 		[]string{"adapter", "error_type"},
 	)
 
-	BounceRate = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "senda_bounce_rate",
-			Help: "Bounce rate in last 24h window",
+	NegativeSignals = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "senda_email_negative_signals_total",
+			Help: "Total bounce and complaint events by type",
 		},
-		[]string{"tenant", "workspace", "bounce_type"},
+		[]string{"tenant", "workspace", "signal_type"},
 	)
 )
 
@@ -77,6 +82,6 @@ func Register() {
 	prometheus.MustRegister(
 		EmailsEnqueued, EmailsSent, EmailsFailed, EmailSendDuration,
 		HTTPRequestDuration, HTTPRequestsTotal,
-		QueueDepth, ProviderErrors, BounceRate,
+		QueueDepth, ProviderErrors, NegativeSignals,
 	)
 }

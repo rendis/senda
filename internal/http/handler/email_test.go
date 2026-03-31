@@ -70,6 +70,9 @@ func (m *mockEmailStore) AddEvent(ctx context.Context, event *domain.EmailEvent)
 	}
 	return nil
 }
+func (m *mockEmailStore) AddEventTx(_ context.Context, _ pgx.Tx, _ *domain.EmailEvent) error {
+	return nil
+}
 func (m *mockEmailStore) GetEvents(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error) {
 	if m.getEventsFn != nil {
 		return m.getEventsFn(ctx, emailID)

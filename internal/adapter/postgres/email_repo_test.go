@@ -138,7 +138,7 @@ func TestEmailRepo_UpdateStatus(t *testing.T) {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := deps.repo.UpdateStatus(ctx, email.ID, domain.StatusSent); err != nil {
+	if err := deps.repo.UpdateStatus(ctx, email.ID, domain.StatusSent, domain.StatusQueued); err != nil {
 		t.Fatalf("UpdateStatus() error: %v", err)
 	}
 

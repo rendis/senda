@@ -233,6 +233,27 @@ func (r *EmailRepo) AddEvent(ctx context.Context, event *domain.EmailEvent) erro
 	return nil
 }
 
+func (r *EmailRepo) AddEventTx(ctx context.Context, tx pgx.Tx, event *domain.EmailEvent) error {
+	row := tx.QueryRow(ctx,
+		`INSERT INTO email_events (id, email_id, event_type, occurred_at, metadata)
+		 VALUES (@id, @email_id, @event_type, @occurred_at, @metadata)
+		 RETURNING created_at`,
+		pgx.NamedArgs{
+			"id":          event.ID,
+			"email_id":    event.EmailID,
+			"event_type":  event.EventType,
+			"occurred_at": event.OccurredAt,
+			"metadata":    event.Metadata,
+		},
+	)
+
+	if err := row.Scan(&event.CreatedAt); err != nil {
+		return fmt.Errorf("inserting email event (tx): %w", err)
+	}
+
+	return nil
+}
+
 func (r *EmailRepo) GetEvents(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, email_id, event_type, occurred_at, metadata, created_at
