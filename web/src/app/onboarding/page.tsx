@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { authWithoutRefresh } from "@/auth";
 import { OnboardingWizard } from "./_components/wizard";
 import type { OnboardingStatus } from "@/types/api";
 
 export default async function OnboardingPage() {
-  const session = await auth();
+  const session = await authWithoutRefresh();
   const headers = session?.idToken
     ? { Authorization: `Bearer ${session.idToken}` }
     : undefined;

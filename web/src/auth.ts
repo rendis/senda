@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import NextAuth from "next-auth";
 
 declare module "next-auth" {
@@ -15,6 +16,24 @@ declare module "@auth/core/jwt" {
     expiresAt?: number;
     error?: "RefreshTokenError";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Refresh-skip context: Server Components CANNOT write cookies, so token
+// refresh inside their auth() call is wasted work that causes double-refresh
+// race conditions.  authWithoutRefresh() sets a flag via AsyncLocalStorage
+// so the JWT callback skips the refresh and returns the (possibly stale) token.
+// Only proxy.ts (middleware) and /api/auth/session (SessionProvider refetch)
+// should perform token refresh — they CAN write Set-Cookie headers.
+// ---------------------------------------------------------------------------
+const refreshContext = new AsyncLocalStorage<{ skip: boolean }>();
+
+/**
+ * Read session data without triggering token refresh.
+ * Use this in Server Components (layouts, pages) where cookies can't be written.
+ */
+export async function authWithoutRefresh() {
+  return refreshContext.run({ skip: true }, () => auth());
 }
 
 async function refreshAccessToken(refreshToken: string) {
@@ -99,6 +118,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         typeof token.expiresAt === "number" &&
         Date.now() < token.expiresAt * 1000
       ) {
+        return token;
+      }
+
+      // Skip refresh when called from Server Components (they can't write cookies).
+      // The stale token is returned as-is; the next SessionProvider refetch or
+      // middleware invocation will perform the actual refresh.
+      const store = refreshContext.getStore();
+      if (store?.skip) {
         return token;
       }
 
