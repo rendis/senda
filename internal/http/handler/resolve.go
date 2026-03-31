@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/port"
@@ -29,4 +30,17 @@ func resolveWorkspace(c *echo.Context, ts port.TenantStore, ws port.WorkspaceSto
 func resolveTenant(c *echo.Context, ts port.TenantStore) (*domain.Tenant, error) {
 	tenantCode := c.Param("tenant_code")
 	return ts.GetByCode(c.Request().Context(), tenantCode)
+}
+
+// parseOptionalUUID converts an optional string pointer to *uuid.UUID.
+// Returns (nil, nil) when s is nil.
+func parseOptionalUUID(s *string) (*uuid.UUID, error) {
+	if s == nil {
+		return nil, nil
+	}
+	parsed, err := uuid.Parse(*s)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }

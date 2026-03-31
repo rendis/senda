@@ -16,7 +16,11 @@ import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { generateSlug } from "@/lib/validations/slug";
 import { useTemplateTypes, useCreateTemplateType, useUpdateTemplateType, useDeleteTemplateType } from "@/hooks/use-template-types";
 import { useAdapterList } from "@/hooks/use-adapters";
+import { useIdentityList } from "@/hooks/use-identities";
 import { DataTable } from "@/components/shared/data-table";
+
+const SENDER_DEFAULT = "__default__";
+const SENDER_NONE = "__none__";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { FormDialog } from "@/components/shared/form-dialog";
@@ -75,6 +79,7 @@ function TemplateTypesTable() {
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
   const [newAdapterId, setNewAdapterId] = useState("");
+  const [newSenderIdentityId, setNewSenderIdentityId] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [editTarget, setEditTarget] = useState<TemplateType | null>(null);
 
@@ -188,15 +193,18 @@ function TemplateTypesTable() {
   async function handleCreateType() {
     if (!newSlug.trim() || !newName.trim()) return;
     try {
+      const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
       await createMutation.mutateAsync({
         slug: newSlug.trim(),
         name: newName.trim(),
         adapter_id: newAdapterId || undefined,
+        sender_identity_id: senderIdValue,
       });
       toast.success("Template type created");
       setNewSlug("");
       setNewName("");
       setNewAdapterId("");
+      setNewSenderIdentityId("");
       setSlugTouched(false);
     } catch {
       toast.error("Failed to create template type");
@@ -258,7 +266,13 @@ function TemplateTypesTable() {
                 className="font-mono"
               />
             </div>
-            <AdapterSelect adapters={adapters} value={newAdapterId} onChange={setNewAdapterId} />
+            <AdapterSelect
+              adapters={adapters}
+              value={newAdapterId}
+              onChange={setNewAdapterId}
+              senderIdentityId={newSenderIdentityId}
+              onSenderIdentityChange={setNewSenderIdentityId}
+            />
           </div>
         </FormDialog>
       </div>
@@ -329,11 +343,14 @@ function EditTemplateTypeDialog({
   const scopedPath = useScopedPath();
   const updateMutation = useUpdateTemplateType(scopedPath, templateType.slug);
   const [adapterId, setAdapterId] = useState(templateType.adapter_id ?? "");
+  const [senderIdentityId, setSenderIdentityId] = useState(templateType.sender_identity_id ?? "");
 
   async function handleSubmit() {
     try {
+      const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
       await updateMutation.mutateAsync({
         adapter_id: adapterId || undefined,
+        sender_identity_id: senderIdValue || undefined,
       });
       toast.success("Template type updated");
     } catch {
@@ -347,11 +364,17 @@ function EditTemplateTypeDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`Edit — ${templateType.name}`}
-      description="Change the adapter assigned to this template type."
+      description="Change the adapter and sender assigned to this template type."
       submitLabel="Update"
       onSubmit={handleSubmit}
     >
-      <AdapterSelect adapters={adapters} value={adapterId} onChange={setAdapterId} />
+      <AdapterSelect
+        adapters={adapters}
+        value={adapterId}
+        onChange={setAdapterId}
+        senderIdentityId={senderIdentityId}
+        onSenderIdentityChange={setSenderIdentityId}
+      />
     </FormDialog>
   );
 }
@@ -360,26 +383,98 @@ function AdapterSelect({
   adapters,
   value,
   onChange,
+  senderIdentityId,
+  onSenderIdentityChange,
 }: {
   adapters: { id: string; name: string; adapter_type: string }[];
   value: string;
   onChange: (value: string) => void;
+  senderIdentityId?: string;
+  onSenderIdentityChange?: (value: string) => void;
 }) {
+  const scopedPath = useScopedPath();
+  const selectedAdapter = adapters.find((a) => a.id === value);
+  const showIdentitySelect = !!selectedAdapter && selectedAdapter.adapter_type === "ses";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <Label>Adapter</Label>
+        <Select
+          value={value}
+          onValueChange={(v) => {
+            onChange(v);
+            onSenderIdentityChange?.("");
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select adapter..." />
+          </SelectTrigger>
+          <SelectContent>
+            {adapters.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name} ({a.adapter_type})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {showIdentitySelect && onSenderIdentityChange && (
+        <SenderIdentitySelect
+          scopedPath={scopedPath}
+          adapterId={value}
+          value={senderIdentityId ?? ""}
+          onChange={onSenderIdentityChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function SenderIdentitySelect({
+  scopedPath,
+  adapterId,
+  value,
+  onChange,
+}: {
+  scopedPath: string;
+  adapterId: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { data: identities, isLoading } = useIdentityList(scopedPath, adapterId);
+  const emailIdentities = (identities ?? []).filter(
+    (i) => i.identity_type === "email" && i.status === "verified"
+  );
+
   return (
     <div className="flex flex-col gap-2">
-      <Label>Adapter</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select adapter..." />
+      <Label>Sender Identity</Label>
+      <Select value={value} onValueChange={onChange} disabled={isLoading}>
+        <SelectTrigger className="w-full font-mono text-sm">
+          <SelectValue placeholder={isLoading ? "Loading..." : "Use adapter default"} />
         </SelectTrigger>
         <SelectContent>
-          {adapters.map((a) => (
-            <SelectItem key={a.id} value={a.id}>
-              {a.name} ({a.adapter_type})
+          <SelectItem value={SENDER_DEFAULT}>
+            Use adapter default
+          </SelectItem>
+          {emailIdentities.map((i) => (
+            <SelectItem key={i.id} value={i.id} className="font-mono">
+              {i.identity}
+              {i.display_name ? ` (${i.display_name})` : ""}
             </SelectItem>
           ))}
+          {emailIdentities.length === 0 && !isLoading && (
+            <SelectItem value={SENDER_NONE} disabled>
+              No sender emails configured
+            </SelectItem>
+          )}
         </SelectContent>
       </Select>
+      <p className="text-xs text-muted-foreground">
+        Choose which email address to send from. Add senders in the adapter&apos;s identity panel.
+      </p>
     </div>
   );
 }

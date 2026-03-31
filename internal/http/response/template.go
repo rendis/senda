@@ -11,15 +11,16 @@ import (
 
 // TemplateTypeResponse is the JSON response for a template type.
 type TemplateTypeResponse struct {
-	ID             string           `json:"id"`
-	WorkspaceID    *string          `json:"workspace_id,omitempty"`
-	Slug           string           `json:"slug"`
-	Name           string           `json:"name"`
-	Description    *string          `json:"description,omitempty"`
-	AdapterID      *string          `json:"adapter_id,omitempty"`
-	VariableSchema *json.RawMessage `json:"variable_schema,omitempty"`
-	CreatedAt      string           `json:"created_at"`
-	UpdatedAt      string           `json:"updated_at"`
+	ID               string           `json:"id"`
+	WorkspaceID      *string          `json:"workspace_id,omitempty"`
+	Slug             string           `json:"slug"`
+	Name             string           `json:"name"`
+	Description      *string          `json:"description,omitempty"`
+	AdapterID        *string          `json:"adapter_id,omitempty"`
+	SenderIdentityID *string          `json:"sender_identity_id,omitempty"`
+	VariableSchema   *json.RawMessage `json:"variable_schema,omitempty"`
+	CreatedAt        string           `json:"created_at"`
+	UpdatedAt        string           `json:"updated_at"`
 }
 
 // TemplateTypeListResponse is the JSON response for a paginated list of template types.
@@ -48,6 +49,10 @@ func NewTemplateTypeResponse(tt *domain.TemplateType) TemplateTypeResponse {
 	if tt.AdapterID != nil {
 		s := tt.AdapterID.String()
 		resp.AdapterID = &s
+	}
+	if tt.SenderIdentityID != nil {
+		s := tt.SenderIdentityID.String()
+		resp.SenderIdentityID = &s
 	}
 	if tt.VariableSchema != nil {
 		raw, err := json.Marshal(tt.VariableSchema)

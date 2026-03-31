@@ -15,16 +15,17 @@ const (
 )
 
 type TemplateType struct {
-	ID             uuid.UUID
-	WorkspaceID    *uuid.UUID // nil = global
-	Slug           string
-	Name           string
-	Description    *string
-	AdapterID      *uuid.UUID     // adapter assigned by admin; nil = not configured yet
-	VariableSchema map[string]any // JSON Schema for event variables
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      *time.Time
+	ID               uuid.UUID
+	WorkspaceID      *uuid.UUID     // nil = global
+	Slug             string
+	Name             string
+	Description      *string
+	AdapterID        *uuid.UUID     // nil = not configured yet
+	SenderIdentityID *uuid.UUID     // nil = use adapter default
+	VariableSchema   map[string]any // JSON Schema for event variables
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 type Template struct {

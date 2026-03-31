@@ -164,8 +164,8 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 6. Resolve from_email from adapter's default identity.
-	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter)
+	// 6. Resolve from_email — use template type's sender identity if set, else adapter default.
+	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter, resolved.TemplateType.SenderIdentityID)
 	if err != nil {
 		return nil, err
 	}
@@ -302,8 +302,17 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	return response, nil
 }
 
-// resolveFromEmail gets the from_email from the adapter's default identity.
-func (s *SendService) resolveFromEmail(ctx context.Context, adapter *domain.Adapter) (string, error) {
+// resolveFromEmail gets the from_email. If senderIdentityID is set, uses that specific identity;
+// otherwise falls back to the adapter's default identity.
+func (s *SendService) resolveFromEmail(ctx context.Context, adapter *domain.Adapter, senderIdentityID *uuid.UUID) (string, error) {
+	if senderIdentityID != nil {
+		identity, err := s.identitySvc.GetByID(ctx, *senderIdentityID)
+		if err != nil {
+			return "", fmt.Errorf("sender identity %s not found: %w", *senderIdentityID, err)
+		}
+		return identity.Identity, nil
+	}
+
 	identity, err := s.identitySvc.GetDefault(ctx, adapter.ID)
 	if err != nil {
 		return "", fmt.Errorf("%w: adapter %s", domain.ErrNoDefaultIdentity, adapter.ID)

@@ -60,15 +60,18 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspaceID *uuid.UUID) er
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 	}
 
-	var adapterID *uuid.UUID
-	if req.AdapterID != nil {
-		parsed, err := uuid.Parse(*req.AdapterID)
-		if err != nil {
-			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
-				response.FieldError{Field: "adapter_id", Message: "must be a valid UUID"},
-			)
-		}
-		adapterID = &parsed
+	adapterID, err := parseOptionalUUID(req.AdapterID)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+			response.FieldError{Field: "adapter_id", Message: "must be a valid UUID"},
+		)
+	}
+
+	senderIdentityID, err := parseOptionalUUID(req.SenderIdentityID)
+	if err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+			response.FieldError{Field: "sender_identity_id", Message: "must be a valid UUID"},
+		)
 	}
 
 	var variableSchema map[string]any
@@ -80,7 +83,7 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspaceID *uuid.UUID) er
 		}
 	}
 
-	tt, err := h.svc.Create(c.Request().Context(), req.Slug, req.Name, req.Description, adapterID, variableSchema, workspaceID)
+	tt, err := h.svc.Create(c.Request().Context(), req.Slug, req.Name, req.Description, adapterID, senderIdentityID, variableSchema, workspaceID)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
@@ -156,12 +159,24 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) er
 	if req.AdapterID != nil {
 		if *req.AdapterID == "" {
 			tt.AdapterID = nil
+			tt.SenderIdentityID = nil // clear sender when adapter is cleared
 		} else {
 			parsed, err := uuid.Parse(*req.AdapterID)
 			if err != nil {
 				return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid adapter_id")
 			}
 			tt.AdapterID = &parsed
+		}
+	}
+	if req.SenderIdentityID != nil {
+		if *req.SenderIdentityID == "" {
+			tt.SenderIdentityID = nil
+		} else {
+			parsed, err := uuid.Parse(*req.SenderIdentityID)
+			if err != nil {
+				return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid sender_identity_id")
+			}
+			tt.SenderIdentityID = &parsed
 		}
 	}
 

@@ -28,17 +28,18 @@ func NewTemplateRepo(pool *pgxpool.Pool) *TemplateRepo {
 
 func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) error {
 	row := r.pool.QueryRow(ctx,
-		`INSERT INTO template_types (id, slug, name, description, workspace_id, adapter_id, variable_schema)
-		 VALUES (@id, @slug, @name, @description, @workspace_id, @adapter_id, @variable_schema)
+		`INSERT INTO template_types (id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema)
+		 VALUES (@id, @slug, @name, @description, @workspace_id, @adapter_id, @sender_identity_id, @variable_schema)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":              tt.ID,
-			"slug":            tt.Slug,
-			"name":            tt.Name,
-			"description":     tt.Description,
-			"workspace_id":    tt.WorkspaceID,
-			"adapter_id":      tt.AdapterID,
-			"variable_schema": coalesceJSON(tt.VariableSchema),
+			"id":                 tt.ID,
+			"slug":               tt.Slug,
+			"name":               tt.Name,
+			"description":        tt.Description,
+			"workspace_id":       tt.WorkspaceID,
+			"adapter_id":         tt.AdapterID,
+			"sender_identity_id": tt.SenderIdentityID,
+			"variable_schema":    coalesceJSON(tt.VariableSchema),
 		},
 	)
 
@@ -55,13 +56,14 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
 	row := r.pool.QueryRow(ctx,
 		`UPDATE template_types
-		 SET name = @name, adapter_id = @adapter_id, updated_at = now()
+		 SET name = @name, adapter_id = @adapter_id, sender_identity_id = @sender_identity_id, updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
 		 RETURNING updated_at`,
 		pgx.NamedArgs{
-			"id":         tt.ID,
-			"name":       tt.Name,
-			"adapter_id": tt.AdapterID,
+			"id":                 tt.ID,
+			"name":               tt.Name,
+			"adapter_id":         tt.AdapterID,
+			"sender_identity_id": tt.SenderIdentityID,
 		},
 	)
 
@@ -105,7 +107,7 @@ func (r *TemplateRepo) GetTypeBySlug(ctx context.Context, slug string, chain []u
 	}
 
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 		        created_at, updated_at, deleted_at
 		 FROM template_types
 		 WHERE slug = @slug
@@ -129,7 +131,7 @@ func (r *TemplateRepo) FindTypeBySlugInScope(ctx context.Context, slug string, w
 	var row pgx.Row
 	if wsID == nil {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 			        created_at, updated_at, deleted_at
 			 FROM template_types
 			 WHERE slug = @slug AND workspace_id IS NULL AND deleted_at IS NULL`,
@@ -137,7 +139,7 @@ func (r *TemplateRepo) FindTypeBySlugInScope(ctx context.Context, slug string, w
 		)
 	} else {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 			        created_at, updated_at, deleted_at
 			 FROM template_types
 			 WHERE slug = @slug AND workspace_id = @workspace_id AND deleted_at IS NULL`,
@@ -161,7 +163,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 		// Global scope: only global types.
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
@@ -171,7 +173,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL
@@ -184,7 +186,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 		// Workspace scope: types in this workspace.
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
@@ -194,7 +196,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL
@@ -259,7 +261,7 @@ func (r *TemplateRepo) GetTemplateByID(ctx context.Context, id uuid.UUID) (*doma
 
 func (r *TemplateRepo) GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, workspace_id, adapter_id, variable_schema, created_at, updated_at, deleted_at
+		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, created_at, updated_at, deleted_at
 		 FROM template_types
 		 WHERE id = @id AND deleted_at IS NULL`,
 		pgx.NamedArgs{"id": id},
@@ -767,7 +769,7 @@ func scanTemplateTypeRow(row pgx.CollectableRow) (*domain.TemplateType, error) {
 	var tt domain.TemplateType
 	err := row.Scan(
 		&tt.ID, &tt.Slug, &tt.Name, &tt.Description,
-		&tt.WorkspaceID, &tt.AdapterID, &tt.VariableSchema,
+		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema,
 		&tt.CreatedAt, &tt.UpdatedAt, &tt.DeletedAt,
 	)
 	if err != nil {
@@ -780,7 +782,7 @@ func scanTemplateType(row pgx.Row) (*domain.TemplateType, error) {
 	var tt domain.TemplateType
 	err := row.Scan(
 		&tt.ID, &tt.Slug, &tt.Name, &tt.Description,
-		&tt.WorkspaceID, &tt.AdapterID, &tt.VariableSchema,
+		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema,
 		&tt.CreatedAt, &tt.UpdatedAt, &tt.DeletedAt,
 	)
 	if err != nil {

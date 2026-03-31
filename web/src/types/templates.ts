@@ -6,6 +6,7 @@ export interface TemplateType {
   slug: string;
   name: string;
   adapter_id?: string;
+  sender_identity_id?: string;
   variable_schema?: Record<string, unknown>;
   scope_level: ScopeLevel;
   created_at: string;

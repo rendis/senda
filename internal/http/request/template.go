@@ -6,19 +6,21 @@ import "encoding/json"
 
 // CreateTemplateTypeRequest is the request body for POST template-types.
 type CreateTemplateTypeRequest struct {
-	Slug           string          `json:"slug"`
-	Name           string          `json:"name"`
-	Description    *string         `json:"description,omitempty"`
-	AdapterID      *string         `json:"adapter_id,omitempty"`
-	VariableSchema json.RawMessage `json:"variable_schema,omitempty"`
+	Slug             string          `json:"slug"`
+	Name             string          `json:"name"`
+	Description      *string         `json:"description,omitempty"`
+	AdapterID        *string         `json:"adapter_id,omitempty"`
+	SenderIdentityID *string         `json:"sender_identity_id,omitempty"`
+	VariableSchema   json.RawMessage `json:"variable_schema,omitempty"`
 }
 
 // UpdateTemplateTypeRequest is the request body for PUT template-types/:slug.
 type UpdateTemplateTypeRequest struct {
-	Name           *string          `json:"name,omitempty"`
-	Description    *string          `json:"description,omitempty"`
-	AdapterID      *string          `json:"adapter_id,omitempty"`
-	VariableSchema *json.RawMessage `json:"variable_schema,omitempty"`
+	Name             *string          `json:"name,omitempty"`
+	Description      *string          `json:"description,omitempty"`
+	AdapterID        *string          `json:"adapter_id,omitempty"`
+	SenderIdentityID *string          `json:"sender_identity_id,omitempty"`
+	VariableSchema   *json.RawMessage `json:"variable_schema,omitempty"`
 }
 
 // --- Templates ---

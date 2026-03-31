@@ -99,6 +99,11 @@ func (s *IdentityService) SyncIdentities(ctx context.Context, adapterID uuid.UUI
 	return s.identityStore.ListByAdapter(ctx, adapterID)
 }
 
+// GetByID returns a single identity by ID.
+func (s *IdentityService) GetByID(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+	return s.identityStore.GetByID(ctx, id)
+}
+
 // ListIdentities returns all identities for an adapter from the store.
 func (s *IdentityService) ListIdentities(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error) {
 	return s.identityStore.ListByAdapter(ctx, adapterID)
