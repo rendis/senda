@@ -102,12 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, account }) {
-      const now = Math.floor(Date.now() / 1000);
-      const store = refreshContext.getStore();
-      const caller = store?.skip ? "SERVER_COMPONENT" : "MIDDLEWARE_OR_ROUTE";
-
       if (account) {
-        console.log(`[AUTH:JWT] LOGIN | caller=${caller} | email=${account.email ?? token.email} | has_refresh_token=${!!account.refresh_token} | expires_at=${account.expires_at} | expires_in=${typeof account.expires_at === "number" ? account.expires_at - now : "?"} s`);
         return {
           ...token,
           idToken: account.id_token as string | undefined,
@@ -117,35 +112,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       }
 
-      const expiresIn = typeof token.expiresAt === "number" ? token.expiresAt - now : "N/A";
-
       // Subsequent requests — check if token is still valid.
       if (
         typeof token.expiresAt === "number" &&
         Date.now() < token.expiresAt * 1000
       ) {
-        console.log(`[AUTH:JWT] VALID | caller=${caller} | expires_in=${expiresIn}s | has_error=${token.error ?? "none"}`);
         return token;
       }
 
       // Skip refresh when called from Server Components (they can't write cookies).
-      if (store?.skip) {
-        console.log(`[AUTH:JWT] SKIP_REFRESH | caller=SERVER_COMPONENT | expired_by=${typeof expiresIn === "number" ? -expiresIn : "?"}s | returning stale token`);
+      if (refreshContext.getStore()?.skip) {
         return token;
       }
 
-      console.log(`[AUTH:JWT] EXPIRED | caller=${caller} | expired_by=${typeof expiresIn === "number" ? -expiresIn : "?"}s | has_refresh_token=${!!token.refreshToken}`);
-
       // Token expired — attempt refresh via Keycloak token endpoint.
       if (typeof token.refreshToken !== "string") {
-        console.error(`[AUTH:JWT] NO_REFRESH_TOKEN | caller=${caller} | setting RefreshTokenError`);
         token.error = "RefreshTokenError";
         return token;
       }
 
       try {
         const tokens = await refreshAccessToken(token.refreshToken);
-        console.log(`[AUTH:JWT] REFRESHED | caller=${caller} | new_expires_in=${tokens.expires_in}s | new_refresh_token=${tokens.refresh_token ? "rotated" : "same"}`);
         return {
           ...token,
           idToken: tokens.id_token as string | undefined,
@@ -155,7 +142,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           error: undefined,
         };
       } catch (error) {
-        console.error(`[AUTH:JWT] REFRESH_FAILED | caller=${caller}`, error);
+        console.error("Error refreshing token after retries", error);
         token.error = "RefreshTokenError";
         return token;
       }
@@ -164,16 +151,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.idToken = token.idToken as string | undefined;
       if (token.error) {
         session.error = token.error as "RefreshTokenError";
-        console.log(`[AUTH:SESSION] ERROR_PROPAGATED | error=${token.error}`);
       }
       return session;
     },
     authorized({ auth }) {
-      const result = !!auth && auth.error !== "RefreshTokenError";
-      if (!result) {
-        console.log(`[AUTH:AUTHORIZED] DENIED | has_auth=${!!auth} | error=${auth?.error ?? "none"}`);
-      }
-      return result;
+      if (!auth) return false;
+      if (auth.error === "RefreshTokenError") return false;
+      return true;
     },
   },
 });

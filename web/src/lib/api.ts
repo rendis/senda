@@ -37,9 +37,13 @@ export const api = ky.create({
             }
           }
 
-          // Refresh failed or retry also returned 401 — sign out.
-          signingOut = true;
-          startFederatedLogout("/login");
+          // Retry also returned 401 — DON'T trigger federated logout.
+          // The token may have expired between refresh and retry (race condition).
+          // Let the SessionProvider refetch handle token renewal; individual
+          // components should handle 401 as a transient error, not a logout signal.
+          // Only trigger logout if the session itself reports RefreshTokenError
+          // (handled by SessionGuard, not here).
+          // 401 after retry — let error propagate. SessionGuard handles real auth failures.
         }
       },
     ],

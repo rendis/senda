@@ -18,13 +18,11 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
 
   // 1. Watch for RefreshTokenError from server-side token refresh.
   useEffect(() => {
-    console.log(`[SESSION_GUARD] status=${status} | error=${session?.error ?? "none"} | has_idToken=${!!session?.idToken}`);
     if (
       status === "authenticated" &&
       session?.error === "RefreshTokenError" &&
       !logoutTriggered.current
     ) {
-      console.error(`[SESSION_GUARD] TRIGGERING LOGOUT — RefreshTokenError detected`);
       logoutTriggered.current = true;
       startFederatedLogout("/login");
     }
@@ -35,7 +33,6 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function handlePageShow(event: PageTransitionEvent) {
       if (event.persisted && status === "unauthenticated") {
-        // Page was restored from bfcache but session is gone — redirect.
         window.location.replace("/login");
       }
     }
