@@ -241,3 +241,61 @@ Templates access injected values as `{{ injector.CODE.fieldName }}`.
 | Port | `SENDA_PORT` | No | HTTP port (default: 8080) |
 | Log Level | `SENDA_LOG_LEVEL` | No | debug, info, warn, error |
 | Environment | `SENDA_ENVIRONMENT` | No | production, development |
+
+## SES Adapter Lifecycle
+
+### Provisioning Flow (6 steps)
+
+Auto-provisions SES tracking resources when `SENDA_TRACKING_BASE_URL` is set.
+Tracked in `adapter_provisioning_steps` table. Each step is idempotent.
+
+| Step | Name | AWS Operation |
+|------|------|---------------|
+| 1 | create_configuration_set | ses:CreateConfigurationSet |
+| 2 | create_sns_topic | sns:CreateTopic |
+| 3 | create_event_destination | ses:CreateConfigurationSetEventDestination |
+| 4 | subscribe_webhook | sns:Subscribe (HTTPS) |
+| 5 | save_configuration | DB only (persist config set name) |
+| 6 | verify_subscription | sns:GetSubscriptionAttributes (polling, 15s timeout) |
+
+Resource naming:
+- ConfigSet: `senda-{id[:8]}`
+- Topic: `senda-ses-events-{id[:8]}`
+- EventDest: `senda-events` (fixed)
+- Webhook: `{baseURL}/api/v1/webhooks/ses/inbound`
+
+### Deprovision Flow (4 steps)
+
+Executes on adapter soft-delete (SES type only). Best-effort -- failure does not block deletion.
+Tracked in same `adapter_provisioning_steps` table with `deprov_` prefix.
+
+| Step | Name | AWS Operation |
+|------|------|---------------|
+| 10 | deprov_unsubscribe_webhook | sns:Unsubscribe |
+| 11 | deprov_delete_event_destination | ses:DeleteConfigurationSetEventDestination |
+| 12 | deprov_delete_sns_topic | sns:DeleteTopic |
+| 13 | deprov_delete_configuration_set | ses:DeleteConfigurationSet |
+
+### AWS IAM Permissions (full lifecycle)
+
+**Sending (required)**:
+- `ses:SendEmail`, `ses:SendRawEmail` -- Send emails
+- `ses:ListEmailIdentities` -- Sync verified sender identities
+- `ses:GetAccount` -- Check sandbox/production status
+
+**Event Tracking Provisioning (required if `SENDA_TRACKING_BASE_URL` set)**:
+- `ses:CreateConfigurationSet` -- Create tracking ConfigSet
+- `ses:CreateConfigurationSetEventDestination` -- Link ConfigSet to SNS
+- `ses:ListConfigurationSets` -- List existing ConfigSets
+- `sns:CreateTopic` -- Create SNS Topic
+- `sns:Subscribe` -- Subscribe webhook
+- `sns:GetSubscriptionAttributes` -- Verify subscription confirmed
+- `sns:ListTopics` -- List existing Topics
+
+**Cleanup on Adapter Deletion (recommended)**:
+- `ses:DeleteConfigurationSet` -- Remove ConfigSet on adapter delete
+- `ses:DeleteConfigurationSetEventDestination` -- Remove EventDest on adapter delete
+- `sns:Unsubscribe` -- Cancel subscription on adapter delete
+- `sns:DeleteTopic` -- Remove Topic on adapter delete
+
+Permissions validated by `ValidateCredentials()` (`validator.go`) -- cleanup checks are non-blocking.

@@ -44,6 +44,8 @@ type SESAPI interface {
 	ListEmailIdentities(ctx context.Context, params *sesv2.ListEmailIdentitiesInput, optFns ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error)
 	CreateConfigurationSet(ctx context.Context, params *sesv2.CreateConfigurationSetInput, optFns ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetOutput, error)
 	CreateConfigurationSetEventDestination(ctx context.Context, params *sesv2.CreateConfigurationSetEventDestinationInput, optFns ...func(*sesv2.Options)) (*sesv2.CreateConfigurationSetEventDestinationOutput, error)
+	DeleteConfigurationSet(ctx context.Context, params *sesv2.DeleteConfigurationSetInput, optFns ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetOutput, error)
+	DeleteConfigurationSetEventDestination(ctx context.Context, params *sesv2.DeleteConfigurationSetEventDestinationInput, optFns ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetEventDestinationOutput, error)
 }
 
 // Adapter implements port.EmailSender using AWS SES v2.
@@ -224,6 +226,33 @@ func (s *sesV1API) CreateConfigurationSetEventDestination(ctx context.Context, p
 		return nil, err
 	}
 	return &sesv2.CreateConfigurationSetEventDestinationOutput{}, nil
+}
+
+func (s *sesV1API) DeleteConfigurationSet(ctx context.Context, params *sesv2.DeleteConfigurationSetInput, _ ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetOutput, error) {
+	if params == nil || params.ConfigurationSetName == nil {
+		return nil, fmt.Errorf("ses: configuration set name is required")
+	}
+	_, err := s.client.DeleteConfigurationSet(ctx, &sesv1.DeleteConfigurationSetInput{
+		ConfigurationSetName: params.ConfigurationSetName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &sesv2.DeleteConfigurationSetOutput{}, nil
+}
+
+func (s *sesV1API) DeleteConfigurationSetEventDestination(ctx context.Context, params *sesv2.DeleteConfigurationSetEventDestinationInput, _ ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetEventDestinationOutput, error) {
+	if params == nil || params.ConfigurationSetName == nil || params.EventDestinationName == nil {
+		return nil, fmt.Errorf("ses: configuration set and event destination names are required")
+	}
+	_, err := s.client.DeleteConfigurationSetEventDestination(ctx, &sesv1.DeleteConfigurationSetEventDestinationInput{
+		ConfigurationSetName: params.ConfigurationSetName,
+		EventDestinationName: params.EventDestinationName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &sesv2.DeleteConfigurationSetEventDestinationOutput{}, nil
 }
 
 func flattenDestination(dest *types.Destination) []string {

@@ -358,7 +358,7 @@ cp config/config.example.yaml config/config.yaml
 | `SENDA_HOST`               | `0.0.0.0` | Bind address                          |
 | `SENDA_PORT`               | `8080`    | HTTP port                             |
 | `SENDA_LOG_LEVEL`          | `info`    | debug, info, warn, error              |
-| `SENDA_TRACKING_BASE_URL`  | --        | Base URL for open-tracking pixels     |
+| `SENDA_TRACKING_BASE_URL`  | --        | Public base URL for email tracking (open pixels, SES event auto-provisioning, SNS webhook). Unset = tracking disabled, auto-provisioning returns 501 |
 
 See [`config/config.example.yaml`](config/config.example.yaml) for all options.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -26,6 +27,8 @@ type AdapterHandler struct {
 	wsStore       port.WorkspaceStore
 	senderFactory port.SenderFactory
 	identityStore port.AdapterIdentityStore
+	deprovisioner port.Deprovisioner // nil if tracking not configured
+	logger        *slog.Logger
 }
 
 // NewAdapterHandler creates a new AdapterHandler.
@@ -36,7 +39,12 @@ func NewAdapterHandler(
 	ws port.WorkspaceStore,
 	sf port.SenderFactory,
 	is port.AdapterIdentityStore,
+	deprov port.Deprovisioner,
+	logger *slog.Logger,
 ) *AdapterHandler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &AdapterHandler{
 		store:         as,
 		crypto:        crypto,
@@ -44,6 +52,8 @@ func NewAdapterHandler(
 		wsStore:       ws,
 		senderFactory: sf,
 		identityStore: is,
+		deprovisioner: deprov,
+		logger:        logger,
 	}
 }
 
@@ -290,6 +300,14 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 
 	if !sameScope(adapter.WorkspaceID, workspaceID) {
 		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	// Best-effort deprovision of AWS resources for SES adapters.
+	if adapter.AdapterType == domain.AdapterTypeSES && h.deprovisioner != nil {
+		if err := h.deprovisioner.Deprovision(ctx, adapterID); err != nil {
+			h.logger.WarnContext(ctx, "deprovision failed, proceeding with soft delete",
+				"adapter_id", adapterID, "error", err)
+		}
 	}
 
 	if err := h.store.SoftDelete(ctx, adapterID); err != nil {

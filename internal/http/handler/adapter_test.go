@@ -157,7 +157,7 @@ func setupAdapterTestFull(
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
-	h := handler.NewAdapterHandler(as, crypto, ts, ws, sf, is)
+	h := handler.NewAdapterHandler(as, crypto, ts, ws, sf, is, nil, nil)
 
 	// Workspace-scoped routes.
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters", h.Create)

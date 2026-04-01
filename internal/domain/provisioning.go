@@ -24,6 +24,13 @@ const (
 	StepCreateEventDestination ProvisionStepName = "create_event_destination"
 	StepSubscribeWebhook       ProvisionStepName = "subscribe_webhook"
 	StepSaveConfiguration      ProvisionStepName = "save_configuration"
+	StepVerifySubscription     ProvisionStepName = "verify_subscription"
+
+	// Deprovision steps (executed on adapter soft-delete, reverse order of provisioning).
+	StepDeprovUnsubscribeWebhook       ProvisionStepName = "deprov_unsubscribe_webhook"
+	StepDeprovDeleteEventDestination   ProvisionStepName = "deprov_delete_event_destination"
+	StepDeprovDeleteSNSTopic           ProvisionStepName = "deprov_delete_sns_topic"
+	StepDeprovDeleteConfigurationSet   ProvisionStepName = "deprov_delete_configuration_set"
 )
 
 // ProvisionStepDefs is the ordered list of SES provisioning steps.
@@ -36,6 +43,18 @@ var ProvisionStepDefs = []struct {
 	{StepCreateEventDestination, 3},
 	{StepSubscribeWebhook, 4},
 	{StepSaveConfiguration, 5},
+	{StepVerifySubscription, 6},
+}
+
+// DeprovisionStepDefs is the ordered list of SES deprovision steps.
+var DeprovisionStepDefs = []struct {
+	Name  ProvisionStepName
+	Order int
+}{
+	{StepDeprovUnsubscribeWebhook, 10},
+	{StepDeprovDeleteEventDestination, 11},
+	{StepDeprovDeleteSNSTopic, 12},
+	{StepDeprovDeleteConfigurationSet, 13},
 }
 
 // AdapterProvisioningStep tracks the state of a single provisioning step for an adapter.

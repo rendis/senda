@@ -37,9 +37,33 @@ The master key is used to encrypt sensitive data at rest (adapter credentials, A
 | `SENDA_LOG_FORMAT`        | `json`       | Log format (`json`, `text`)                      |
 | `SENDA_SMTP_HOST`         | --           | SMTP server hostname (if using the SMTP adapter) |
 | `SENDA_SMTP_PORT`         | `1025`       | SMTP server port                                 |
-| `SENDA_TRACKING_BASE_URL` | --           | Base URL for open-tracking pixels                |
+| `SENDA_TRACKING_BASE_URL` | --           | Public base URL for email tracking. Enables open-tracking pixels, SES ConfigSet/SNS auto-provisioning, and SNS webhook URL. Unset = tracking disabled, auto-provisioning returns 501 |
 | `SENDA_MIGRATIONS_PATH`   | `migrations` | Path to SQL migration files inside the container |
 | `SENDA_SNS_SKIP_SIGNATURE_VERIFICATION` | `false` | Skip SNS signature verification (test-only; do not enable in production) |
+
+### AWS IAM Permissions for SES Adapters
+
+**Sending (required)**:
+- `ses:SendEmail`, `ses:SendRawEmail` -- Send emails
+- `ses:ListEmailIdentities` -- Sync verified sender identities
+- `ses:GetAccount` -- Check sandbox/production status
+
+**Event Tracking Provisioning (required if `SENDA_TRACKING_BASE_URL` set)**:
+- `ses:CreateConfigurationSet` -- Create tracking ConfigSet
+- `ses:CreateConfigurationSetEventDestination` -- Link ConfigSet to SNS
+- `ses:ListConfigurationSets` -- List existing ConfigSets
+- `sns:CreateTopic` -- Create SNS Topic
+- `sns:Subscribe` -- Subscribe webhook
+- `sns:GetSubscriptionAttributes` -- Verify subscription confirmed
+- `sns:ListTopics` -- List existing Topics
+
+**Cleanup on Adapter Deletion (recommended)**:
+- `ses:DeleteConfigurationSet` -- Remove ConfigSet on adapter delete
+- `ses:DeleteConfigurationSetEventDestination` -- Remove EventDest on adapter delete
+- `sns:Unsubscribe` -- Cancel subscription on adapter delete
+- `sns:DeleteTopic` -- Remove Topic on adapter delete
+
+Note: Without cleanup permissions, adapter deletion works but AWS resources remain orphaned.
 
 ## Database Setup
 

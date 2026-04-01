@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
@@ -71,6 +72,12 @@ func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI
 		})
 }
 
+// Default verify subscription polling parameters.
+const (
+	defaultVerifyTimeout  = 15 * time.Second
+	defaultVerifyInterval = 1 * time.Second
+)
+
 // TrackingProvisioner auto-provisions SES tracking resources (Configuration Set, SNS Topic,
 // Event Destination, HTTPS Subscription) using the adapter's own AWS credentials.
 type TrackingProvisioner struct {
@@ -80,6 +87,10 @@ type TrackingProvisioner struct {
 	clientFactory  AWSClientFactory
 	stepStore      port.ProvisioningStepStore // nil = stateless fallback
 	logger         *slog.Logger
+
+	// Verify subscription polling (configurable for testing).
+	verifyTimeout  time.Duration
+	verifyInterval time.Duration
 }
 
 // NewTrackingProvisioner creates a new TrackingProvisioner.
@@ -101,39 +112,43 @@ func NewTrackingProvisioner(
 		clientFactory:  DefaultAWSClientFactory,
 		stepStore:      stepStore,
 		logger:         logger,
+		verifyTimeout:  defaultVerifyTimeout,
+		verifyInterval: defaultVerifyInterval,
 	}
+}
+
+// loadAdapterClients loads an SES adapter, decrypts its config, and builds AWS clients.
+func (p *TrackingProvisioner) loadAdapterClients(ctx context.Context, adapterID uuid.UUID) (*domain.Adapter, Config, SESAPI, SNSAPI, error) {
+	adapter, err := p.adapterStore.GetByID(ctx, adapterID)
+	if err != nil {
+		return nil, Config{}, nil, nil, err
+	}
+	if adapter.AdapterType != domain.AdapterTypeSES {
+		return nil, Config{}, nil, nil, fmt.Errorf("%w: operation only supported for SES adapters", domain.ErrValidation)
+	}
+	decrypted, err := p.crypto.Decrypt(adapter.ConfigEncrypted)
+	if err != nil {
+		return nil, Config{}, nil, nil, fmt.Errorf("decrypt adapter config: %w", err)
+	}
+	var cfg Config
+	if err := json.Unmarshal(decrypted, &cfg); err != nil {
+		return nil, Config{}, nil, nil, fmt.Errorf("unmarshal adapter config: %w", err)
+	}
+	awsCfg, err := LoadAWSConfig(ctx, cfg)
+	if err != nil {
+		return nil, Config{}, nil, nil, fmt.Errorf("load aws config: %w", err)
+	}
+	sesClient, snsClient := p.clientFactory(awsCfg, cfg.EndpointURL)
+	return adapter, cfg, sesClient, snsClient, nil
 }
 
 // Provision auto-provisions all SES tracking resources for the given adapter.
 // When a stepStore is configured, completed steps are skipped on retry.
 func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID) (*ProvisionResult, error) {
-	// 1. Load adapter and verify type.
-	adapter, err := p.adapterStore.GetByID(ctx, adapterID)
+	adapter, _, sesClient, snsClient, err := p.loadAdapterClients(ctx, adapterID)
 	if err != nil {
 		return nil, err
 	}
-	if adapter.AdapterType != domain.AdapterTypeSES {
-		return nil, fmt.Errorf("%w: auto-provisioning is only supported for SES adapters", domain.ErrValidation)
-	}
-
-	// 2. Decrypt config.
-	decrypted, err := p.crypto.Decrypt(adapter.ConfigEncrypted)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt adapter config: %w", err)
-	}
-	var adapterCfg Config
-	if err := json.Unmarshal(decrypted, &adapterCfg); err != nil {
-		return nil, fmt.Errorf("unmarshal adapter config: %w", err)
-	}
-
-	// 3. Build AWS config from adapter credentials.
-	awsCfg, err := LoadAWSConfig(ctx, adapterCfg)
-	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
-	}
-
-	// 4. Create clients.
-	sesClient, snsClient := p.clientFactory(awsCfg, adapterCfg.EndpointURL)
 
 	// 5. Derive resource names.
 	shortID := adapter.ID.String()[:8]
@@ -257,6 +272,25 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 			return result, fmt.Errorf("save config: %s", step5.Detail)
 		}
 		p.persistStepSuccess(ctx, stepMap, domain.StepSaveConfiguration, &configSetName, nil)
+	}
+
+	// Step 6: Verify SNS subscription confirmed.
+	if ps, ok := stepMap[domain.StepVerifySubscription]; ok && ps.Status == domain.ProvisionStepCompleted {
+		result.Steps = append(result.Steps, ProvisionStep{
+			Name: domain.StepVerifySubscription, Status: StepStatusAlreadyCompleted,
+			Detail: subscriptionARN, ResourceARN: ps.ResourceARN,
+		})
+	} else {
+		step6 := p.verifySubscription(ctx, snsClient, subscriptionARN)
+		result.Steps = append(result.Steps, step6)
+		if step6.Status == StepStatusFailed {
+			p.persistStepFailure(ctx, stepMap, domain.StepVerifySubscription, step6.Detail)
+			// Non-blocking: log but don't return error — resources are already created.
+			p.logger.WarnContext(ctx, "subscription verification failed (non-blocking)",
+				"adapter_id", adapterID, "detail", step6.Detail)
+		} else {
+			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
+		}
 	}
 
 	p.logger.InfoContext(ctx, "tracking auto-provisioned",
@@ -410,3 +444,180 @@ func IsAccessDenied(err error) bool {
 	}
 	return false
 }
+
+// isNotFound checks if the AWS error indicates the resource does not exist.
+func isNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "NotFoundException", "ResourceNotFoundException", "InvalidParameterException":
+			return true
+		}
+	}
+	return false
+}
+
+// verifySubscription polls SNS to confirm the subscription transitioned from PendingConfirmation.
+func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNSAPI, subscriptionARN string) ProvisionStep {
+	// If already confirmed (not "PendingConfirmation"), skip polling.
+	if subscriptionARN != "" && subscriptionARN != "PendingConfirmation" {
+		out, err := client.GetSubscriptionAttributes(ctx, &sns.GetSubscriptionAttributesInput{
+			SubscriptionArn: aws.String(subscriptionARN),
+		})
+		if err == nil && out.Attributes["SubscriptionArn"] != "PendingConfirmation" {
+			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: out.Attributes["SubscriptionArn"]}
+		}
+	}
+
+	// Poll with exponential backoff.
+	timeout := p.verifyTimeout
+	if timeout == 0 {
+		timeout = defaultVerifyTimeout
+	}
+	interval := p.verifyInterval
+	if interval == 0 {
+		interval = defaultVerifyInterval
+	}
+
+	deadline := time.Now().Add(timeout)
+	wait := interval
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusFailed, Detail: ctx.Err().Error()}
+		case <-time.After(wait):
+		}
+
+		out, err := client.GetSubscriptionAttributes(ctx, &sns.GetSubscriptionAttributesInput{
+			SubscriptionArn: aws.String(subscriptionARN),
+		})
+		if err == nil {
+			arn := out.Attributes["SubscriptionArn"]
+			if arn != "" && arn != "PendingConfirmation" {
+				return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
+			}
+		}
+
+		wait = min(wait*2, timeout)
+	}
+
+	return ProvisionStep{
+		Name:   domain.StepVerifySubscription,
+		Status: StepStatusFailed,
+		Detail: fmt.Sprintf("subscription not confirmed after %s", timeout),
+	}
+}
+
+// Deprovision cleans up AWS resources (Configuration Set, SNS Topic, Event Destination,
+// SNS Subscription) for the given SES adapter. Each step is idempotent — NotFoundException
+// is treated as success.
+func (p *TrackingProvisioner) Deprovision(ctx context.Context, adapterID uuid.UUID) error {
+	adapter, _, sesClient, snsClient, err := p.loadAdapterClients(ctx, adapterID)
+	if err != nil {
+		return err
+	}
+
+	shortID := adapter.ID.String()[:8]
+	configSetName := fmt.Sprintf("senda-%s", shortID)
+	topicARN := ""
+	subscriptionARN := ""
+
+	// Init deprovision steps + load ALL steps (provision + deprovision) in one query.
+	stepMap := map[string]*domain.AdapterProvisioningStep{}
+	if p.stepStore != nil {
+		if err := p.stepStore.InitDeprovisionSteps(ctx, adapterID); err != nil {
+			return fmt.Errorf("init deprovision steps: %w", err)
+		}
+		steps, err := p.stepStore.ListByAdapter(ctx, adapterID)
+		if err != nil {
+			return fmt.Errorf("load steps: %w", err)
+		}
+		for _, s := range steps {
+			stepMap[s.StepName] = s
+			// Extract resource identifiers from completed provision steps.
+			switch s.StepName {
+			case domain.StepCreateSNSTopic:
+				if s.ResourceARN != nil {
+					topicARN = *s.ResourceARN
+				}
+			case domain.StepSubscribeWebhook:
+				if s.ResourceARN != nil {
+					subscriptionARN = *s.ResourceARN
+				}
+			case domain.StepCreateConfigurationSet:
+				if s.ResourceName != nil {
+					configSetName = *s.ResourceName
+				}
+			}
+		}
+	}
+
+	// Table-driven deprovision: each entry defines a step and its AWS call.
+	type deprovStep struct {
+		name string
+		fn   func() error
+	}
+	deprovSteps := []deprovStep{
+		{domain.StepDeprovUnsubscribeWebhook, func() error {
+			if subscriptionARN == "" || subscriptionARN == "PendingConfirmation" {
+				return nil
+			}
+			_, err := snsClient.Unsubscribe(ctx, &sns.UnsubscribeInput{SubscriptionArn: aws.String(subscriptionARN)})
+			return err
+		}},
+		{domain.StepDeprovDeleteEventDestination, func() error {
+			_, err := sesClient.DeleteConfigurationSetEventDestination(ctx, &sesv2.DeleteConfigurationSetEventDestinationInput{
+				ConfigurationSetName: aws.String(configSetName), EventDestinationName: aws.String("senda-events"),
+			})
+			return err
+		}},
+		{domain.StepDeprovDeleteSNSTopic, func() error {
+			if topicARN == "" {
+				return nil
+			}
+			_, err := snsClient.DeleteTopic(ctx, &sns.DeleteTopicInput{TopicArn: aws.String(topicARN)})
+			return err
+		}},
+		{domain.StepDeprovDeleteConfigurationSet, func() error {
+			_, err := sesClient.DeleteConfigurationSet(ctx, &sesv2.DeleteConfigurationSetInput{
+				ConfigurationSetName: aws.String(configSetName),
+			})
+			return err
+		}},
+	}
+
+	var deprovErr error
+	for _, step := range deprovSteps {
+		if err := step.fn(); err != nil && !isNotFound(err) {
+			p.persistStepFailure(ctx, stepMap, step.name, err.Error())
+			deprovErr = errors.Join(deprovErr, fmt.Errorf("%s: %w", step.name, err))
+		} else {
+			p.persistStepSuccess(ctx, stepMap, step.name, nil, nil)
+		}
+	}
+
+	if deprovErr != nil {
+		return deprovErr
+	}
+
+	if p.stepStore != nil {
+		if err := p.stepStore.DeleteByAdapter(ctx, adapterID); err != nil {
+			p.logger.WarnContext(ctx, "failed to delete provisioning steps", "adapter_id", adapterID, "error", err)
+		}
+	}
+
+	p.logger.InfoContext(ctx, "tracking resources deprovisioned",
+		"adapter_id", adapterID,
+		"config_set", configSetName,
+		"topic_arn", topicARN,
+	)
+
+	return nil
+}
+
+// Compile-time interface check.
+var _ port.Deprovisioner = (*TrackingProvisioner)(nil)

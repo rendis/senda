@@ -42,6 +42,14 @@ func (m *mockSESClient) CreateConfigurationSetEventDestination(_ context.Context
 	return &sesv2.CreateConfigurationSetEventDestinationOutput{}, nil
 }
 
+func (m *mockSESClient) DeleteConfigurationSet(_ context.Context, _ *sesv2.DeleteConfigurationSetInput, _ ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetOutput, error) {
+	return &sesv2.DeleteConfigurationSetOutput{}, nil
+}
+
+func (m *mockSESClient) DeleteConfigurationSetEventDestination(_ context.Context, _ *sesv2.DeleteConfigurationSetEventDestinationInput, _ ...func(*sesv2.Options)) (*sesv2.DeleteConfigurationSetEventDestinationOutput, error) {
+	return &sesv2.DeleteConfigurationSetEventDestinationOutput{}, nil
+}
+
 // --- Tests ---
 
 func TestAdapter_Name(t *testing.T) {

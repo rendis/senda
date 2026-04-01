@@ -237,6 +237,9 @@ type ProvisioningStepStore interface {
 	// InitSteps creates the provisioning step rows for an adapter (idempotent via ON CONFLICT DO NOTHING).
 	InitSteps(ctx context.Context, adapterID uuid.UUID) error
 
+	// InitDeprovisionSteps creates the deprovision step rows for an adapter (idempotent).
+	InitDeprovisionSteps(ctx context.Context, adapterID uuid.UUID) error
+
 	// ListByAdapter returns all provisioning steps for an adapter ordered by step_order.
 	ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterProvisioningStep, error)
 

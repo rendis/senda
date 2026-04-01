@@ -131,13 +131,20 @@ func (h *AdapterSetupHandler) buildSESGuide(adapter *domain.Adapter) map[string]
 				{
 					"Sid":    "SESManagement",
 					"Effect": "Allow",
-					"Action": []string{"ses:CreateConfigurationSet", "ses:CreateConfigurationSetEventDestination", "ses:ListConfigurationSets"},
+					"Action": []string{
+						"ses:CreateConfigurationSet", "ses:CreateConfigurationSetEventDestination",
+						"ses:DeleteConfigurationSet", "ses:DeleteConfigurationSetEventDestination",
+						"ses:ListConfigurationSets",
+					},
 					"Resource": "*",
 				},
 				{
 					"Sid":    "SNSForTracking",
 					"Effect": "Allow",
-					"Action": []string{"sns:CreateTopic", "sns:Subscribe", "sns:ListTopics"},
+					"Action": []string{
+						"sns:CreateTopic", "sns:Subscribe", "sns:GetSubscriptionAttributes",
+						"sns:Unsubscribe", "sns:DeleteTopic", "sns:ListTopics",
+					},
 					"Resource": "*",
 				},
 			},

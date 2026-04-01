@@ -20,16 +20,24 @@ func NewProvisioningStepRepo(pool *pgxpool.Pool) *ProvisioningStepRepo {
 	return &ProvisioningStepRepo{pool: pool}
 }
 
-// provisioningStepDefs references the canonical step definitions from the domain layer.
-var provisioningStepDefs = domain.ProvisionStepDefs
-
 func (r *ProvisioningStepRepo) InitSteps(ctx context.Context, adapterID uuid.UUID) error {
+	return r.initStepDefs(ctx, adapterID, domain.ProvisionStepDefs)
+}
+
+func (r *ProvisioningStepRepo) InitDeprovisionSteps(ctx context.Context, adapterID uuid.UUID) error {
+	return r.initStepDefs(ctx, adapterID, domain.DeprovisionStepDefs)
+}
+
+func (r *ProvisioningStepRepo) initStepDefs(ctx context.Context, adapterID uuid.UUID, defs []struct {
+	Name  domain.ProvisionStepName
+	Order int
+}) error {
 	query := `INSERT INTO adapter_provisioning_steps (adapter_id, step_name, step_order)
 		VALUES (@adapter_id, @step_name, @step_order)
 		ON CONFLICT (adapter_id, step_name) DO NOTHING`
 
 	batch := &pgx.Batch{}
-	for _, s := range provisioningStepDefs {
+	for _, s := range defs {
 		batch.Queue(query, pgx.NamedArgs{
 			"adapter_id": adapterID,
 			"step_name":  s.Name,
@@ -40,7 +48,7 @@ func (r *ProvisioningStepRepo) InitSteps(ctx context.Context, adapterID uuid.UUI
 	br := r.pool.SendBatch(ctx, batch)
 	defer br.Close()
 
-	for range provisioningStepDefs {
+	for range defs {
 		if _, err := br.Exec(); err != nil {
 			if appErr := classifyPgError(err); appErr != nil {
 				return appErr
@@ -149,6 +157,7 @@ func (r *ProvisioningStepRepo) DeleteByAdapter(ctx context.Context, adapterID uu
 // Ensure interface compliance.
 var _ interface {
 	InitSteps(ctx context.Context, adapterID uuid.UUID) error
+	InitDeprovisionSteps(ctx context.Context, adapterID uuid.UUID) error
 	ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterProvisioningStep, error)
 	MarkCompleted(ctx context.Context, stepID uuid.UUID, resourceName, resourceARN *string) error
 	MarkFailed(ctx context.Context, stepID uuid.UUID, errMsg string) error

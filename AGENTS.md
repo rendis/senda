@@ -241,6 +241,7 @@ Documentation lives in `docs/`:
 | `docs/specs/DESIGN_BRIEF.md` | UX/UI screens, component specs, responsive breakpoints, Design System tokens | Frontend implementation |
 | `docs/specs/ADR-0001-...md` | **Why no DKIM/SPF/DMARC in app** — provider-managed email auth decision, consequences for send flow and identity validation | When questioning email auth approach |
 | `docs/extensibility-guide.md` | SDK extension guide: Engine, Injectors, InitFunc, InjectorContext, lifecycle hooks, merge flow, consumer project structure, troubleshooting | Extending Senda as a Go library |
+| `skills/senda/SKILL.md` | MCP tool reference, API groups, auth schemes, RBAC, SES lifecycle (provision + deprovision), AWS permission matrix | Working with Senda API via MCP, or understanding SES adapter lifecycle |
 | `docs/postman/` | Postman collection (116KB, all endpoints) + local/staging environments | API testing and exploration |
 
 ### UI/UX Design — Pencil MCP (OBLIGATORIO)
@@ -527,6 +528,7 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 11. **Provider-managed email auth** — SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail), NOT the app. Senda validates sender capability via adapter identities (sync from provider + default identity). No DKIM signing, no DNS record management in app code. See [ADR-0001](docs/specs/ADR-0001-provider-managed-email-auth.md)
 12. **No app-level email address validation** — `from_email` is verified by the provider's identity system. If an identity isn't verified, the provider rejects the send. Senda tracks identity status (`verified`/`pending`/`failed`) via `AdapterIdentity` but doesn't duplicate provider checks
 13. **SDK extensibility model** — Senda exposes a public `sdk/` package. Users extend via code injectors (implement `sdk.Injector`), init functions (`sdk.InitFunc`), and lifecycle hooks (`OnStart`/`OnShutdown`). Built-in adapters (SES, Gmail, SMTP, PG stores, River, cache, crypto) stay internal, managed by YAML config. The `sdk.Engine` wraps `internal/app.Bootstrap` with an extensions bridge. Code injectors resolve alongside DB injectors in the `InjectorMerger`; on name collision, code wins with a warning. Pattern follows pdf-forge/doc-assembly SDK model.
+14. **SES adapter lifecycle** — Provision (6 steps) and Deprovision (4 steps), both tracked in `adapter_provisioning_steps`. Delete permissions validated at creation. Full reference in `skills/senda/SKILL.md` "SES Adapter Lifecycle" and `docs/DEPLOYMENT.md`.
 
 ---
 
