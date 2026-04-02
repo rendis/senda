@@ -298,8 +298,8 @@ func TestMemberRepo_AddRole_InvalidCombination(t *testing.T) {
 	}
 
 	var appErr *apperr.AppError
-	if !errors.As(err, &appErr) || appErr.Code != 400 {
-		t.Errorf("expected 400 Validation, got: %v", err)
+	if !errors.As(err, &appErr) || appErr.Code != 422 {
+		t.Errorf("expected 422 Validation, got: %v", err)
 	}
 }
 
