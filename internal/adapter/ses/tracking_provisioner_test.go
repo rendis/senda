@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
@@ -74,6 +75,11 @@ type mockProvisionSNS struct {
 	// GetSubscriptionAttributes fields.
 	getSubAttrsCalls  int
 	getSubAttrsOutput func(call int) (*sns.GetSubscriptionAttributesOutput, error)
+
+	// ListSubscriptionsByTopic fields.
+	listSubsCalls    int
+	listSubsEndpoint string
+	listSubsOutput   func(call int) (*sns.ListSubscriptionsByTopicOutput, error)
 }
 
 func (m *mockProvisionSNS) CreateTopic(_ context.Context, _ *sns.CreateTopicInput, _ ...func(*sns.Options)) (*sns.CreateTopicOutput, error) {
@@ -109,6 +115,27 @@ func (m *mockProvisionSNS) Unsubscribe(_ context.Context, _ *sns.UnsubscribeInpu
 		return nil, m.unsubscribeErr
 	}
 	return &sns.UnsubscribeOutput{}, nil
+}
+
+func (m *mockProvisionSNS) ListSubscriptionsByTopic(_ context.Context, input *sns.ListSubscriptionsByTopicInput, _ ...func(*sns.Options)) (*sns.ListSubscriptionsByTopicOutput, error) {
+	m.listSubsCalls++
+	if m.listSubsOutput != nil {
+		return m.listSubsOutput(m.listSubsCalls)
+	}
+	endpoint := m.listSubsEndpoint
+	if endpoint == "" {
+		endpoint = "https://senda.example.com/api/v1/webhooks/ses/inbound"
+	}
+	return &sns.ListSubscriptionsByTopicOutput{
+		Subscriptions: []snstypes.Subscription{
+			{
+				SubscriptionArn: aws.String(m.subscribeARN),
+				Endpoint:        aws.String(endpoint),
+				Protocol:        aws.String("https"),
+				TopicArn:        input.TopicArn,
+			},
+		},
+	}, nil
 }
 
 func (m *mockProvisionSNS) DeleteTopic(_ context.Context, _ *sns.DeleteTopicInput, _ ...func(*sns.Options)) (*sns.DeleteTopicOutput, error) {
@@ -497,63 +524,71 @@ func TestIsAccessDenied(t *testing.T) {
 // --- Verify Subscription Tests ---
 
 func TestVerifySubscription_AlreadyConfirmed(t *testing.T) {
-	confirmedARN := "arn:aws:sns:us-east-1:123456789:topic:sub-confirmed"
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+	confirmedARN := topicARN + ":sub-confirmed"
+
 	snsMock := &mockProvisionSNS{
-		getSubAttrsOutput: func(_ int) (*sns.GetSubscriptionAttributesOutput, error) {
-			return &sns.GetSubscriptionAttributesOutput{
-				Attributes: map[string]string{"SubscriptionArn": confirmedARN},
-			}, nil
-		},
+		subscribeARN: confirmedARN,
 	}
 
 	p := &TrackingProvisioner{verifyTimeout: 100 * time.Millisecond, verifyInterval: 10 * time.Millisecond}
-	step := p.verifySubscription(context.Background(), snsMock, confirmedARN)
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
 
 	if step.Status != StepStatusCreated {
 		t.Errorf("status = %q, want %q", step.Status, StepStatusCreated)
 	}
-	if snsMock.getSubAttrsCalls != 1 {
-		t.Errorf("GetSubscriptionAttributes called %d times, want 1", snsMock.getSubAttrsCalls)
+	if snsMock.listSubsCalls != 1 {
+		t.Errorf("ListSubscriptionsByTopic called %d times, want 1", snsMock.listSubsCalls)
 	}
 }
 
 func TestVerifySubscription_PendingThenConfirmed(t *testing.T) {
-	confirmedARN := "arn:aws:sns:us-east-1:123456789:topic:sub-confirmed"
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+	confirmedARN := topicARN + ":sub-confirmed"
+
 	snsMock := &mockProvisionSNS{
-		getSubAttrsOutput: func(call int) (*sns.GetSubscriptionAttributesOutput, error) {
-			if call <= 2 {
-				return &sns.GetSubscriptionAttributesOutput{
-					Attributes: map[string]string{"SubscriptionArn": "PendingConfirmation"},
-				}, nil
+		listSubsOutput: func(call int) (*sns.ListSubscriptionsByTopicOutput, error) {
+			arn := "PendingConfirmation"
+			if call > 2 {
+				arn = confirmedARN
 			}
-			return &sns.GetSubscriptionAttributesOutput{
-				Attributes: map[string]string{"SubscriptionArn": confirmedARN},
+			return &sns.ListSubscriptionsByTopicOutput{
+				Subscriptions: []snstypes.Subscription{
+					{SubscriptionArn: aws.String(arn), Endpoint: aws.String(endpoint), Protocol: aws.String("https"), TopicArn: aws.String(topicARN)},
+				},
 			}, nil
 		},
 	}
 
 	p := &TrackingProvisioner{verifyTimeout: 1 * time.Second, verifyInterval: 10 * time.Millisecond}
-	step := p.verifySubscription(context.Background(), snsMock, "PendingConfirmation")
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
 
 	if step.Status != StepStatusCreated {
 		t.Errorf("status = %q, want %q", step.Status, StepStatusCreated)
 	}
-	if snsMock.getSubAttrsCalls < 3 {
-		t.Errorf("GetSubscriptionAttributes called %d times, want >= 3", snsMock.getSubAttrsCalls)
+	if snsMock.listSubsCalls < 3 {
+		t.Errorf("ListSubscriptionsByTopic called %d times, want >= 3", snsMock.listSubsCalls)
 	}
 }
 
 func TestVerifySubscription_Timeout(t *testing.T) {
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+
 	snsMock := &mockProvisionSNS{
-		getSubAttrsOutput: func(_ int) (*sns.GetSubscriptionAttributesOutput, error) {
-			return &sns.GetSubscriptionAttributesOutput{
-				Attributes: map[string]string{"SubscriptionArn": "PendingConfirmation"},
+		listSubsOutput: func(_ int) (*sns.ListSubscriptionsByTopicOutput, error) {
+			return &sns.ListSubscriptionsByTopicOutput{
+				Subscriptions: []snstypes.Subscription{
+					{SubscriptionArn: aws.String("PendingConfirmation"), Endpoint: aws.String(endpoint), Protocol: aws.String("https"), TopicArn: aws.String(topicARN)},
+				},
 			}, nil
 		},
 	}
 
 	p := &TrackingProvisioner{verifyTimeout: 50 * time.Millisecond, verifyInterval: 10 * time.Millisecond}
-	step := p.verifySubscription(context.Background(), snsMock, "PendingConfirmation")
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
 
 	if step.Status != StepStatusFailed {
 		t.Errorf("status = %q, want %q", step.Status, StepStatusFailed)

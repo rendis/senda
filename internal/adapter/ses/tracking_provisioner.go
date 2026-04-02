@@ -74,8 +74,8 @@ func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI
 
 // Default verify subscription polling parameters.
 const (
-	defaultVerifyTimeout  = 15 * time.Second
-	defaultVerifyInterval = 1 * time.Second
+	defaultVerifyTimeout  = 30 * time.Second
+	defaultVerifyInterval = 2 * time.Second
 )
 
 // TrackingProvisioner auto-provisions SES tracking resources (Configuration Set, SNS Topic,
@@ -281,7 +281,7 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 			Detail: subscriptionARN, ResourceARN: ps.ResourceARN,
 		})
 	} else {
-		step6 := p.verifySubscription(ctx, snsClient, subscriptionARN)
+		step6 := p.verifySubscription(ctx, snsClient, topicARN, webhookURL)
 		result.Steps = append(result.Steps, step6)
 		if step6.Status == StepStatusFailed {
 			p.persistStepFailure(ctx, stepMap, domain.StepVerifySubscription, step6.Detail)
@@ -460,19 +460,11 @@ func isNotFound(err error) bool {
 	return false
 }
 
-// verifySubscription polls SNS to confirm the subscription transitioned from PendingConfirmation.
-func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNSAPI, subscriptionARN string) ProvisionStep {
-	// If already confirmed (not "PendingConfirmation"), skip polling.
-	if subscriptionARN != "" && subscriptionARN != "PendingConfirmation" {
-		out, err := client.GetSubscriptionAttributes(ctx, &sns.GetSubscriptionAttributesInput{
-			SubscriptionArn: aws.String(subscriptionARN),
-		})
-		if err == nil && out.Attributes["SubscriptionArn"] != "PendingConfirmation" {
-			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: out.Attributes["SubscriptionArn"]}
-		}
-	}
-
-	// Poll with exponential backoff.
+// verifySubscription polls SNS to confirm the subscription is active.
+// Uses ListSubscriptionsByTopic to find the subscription by endpoint match,
+// which is more reliable than GetSubscriptionAttributes for recently confirmed
+// subscriptions (avoids propagation delay issues with the ARN-based lookup).
+func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNSAPI, topicARN, endpoint string) ProvisionStep {
 	timeout := p.verifyTimeout
 	if timeout == 0 {
 		timeout = defaultVerifyTimeout
@@ -482,27 +474,42 @@ func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNS
 		interval = defaultVerifyInterval
 	}
 
-	deadline := time.Now().Add(timeout)
-	wait := interval
+	// findConfirmed checks ListSubscriptionsByTopic for an endpoint match with a real ARN.
+	findConfirmed := func() (string, bool) {
+		out, err := client.ListSubscriptionsByTopic(ctx, &sns.ListSubscriptionsByTopicInput{
+			TopicArn: aws.String(topicARN),
+		})
+		if err != nil {
+			return "", false
+		}
+		for _, sub := range out.Subscriptions {
+			if aws.ToString(sub.Endpoint) == endpoint {
+				arn := aws.ToString(sub.SubscriptionArn)
+				if arn != "" && arn != "PendingConfirmation" {
+					return arn, true
+				}
+			}
+		}
+		return "", false
+	}
 
+	// Immediate check — covers retry when subscription is already confirmed.
+	if arn, ok := findConfirmed(); ok {
+		return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
+	}
+
+	// Poll with fixed interval.
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
 			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusFailed, Detail: ctx.Err().Error()}
-		case <-time.After(wait):
+		case <-time.After(interval):
 		}
 
-		out, err := client.GetSubscriptionAttributes(ctx, &sns.GetSubscriptionAttributesInput{
-			SubscriptionArn: aws.String(subscriptionARN),
-		})
-		if err == nil {
-			arn := out.Attributes["SubscriptionArn"]
-			if arn != "" && arn != "PendingConfirmation" {
-				return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
-			}
+		if arn, ok := findConfirmed(); ok {
+			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
 		}
-
-		wait = min(wait*2, timeout)
 	}
 
 	return ProvisionStep{
