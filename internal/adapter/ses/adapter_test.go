@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 
 	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
@@ -16,8 +17,9 @@ import (
 // --- Mock SES client ---
 
 type mockSESClient struct {
-	sendEmailFn func(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
-	calls       []*sesv2.SendEmailInput
+	sendEmailFn          func(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
+	listEmailIdentitiesFn func(ctx context.Context, params *sesv2.ListEmailIdentitiesInput, optFns ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error)
+	calls                []*sesv2.SendEmailInput
 }
 
 func (m *mockSESClient) SendEmail(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error) {
@@ -30,7 +32,10 @@ func (m *mockSESClient) SendEmail(ctx context.Context, params *sesv2.SendEmailIn
 	}, nil
 }
 
-func (m *mockSESClient) ListEmailIdentities(_ context.Context, _ *sesv2.ListEmailIdentitiesInput, _ ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error) {
+func (m *mockSESClient) ListEmailIdentities(ctx context.Context, params *sesv2.ListEmailIdentitiesInput, optFns ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error) {
+	if m.listEmailIdentitiesFn != nil {
+		return m.listEmailIdentitiesFn(ctx, params, optFns...)
+	}
 	return &sesv2.ListEmailIdentitiesOutput{}, nil
 }
 
@@ -97,6 +102,36 @@ func TestNewAdapterFromConfig_UsesSESV2ForAWSDefaultEndpoints(t *testing.T) {
 
 func TestAdapter_ImplementsEmailSender(t *testing.T) {
 	var _ port.EmailSender = (*Adapter)(nil)
+}
+
+
+func TestAdapter_ListIdentities_TreatsSendingEnabledWithoutVerificationStatusAsVerified(t *testing.T) {
+	mock := &mockSESClient{
+		listEmailIdentitiesFn: func(_ context.Context, _ *sesv2.ListEmailIdentitiesInput, _ ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error) {
+			return &sesv2.ListEmailIdentitiesOutput{
+				EmailIdentities: []types.IdentityInfo{
+					{
+						IdentityName:   aws.String("mail.test.example.com"),
+						IdentityType:   types.IdentityTypeDomain,
+						SendingEnabled: true,
+					},
+				},
+			}, nil
+		},
+	}
+
+	adapter := NewAdapter(mock, "us-east-1")
+
+	identities, err := adapter.ListIdentities(context.Background())
+	if err != nil {
+		t.Fatalf("ListIdentities() error = %v", err)
+	}
+	if len(identities) != 1 {
+		t.Fatalf("ListIdentities() len = %d, want 1", len(identities))
+	}
+	if identities[0].VerificationStatus != "verified" {
+		t.Fatalf("VerificationStatus = %q, want %q", identities[0].VerificationStatus, "verified")
+	}
 }
 
 func TestAdapter_Send_Success(t *testing.T) {

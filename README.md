@@ -74,6 +74,36 @@ Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with 
 
 ---
 
+## E2E Validation
+
+Para correr la suite E2E desde un clon fresco no hace falta levantar un stack manualmente: el harness usa **Testcontainers** y provisiona lo necesario.
+
+### Prerrequisitos
+
+- Docker corriendo
+- Go 1.25+
+- Make
+
+### Gate determinística completa
+
+```bash
+make test-e2e
+```
+
+### Solo SES lifecycle + SNS signed replay
+
+```bash
+make test-e2e-ses
+```
+
+Más detalle en:
+
+- `docs/DEVELOPMENT.md`
+- `test/e2e/README.md`
+- `test/e2e/QUICK_START.md`
+
+---
+
 ## Use as a Library
 
 Senda can be imported as a Go module. Register custom **code injectors** to feed business-specific data into templates, add an **init function** for shared per-request context, and wire **lifecycle hooks** for your infrastructure.

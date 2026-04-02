@@ -363,7 +363,7 @@ func TestSendWorker_AdapterDrivenSender(t *testing.T) {
 			if string(ciphertext) != "encrypted" {
 				t.Fatalf("unexpected ciphertext: %q", string(ciphertext))
 			}
-			return json.RawMessage(`{"region":"us-east-1","access_key_id":"key","secret_access_key":"secret","endpoint_url":"http://localstack:4566"}`), nil
+			return json.RawMessage(`{"region":"us-east-1","access_key_id":"key","secret_access_key":"secret","endpoint_url":"http://aws-sim:4566"}`), nil
 		},
 	}
 

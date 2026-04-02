@@ -141,6 +141,27 @@ func TestMigrations(t *testing.T) {
 		t.Errorf("expected 2 cron jobs, got %d", cronCount)
 	}
 
+	// Verify current-month partitions exist for partitioned tables.
+	expectedCurrentPartitions := []string{"emails", "email_events", "audit_logs"}
+	for _, base := range expectedCurrentPartitions {
+		var exists bool
+		err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				  FROM information_schema.tables
+				 WHERE table_schema = 'public'
+				   AND table_name = $1 || '_' || to_char(date_trunc('month', now()), 'YYYY_MM')
+			)
+		`, base).Scan(&exists)
+		if err != nil {
+			t.Errorf("checking current-month partition for %s: %v", base, err)
+			continue
+		}
+		if !exists {
+			t.Errorf("expected current-month partition for %s to exist after migration up", base)
+		}
+	}
+
 	pool.Close()
 
 	// Run all migrations down
