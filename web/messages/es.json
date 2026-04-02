@@ -96,6 +96,7 @@
     "webhooks": "Webhooks",
     "members": "Miembros",
     "apiKeys": "API Keys",
+    "apiDocs": "API Docs",
     "auditLog": "Registro de Auditoría",
     "settings": "Configuración",
     "help": "Ayuda"

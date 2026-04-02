@@ -1,0 +1,60 @@
+---
+title: API Keys
+description: How workspace API keys are created, shown, and used.
+---
+
+# API Keys
+
+API keys are the way external services talk to Senda's data-plane APIs.
+
+They are **workspace-scoped**, which means a key belongs to one workspace and should be used only for that workspace's API traffic.
+
+## What happens when you create one
+
+When you generate a new key:
+
+1. Senda creates the key on the server
+2. the full secret is shown **once**
+3. the list view keeps only a short hint
+
+That one-time reveal is intentional.
+If you close the dialog without copying it, you should create a new key.
+
+## How to use it
+
+Use the generated value as a bearer token when calling the API:
+
+```bash
+Authorization: Bearer <api-key>
+```
+
+The key is for programmatic access, not for logging into the UI.
+
+## What you will see in the table
+
+The list view shows:
+
+- name
+- hint
+- created date
+- last used date
+- status
+
+The hint is there so you can identify the key later without exposing the secret.
+
+## Where to find the API docs
+
+If you are building against the API, open the workspace **API Docs** page from the sidebar.
+
+That page contains the interactive OpenAPI reference and is the best place to copy request examples.
+
+## Good practice
+
+- give each key a descriptive name
+- create one key per app or integration
+- revoke keys you no longer use
+
+## Related docs
+
+- [Send flow](send-flow)
+- [FAQ](faq)

@@ -225,6 +225,26 @@
       "route": "/",
       "pencilFrameId": "frame:root",
       "critical": false
+    },
+    {
+      "route": "/global/help/[[...slug]]",
+      "pencilFrameId": "frame:global__help",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/help/[[...slug]]",
+      "pencilFrameId": "frame:t__tenantCode__help",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/help/[[...slug]]",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__help",
+      "critical": false
+    },
+    {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/api-docs",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__api-docs",
+      "critical": false
     }
   ]
 }

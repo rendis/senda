@@ -14,6 +14,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -112,12 +114,12 @@ func isDisallowedIP(ip net.IP) bool {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
-		"100.64.0.0/10",  // Carrier-grade NAT
-		"192.0.0.0/24",   // IETF Protocol Assignments
-		"198.18.0.0/15",  // Benchmarking
+		"100.64.0.0/10",   // Carrier-grade NAT
+		"192.0.0.0/24",    // IETF Protocol Assignments
+		"198.18.0.0/15",   // Benchmarking
 		"198.51.100.0/24", // Documentation
-		"203.0.113.0/24", // Documentation
-		"240.0.0.0/4",    // Reserved
+		"203.0.113.0/24",  // Documentation
+		"240.0.0.0/4",     // Reserved
 	}
 	for _, cidr := range privateRanges {
 		_, network, err := net.ParseCIDR(cidr)
@@ -183,23 +185,39 @@ func (h *MediaHandler) HandleVideoThumbnail(c *echo.Context) error {
 // buildComposite downloads the image at rawURL, draws the play-button overlay,
 // and returns the result encoded as PNG bytes.
 func (h *MediaHandler) buildComposite(rawURL string) ([]byte, error) {
+	candidates := thumbnailCandidates(rawURL)
+	var lastErr error
+	for _, candidate := range candidates {
+		pngBytes, err := h.buildCompositeForURL(candidate)
+		if err == nil {
+			return pngBytes, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("thumbnail could not be generated")
+	}
+	return nil, lastErr
+}
+
+func (h *MediaHandler) buildCompositeForURL(rawURL string) ([]byte, error) {
 	resp, err := h.client.Get(rawURL) //nolint:noctx
 	if err != nil {
-		return nil, fmt.Errorf("download: %w", err)
+		return nil, fmt.Errorf("download %s: %w", rawURL, err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("download: upstream returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("download %s: upstream returned %d", rawURL, resp.StatusCode)
 	}
 
 	// Guard against oversized images.
 	limited := io.LimitReader(resp.Body, maxDownloadBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
+		return nil, fmt.Errorf("read body %s: %w", rawURL, err)
 	}
 	if len(data) > maxDownloadBytes {
 		return nil, fmt.Errorf("thumbnail exceeds 10 MB limit")
@@ -208,7 +226,7 @@ func (h *MediaHandler) buildComposite(rawURL string) ([]byte, error) {
 	// Decode the image (JPEG and PNG are the common thumbnail formats).
 	src, err := decodeImage(data)
 	if err != nil {
-		return nil, fmt.Errorf("decode image: %w", err)
+		return nil, fmt.Errorf("decode image %s: %w", rawURL, err)
 	}
 
 	// Composite: draw thumbnail + play-button overlay onto an RGBA canvas.
@@ -227,6 +245,37 @@ func (h *MediaHandler) buildComposite(rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("png encode: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+var youtubeThumbPath = regexp.MustCompile(`^/vi/([A-Za-z0-9_-]{11})/[^/]+$`)
+
+func thumbnailCandidates(rawURL string) []string {
+	candidates := []string{rawURL}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return candidates
+	}
+
+	matches := youtubeThumbPath.FindStringSubmatch(parsed.Path)
+	if len(matches) != 2 {
+		return candidates
+	}
+
+	videoID := matches[1]
+	base := &url.URL{
+		Scheme: parsed.Scheme,
+		Host:   parsed.Host,
+		Path:   path.Clean(path.Join("/vi", videoID)),
+	}
+
+	for _, variant := range []string{"hqdefault.jpg", "mqdefault.jpg", "default.jpg"} {
+		next := *base
+		next.Path = path.Join(base.Path, variant)
+		candidates = append(candidates, next.String())
+	}
+
+	return candidates
 }
 
 // decodeImage decodes raw bytes as JPEG or PNG, falling back to the standard

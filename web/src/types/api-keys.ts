@@ -2,7 +2,7 @@
 export interface ApiKey {
   id: string;
   name: string;
-  masked_key: string;
+  hint: string;
   created_at: string;
   last_used_at?: string;
 }
@@ -11,7 +11,7 @@ export interface ApiKey {
 export interface ApiKeyCreateResponse {
   id: string;
   name: string;
-  full_key: string;
+  key: string;
   created_at: string;
 }
 

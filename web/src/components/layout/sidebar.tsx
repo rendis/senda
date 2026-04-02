@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { startFederatedLogout } from "@/lib/logout";
+import { getContextualHelpHref } from "@/lib/help";
 import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 
 function getUserInitials(name?: string | null, email?: string | null): string {
@@ -103,6 +104,7 @@ export function AppSidebar({
 
   const displayName = session?.user?.name ?? session?.user?.email ?? "User";
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
+  const helpHref = getContextualHelpHref(pathname);
 
   const visibleNavItems = navItems.filter(
     (item) => !(item.href === "/settings" && level !== "global"),
@@ -168,15 +170,20 @@ export function AppSidebar({
         </div>
 
         <div className="flex flex-col gap-2 px-3 pb-5">
-          <button
-            type="button"
+          <Link
+            href={helpHref}
+            onClick={() => {
+              if (isMobile) {
+                onMobileOpenChange(false);
+              }
+            }}
             aria-label={t("help")}
             title={t("help")}
             className="flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <CircleHelp className="h-[18px] w-[18px] shrink-0" />
             {!currentCollapsed && <span>{t("help")}</span>}
-          </button>
+          </Link>
 
           <div className="h-px bg-sidebar-accent" />
 

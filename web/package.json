@@ -11,6 +11,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@monaco-editor/react": "^4.7.0",
+    "@scalar/nextjs-api-reference": "^0.10.5",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/extension-color": "^3.20.0",
@@ -24,6 +25,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "fumadocs-core": "^16.7.9",
+    "fumadocs-mdx": "^14.2.11",
+    "fumadocs-ui": "^16.7.9",
     "ky": "^1.14.3",
     "lucide-react": "^0.572.0",
     "motion": "^12.34.2",

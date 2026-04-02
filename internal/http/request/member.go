@@ -4,6 +4,7 @@ package request
 type CreateMemberRequest struct {
 	Email       string  `json:"email"`
 	DisplayName *string `json:"display_name"`
+	Role        *string `json:"role"`
 }
 
 // AddRoleRequest is the request body for POST /api/v1/manage/members/:member_id/roles.

@@ -25,6 +25,7 @@ export interface MemberRoleDetail {
 export interface InviteMemberRequest {
   email: string;
   display_name?: string;
+  role: Role;
 }
 
 /** Add role to member request */

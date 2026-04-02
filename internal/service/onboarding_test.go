@@ -54,9 +54,9 @@ type mockTx struct {
 	queryRowFn func(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error)  { return &mockTx{}, nil }
-func (m *mockTx) Commit(_ context.Context) error            { return nil }
-func (m *mockTx) Rollback(_ context.Context) error          { return nil }
+func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error) { return &mockTx{}, nil }
+func (m *mockTx) Commit(_ context.Context) error          { return nil }
+func (m *mockTx) Rollback(_ context.Context) error        { return nil }
 func (m *mockTx) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
 	return 0, nil
 }
@@ -80,13 +80,13 @@ func (m *mockTx) Conn() *pgx.Conn { return nil }
 // --- Mocks ---
 
 type mockMemberStoreOnboarding struct {
-	createFn       func(ctx context.Context, member *domain.Member) error
-	getByEmailFn   func(ctx context.Context, email string) (*domain.Member, error)
-	getByIDFn      func(ctx context.Context, id uuid.UUID) (*domain.Member, error)
-	countAllFn     func(ctx context.Context) (int64, error)
-	addRoleFn      func(ctx context.Context, role *domain.MemberRole) error
-	removeRoleFn   func(ctx context.Context, roleID uuid.UUID) error
-	getRolesFn     func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
+	createFn          func(ctx context.Context, member *domain.Member) error
+	getByEmailFn      func(ctx context.Context, email string) (*domain.Member, error)
+	getByIDFn         func(ctx context.Context, id uuid.UUID) (*domain.Member, error)
+	countAllFn        func(ctx context.Context) (int64, error)
+	addRoleFn         func(ctx context.Context, role *domain.MemberRole) error
+	removeRoleFn      func(ctx context.Context, roleID uuid.UUID) error
+	getRolesFn        func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 	getRolesInScopeFn func(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
 }
 
@@ -121,6 +121,9 @@ func (m *mockMemberStoreOnboarding) AddRole(ctx context.Context, role *domain.Me
 	return nil
 }
 func (m *mockMemberStoreOnboarding) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
+func (m *mockMemberStoreOnboarding) ListInScope(_ context.Context, _ domain.ScopeType, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
 func (m *mockMemberStoreOnboarding) RemoveRole(ctx context.Context, roleID uuid.UUID) error {

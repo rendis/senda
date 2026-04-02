@@ -68,7 +68,7 @@ export function ApiKeyGenerateDialog({
               </label>
               <p className="text-sm font-medium">{result.name}</p>
             </div>
-            <SecretRevealField value={result.full_key} label="API Key" />
+            <SecretRevealField value={result.key} label="API Key" />
           </div>
           <DialogFooter>
             <Button onClick={() => handleClose(false)}>Done</Button>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { KeyRound, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -22,6 +23,7 @@ import {
 } from "@/hooks/use-api-keys-mgmt";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
+import { getWorkspaceApiDocsHref } from "@/lib/help";
 import type { ApiKey } from "@/types/api-keys";
 
 export function ApiKeysContent() {
@@ -41,6 +43,7 @@ export function ApiKeysContent() {
 }
 
 function ApiKeysTable() {
+  const { tenantCode, workspaceCode } = useScope();
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useApiKeys();
   const createMutation = useCreateApiKey();
@@ -68,6 +71,11 @@ function ApiKeysTable() {
     toast.success("API key revoked");
   };
 
+  const apiDocsHref =
+    tenantCode && workspaceCode
+      ? getWorkspaceApiDocsHref(tenantCode, workspaceCode)
+      : null;
+
   const columns: ColumnDef<ApiKey>[] = [
     {
       accessorKey: "name",
@@ -77,13 +85,13 @@ function ApiKeysTable() {
       ),
     },
     {
-      accessorKey: "masked_key",
+      accessorKey: "hint",
       header: "Hint",
       size: 140,
       enableSorting: false,
       cell: ({ row }) => (
         <span className="font-mono text-xs text-muted-foreground">
-          {row.original.masked_key}
+          {row.original.hint}
         </span>
       ),
     },
@@ -136,11 +144,16 @@ function ApiKeysTable() {
 
   return (
     <>
-      <div className="flex items-center mb-6">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <Button onClick={() => setGenerateOpen(true)}>
           <KeyRound className="h-4 w-4 mr-2" />
           Generar API Key
         </Button>
+        {apiDocsHref && (
+          <Button variant="outline" asChild>
+            <Link href={apiDocsHref}>Open API Docs</Link>
+          </Button>
+        )}
       </div>
 
       <DataTable

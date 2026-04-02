@@ -20,42 +20,58 @@ import {
 } from "@/components/ui/select";
 import type { Role, ScopeLevel } from "@/types/api";
 
+const ROLE_LABELS: Record<Role, string> = {
+  superadmin: "Superadmin",
+  tenant_admin: "Tenant Admin",
+  workspace_admin: "Workspace Admin",
+  workspace_editor: "Editor",
+  workspace_viewer: "Viewer",
+};
+
+const ALL_ROLES: Role[] = [
+  "workspace_viewer",
+  "workspace_editor",
+  "workspace_admin",
+  "tenant_admin",
+  "superadmin",
+];
+
+const ALL_SCOPES: ScopeLevel[] = ["global", "tenant", "workspace"];
+
 interface RoleEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   memberEmail: string;
   onSubmit: (data: { role: Role; scope_type: ScopeLevel }) => Promise<void>;
+  scopeType?: ScopeLevel;
+  allowedRoles?: Role[];
+  scopeLabel?: string;
 }
-
-const ROLES: { value: Role; label: string }[] = [
-  { value: "workspace_viewer", label: "Viewer" },
-  { value: "workspace_editor", label: "Editor" },
-  { value: "workspace_admin", label: "Workspace Admin" },
-  { value: "tenant_admin", label: "Tenant Admin" },
-  { value: "superadmin", label: "Superadmin" },
-];
-
-const SCOPES: { value: ScopeLevel; label: string }[] = [
-  { value: "global", label: "Global" },
-  { value: "tenant", label: "Tenant" },
-  { value: "workspace", label: "Workspace" },
-];
 
 export function RoleEditor({
   open,
   onOpenChange,
   memberEmail,
   onSubmit,
+  scopeType,
+  allowedRoles,
+  scopeLabel = "this scope",
 }: RoleEditorProps) {
-  const [role, setRole] = useState<Role>("workspace_viewer");
-  const [scopeType, setScopeType] = useState<ScopeLevel>("workspace");
+  const initialRole = allowedRoles?.[0] ?? "workspace_viewer";
+  const [role, setRole] = useState<Role>(initialRole);
+  const [selectedScopeType, setSelectedScopeType] = useState<ScopeLevel>(scopeType ?? "workspace");
   const [loading, setLoading] = useState(false);
+
+  const roleOptions = (allowedRoles ?? ALL_ROLES).map((value) => ({
+    value,
+    label: ROLE_LABELS[value],
+  }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit({ role, scope_type: scopeType });
+      await onSubmit({ role, scope_type: scopeType ?? selectedScopeType });
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -69,7 +85,7 @@ export function RoleEditor({
           <DialogHeader>
             <DialogTitle>Add Role</DialogTitle>
             <DialogDescription>
-              Add a role for {memberEmail}.
+              Add a role for {memberEmail} in {scopeLabel}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -83,7 +99,7 @@ export function RoleEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => (
+                  {roleOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
                       {r.label}
                     </SelectItem>
@@ -91,24 +107,26 @@ export function RoleEditor({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Scope</Label>
-              <Select
-                value={scopeType}
-                onValueChange={(v) => setScopeType(v as ScopeLevel)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCOPES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {scopeType == null && (
+              <div className="space-y-2">
+                <Label>Scope</Label>
+                <Select
+                  value={selectedScopeType}
+                  onValueChange={(v) => setSelectedScopeType(v as ScopeLevel)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ALL_SCOPES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
