@@ -109,7 +109,7 @@ Email providers are configured per adapter through the management UI, not via en
 
 ### Amazon SES
 
-Configure the adapter with your AWS region and credentials. The sending identity (domain or email address) must be verified in SES before sending. For sandbox accounts, recipient addresses must also be verified. For non-production harnesses you can also provide an adapter-level `endpoint_url` to target a compatible SES endpoint such as LocalStack; leave it unset in production.
+Configure the adapter with your AWS region and credentials. The sending identity (domain or email address) must be verified in SES before sending. For sandbox accounts, recipient addresses must also be verified. For non-production harnesses you can also provide an adapter-level `endpoint_url` to target a compatible SES endpoint such as the aws-sim/MiniStack test harness; leave it unset in production.
 
 ### Gmail
 

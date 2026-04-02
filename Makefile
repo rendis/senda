@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check clean help
+.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -67,6 +67,9 @@ test-e2e-chaos-run: ## Run chaos E2E suite (non-blocking)
 
 test-e2e-chaos: ## Run chaos E2E suite (self-managed Testcontainers harness)
 	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run '^TestC[0-9]'
+
+test-e2e-ses: ## Run SES lifecycle E2E suite (aws-sim bridge + MiniStack + signed SNS replay)
+	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run 'TestSESLifecycle0[1-4]_|TestSNSReplay01_'
 
 ## System test orchestration
 system-validate-manifest: ## Validate full screen manifest coverage vs app routes

@@ -278,7 +278,6 @@ func (h *coreHarness) Close(ctx context.Context) {
 func TestMain(m *testing.M) {
 	if useExternalStackEnv(os.Getenv) {
 		code := m.Run()
-		terminateLocalStack(context.Background())
 		os.Exit(code)
 	}
 
@@ -294,6 +293,5 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	h.Close(context.Background())
-	terminateLocalStack(context.Background())
 	os.Exit(code)
 }

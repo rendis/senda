@@ -23,7 +23,7 @@ const (
 	DefaultAWSRegion           = "us-east-1"
 	DefaultAWSAccessKeyID      = "test-key"
 	DefaultAWSSecretAccessKey  = "test-secret"
-	defaultLocalStackImage     = "localstack/localstack:4.14.0"
+	defaultMiniStackImage      = "nahuelnucera/ministack:latest"
 	defaultSMTPPort            = 1025
 	defaultBackendInternalPort = "8080/tcp"
 	defaultMailpitUIPort       = "8025/tcp"
@@ -31,7 +31,7 @@ const (
 	defaultPostgresPort        = "5432/tcp"
 	defaultKeycloakHTTPPort    = "8080/tcp"
 	defaultKeycloakHealthPort  = "9000/tcp"
-	defaultLocalStackPort      = "4566/tcp"
+	defaultAWSSimPort          = "4566/tcp"
 )
 
 type Mode string
@@ -57,7 +57,7 @@ type Services struct {
 	Senda      string `json:"senda,omitempty"`
 	Mailpit    string `json:"mailpit,omitempty"`
 	Keycloak   string `json:"keycloak,omitempty"`
-	LocalStack string `json:"localstack,omitempty"`
+	AWSSim     string `json:"aws_sim,omitempty"`
 	Frontend   string `json:"frontend,omitempty"`
 }
 
@@ -74,7 +74,8 @@ type resourceNames struct {
 	Postgres   string
 	Keycloak   string
 	Mailpit    string
-	LocalStack string
+	AWSSim     string
+	AWSSimBackend string
 	App        string
 }
 
@@ -117,7 +118,12 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 		cleanupNamedResources(ctx, names)
 		return nil, err
 	}
-	localstack, err := startLocalStack(ctx, names)
+	awsSimBackend, err := startMiniStackBackend(ctx, names)
+	if err != nil {
+		cleanupNamedResources(ctx, names)
+		return nil, err
+	}
+	awsSim, err := startAWSSimBridge(ctx, opts.ProjectRoot, names)
 	if err != nil {
 		cleanupNamedResources(ctx, names)
 		return nil, err
@@ -131,7 +137,8 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 				"postgres":   names.Postgres,
 				"keycloak":   names.Keycloak,
 				"mailpit":    names.Mailpit,
-				"localstack": names.LocalStack,
+				"aws_sim":    names.AWSSim,
+				"aws_sim_backend": names.AWSSimBackend,
 				"senda":      names.App,
 			},
 			KeycloakRealm:               DefaultRealm,
@@ -150,10 +157,10 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 		cleanupNamedResources(ctx, names)
 		return nil, fmt.Errorf("resolve mailpit endpoint: %w", err)
 	}
-	report.Services.LocalStack, err = httpURL(ctx, localstack, defaultLocalStackPort)
+	report.Services.AWSSim, err = httpURL(ctx, awsSim, defaultAWSSimPort)
 	if err != nil {
 		cleanupNamedResources(ctx, names)
-		return nil, fmt.Errorf("resolve localstack endpoint: %w", err)
+		return nil, fmt.Errorf("resolve aws-sim endpoint: %w", err)
 	}
 
 	app, err := startApp(ctx, opts.ProjectRoot, names, report)
@@ -172,6 +179,7 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 		return nil, err
 	}
 
+	_ = awsSimBackend
 	_ = pg
 	return report, nil
 }
@@ -188,7 +196,8 @@ func Down(ctx context.Context, outPath string) error {
 			Postgres:   report.Runtime.Containers["postgres"],
 			Keycloak:   report.Runtime.Containers["keycloak"],
 			Mailpit:    report.Runtime.Containers["mailpit"],
-			LocalStack: report.Runtime.Containers["localstack"],
+			AWSSim:     report.Runtime.Containers["aws_sim"],
+			AWSSimBackend: report.Runtime.Containers["aws_sim_backend"],
 			App:        report.Runtime.Containers["senda"],
 		})
 	}
@@ -226,13 +235,14 @@ func makeResourceNames(mode Mode) resourceNames {
 		Postgres:   prefix + "-postgres",
 		Keycloak:   prefix + "-keycloak",
 		Mailpit:    prefix + "-mailpit",
-		LocalStack: prefix + "-localstack",
+		AWSSim:     prefix + "-aws-sim",
+		AWSSimBackend: prefix + "-aws-sim-backend",
 		App:        prefix + "-app",
 	}
 }
 
 func cleanupNamedResources(ctx context.Context, names resourceNames) {
-	for _, name := range []string{names.App, names.LocalStack, names.Mailpit, names.Keycloak, names.Postgres} {
+	for _, name := range []string{names.App, names.AWSSim, names.AWSSimBackend, names.Mailpit, names.Keycloak, names.Postgres} {
 		if strings.TrimSpace(name) == "" {
 			continue
 		}
@@ -343,26 +353,24 @@ func startMailpit(ctx context.Context, names resourceNames) (testcontainers.Cont
 	})
 }
 
-func startLocalStack(ctx context.Context, names resourceNames) (testcontainers.Container, error) {
+func startMiniStackBackend(ctx context.Context, names resourceNames) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Image:        resolveLocalStackImage(),
-		ExposedPorts: []string{defaultLocalStackPort},
+		Image:        resolveAWSSimImage(),
+		ExposedPorts: []string{defaultAWSSimPort},
 		Env: map[string]string{
-			"SERVICES":              "ses,sns,sqs",
-			"DEFAULT_REGION":        DefaultAWSRegion,
+			"MINISTACK_HOST":        "aws-sim",
+			"GATEWAY_PORT":          "4566",
 			"AWS_DEFAULT_REGION":    DefaultAWSRegion,
 			"AWS_ACCESS_KEY_ID":     DefaultAWSAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY": DefaultAWSSecretAccessKey,
-			"EAGER_SERVICE_LOADING": "1",
-			"LS_LOG":                "warn",
 		},
 		Networks: []string{names.Network},
 		NetworkAliases: map[string][]string{
-			names.Network: []string{"localstack"},
+			names.Network: []string{"ministack"},
 		},
-		Name: names.LocalStack,
-		WaitingFor: wait.ForHTTP("/_localstack/health").
-			WithPort(nat.Port(defaultLocalStackPort)).
+		Name: names.AWSSimBackend,
+		WaitingFor: wait.ForHTTP("/_ministack/health").
+			WithPort(nat.Port(defaultAWSSimPort)).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(3 * time.Minute),
 	}
@@ -372,11 +380,40 @@ func startLocalStack(ctx context.Context, names resourceNames) (testcontainers.C
 	})
 }
 
-func resolveLocalStackImage() string {
-	if image := strings.TrimSpace(os.Getenv("SENDA_LOCALSTACK_IMAGE")); image != "" {
+func startAWSSimBridge(ctx context.Context, root string, names resourceNames) (testcontainers.Container, error) {
+	req := testcontainers.ContainerRequest{
+		FromDockerfile: testcontainers.FromDockerfile{
+			Context:    root,
+			Dockerfile: "docker/Dockerfile.aws-sim-bridge",
+		},
+		ExposedPorts: []string{defaultAWSSimPort},
+		Env: map[string]string{
+			"AWS_SIM_BACKEND_URL":       "http://ministack:4566",
+			"AWS_SIM_REGION":            DefaultAWSRegion,
+			"AWS_SIM_ACCESS_KEY_ID":     DefaultAWSAccessKeyID,
+			"AWS_SIM_SECRET_ACCESS_KEY": DefaultAWSSecretAccessKey,
+		},
+		Networks: []string{names.Network},
+		NetworkAliases: map[string][]string{
+			names.Network: []string{"aws-sim"},
+		},
+		Name: names.AWSSim,
+		WaitingFor: wait.ForHTTP("/_aws-sim/health").
+			WithPort(nat.Port(defaultAWSSimPort)).
+			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
+			WithStartupTimeout(3 * time.Minute),
+	}
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+}
+
+func resolveAWSSimImage() string {
+	if image := strings.TrimSpace(os.Getenv("SENDA_AWS_SIM_IMAGE")); image != "" {
 		return image
 	}
-	return defaultLocalStackImage
+	return defaultMiniStackImage
 }
 
 func startApp(ctx context.Context, root string, names resourceNames, report *Report) (testcontainers.Container, error) {

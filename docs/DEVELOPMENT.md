@@ -129,6 +129,7 @@ All 27 available targets:
 | `make test-e2e-core-run`  | Run core E2E tests (assumes stack is already up)        |
 | `make test-e2e-chaos`     | Start E2E stack, run chaos/resilience tests, stop stack |
 | `make test-e2e-chaos-run` | Run chaos tests (assumes stack is already up)           |
+| `make test-e2e-ses`       | Run only the SES lifecycle + signed SNS replay suite    |
 | `make test-e2e-up`        | No-op (E2E harness is self-managed by Testcontainers)  |
 | `make test-e2e-down`      | No-op (E2E harness is self-managed by Testcontainers)  |
 
@@ -215,6 +216,30 @@ make test-e2e
 ```
 
 Runs the deterministic E2E gate on a self-managed Testcontainers harness. Use `make test-e2e-run` if you already have an external stack running and exported via the harness env report.
+
+### SES-specific E2E coverage
+
+If you want to validate only the SES lifecycle flows, run:
+
+```bash
+make test-e2e-ses
+```
+
+This suite is clone-friendly and self-contained. It bootstraps:
+
+- PostgreSQL
+- Senda app
+- MiniStack
+- the `aws-sim` bridge
+
+And it verifies:
+
+- SES auto-provisioning
+- sender identity sync + default identity setup
+- real send through the SES adapter path
+- SES/SNS delivery, bounce, and complaint events
+- deprovision when deleting the adapter
+- a separate signed SNS replay path for webhook signature verification
 
 ### E2E Chaos Tests
 

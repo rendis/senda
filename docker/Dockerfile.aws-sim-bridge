@@ -1,0 +1,21 @@
+FROM golang:1.25-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /aws-sim-bridge ./cmd/aws-sim-bridge
+
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /aws-sim-bridge /usr/local/bin/aws-sim-bridge
+
+EXPOSE 4566
+
+ENTRYPOINT ["aws-sim-bridge"]
