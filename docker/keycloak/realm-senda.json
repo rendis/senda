@@ -33,8 +33,7 @@
       "defaultClientScopes": [
         "openid",
         "profile",
-        "email",
-        "offline_access"
+        "email"
       ],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:3000/login"

@@ -88,7 +88,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.AUTH_OIDC_SECRET,
       authorization: {
         params: {
-          scope: "openid profile email offline_access",
+          scope: "openid profile email",
         },
       },
     },
