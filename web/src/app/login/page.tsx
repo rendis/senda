@@ -15,12 +15,7 @@ export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const signingOut = useRef(false);
-  const [callbackUrl, setCallbackUrl] = useState("/global");
-
-  useEffect(() => {
-    const saved = getLastWorkspacePath();
-    if (saved) setCallbackUrl(saved);
-  }, []);
+  const [callbackUrl] = useState(() => getLastWorkspacePath() ?? "/global");
 
   useEffect(() => {
     // If the session has a token refresh error, sign out to clear the

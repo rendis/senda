@@ -13,7 +13,6 @@ import {
   useDeleteInjector,
 } from "@/hooks/use-injectors";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
