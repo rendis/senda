@@ -52,112 +52,112 @@ web/src/                Frontend app (Next.js App Router)
 
 ---
 
-## Session Workflow (cómo trabajar conmigo)
+## Session Workflow
 
-### Al iniciar cada sesión
+### At the start of each session
 
-1. **Lee este archivo** (`AGENTS.md`) — ya lo estás haciendo
-2. **Revisa el estado actual:**
+1. **Read this file** (`AGENTS.md`) — you are already doing that
+2. **Review the current state:**
 
    ```bash
-   ls stories/in-progress/    # ¿Hay algo a medio hacer?
-   ls stories/done/            # ¿Qué ya está completado?
+   ls stories/in-progress/    # What's currently in progress?
+   ls stories/done/           # What's already completed?
    ```
 
-3. **Si hay una HT in-progress** → continúa donde se quedó (lee la sección "Log de Progreso" de esa HT)
-4. **Si no hay nada in-progress** → consulta `stories/MANIFEST.md` sección "Ready to Start" y elige la siguiente según el orden recomendado
+3. **If there is an HT in progress** → continue from where it stopped (read that HT's "Progress Log" section)
+4. **If nothing is in progress** → check the `stories/MANIFEST.md` "Ready to Start" section and pick the next story according to the recommended order
 
-### Para implementar una HT:
+### To implement an HT:
 
-1. Lee la HT completa (`stories/backlog/HT-XX.md`)
-2. Lee las secciones del TECH_SPEC referenciadas en `spec_sections`
-3. Mueve la HT a `stories/in-progress/` y actualiza su front matter
-4. Implementa con TDD (test → code → refactor)
-5. Registra decisiones y avances en la HT ("Notas de Implementación" y "Log de Progreso")
-6. Cuando todos los criterios de aceptación estén cumplidos:
-   - Ejecuta quality gates (`make test`, `make lint`, `go vet`)
-   - Mueve la HT a `stories/done/`
-   - Actualiza `stories/MANIFEST.md` (status, counters, "Ready to Start")
+1. Read the full HT (`stories/backlog/HT-XX.md`)
+2. Read the referenced TECH_SPEC sections listed in `spec_sections`
+3. Move the HT to `stories/in-progress/` and update its front matter
+4. Implement with TDD (test → code → refactor)
+5. Record decisions and progress in the HT ("Implementation Notes" and "Progress Log")
+6. When all acceptance criteria are met:
+   - Run the quality gates (`make test`, `make lint`, `go vet`)
+   - Move the HT to `stories/done/`
+   - Update `stories/MANIFEST.md` (status, counters, "Ready to Start")
 
-### Si la sesión se corta a mitad de una HT
+### If a session stops in the middle of an HT
 
-- La HT queda en `stories/in-progress/` con su "Log de Progreso" actualizado
-- La siguiente sesión retoma desde ahí — no repitas trabajo ya hecho
+- Leave the HT in `stories/in-progress/` with its "Progress Log" updated
+- The next session resumes from there — do not repeat work that is already done
 
-### Prompt tipo para iniciar sesión
-
-```
-Revisa el estado del proyecto y continúa con la siguiente HT disponible.
-```
-
-O si querés ser específico:
+### Example prompt to start a session
 
 ```
-Implementa HT-01. Lee la story y las secciones §9 y §18 del TECH_SPEC.
+Review the project state and continue with the next available HT.
+```
+
+Or, if you want to be specific:
+
+```
+Implement HT-01. Read the story and sections §9 and §18 of the TECH_SPEC.
 ```
 
 ---
 
-## Teams de Trabajo (paralelización)
+## Working Teams (parallelization)
 
-El proyecto se ejecuta con **equipos especializados** que trabajan en paralelo. Cada team tiene un perfil y contexto optimizado para su track.
+The project is organized around **specialized teams** working in parallel. Each team has a profile and optimized context for its track.
 
 ### Team Definitions
 
 **Team Infra** — Track A (Foundation + Infrastructure)
 
-- **Perfil:** DevOps / Platform Engineer
+- **Profile:** DevOps / Platform Engineer
 - **Expertise:** Docker, PostgreSQL, migrations, crypto, caching, rate limiting
 - **HTs:** HT-01 → HT-02 → HT-03 → HT-04 → HT-13 → HT-14
 - **Spec focus:** §3, §4, §5, §7, §9, §17, §18, §23, §24
 
 **Team Domain** — Track B (Core Domain + Resolution Engine)
 
-- **Perfil:** Domain Engineer / DDD Specialist
+- **Profile:** Domain Engineer / DDD Specialist
 - **Expertise:** Domain modeling, hexagonal architecture, ports & adapters, resolution algorithms
 - **HTs:** HT-05 → HT-06 → HT-07 → HT-08 → HT-09 → HT-10 → HT-11 → HT-12
 - **Spec focus:** §10, §11, §12, §6
 
 **Team API** — Track C (API Layer + Auth)
 
-- **Perfil:** Backend API Engineer
+- **Profile:** Backend API Engineer
 - **Expertise:** HTTP handlers, middleware, OIDC/JWT, RBAC, REST API design
 - **HTs:** HT-17 → HT-18 → HT-19 → HT-20 → HT-21 → HT-27 → HT-25
 - **Spec focus:** §8, §14, §15, §20
 
 **Team SendOps** — Track D (Send Flow + Operations)
 
-- **Perfil:** Integration / Systems Engineer
+- **Profile:** Integration / Systems Engineer
 - **Expertise:** Message queues, workers, webhooks, provider integrations, observability
 - **HTs:** HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 - **Spec focus:** §13, §16, §19, §21
 
 **Team Frontend** — Track E (Frontend + Design-to-Code)
 
-- **Perfil:** Frontend Engineer / Design Systems Specialist
+- **Profile:** Frontend Engineer / Design Systems Specialist
 - **Expertise:** Next.js, TypeScript, Tailwind CSS, React, component architecture, Pencil MCP
 - **HTs:** HT-28 → HT-29 → HT-30 → HT-31 → HT-32 → HT-33 → HT-34 → HT-35 → HT-36
-- **Spec focus:** DESIGN_BRIEF (§3 a §8), PRD (§5 User Stories US-36 a US-45)
+- **Spec focus:** DESIGN_BRIEF (§3 to §8), PRD (§5 User Stories US-36 to US-45)
 - **Stack:** Next.js 16, TypeScript 5, Tailwind v4, shadcn/ui, TanStack Query 5, TanStack Table 9, React Hook Form 7, Zod 4, Auth.js v5, ky, Monaco Editor, Lucide React, Sileo
-- **Diseño:** `senda_desing.pen` — leer SIEMPRE via Pencil MCP, NUNCA parsear el .pen como JSON
-- **Flujo:** Pencil MCP lee frame → Agent genera componente React + Tailwind → verificar pixel-perfect → iterar en Pencil si hay drift
-- **Bloqueado por:** HT-37 (QA Gate) — el frontend NO comienza hasta que el backend esté 100% testeado
+- **Design:** `senda_desing.pen` — ALWAYS read it through Pencil MCP; NEVER parse the `.pen` file as JSON
+- **Flow:** Pencil MCP reads the frame → Agent generates the React + Tailwind component → verify pixel-perfect output → iterate in Pencil if there is drift
+- **Blocked by:** HT-37 (QA Gate) — frontend work does NOT start until the backend is 100% tested
 
 **Team QA** — Track F (Quality Assurance + Security)
 
-- **Perfil:** QA Engineer / Security Tester / Pentester
+- **Profile:** QA Engineer / Security Tester / Pentester
 - **Expertise:** E2E testing, API testing, fuzzing, OWASP Top 10, race conditions, load testing, Postman, Go testing, TestContainers
 - **HTs:** HT-37
 - **Spec focus:** §6, §14, §15, §19, §20, §21, §24
-- **Mentalidad:** Adversarial — buscar romper el sistema, no confirmar que funciona
-- **Infraestructura:** TestContainers (PostgreSQL 16 + Mailpit + Senda Server + River workers)
-- **Entregables:** E2E test suite, pentesting OWASP, chaos tests, colección Postman, reportes de cobertura y findings
-- **Gate:** El frontend (Track E) NO comienza hasta que HT-37 esté en `done/`
+- **Mindset:** Adversarial — try to break the system, not merely confirm that it works
+- **Infrastructure:** TestContainers (PostgreSQL 16 + Mailpit + Senda Server + River workers)
+- **Deliverables:** E2E test suite, OWASP pentesting, chaos tests, Postman collection, coverage reports, and findings
+- **Gate:** Frontend (Track E) does NOT begin until HT-37 is in `done/`
 
 ### Parallelization Matrix
 
 ```
-Semana   Team Infra        Team Domain         Team API          Team SendOps
+Week     Team Infra        Team Domain         Team API          Team SendOps
 ─────────────────────────────────────────────────────────────────────────────
 S1       HT-01             HT-05               —                 —
 S2       HT-02 + HT-04     HT-06               —                 —
@@ -175,16 +175,16 @@ S11      —                 —                   —                 HT-24 + H
   BACKEND COMPLETE ↑   |   QA GATE ↓   |   FRONTEND ↓↓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Semana   Team QA
+Week     Team QA
 ─────────────────────────
-S12      HT-37 (E2E QA + Pentesting + Postman — espera TODO el backend)
+S12      HT-37 (E2E QA + Pentesting + Postman — waits for the full backend)
 
-Semana   Team Frontend (después del QA Gate)
+Week     Team Frontend (after the QA Gate)
 ─────────────────────────
 S13      HT-28 (scaffolding + Pencil MCP + Design System)
 S14      HT-29 (auth + scope switcher)
 S15      HT-30 (onboarding wizard)
-S15      HT-31 (dashboard + métricas)
+S15      HT-31 (dashboard + metrics)
 S16      HT-33 (templates)
 S16      HT-34 (injectors + adapters + domains)
 S17      HT-36 (audit log + settings + empty states)
@@ -192,33 +192,33 @@ S17      HT-32 (emails)
 S18      HT-35 (webhooks + API keys + members)
 ```
 
-### Reglas de Paralelización
+### Parallelization Rules
 
-1. **HT-01 es bloqueante global** — todos los teams esperan a que termine (scaffolding del proyecto)
-2. **Team Infra y Team Domain arrancan juntos** desde S1 (HT-01 y HT-05 solo dependen de HT-01)
-3. **Team API arranca en S3** — necesita HT-02 (config) para HT-17 (Echo server)
-4. **Team SendOps arranca en S8** — necesita resolvers (HT-10..12) + infra (HT-13, HT-14)
-5. **Team QA arranca en S12** — necesita TODO el backend completado (Tracks A+B+C+D). HT-37 es bloqueante para el frontend
-6. **Team Frontend arranca en S13** — después del QA Gate (HT-37 en `done/`). El frontend NO comienza hasta que el backend esté 100% testeado y cerrado
-7. **Cross-team dependencies:** cuando una HT depende de otra de otro team, verificar que está en `stories/done/` antes de empezar
-8. **Cada team mantiene su propia sesión** — el MANIFEST.md es el punto de sincronización compartido
-9. **Pencil MCP obligatorio para Team Frontend** — leer diseño SIEMPRE via MCP server de Pencil, NUNCA parsear el .pen como JSON directo
+1. **HT-01 is globally blocking** — all teams wait for it to finish (project scaffolding)
+2. **Team Infra and Team Domain start together** in S1 (HT-01 and HT-05 depend only on HT-01)
+3. **Team API starts in S3** — it needs HT-02 (config) for HT-17 (Echo server)
+4. **Team SendOps starts in S8** — it needs resolvers (HT-10..12) + infra (HT-13, HT-14)
+5. **Team QA starts in S12** — it needs the FULL backend complete (Tracks A+B+C+D). HT-37 blocks frontend work
+6. **Team Frontend starts in S13** — after the QA Gate (HT-37 in `done/`). Frontend work does NOT begin until the backend is 100% tested and closed
+7. **Cross-team dependencies:** when an HT depends on another HT owned by another team, verify that it is in `stories/done/` before starting
+8. **Each team keeps its own session** — `MANIFEST.md` is the shared synchronization point
+9. **Pencil MCP is mandatory for Team Frontend** — ALWAYS read the design through the Pencil MCP server; NEVER parse the `.pen` file directly as JSON
 10. **Pipeline:** `Backend (Tracks A+B+C+D) → QA Gate (Track F) → Frontend (Track E)`
 
-### Prompt tipo para iniciar un team:
+### Example prompt to start a team:
 
 ```
-Sos el Team Infra. Tu perfil es DevOps/Platform Engineer.
-Lee AGENTS.md, revisa stories/done/ y stories/in-progress/,
-y continúa con la siguiente HT de tu track (A).
-Solo trabajá en HTs asignadas a tu team.
+You are Team Infra. Your profile is DevOps / Platform Engineer.
+Read AGENTS.md, review `stories/done/` and `stories/in-progress/`,
+and continue with the next HT in your track (A).
+Only work on HTs assigned to your team.
 ```
 
 ```
-Sos el Team QA. Tu perfil es QA Engineer / Pentester.
-Lee AGENTS.md y HT-37. Verificá que TODOS los backend HTs estén en done/.
-Tu trabajo es romper el sistema, no confirmar que funciona.
-Levantá el stack E2E completo y ejecutá la batería de tests.
+You are Team QA. Your profile is QA Engineer / Pentester.
+Read AGENTS.md and HT-37. Verify that ALL backend HTs are in `done/`.
+Your job is to break the system, not to confirm that it works.
+Bring up the full E2E stack and execute the test battery.
 ```
 
 ---
@@ -244,107 +244,107 @@ Documentation lives in `docs/`:
 | `skills/senda/SKILL.md` | MCP tool reference, API groups, auth schemes, RBAC, SES lifecycle (provision + deprovision), AWS permission matrix | Working with Senda API via MCP, or understanding SES adapter lifecycle |
 | `docs/postman/` | Postman collection (116KB, all endpoints) + local/staging environments | API testing and exploration |
 
-### UI/UX Design — Pencil MCP (OBLIGATORIO)
+### UI/UX Design — Pencil MCP (MANDATORY)
 
-El diseño base de la aplicación está en `senda_desing.pen` (raíz del proyecto), creado con [Pencil](https://www.pencil.dev/). Documentación oficial: https://docs.pencil.dev/
+The base application design lives in `senda_desing.pen` (project root), created with [Pencil](https://www.pencil.dev/). Official documentation: https://docs.pencil.dev/
 
-**REGLA: SIEMPRE usar Pencil MCP para interactuar con el diseño. NUNCA parsear el .pen como JSON.**
+**RULE: ALWAYS use Pencil MCP to interact with the design. NEVER parse the `.pen` file as JSON.**
 
-Pencil expone un MCP server local que corre cuando Pencil está abierto. El Agent de codigo se conecta automáticamente y tiene acceso a todas las herramientas.
+Pencil exposes a local MCP server while Pencil is open. The code agent connects automatically and has access to all available tools.
 
-#### Herramientas MCP disponibles (USAR TODAS)
+#### Available MCP tools (USE ALL RELEVANT ONES)
 
-**Diseño — `batch_design`:**
+**Design — `batch_design`:**
 
-- Crear, modificar, manipular elementos de diseño
-- Operaciones: insert, copy, update, replace, move, delete
-- Generar y colocar imágenes
-- **Uso obligatorio** para cualquier modificación al .pen
+- Create, modify, and manipulate design elements
+- Operations: insert, copy, update, replace, move, delete
+- Generate and place images
+- **Mandatory** for any modification to the `.pen` file
 
-**Lectura — `batch_get`:**
+**Read — `batch_get`:**
 
-- Leer componentes y jerarquía del diseño
-- Buscar elementos por patrones
-- Inspeccionar estructura de componentes
-- **Uso obligatorio** antes de implementar cualquier pantalla (leer el frame primero)
+- Read design components and hierarchy
+- Search for elements by pattern
+- Inspect component structure
+- **Mandatory** before implementing any screen (read the frame first)
 
 **Screenshots — `get_screenshot`:**
 
-- Renderizar previews del diseño desde Pencil
-- **Uso obligatorio** para Gate 1 del DoD: comparar screenshot de la app vs screenshot de Pencil
+- Render previews from Pencil
+- **Mandatory** for DoD Gate 1: compare the app screenshot against the Pencil screenshot
 
 **Layout — `snapshot_layout`:**
 
-- Analizar estructura del layout
-- Detectar problemas de posicionamiento
-- Encontrar elementos superpuestos
-- **Usar** para verificar pixel-perfect después de implementar
+- Analyze layout structure
+- Detect positioning issues
+- Find overlapping elements
+- **Use it** to verify pixel-perfect output after implementation
 
 **Editor — `get_editor_state`:**
 
-- Contexto actual del editor
-- Información de selección
-- Detalles del archivo activo
+- Current editor context
+- Selection information
+- Details about the active file
 
 **Variables — `get_variables` / `set_variables`:**
 
-- Leer design tokens (colores, spacing, typography)
-- Actualizar valores de tema
-- Sincronizar con CSS/Tailwind
-- **Uso obligatorio** para extraer tokens del Design System y mapearlos a Tailwind config
+- Read design tokens (colors, spacing, typography)
+- Update theme values
+- Sync with CSS/Tailwind
+- **Mandatory** to extract Design System tokens and map them to Tailwind config
 
-#### Flujo de trabajo con Pencil MCP
-
-```
-1. LEER diseño:
-   batch_get → leer frame de la pantalla a implementar
-   get_variables → extraer tokens (colores, spacing, typography)
-   get_screenshot → capturar imagen de referencia del diseño
-
-2. IMPLEMENTAR:
-   Generar componentes React + Tailwind alineados al diseño
-   Usar tokens extraídos en paso 1 para colores/spacing exactos
-
-3. VALIDAR (Gate 1 — DoD):
-   get_screenshot → capturar diseño de Pencil
-   Comparar vs screenshot de la app corriendo (npm run dev)
-   snapshot_layout → verificar estructura y posicionamiento
-   Si hay drift → corregir en CÓDIGO, no en Pencil
-
-4. ITERAR si hay problemas:
-   batch_design → ajustar diseño solo si el diseñador lo aprueba
-   set_variables → sincronizar tokens si cambiaron
-```
-
-#### Operaciones avanzadas
-
-**Batch operations** para consistencia:
+#### Pencil MCP workflow
 
 ```
-"Verificar que todos los botones usan la variable de color primario"
-"Actualizar todos los headings para usar la escala tipográfica"
-"Aplicar grid de 8px a todos los elementos"
+1. READ the design:
+   batch_get → read the frame for the screen being implemented
+   get_variables → extract tokens (colors, spacing, typography)
+   get_screenshot → capture the design reference image
+
+2. IMPLEMENT:
+   Generate React + Tailwind components aligned with the design
+   Use the tokens extracted in step 1 for exact colors and spacing
+
+3. VALIDATE (DoD Gate 1):
+   get_screenshot → capture the Pencil design
+   Compare it against a screenshot of the running app (`npm run dev`)
+   snapshot_layout → verify structure and positioning
+   If there is drift → fix it in CODE, not in Pencil
+
+4. ITERATE if needed:
+   batch_design → adjust the design only if the designer approves it
+   set_variables → sync tokens if they changed
 ```
 
-**Sincronización código ↔ diseño:**
+#### Advanced operations
+
+**Batch operations** for consistency:
 
 ```
-"Importar el Design System desde el Tailwind config a Pencil"
-"Actualizar componentes React para matchear los diseños de Pencil"
-"Sincronizar variables de tipografía entre CSS y Pencil"
+"Verify that all buttons use the primary color variable"
+"Update all headings to use the typography scale"
+"Apply an 8px grid to all elements"
 ```
 
-**Generación de código desde diseño:**
+**Code ↔ design synchronization:**
 
 ```
-"Generar código React para este componente"
+"Import the Design System from Tailwind config into Pencil"
+"Update React components to match the Pencil designs"
+"Sync typography variables between CSS and Pencil"
+```
+
+**Code generation from design:**
+
+```
+"Generate React code for this component"
 "Crear Tailwind config desde estas variables de Pencil"
 ```
 
 #### Troubleshooting
 
 - **MCP no conecta:** Verificar que Pencil esté corriendo y el .pen abierto
-- **Cambios inesperados:** Ser más específico en prompts, pedir explicación antes de aplicar
+- **Unexpected changes:** Be more specific in prompts and ask for an explanation before applying changes
 
 ---
 
@@ -462,9 +462,9 @@ make lint                 # golangci-lint passes
 go vet ./...              # No issues
 ```
 
-### PR Local Gate (obligatorio antes de abrir o actualizar un PR)
+### PR Local Gate (mandatory before opening or updating a PR)
 
-Para este repo, la validación principal ocurre localmente antes de empujar cambios. Como mínimo, ejecutar:
+For this repo, the primary validation happens locally before pushing changes. At minimum, run:
 
 ```bash
 make lint
@@ -473,62 +473,62 @@ make test
 make test-integration
 ```
 
-Y además ejecutar:
+And also run:
 
 ```bash
 make test-e2e
 ```
 
-cuando el cambio toque flujos end-to-end o comportamiento sistémico, incluyendo:
+when the change touches end-to-end flows or systemic behavior, including:
 
-- infraestructura y Docker
+- infrastructure and Docker
 - adapters/providers (SES, Gmail, SMTP)
-- webhooks y notificaciones
-- workers / colas / River
+- webhooks and notifications
+- workers / queues / River
 - auth / RBAC / API keys
 - onboarding
-- flujos UI/API que crucen múltiples capas
+- UI/API flows that cross multiple layers
 
-Si el cambio modifica una parte crítica del sistema y no corriste la batería relevante localmente, el PR NO está listo.
+If the change modifies a critical part of the system and you did not run the relevant local battery, the PR is NOT ready.
 
 ---
 
-## Reglas de Código Fundamentales
+## Fundamental Code Rules
 
-### Regla #0: NUNCA iterar sobre código roto
+### Rule #0: NEVER iterate on broken code
 
-**Esta es la regla más importante del proyecto.** No se puede trabajar sobre error ni iterar sobre código mal hecho. Si algo está mal, la respuesta correcta es:
+**This is the most important rule in the project.** You do not iterate on errors or build on top of broken code. If something is wrong, the correct response is:
 
-1. **PARAR** — no intentar "hacer que funcione" con parches
-2. **DIAGNOSTICAR** — entender la causa raíz, no el síntoma
-3. **REFACTORIZAR** — corregir el diseño/approach, no parchear el error
-4. **REIMPLEMENTAR** — si el approach es fundamentalmente incorrecto, reescribir desde cero
+1. **STOP** — do not try to "make it work" with patches
+2. **DIAGNOSE** — understand the root cause, not the symptom
+3. **REFACTOR** — fix the design/approach, do not patch over the error
+4. **REIMPLEMENT** — if the approach is fundamentally incorrect, rewrite it from scratch
 
-**Anti-patrones prohibidos:**
+**Forbidden anti-patterns:**
 
-- Agregar `if err != nil { // ignore }` para "saltar" un error
-- Wrappear código roto en try/catch o recover para que "no falle"
-- Copiar-pegar código que no se entiende completamente
-- Agregar flags/booleans para "desactivar" la parte que falla
-- Cambiar tests para que pasen con el comportamiento incorrecto
-- Acumular TODO/FIXME sin resolverlos antes de marcar done
+- Adding `if err != nil { // ignore }` to "skip over" an error
+- Wrapping broken code in try/catch or recover just so it "does not fail"
+- Copy-pasting code that is not fully understood
+- Adding flags/booleans to "disable" the failing part
+- Changing tests so they pass with incorrect behavior
+- Accumulating TODO/FIXME items without resolving them before marking work as done
 
-**Lo correcto:**
+**The correct approach:**
 
-- Si un test falla → el código de producción está mal, no el test (salvo que el test esté mal escrito)
-- Si un approach no funciona después de 2 intentos → replantear el diseño
-- Si no se entiende por qué algo falla → leer la spec de nuevo antes de tocar código
-- Si se detecta deuda técnica mientras se implementa → refactorizar AHORA, no "después"
+- If a test fails → production code is wrong, not the test (unless the test itself is wrong)
+- If an approach does not work after 2 attempts → rethink the design
+- If you do not understand why something fails → read the spec again before touching code
+- If you detect technical debt while implementing → refactor NOW, not "later"
 
-### Metodología Frontend: Feature-First + Reutilización Explícita
+### Frontend Methodology: Feature-First + Explicit Reuse
 
-**Feature-first:** Cada HT frontend es una feature vertical completa (UI + hooks + API calls + estado + empty states). No se construyen capas horizontales aisladas.
+**Feature-first:** Each frontend HT is a complete vertical feature (UI + hooks + API calls + state + empty states). Do not build isolated horizontal layers.
 
-**Reutilización obligatoria:**
+**Mandatory reuse:**
 
-1. **Antes de crear un componente** → verificar si ya existe en `components/shared/` o en el Design System (HT-28)
-2. **Si un componente se usa en 2+ features** → extraerlo a `components/shared/` con props genéricas
-3. **Patrones compartidos predefinidos** (creados en HT-28):
+1. **Before creating a component** → verify whether it already exists in `components/shared/` or in the Design System (HT-28)
+2. **If a component is used in 2+ features** → extract it into `components/shared/` with generic props
+3. **Predefined shared patterns** (created in HT-28):
    - `PageShell` — layout con sidebar + header + breadcrumbs
    - `DataTable` — tabla con sort, filter, paginación cursor-based
    - `FormDialog` — modal con formulario + validación Zod
@@ -536,7 +536,7 @@ Si el cambio modifica una parte crítica del sistema y no corriste la batería r
    - `ConfirmDialog` — confirmación destructiva
    - `StatusBadge` — badge de estado con colores semánticos
    - `ScopeIndicator` — indicador de nivel (Global/Tenant/Workspace)
-4. **Cada HT documenta** qué componentes reutiliza y cuáles nuevos extrae
+4. **Each HT documents** which components it reuses and which new ones it extracts
 
 ---
 
