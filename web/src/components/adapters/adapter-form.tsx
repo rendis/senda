@@ -344,25 +344,34 @@ export function AdapterForm(props: AdapterFormProps) {
                       <li>Subscribe Senda&apos;s webhook to receive events</li>
                     </ul>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-muted-foreground/70 mb-1">Sending</p>
                         <div className="flex flex-col gap-0.5">
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:SendEmail</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:SendRawEmail</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:ListEmailIdentities</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:GetAccount</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:SendEmail</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:SendRawEmail</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:ListEmailIdentities</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:GetAccount</code>
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-muted-foreground/70 mb-1">Tracking <span className="text-muted-foreground/50">(optional)</span></p>
                         <div className="flex flex-col gap-0.5">
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:CreateConfigurationSet</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:CreateConfigurationSetEventDestination</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">ses:ListConfigurationSets</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">sns:CreateTopic</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">sns:Subscribe</code>
-                          <code className="text-[10px] font-mono text-muted-foreground">sns:ListTopics</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:CreateConfigurationSet</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:CreateConfigurationSetEventDestination</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">ses:ListConfigurationSets</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">sns:CreateTopic</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">sns:Subscribe</code>
+                          <code className="text-[10px] font-mono text-muted-foreground break-all">sns:ListTopics</code>
                         </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground/70 mb-1">Cleanup on delete <span className="text-muted-foreground/50">(optional)</span></p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        <code className="text-[10px] font-mono text-muted-foreground">ses:DeleteConfigurationSet</code>
+                        <code className="text-[10px] font-mono text-muted-foreground">ses:DeleteConfigurationSetEventDestination</code>
+                        <code className="text-[10px] font-mono text-muted-foreground">sns:Unsubscribe</code>
+                        <code className="text-[10px] font-mono text-muted-foreground">sns:DeleteTopic</code>
                       </div>
                     </div>
                   </div>
