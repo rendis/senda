@@ -38,15 +38,33 @@ for (const layoutPath of [
   "web/src/app/(dashboard)/global/help/layout.tsx",
   "web/src/app/(dashboard)/t/[tenantCode]/help/layout.tsx",
 ]) {
-  test(`${layoutPath} exists and imports isolated help docs CSS`, () => {
+  test(`${layoutPath} exists and imports Fumadocs CSS only inside help routes`, () => {
     assert.equal(existsSync(join(root, layoutPath)), true, `${layoutPath} must exist`);
 
     const layout = read(layoutPath);
 
     assert.equal(
-      layout.includes('import "@/app/help-docs.css";'),
+      layout.includes('import "fumadocs-ui/style.css";'),
       true,
-      `${layoutPath} must import the isolated help docs stylesheet`,
+      `${layoutPath} must import the Fumadocs base stylesheet locally`,
+    );
+    assert.equal(
+      layout.includes('import "fumadocs-ui/css/neutral.css";'),
+      true,
+      `${layoutPath} must import the Fumadocs neutral preset locally`,
+    );
+    assert.equal(
+      layout.includes('import "fumadocs-ui/css/preset.css";'),
+      true,
+      `${layoutPath} must import the Fumadocs preset locally`,
     );
   });
 }
+
+test("no shared wrapper stylesheet is needed for help docs", () => {
+  assert.equal(
+    existsSync(join(root, "web/src/app/help-docs.css")),
+    false,
+    "help-docs.css should not exist because wrapping Fumadocs imports breaks CI",
+  );
+});
