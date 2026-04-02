@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -47,8 +48,24 @@ func NewTemplateHandler(
 		tsStore:             ts,
 		wsStore:             ws,
 		testSendSvc:         testSendSvc,
-		templateInvalidator: templateInvalidator,
+		templateInvalidator: normalizeResolvedTemplateInvalidator(templateInvalidator),
 	}
+}
+
+func normalizeResolvedTemplateInvalidator(invalidator resolvedTemplateInvalidator) resolvedTemplateInvalidator {
+	if invalidator == nil {
+		return nil
+	}
+
+	value := reflect.ValueOf(invalidator)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
+	}
+
+	return invalidator
 }
 
 // CreateTemplate handles POST .../templates.
