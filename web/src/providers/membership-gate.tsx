@@ -41,12 +41,14 @@ export function MembershipGate({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  const gateKey =
+    status === "authenticated" && session?.idToken
+      ? `${pathname}:${session.idToken}`
+      : null;
+  const [checkedKey, setCheckedKey] = useState<string | null>(null);
 
   useEffect(() => {
-    setChecked(false);
-
-    if (status !== "authenticated" || !session?.idToken) return;
+    if (!gateKey || !session?.idToken) return;
 
     const idToken = session.idToken;
     let cancelled = false;
@@ -88,14 +90,16 @@ export function MembershipGate({ children }: { children: React.ReactNode }) {
         // Backend unavailable — allow through, individual pages will handle errors
       }
 
-      if (!cancelled) setChecked(true);
+      if (!cancelled) setCheckedKey(gateKey);
     }
 
     check();
-    return () => { cancelled = true; };
-  }, [status, session?.idToken, pathname, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [gateKey, pathname, router, session?.idToken]);
 
-  if (!checked) {
+  if (!gateKey || checkedKey !== gateKey) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

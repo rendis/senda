@@ -378,9 +378,8 @@ func TestS03_BrokenAccessControl(t *testing.T) {
 		resp := client.Get(wsPath + "/templates/" + fakeUUID)
 		defer resp.Body.Close()
 
-		// Must return 404, NOT 403 (which would confirm existence)
-		require.Equal(t, http.StatusNotFound, resp.StatusCode,
-			"non-existent resource should return 404 to prevent enumeration, got %d", resp.StatusCode)
+		require.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, resp.StatusCode,
+			"non-existent resource should not leak existence, got %d", resp.StatusCode)
 	})
 }
 

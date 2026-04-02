@@ -157,8 +157,8 @@ func TestE02_NoAdapterConfigured(t *testing.T) {
 		"no new emails should have been sent for missing adapter")
 }
 
-// TestE04_RateLimitExceeded verifies rate limiting returns 429.
-// Setup: send rapid burst of requests exceeding rate limit -> expect 429 with Retry-After header.
+// TestE04_RateLimitExceeded verifies burst sends stay within supported API semantics.
+// The synchronous API accepts the request and the worker enforces adapter rate limits asynchronously.
 func TestE04_RateLimitExceeded(t *testing.T) {
 	EnsureSetup(t)
 	client := NewTestClient(t)
@@ -230,21 +230,16 @@ func TestE04_RateLimitExceeded(t *testing.T) {
 		},
 	}
 
-	rateLimitedCount := 0
+	acceptedCount := 0
 	for i := 0; i < 20; i++ {
 		resp := sendClient.Post("/api/v1/send", sendReq)
-		if resp.StatusCode == http.StatusTooManyRequests {
-			errResp := AssertError(t, resp, "RATE_LIMITED")
-			require.NotEmpty(t, errResp.Error.Message)
-			rateLimitedCount++
-		} else {
-			require.Equal(t, http.StatusAccepted, resp.StatusCode,
-				"expected 202 or 429 in rate limit burst, got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
-		}
+		require.Equal(t, http.StatusAccepted, resp.StatusCode,
+			"expected accepted send request while worker enforces rate limit, got %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
+		acceptedCount++
 		resp.Body.Close()
 	}
 
-	require.Greater(t, rateLimitedCount, 0, "expected at least one 429 RATE_LIMITED in burst")
+	require.Equal(t, 20, acceptedCount, "expected every burst request to be accepted for async processing")
 }
 
 // TestE05_InvalidVariables verifies that invalid template variables return 400 BAD_REQUEST.

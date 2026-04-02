@@ -115,7 +115,7 @@
           "    pm.collectionVariables.set(\"member_email\", \"ws-admin+\" + pm.collectionVariables.get(\"run_id\") + \"@test.example.com\");",
           "}",
           "if (!pm.collectionVariables.get(\"webhook_url\")) {",
-          "    pm.collectionVariables.set(\"webhook_url\", \"https://webhook.example.com/events/\" + pm.collectionVariables.get(\"run_id\"));",
+          "    pm.collectionVariables.set(\"webhook_url\", \"https://example.com/events/\" + pm.collectionVariables.get(\"run_id\"));",
           "}",
           "if (!pm.collectionVariables.get(\"tenant_cleanup_code\")) {",
           "    pm.collectionVariables.set(\"tenant_cleanup_code\", \"cleanup-tenant-\" + pm.collectionVariables.get(\"run_id\"));",

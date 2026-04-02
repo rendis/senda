@@ -1,10 +1,5 @@
 import ky, { type Options, type KyInstance, HTTPError } from "ky";
 import type { ApiError } from "@/types/api";
-import { startFederatedLogout } from "@/lib/logout";
-
-// Guard to prevent multiple concurrent signOut calls when several
-// API requests return 401 at the same time.
-let signingOut = false;
 
 /**
  * Base ky instance for Senda API.
@@ -19,8 +14,7 @@ export const api = ky.create({
         if (
           response.status === 401 &&
           typeof window !== "undefined" &&
-          request.headers.has("Authorization") &&
-          !signingOut
+          request.headers.has("Authorization")
         ) {
           // First 401 — attempt silent token refresh via next-auth session.
           if (state.retryCount === 0) {

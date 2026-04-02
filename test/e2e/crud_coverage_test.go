@@ -490,7 +490,7 @@ func TestCRUD_WS_Adapter_Update(t *testing.T) {
 
 func TestCRUD_WS_Webhook(t *testing.T) {
 	c := ensureClient(t)
-	url := fmt.Sprintf("https://webhook.example.com/e2e-%d", time.Now().UnixNano()%100000)
+	url := fmt.Sprintf("https://example.com/e2e-%d", time.Now().UnixNano()%100000)
 
 	var webhookID string
 

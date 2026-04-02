@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"context"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/rendis/senda/internal/domain"
@@ -21,14 +21,41 @@ import (
 
 // --- Helpers ---
 
+type mockResolvedTemplateInvalidator struct {
+	invalidateResolvedTemplatesFn func(ctx context.Context, workspaceID uuid.UUID)
+	invalidateAllFn               func(ctx context.Context)
+}
+
+func (m *mockResolvedTemplateInvalidator) InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID) {
+	if m.invalidateResolvedTemplatesFn != nil {
+		m.invalidateResolvedTemplatesFn(ctx, workspaceID)
+	}
+}
+
+func (m *mockResolvedTemplateInvalidator) InvalidateAllResolvedTemplates(ctx context.Context) {
+	if m.invalidateAllFn != nil {
+		m.invalidateAllFn(ctx)
+	}
+}
+
 func setupTemplateTest(store port.TemplateStore, compiler port.TemplateCompiler, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.TemplateHandler) {
+	return setupTemplateTestWithInvalidator(store, compiler, ts, ws, nil)
+}
+
+func setupTemplateTestWithInvalidator(
+	store port.TemplateStore,
+	compiler port.TemplateCompiler,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	invalidator *mockResolvedTemplateInvalidator,
+) (*echo.Echo, *handler.TemplateHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
 	svc := service.NewTemplateService(store, compiler)
-	h := handler.NewTemplateHandler(svc, store, ts, ws, nil)
+	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, invalidator)
 
 	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
 
@@ -128,6 +155,46 @@ func TestTemplateHandler_CreateTemplate_MissingTypeID(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateHandler_DisableTemplate_InvalidatesResolvedTemplateCache(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	invalidatedWorkspace := uuid.Nil
+
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, gotTemplateID uuid.UUID, gotWSID *uuid.UUID, disabled bool) error {
+			if gotTemplateID != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, gotTemplateID)
+			}
+			if gotWSID == nil || *gotWSID != ws.ID {
+				t.Fatalf("expected workspace ID %s", ws.ID)
+			}
+			if !disabled {
+				t.Fatal("expected disable=true")
+			}
+			return nil
+		},
+	}
+	invalidator := &mockResolvedTemplateInvalidator{
+		invalidateResolvedTemplatesFn: func(_ context.Context, workspaceID uuid.UUID) {
+			invalidatedWorkspace = workspaceID
+		},
+	}
+
+	e, _ := setupTemplateTestWithInvalidator(store, &mockTemplateCompiler{}, ts, wsStore, invalidator)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/disable", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if invalidatedWorkspace != ws.ID {
+		t.Fatalf("expected invalidated workspace %s, got %s", ws.ID, invalidatedWorkspace)
 	}
 }
 
@@ -319,6 +386,45 @@ func TestTemplateHandler_PublishVersion_NotFound(t *testing.T) {
 }
 
 func TestTemplateHandler_DisableTemplate_Success(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	var (
+		gotTemplateID uuid.UUID
+		gotScope      *uuid.UUID
+		gotDisabled   bool
+	)
+
+	store := &mockTemplateStore{
+		setDisabledFn: func(_ context.Context, id uuid.UUID, scope *uuid.UUID, disabled bool) error {
+			gotTemplateID = id
+			gotScope = scope
+			gotDisabled = disabled
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/disable", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotTemplateID != templateID {
+		t.Fatalf("expected template ID %s, got %s", templateID, gotTemplateID)
+	}
+	if gotScope == nil || *gotScope != ws.ID {
+		t.Fatalf("expected workspace scope %s, got %v", ws.ID, gotScope)
+	}
+	if !gotDisabled {
+		t.Fatal("expected disabled=true")
+	}
+}
+
+func TestTemplateHandler_DisableTemplate_WithoutInvalidator(t *testing.T) {
 	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())

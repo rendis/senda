@@ -482,7 +482,7 @@ func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
 		Region:          "us-east-1",
 		AccessKeyID:     "AKID",
 		SecretAccessKey: "SECRET",
-		EndpointURL:     "http://localstack:4566",
+		EndpointURL:     "http://aws-sim:4566",
 	})
 
 	adapterStore := &mockProvisionAdapterStore{
@@ -507,8 +507,8 @@ func TestProvision_PassesEndpointURLToClientFactory(t *testing.T) {
 	if _, err := p.Provision(context.Background(), adapterID); err != nil {
 		t.Fatalf("Provision() error = %v", err)
 	}
-	if gotEndpoint != "http://localstack:4566" {
-		t.Fatalf("clientFactory endpoint = %q, want %q", gotEndpoint, "http://localstack:4566")
+	if gotEndpoint != "http://aws-sim:4566" {
+		t.Fatalf("clientFactory endpoint = %q, want %q", gotEndpoint, "http://aws-sim:4566")
 	}
 }
 

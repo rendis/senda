@@ -304,7 +304,7 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 
 	// Best-effort deprovision of AWS resources for SES adapters.
 	if adapter.AdapterType == domain.AdapterTypeSES && h.deprovisioner != nil {
-		if err := h.deprovisioner.Deprovision(ctx, adapterID); err != nil {
+		if err := h.safeDeprovision(ctx, adapterID); err != nil {
 			h.logger.WarnContext(ctx, "deprovision failed, proceeding with soft delete",
 				"adapter_id", adapterID, "error", err)
 		}
@@ -315,6 +315,16 @@ func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) err
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *AdapterHandler) safeDeprovision(ctx context.Context, adapterID uuid.UUID) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("deprovision panic: %v", recovered)
+		}
+	}()
+
+	return h.deprovisioner.Deprovision(ctx, adapterID)
 }
 
 // ValidateSES handles POST .../adapters/validate-ses.

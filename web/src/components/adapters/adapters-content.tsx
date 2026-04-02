@@ -9,7 +9,6 @@ import {
   useDeleteAdapter,
   useUpdateAdapter,
   useTestAdapterSend,
-  useAutoProvision,
 } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -36,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Adapter, CreateAdapterRequest, ProvisioningOverallStatus } from "@/types/adapters";
+import type { Adapter, CreateAdapterRequest } from "@/types/adapters";
 import { TrackingStatus } from "./tracking-status";
 import { DefaultSender } from "./default-sender";
 

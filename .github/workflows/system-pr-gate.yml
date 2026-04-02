@@ -38,10 +38,7 @@ jobs:
         run: npm --prefix web ci
 
       - name: Install test CLIs
-        run: npm install -g newman agent-browser
-
-      - name: Install browser runtime
-        run: agent-browser install --with-deps
+        run: npm install -g newman
 
       - name: Run system PR gate
         run: make system-pr

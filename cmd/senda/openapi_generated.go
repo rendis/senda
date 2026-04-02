@@ -352,6 +352,24 @@ func doc_post_api_v1_manage_global_adapters_id_identities_identity_id_set_defaul
 // @Router       /api/v1/manage/global/adapters/{id}/identities/sync [post]
 func doc_post_api_v1_manage_global_adapters_id_identities_sync() {}
 
+// doc_get_api_v1_manage_global_adapters_id_provisioning_status auto-generated route documentation.
+// @Summary      GET /api/v1/manage/global/adapters/{id}/provisioning-status
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/adapters/{id}/provisioning-status [get]
+func doc_get_api_v1_manage_global_adapters_id_provisioning_status() {}
+
 // doc_get_api_v1_manage_global_adapters_id_setup_guide auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/adapters/{id}/setup-guide
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -460,6 +478,24 @@ func doc_get_api_v1_manage_global_injectors() {}
 // @Router       /api/v1/manage/global/injectors [post]
 func doc_post_api_v1_manage_global_injectors() {}
 
+// doc_delete_api_v1_manage_global_injectors_name auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/global/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        name  path  string  true  "name path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/injectors/{name} [delete]
+func doc_delete_api_v1_manage_global_injectors_name() {}
+
 // doc_get_api_v1_manage_global_injectors_name auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/injectors/{name}
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -516,6 +552,24 @@ func doc_get_api_v1_manage_global_template_types() {}
 // @Router       /api/v1/manage/global/template-types [post]
 func doc_post_api_v1_manage_global_template_types() {}
 
+// doc_delete_api_v1_manage_global_template_types_slug auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/global/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        slug  path  string  true  "slug path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/template-types/{slug} [delete]
+func doc_delete_api_v1_manage_global_template_types_slug() {}
+
 // doc_get_api_v1_manage_global_template_types_slug auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/template-types/{slug}
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -533,6 +587,26 @@ func doc_post_api_v1_manage_global_template_types() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/global/template-types/{slug} [get]
 func doc_get_api_v1_manage_global_template_types_slug() {}
+
+// doc_put_api_v1_manage_global_template_types_slug auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/global/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/template-types/{slug} [put]
+func doc_put_api_v1_manage_global_template_types_slug() {}
 
 // doc_get_api_v1_manage_global_template_types_slug_templates auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/template-types/{slug}/templates
@@ -572,6 +646,24 @@ func doc_get_api_v1_manage_global_template_types_slug_templates() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/global/templates [post]
 func doc_post_api_v1_manage_global_templates() {}
+
+// doc_delete_api_v1_manage_global_templates_template_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/global/templates/{template_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/templates/{template_id} [delete]
+func doc_delete_api_v1_manage_global_templates_template_id() {}
 
 // doc_post_api_v1_manage_global_templates_template_id_disable auto-generated route documentation.
 // @Summary      POST /api/v1/manage/global/templates/{template_id}/disable
@@ -684,6 +776,25 @@ func doc_get_api_v1_manage_global_templates_template_id_versions() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/global/templates/{template_id}/versions [post]
 func doc_post_api_v1_manage_global_templates_template_id_versions() {}
+
+// doc_delete_api_v1_manage_global_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/global/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/templates/{template_id}/versions/{version_id} [delete]
+func doc_delete_api_v1_manage_global_templates_template_id_versions_version_id() {}
 
 // doc_get_api_v1_manage_global_templates_template_id_versions_version_id auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/templates/{template_id}/versions/{version_id}
@@ -1381,6 +1492,26 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapte
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/sync [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_sync() {}
 
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_provisioning_status auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/provisioning-status
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/provisioning-status [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_provisioning_status() {}
+
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_setup_guide auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/setup-guide
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -1420,6 +1551,27 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapter
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/test [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_test() {}
+
+// doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_validate_ses auto-generated route documentation.
+// @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses [post]
+func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_validate_ses() {}
 
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_api_keys auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys
@@ -1624,6 +1776,26 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injecto
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors() {}
 
+// doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -1769,6 +1941,26 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templat
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types() {}
 
+// doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -1788,6 +1980,28 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templa
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [get]
 func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
 
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_template_types_slug_templates auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}/templates
@@ -1831,6 +2045,26 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templat
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates() {}
+
+// doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id} [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_disable auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable
@@ -1955,6 +2189,27 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templat
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions() {}
+
+// doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
 
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}

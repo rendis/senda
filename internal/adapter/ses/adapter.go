@@ -94,7 +94,7 @@ func NewAdapterFromConfig(ctx context.Context, cfg Config) (*Adapter, error) {
 }
 
 // NewSESAPIFromAWSConfig creates the SES API implementation to use for the given config.
-// endpoint_url is a test hook used for LocalStack and other custom SES endpoints.
+// endpoint_url is a test hook used for local/legacy SES-compatible endpoints.
 func NewSESAPIFromAWSConfig(cfg aws.Config, endpointURL string) SESAPI {
 	endpointURL = strings.TrimRight(endpointURL, "/")
 	if shouldUseSESV1Shim(endpointURL) {
@@ -120,7 +120,7 @@ func shouldUseSESV1Shim(endpointURL string) bool {
 		return true
 	}
 	host := strings.ToLower(parsed.Hostname())
-	return host == "localhost" || host == "127.0.0.1" || host == "localstack"
+	return host == "localhost" || host == "127.0.0.1"
 }
 
 type sesV1API struct {
@@ -399,14 +399,7 @@ func (a *Adapter) ListIdentities(ctx context.Context) ([]port.ProviderIdentity, 
 				pi.IdentityType = "domain"
 			}
 
-			switch ident.VerificationStatus {
-			case types.VerificationStatusSuccess:
-				pi.VerificationStatus = "verified"
-			case types.VerificationStatusPending, types.VerificationStatusTemporaryFailure, types.VerificationStatusNotStarted:
-				pi.VerificationStatus = "pending"
-			default:
-				pi.VerificationStatus = "failed"
-			}
+			pi.VerificationStatus = normalizeVerificationStatus(ident)
 
 			identities = append(identities, pi)
 		}
@@ -425,6 +418,25 @@ func (a *Adapter) ProviderName() string { return "ses" }
 // Compile-time interface checks.
 var _ port.EmailSender = (*Adapter)(nil)
 var _ port.IdentityProvider = (*Adapter)(nil)
+
+func normalizeVerificationStatus(ident types.IdentityInfo) string {
+	switch ident.VerificationStatus {
+	case types.VerificationStatusSuccess:
+		return "verified"
+	case types.VerificationStatusPending, types.VerificationStatusTemporaryFailure:
+		return "pending"
+	case types.VerificationStatusNotStarted:
+		if ident.SendingEnabled {
+			return "verified"
+		}
+		return "pending"
+	default:
+		if ident.SendingEnabled {
+			return "verified"
+		}
+		return "failed"
+	}
+}
 
 // buildDestination constructs the SES Destination with To, CC, and BCC addresses.
 // SES requires Destination to be set for BCC delivery even when using raw messages.
