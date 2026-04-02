@@ -338,12 +338,12 @@ Pencil exposes a local MCP server while Pencil is open. The code agent connects 
 
 ```
 "Generate React code for this component"
-"Crear Tailwind config desde estas variables de Pencil"
+"Generate Tailwind config from these Pencil variables"
 ```
 
 #### Troubleshooting
 
-- **MCP no conecta:** Verificar que Pencil esté corriendo y el .pen abierto
+- **MCP does not connect:** Verify that Pencil is running and that the `.pen` file is open
 - **Unexpected changes:** Be more specific in prompts and ask for an explanation before applying changes
 
 ---
@@ -376,8 +376,8 @@ senda/
 1. **Pick a story** from `backlog/` — check MANIFEST.md for dependencies
 2. **Move it** to `in-progress/` — update front matter `status: in-progress`
 3. **Implement** following TDD: write test → make it pass → refactor
-4. **Document** decisions in "Notas de Implementación" section
-5. **Log progress** in "Log de Progreso" section
+4. **Document** decisions in the "Implementation Notes" section
+5. **Log progress** in the "Progress Log" section
 6. **Move to `done/`** when all acceptance criteria are met — update `status: done`
 
 ### Moving a Story
@@ -394,7 +394,7 @@ mv stories/in-progress/HT-01.md stories/done/
 # Block a story
 mv stories/in-progress/HT-03.md stories/blocked/
 # Update status in front matter: status: blocked
-# Add reason in "Notas de Implementación"
+# Add the reason in "Implementation Notes"
 ```
 
 ---
@@ -529,13 +529,13 @@ If the change modifies a critical part of the system and you did not run the rel
 1. **Before creating a component** → verify whether it already exists in `components/shared/` or in the Design System (HT-28)
 2. **If a component is used in 2+ features** → extract it into `components/shared/` with generic props
 3. **Predefined shared patterns** (created in HT-28):
-   - `PageShell` — layout con sidebar + header + breadcrumbs
-   - `DataTable` — tabla con sort, filter, paginación cursor-based
-   - `FormDialog` — modal con formulario + validación Zod
-   - `EmptyState` — estado vacío con ícono + mensaje + CTA
-   - `ConfirmDialog` — confirmación destructiva
-   - `StatusBadge` — badge de estado con colores semánticos
-   - `ScopeIndicator` — indicador de nivel (Global/Tenant/Workspace)
+   - `PageShell` — layout with sidebar + header + breadcrumbs
+   - `DataTable` — table with sort, filter, and cursor-based pagination
+   - `FormDialog` — modal with form + Zod validation
+   - `EmptyState` — empty state with icon + message + CTA
+   - `ConfirmDialog` — destructive confirmation dialog
+   - `StatusBadge` — status badge with semantic colors
+   - `ScopeIndicator` — level indicator (Global/Tenant/Workspace)
 4. **Each HT documents** which components it reuses and which new ones it extracts
 
 ---

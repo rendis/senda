@@ -96,9 +96,9 @@ This document contains historical early-design sections (domains/in-app DKIM) th
 
 ---
 
-## 3. Schema SQL Completo
+## 3. Complete SQL Schema
 
-### 3.1. Tipos Enumerados
+### 3.1. Enumerated Types
 
 ```sql
 -- Lifecycle states for emails
@@ -253,7 +253,7 @@ CREATE INDEX idx_workspaces_tenant ON workspaces (tenant_id) WHERE deleted_at IS
 CREATE INDEX idx_workspaces_code ON workspaces (tenant_id, code) WHERE deleted_at IS NULL;
 ```
 
-### 3.4. Inyectores (Data Injectors)
+### 3.4. Injectors (Data Injectors)
 
 ```sql
 -- Schema definition: who created the injector and what fields it has
@@ -1783,27 +1783,27 @@ SELECT cron.unschedule('cache-cleanup');
 
 ### Migration Summary
 
-| # | Nombre | Fuente | Contenido |
+| # | Name | Source | Content |
 |---|--------|--------|-----------|
-| 001 | extensions | Nuevo | pgcrypto, pg_cron |
-| 002 | enums | S3.1 | 10 tipos enumerados |
-| 003 | tenants_workspaces | S3.2, S3.3 | Con CHECKs, EXCLUDE, partial indexes |
+| 001 | extensions | New | pgcrypto, pg_cron |
+| 002 | enums | S3.1 | 10 enumerated types |
+| 003 | tenants_workspaces | S3.2, S3.3 | With CHECKs, EXCLUDE, partial indexes |
 | 004 | injectors | S3.4 | definitions, fields (typed), values (per field) |
-| 005 | adapters | S3.5 + P1 | Con EXCLUDE default, + rate_limit_per_second |
+| 005 | adapters | S3.5 + P1 | With default EXCLUDE, + rate_limit_per_second |
 | 006 | domains | S3.6 | With domain_status, DKIM, dns_records, verification |
-| 007 | template_types_templates | S3.7, S3.8 | Con adapter_id FK (P1), UNIQUE NULLS NOT DISTINCT |
-| 008 | versions_locales | S3.8 | Con content completo, EXCLUDE one-published |
-| 009 | members_roles | S3.9 | Con OIDC, scope_type, CHECK constraints |
-| 010 | api_keys | S3.10 | Con key_prefix, key_hint, revoked_at |
+| 007 | template_types_templates | S3.7, S3.8 | With adapter_id FK (P1), UNIQUE NULLS NOT DISTINCT |
+| 008 | versions_locales | S3.8 | With full content, EXCLUDE one-published |
+| 009 | members_roles | S3.9 | With OIDC, scope_type, CHECK constraints |
+| 010 | api_keys | S3.10 | With key_prefix, key_hint, revoked_at |
 | 011 | emails_events | S3.11, S4 | Partitioned, tracking_id, full columns |
-| 012 | suppressions | S3.12 | Con source_email_id, removed_by, removal_reason |
-| 013 | webhooks | S3.13 | Con failure tracking, disabled_at |
-| 014 | audit_logs | S3.14, S4 | Con audit_action enum, scope_type, partitioned |
-| 015 | global_config | S3.15 | Con description, updated_by, seed data completo |
-| 016 | unlogged_tables | Nuevo | cache (UNLOGGED), token_buckets (UNLOGGED) |
+| 012 | suppressions | S3.12 | With source_email_id, removed_by, removal_reason |
+| 013 | webhooks | S3.13 | With failure tracking, disabled_at |
+| 014 | audit_logs | S3.14, S4 | With audit_action enum, scope_type, partitioned |
+| 015 | global_config | S3.15 | With description, updated_by, complete seed data |
+| 016 | unlogged_tables | New | cache (UNLOGGED), token_buckets (UNLOGGED) |
 | 017 | plpgsql_functions | S3.16 + P1 | get_resolution_chain(TABLE), take_send_token() |
 | 018 | performance_indices | S5 | workspace_resolution, template_resolution (INCLUDE) |
-| 019 | cron_jobs | Nuevo | cache-cleanup (1min), create-partitions (monthly) |
+| 019 | cron_jobs | New | cache-cleanup (1min), create-partitions (monthly) |
 
 > **Total: 19 migrations.** Each one is idempotent and reversible with its `down.sql`. The "Source" column indicates the spec section it originates from.
 
@@ -3271,9 +3271,9 @@ func (c *CacheInvalidator) InvalidateGlobal(ctx context.Context) {
 
 | Operation | Invalidated keys |
 |-----------|-----------------|
-| Modificar/eliminar adapter | `adapter:<adapter_id>` |
-| Crear/eliminar workspace | `chain:<workspace_id>` |
-| Modificar dominio | `domain_valid:<ws_id>:<domain>` (TTL natural) |
+| Modify/delete adapter | `adapter:<adapter_id>` |
+| Create/delete workspace | `chain:<workspace_id>` |
+| Modify domain | `domain_valid:<ws_id>:<domain>` (natural TTL) |
 | Modify `_system` workspace | All tenant `chain:*` keys |
 
 **Note:** `DeletePattern` is defined in the `Cache` port (section 10.5). The in-memory implementation uses `Clear()` because global invalidation is rare.
