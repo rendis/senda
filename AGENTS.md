@@ -462,6 +462,35 @@ make lint                 # golangci-lint passes
 go vet ./...              # No issues
 ```
 
+### PR Local Gate (obligatorio antes de abrir o actualizar un PR)
+
+Para este repo, la validación principal ocurre localmente antes de empujar cambios. Como mínimo, ejecutar:
+
+```bash
+make lint
+go vet ./...
+make test
+make test-integration
+```
+
+Y además ejecutar:
+
+```bash
+make test-e2e
+```
+
+cuando el cambio toque flujos end-to-end o comportamiento sistémico, incluyendo:
+
+- infraestructura y Docker
+- adapters/providers (SES, Gmail, SMTP)
+- webhooks y notificaciones
+- workers / colas / River
+- auth / RBAC / API keys
+- onboarding
+- flujos UI/API que crucen múltiples capas
+
+Si el cambio modifica una parte crítica del sistema y no corriste la batería relevante localmente, el PR NO está listo.
+
 ---
 
 ## Reglas de Código Fundamentales
