@@ -1,44 +1,44 @@
 # Design Brief — Senda Dashboard
 
-**Para:** Equipo UX/UI
+**For:** UX/UI Team
 
-**Referencia:** PRD v5.0 | TECH_SPEC v1.4
+**Reference:** PRD v5.0 | TECH_SPEC v1.4
 
-**Plataforma:** Web responsive, mobile-first
+**Platform:** Responsive web, mobile-first
 
-**Stack UI:** Tailwind CSS + shadcn/ui
+**UI Stack:** Tailwind CSS + shadcn/ui
 
-**Auth:** OIDC externo (Google Workspace, Keycloak, etc.)
-
----
-
-## 1. Resumen del Producto
-
-Senda es una plataforma open-source de orquestación de email transaccional. El dashboard permite a administradores gestionar una jerarquía de 3 niveles (Global → Tenant → Workspace), configurar templates de email con herencia, gestionar dominios, adapters de envío, y monitorear el ciclo de vida completo de cada email.
-
-**Público del dashboard:** Administradores técnicos y semi-técnicos de empresas que gestionan múltiples marcas/regiones/clientes. No es un producto consumer — es un tool interno de operaciones.
+**Auth:** External OIDC (Google Workspace, Keycloak, etc.)
 
 ---
 
-## 2. Roles y Permisos (Impacta toda la UI)
+## 1. Product Summary
 
-Cada pantalla debe respetar los permisos del rol activo. Los elementos no permitidos se **ocultan** (no se deshabilitan).
+Senda is an open-source transactional email orchestration platform. The dashboard lets administrators manage a 3-level hierarchy (Global → Tenant → Workspace), configure email templates with inheritance, manage domains, email-sending adapters, and monitor the full lifecycle of every email.
 
-| Rol | Scope | Ve | Puede mutar |
+**Dashboard audience:** Technical and semi-technical administrators at companies that manage multiple brands/regions/customers. This is not a consumer product — it is an internal operations tool.
+
+---
+
+## 2. Roles and Permissions (Affects the Entire UI)
+
+Every screen must respect the active role's permissions. Unauthorized elements are **hidden** (not disabled).
+
+| Role | Scope | Sees | Can mutate |
 |-----|-------|-----|-------------|
-| **superadmin** | Global | Todo | Todo |
-| **tenant_admin** | Su tenant | Todo del tenant + heredados de global | Config _system, workspaces, miembros del tenant |
-| **workspace_admin** | Su workspace | Todo del workspace + heredados | Config workspace, miembros, API keys, webhooks |
-| **workspace_editor** | Su workspace | Todo del workspace | Templates (draft only), inyectores |
-| **workspace_viewer** | Su workspace | Todo del workspace | Nada (solo lectura) |
+| **superadmin** | Global | Everything | Everything |
+| **tenant_admin** | Their tenant | Everything in the tenant + inherited global items | _system config, workspaces, tenant members |
+| **workspace_admin** | Their workspace | Everything in the workspace + inherited items | Workspace config, members, API keys, webhooks |
+| **workspace_editor** | Their workspace | Everything in the workspace | Templates (draft only), injectors |
+| **workspace_viewer** | Their workspace | Everything in the workspace | Nothing (read-only) |
 
-**Múltiples scopes:** Un usuario puede tener roles en distintos tenants/workspaces. El dashboard debe permitir navegar entre scopes.
+**Multiple scopes:** A user can have roles in different tenants/workspaces. The dashboard must allow navigation across scopes.
 
 ---
 
 ## 3. Information Architecture
 
-### 3.1. Navegación Principal
+### 3.1. Primary Navigation
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -64,17 +64,17 @@ Cada pantalla debe respetar los permisos del rol activo. Los elementos no permit
 └──────────┴───────────────────────────────────────────┘
 ```
 
-**Mobile:** Sidebar collapsa a hamburger menu. Header sticky.
+**Mobile:** Sidebar collapses into a hamburger menu. Header stays sticky.
 
 ### 3.2. Scope Switcher
 
-Elemento central de navegación. Muestra el scope activo y permite cambiar:
+Central navigation element. It shows the active scope and lets the user switch:
 
 ```
 ┌─────────────────────────────────────────┐
 │  Scope Switcher                         │
 │  ┌───────────────────────────────────┐  │
-│  │ 🌐 Global                        │  │  ← Solo superadmin
+│  │ 🌐 Global                        │  │  ← Superadmin only
 │  ├───────────────────────────────────┤  │
 │  │ 🏢 Tenant: LATAM                 │  │
 │  │   ├── ⚙️ _system                 │  │
@@ -84,402 +84,402 @@ Elemento central de navegación. Muestra el scope activo y permite cambiar:
 │  │ 🏢 Tenant: Europe                │  │
 │  │   └── 📦 uk-team                 │  │
 │  └───────────────────────────────────┘  │
-│  [+ Crear Tenant]  (si superadmin)      │
-│  [+ Crear Workspace]  (si tenant_admin) │
+│  [+ Create Tenant]   (if superadmin)    │
+│  [+ Create Workspace] (if tenant_admin) │
 └─────────────────────────────────────────┘
 ```
 
-Solo muestra scopes donde el usuario tiene rol. Al seleccionar un scope, toda la UI se filtra a ese contexto.
+Only scopes where the user has a role are shown. When a scope is selected, the entire UI filters to that context.
 
-### 3.3. Mapa de Pantallas
+### 3.3. Screen Map
 
 ```
-Onboarding (primer uso)
+Onboarding (first use)
 ├── Welcome
-├── Crear primer tenant
-└── Crear primer workspace
+├── Create first tenant
+└── Create first workspace
 
 Login (OIDC redirect)
-├── Auth exitosa → Dashboard
-└── No es miembro → Pantalla de acceso denegado
+├── Success → Dashboard
+└── Not a member → Access denied screen
 
 Dashboard (home)
-├── Métricas de envío (scope actual)
-├── Actividad reciente
-└── Alertas (bounce rate, dominios con error)
+├── Sending metrics (current scope)
+├── Recent activity
+└── Alerts (bounce rate, domains with errors)
 
 Emails
-├── Lista de emails (tabla paginada + filtros)
-├── Detalle de email (timeline de eventos)
-└── Búsqueda (por tracking_id, external_id, destinatario)
+├── Email list (paginated table + filters)
+├── Email detail (event timeline)
+└── Search (by tracking_id, external_id, recipient)
 
 Templates
-├── Template Types (lista + CRUD)
-│   └── Asignar adapter
-├── Templates por tipo (lista)
-│   ├── Crear/editar template
-│   ├── Versiones (lista con estados)
-│   │   ├── Editor de versión (MJML visual + código)
+├── Template Types (list + CRUD)
+│   └── Assign adapter
+├── Templates by type (list)
+│   ├── Create/edit template
+│   ├── Versions (list with states)
+│   │   ├── Version editor (MJML visual + code)
 │   │   ├── Preview (desktop + mobile)
-│   │   ├── Locales (i18n por versión)
-│   │   └── Publicar / Archivar
-│   └── Desactivar template (kill switch)
-└── Test send (preview + envío de prueba)
+│   │   ├── Locales (i18n per version)
+│   │   └── Publish / Archive
+│   └── Disable template (kill switch)
+└── Test send (preview + test delivery)
 
 Injectors
-├── Lista de definiciones (indica scope + herencia)
-├── Crear/editar definición (schema: campos + tipos)
-└── Editar valores (por scope, campo por campo)
+├── Definitions list (shows scope + inheritance)
+├── Create/edit definition (schema: fields + types)
+└── Edit values (per scope, field by field)
 
 Adapters
-├── Lista de adapters (indica scope + default)
-├── Crear/editar adapter (tipo + credentials)
+├── Adapters list (shows scope + default)
+├── Create/edit adapter (type + credentials)
 └── Test connection
 
 Domains
-├── Lista de dominios (con status badge)
-├── Registrar dominio (genera DNS records)
-├── Ver DNS records (copiables)
-└── Verificar dominio (manual + status)
+├── Domains list (with status badge)
+├── Register domain (generates DNS records)
+├── View DNS records (copyable)
+└── Verify domain (manual + status)
 
 Webhooks
-├── Lista de webhooks
-├── Crear/editar webhook (URL + eventos)
-└── Test webhook (enviar ping)
+├── Webhooks list
+├── Create/edit webhook (URL + events)
+└── Test webhook (send ping)
 
 Members
-├── Lista de miembros (con roles por scope)
-├── Invitar miembro (email + rol + scope)
-└── Editar roles / Revocar acceso
+├── Members list (with roles per scope)
+├── Invite member (email + role + scope)
+└── Edit roles / Revoke access
 
 API Keys
-├── Lista de keys (hint visible, key oculta)
-├── Generar nueva key (muestra key una sola vez)
-└── Revocar key
+├── Keys list (hint visible, key hidden)
+├── Generate new key (shows key once)
+└── Revoke key
 
 Audit Log
-├── Lista de eventos (tabla paginada + filtros)
-└── Detalle de evento (cambios, antes/después)
+├── Events list (paginated table + filters)
+└── Event detail (changes, before/after)
 
-Settings (solo scope global)
-├── Configuración general
+Settings (global scope only)
+├── General configuration
 ├── OIDC settings
 └── Email defaults (retries, retention, rate limits)
 ```
 
 ---
 
-## 4. Flujos de Usuario
+## 4. User Flows
 
-### 4.1. Onboarding (Primer Uso)
+### 4.1. Onboarding (First Use)
 
-**Trigger:** Primera vez que alguien accede a Senda con DB vacía.
-
-```
-[Usuario abre Senda] → [Pantalla Welcome]
-    "Bienvenido a Senda. Configura tu plataforma en 3 pasos."
-
-→ Paso 1: Login con OIDC
-    [Botón: "Conectar con tu proveedor OIDC"]
-    → Redirect a OIDC provider → Callback
-    → Auto-registro como superadmin
-
-→ Paso 2: Crear primer tenant
-    - Campo: Código (slug, auto-suggest desde nombre)
-    - Campo: Nombre
-    [Botón: "Crear Tenant"]
-    → Crea tenant + workspace _system automáticamente
-
-→ Paso 3: Crear primer workspace
-    - Campo: Código (slug)
-    - Campo: Nombre
-    [Botón: "Crear Workspace"]
-    → Redirect al Dashboard
-
-→ [Dashboard con guía contextual]
-    Checklist visible:
-    ☐ Configurar adapter de envío
-    ☐ Verificar un dominio
-    ☐ Crear primer template type
-    ☐ Crear primer template
-    ☐ Enviar primer email de prueba
-```
-
-**Estado:** El checklist persiste hasta completar todos los pasos. Es dismissible.
-
-### 4.2. Envío desde API (no hay pantalla — referencia para contexto)
+**Trigger:** First time someone accesses Senda with an empty DB.
 
 ```
-[Servicio externo] → POST /api/v1/send
+[User opens Senda] → [Welcome screen]
+    "Welcome to Senda. Set up your platform in 3 steps."
+
+→ Step 1: Login with OIDC
+    [Button: "Connect with your OIDC provider"]
+    → Redirect to OIDC provider → Callback
+    → Auto-registration as superadmin
+
+→ Step 2: Create first tenant
+    - Field: Code (slug, auto-suggest from name)
+    - Field: Name
+    [Button: "Create Tenant"]
+    → Creates tenant + _system workspace automatically
+
+→ Step 3: Create first workspace
+    - Field: Code (slug)
+    - Field: Name
+    [Button: "Create Workspace"]
+    → Redirect to the Dashboard
+
+→ [Dashboard with contextual guide]
+    Visible checklist:
+    ☐ Configure sending adapter
+    ☐ Verify a domain
+    ☐ Create first template type
+    ☐ Create first template
+    ☐ Send first test email
+```
+
+**State:** The checklist persists until all steps are complete. It can be dismissed.
+
+### 4.2. Sending from API (no screen — context reference)
+
+```
+[External service] → POST /api/v1/send
     {
       to: "user@example.com",
       template_type: "latam:acme:welcome",
       variables: { user_name: "Juan" },
       locale: "es"
     }
-→ Respuesta: { tracking_id: "abc123", status: "queued" }
+→ Response: { tracking_id: "abc123", status: "queued" }
 ```
 
-El dashboard muestra el resultado en la sección Emails.
+The dashboard shows the result in the Emails section.
 
-### 4.3. Crear y Publicar un Template
+### 4.3. Create and Publish a Template
 
 ```
-[Navegar a Templates] → [Ver Template Types]
-→ Seleccionar tipo "welcome"
-→ [Ver templates de ese tipo]
-    - Si no hay template en scope actual:
-      [Botón: "+ Crear Template"]
-    - Si ya hay template:
-      [Ver versiones]
+[Navigate to Templates] → [View Template Types]
+→ Select type "welcome"
+→ [View templates for that type]
+    - If no template exists in the current scope:
+      [Button: "+ Create Template"]
+    - If a template already exists:
+      [View versions]
 
-→ [Crear nueva versión (draft)]
-    → Abre editor con 2 modos:
+→ [Create new version (draft)]
+    → Opens editor with 2 modes:
       - Visual (drag-and-drop MJML blocks)
-      - Código (editor MJML con syntax highlighting)
-    → Panel lateral: subject, preview text, from_name, from_email, reply_to
-    → Barra de variables: selector de variables del template type + injectors
-    → Preview: toggle desktop/mobile
-    → Locales: tab para agregar traducciones
+      - Code (MJML editor with syntax highlighting)
+    → Side panel: subject, preview text, from_name, from_email, reply_to
+    → Variables bar: selector for template type variables + injectors
+    → Preview: desktop/mobile toggle
+    → Locales: tab to add translations
 
-→ [Guardar Draft]
-    → Draft visible en lista de versiones
+→ [Save Draft]
+    → Draft appears in the versions list
 
-→ [Publicar] (solo admin+)
-    → Confirma: "¿Publicar versión 3? La versión 2 se archivará."
-    → Versión anterior → archived
-    → Nueva versión → published
+→ [Publish] (admin+ only)
+    → Confirms: "Publish version 3? Version 2 will be archived."
+    → Previous version → archived
+    → New version → published
 ```
 
-### 4.4. Configurar Adapter + Asignar a Template Type
+### 4.4. Configure Adapter + Assign to Template Type
 
 ```
-[Navegar a Adapters] → [+ Crear Adapter]
-    - Nombre: "SES Producción"
-    - Tipo: SES | Gmail (selector)
-    - Formulario dinámico según tipo:
+[Navigate to Adapters] → [+ Create Adapter]
+    - Name: "Production SES"
+    - Type: SES | Gmail (selector)
+    - Dynamic form by type:
       SES: Region, Access Key ID, Secret Access Key
       Gmail: OAuth Client ID, Client Secret, Refresh Token, Delegate Email
-    - Rate limit: emails/segundo (default: 14)
-    [Botón: "Guardar"]
-    → Credentials se encriptan automáticamente
-    → [Botón: "Test Connection"] → Envía email de prueba al propio usuario
+    - Rate limit: emails/second (default: 14)
+    [Button: "Save"]
+    → Credentials are encrypted automatically
+    → [Button: "Test Connection"] → Sends a test email to the current user
 
-→ [Navegar a Template Types] → Seleccionar tipo
-    → Campo: "Adapter asignado" [Dropdown de adapters disponibles]
-    → Guardar
+→ [Navigate to Template Types] → Select type
+    → Field: "Assigned Adapter" [Dropdown of available adapters]
+    → Save
 ```
 
-### 4.5. Registrar y Verificar Dominio
+### 4.5. Register and Verify Domain
 
 ```
-[Navegar a Domains] → [+ Registrar Dominio]
-    - Campo: dominio (ej: example.com)
-    [Botón: "Registrar"]
-    → Senda genera: DKIM key, DNS records
+[Navigate to Domains] → [+ Register Domain]
+    - Field: domain (e.g. example.com)
+    [Button: "Register"]
+    → Senda generates: DKIM key, DNS records
 
-→ [Ver dominio registrado]
-    Status: ⏳ Pendiente
+→ [View registered domain]
+    Status: ⏳ Pending
 
-    Sección "Registros DNS a configurar":
+    Section "DNS records to configure":
     ┌──────────────────────────────────────────────────────┐
-    │ Tipo │ Nombre                    │ Valor        │ 📋 │
+    │ Type │ Name                     │ Value        │ 📋 │
     │ TXT  │ senda._domainkey.example… │ v=DKIM1; ... │ 📋 │
     │ TXT  │ example.com               │ v=spf1 ...   │ 📋 │
     │ TXT  │ _dmarc.example.com        │ v=DMARC1; .. │ 📋 │
     └──────────────────────────────────────────────────────┘
-    (Cada valor con botón copiar al clipboard)
+    (Each value has a copy-to-clipboard button)
 
-    [Botón: "Verificar Ahora"]
-    → Check DNS → Status: ✅ Verificado | ❌ Error (con detalle)
+    [Button: "Verify Now"]
+    → Check DNS → Status: ✅ Verified | ❌ Error (with details)
 ```
 
-### 4.6. Gestionar Inyectores (Herencia Campo a Campo)
+### 4.6. Manage Injectors (Field-by-Field Inheritance)
 
 ```
-[Navegar a Injectors]
-→ Lista muestra: definiciones del scope actual + heredadas
-    Cada fila indica: nombre, scope origen, cantidad de campos
+[Navigate to Injectors]
+→ List shows: definitions in the current scope + inherited ones
+    Each row indicates: name, source scope, number of fields
 
     ┌──────────────────────────────────────────────┐
-    │ Nombre     │ Scope      │ Campos │ Acciones  │
-    │ brand      │ 🌐 Global  │ 3      │ [Valores] │
-    │ footer     │ ⚙️ _system │ 2      │ [Valores] │
-    │ support    │ 📦 Actual  │ 4      │ [Editar]  │
+    │ Name       │ Scope      │ Fields │ Actions   │
+    │ brand      │ 🌐 Global  │ 3      │ [Values]  │
+    │ footer     │ ⚙️ _system │ 2      │ [Values]  │
+    │ support    │ 📦 Current  │ 4      │ [Edit]    │
     └──────────────────────────────────────────────┘
 
-→ [Editar valores de "brand" para scope actual]
-    Muestra campos del schema con valor actual por nivel:
+→ [Edit values for "brand" in the current scope]
+    Shows schema fields with current value per level:
 
     ┌──────────────────────────────────────────────────────┐
-    │ Campo: logo                                         │
-    │ Tipo: img                                           │
-    │ Valor global:    corp-logo.png (🌐)                 │
-    │ Valor _system:   — (hereda global)                  │
-    │ Valor workspace: [_____________] [Guardar]          │
-    │                  "Dejar vacío para heredar de arriba"│
+    │ Field: logo                                         │
+    │ Type: img                                           │
+    │ Global value:    corp-logo.png (🌐)                │
+    │ _system value:   — (inherits global)               │
+    │ Workspace value: [_____________] [Save]            │
+    │                  "Leave blank to inherit from above"│
     ├─────────────────────────────────────────────────────┤
-    │ Campo: company_name                                 │
-    │ Tipo: text                                          │
-    │ Valor global:    "MiEmpresa" (🌐)                   │
-    │ Valor _system:   "MiEmpresa LATAM" (⚙️)            │
-    │ Valor workspace: [_____________] [Guardar]          │
+    │ Field: company_name                                 │
+    │ Type: text                                          │
+    │ Global value:    "MiEmpresa" (🌐)                  │
+    │ _system value:   "MiEmpresa LATAM" (⚙️)          │
+    │ Workspace value: [_____________] [Save]            │
     └──────────────────────────────────────────────────────┘
 ```
 
-### 4.7. Monitorear Emails
+### 4.7. Monitor Emails
 
 ```
-[Navegar a Emails]
-→ Tabla paginada con filtros:
-    Filtros: status, fecha (rango), destinatario, template type, external_id
-    Búsqueda: por tracking_id o email
+[Navigate to Emails]
+→ Paginated table with filters:
+    Filters: status, date (range), recipient, template type, external_id
+    Search: by tracking_id or email
 
     ┌───────────────────────────────────────────────────────────────┐
-    │ To             │ Template    │ Status      │ Fecha            │
+    │ To             │ Template    │ Status       │ Date            │
     │ user@test.com  │ welcome     │ ✅ delivered │ 2026-02-16 14:30│
-    │ bob@corp.com   │ invoice     │ 📨 sent     │ 2026-02-16 14:28│
-    │ bad@invalid.xx │ welcome     │ ❌ bounced  │ 2026-02-16 14:25│
-    │ spam@user.com  │ notification│ ⚠️ complained│ 2026-02-16 14:20│
+    │ bob@corp.com   │ invoice     │ 📨 sent      │ 2026-02-16 14:28│
+    │ bad@invalid.xx │ welcome     │ ❌ bounced   │ 2026-02-16 14:25│
+    │ spam@user.com  │ notification│ ⚠️ complained │ 2026-02-16 14:20│
     └───────────────────────────────────────────────────────────────┘
 
-→ [Click en email] → Detalle:
-    Panel con info del email:
-    - To, From, Subject, Template (link), Adapter usado
-    - Tracking ID, External ID (si existe)
+→ [Click email] → Detail:
+    Panel with email info:
+    - To, From, Subject, Template (link), used Adapter
+    - Tracking ID, External ID (if any)
     - Variables snapshot, Injectors snapshot (collapsible)
 
-    Timeline de eventos:
+    Event timeline:
     ┌────────────────────────────────────────────┐
     │ ● Queued        │ 14:30:01                 │
     │ ● Sent          │ 14:30:03 (SES, msg-id)   │
-    │ ● Delivered     │ 14:30:15                  │
-    │ ● Opened        │ 14:35:22 (si tracking on) │
+    │ ● Delivered     │ 14:30:15                 │
+    │ ● Opened        │ 14:35:22 (if tracking on)│
     └────────────────────────────────────────────┘
 ```
 
-### 4.8. Gestionar Members y Roles
+### 4.8. Manage Members and Roles
 
 ```
-[Navegar a Members]
-→ Lista de miembros con sus roles en el scope actual:
+[Navigate to Members]
+→ List of members with their roles in the current scope:
 
     ┌──────────────────────────────────────────────────────────┐
-    │ Email              │ Nombre    │ Rol             │       │
+    │ Email              │ Name      │ Role             │      │
     │ rey@empresa.com    │ Rey       │ superadmin (🌐)  │ [...]│
-    │ maria@empresa.com  │ María     │ tenant_admin (🏢)│ [...]│
+    │ maria@empresa.com  │ Maria     │ tenant_admin (🏢)│ [...]│
     │ dev@empresa.com    │ Dev Team  │ ws_editor (📦)   │ [...]│
     └──────────────────────────────────────────────────────────┘
 
-→ [+ Invitar Miembro]
-    - Campo: Email
-    - Selector: Rol
-    - Selector: Scope (según rol)
-    [Botón: "Invitar"]
-    → Registra en DB. Al hacer login OIDC tendrá acceso.
-    (No se envía email de invitación en P1 — el admin avisa manualmente)
+→ [+ Invite Member]
+    - Field: Email
+    - Selector: Role
+    - Selector: Scope (based on role)
+    [Button: "Invite"]
+    → Stored in DB. After OIDC login, the user gets access.
+    (No invitation email is sent in P1 — the admin notifies them manually)
 ```
 
 ---
 
-## 5. Pantallas Detalladas
+## 5. Detailed Screens
 
 ### 5.1. Login / Access Denied
 
 **Login:**
-- Pantalla centrada, logo Senda
-- Botón único: "Iniciar sesión con [Provider]"
-- Redirect a OIDC → callback → dashboard
+- Centered screen, Senda logo
+- Single button: "Sign in with [Provider]"
+- Redirect to OIDC → callback → dashboard
 
-**Access Denied (usuario autenticado pero no miembro):**
-- Pantalla centrada
-- Mensaje: "Acceso denegado. Tu email (user@example.com) no está registrado como miembro. Contacta a tu administrador."
-- Botón: "Cerrar sesión"
+**Access Denied (authenticated user who is not a member):**
+- Centered screen
+- Message: "Access denied. Your email (user@example.com) is not registered as a member. Contact your administrator."
+- Button: "Sign out"
 
 ### 5.2. Dashboard (Home)
 
-**Contenido según scope:**
+**Content by scope:**
 
-**Scope Global (superadmin):**
-- Métricas globales: total emails hoy, delivery rate, bounce rate, complaint rate
-- Gráfico: emails enviados últimos 7/30 días (line chart)
-- Top 5 tenants por volumen
-- Alertas activas (dominios con error, bounce rate alto)
-- Checklist de onboarding (si no completado)
+**Global scope (superadmin):**
+- Global metrics: total emails today, delivery rate, bounce rate, complaint rate
+- Chart: emails sent over the last 7/30 days (line chart)
+- Top 5 tenants by volume
+- Active alerts (domains with errors, high bounce rate)
+- Onboarding checklist (if not completed)
 
-**Scope Tenant:**
-- Métricas del tenant: mismas métricas pero filtradas
-- Top 5 workspaces del tenant por volumen
-- Alertas del tenant
+**Tenant scope:**
+- Tenant metrics: same metrics, filtered
+- Top 5 workspaces in the tenant by volume
+- Tenant alerts
 
-**Scope Workspace:**
-- Métricas del workspace
-- Últimos 10 emails enviados (mini-tabla)
-- Templates con drafts pendientes de publicar
-- Alertas del workspace
+**Workspace scope:**
+- Workspace metrics
+- Last 10 sent emails (mini-table)
+- Templates with drafts pending publication
+- Workspace alerts
 
-### 5.3. Emails — Lista
+### 5.3. Emails — List
 
-- **Tabla responsive:** En mobile, colapsa a cards
-- **Columnas:** Destinatario, Template Type, Status (badge con color), Fecha, Tracking ID
-- **Filtros (panel colapsable en mobile):**
+- **Responsive table:** On mobile, collapses into cards
+- **Columns:** Recipient, Template Type, Status (color badge), Date, Tracking ID
+- **Filters (collapsible panel on mobile):**
   - Status: multiselect (queued, sent, delivered, bounced, complained, failed, suppressed)
-  - Fecha: date range picker
+  - Date: date range picker
   - Template Type: dropdown
-  - Búsqueda: text input (busca en tracking_id, external_id, destinatario, remitente)
-- **Paginación:** Cursor-based (botones "Anterior" / "Siguiente", no page numbers)
-- **Empty state:** "No hay emails en este período. Los emails aparecerán aquí cuando se envíen vía API."
+  - Search: text input (searches tracking_id, external_id, recipient, sender)
+- **Pagination:** Cursor-based ("Previous" / "Next" buttons, no page numbers)
+- **Empty state:** "No emails in this period. Emails will appear here when they are sent via the API."
 
-### 5.4. Emails — Detalle
+### 5.4. Emails — Detail
 
-- **Header:** Status badge grande + destinatario + subject
-- **Sección Info:**
+- **Header:** Large status badge + recipient + subject
+- **Info section:**
   - To, CC, BCC
   - From (email + name)
-  - Template: link al template type + versión usada
-  - Adapter: nombre del adapter usado
-  - Tracking ID (copiable)
-  - External ID (copiable, si existe)
+  - Template: link to the template type + used version
+  - Adapter: name of the adapter used
+  - Tracking ID (copyable)
+  - External ID (copyable, if any)
   - Locale
-  - Fecha de envío
-- **Sección Timeline:** Vertical, iconos por tipo de evento, timestamp
-- **Sección Snapshots (collapsible):**
-  - Variables enviadas (JSON formateado)
-  - Injectors resueltos (JSON formateado)
-- **Sección Error (si failed/bounced):**
-  - Mensaje de error del provider
+  - Sent date
+- **Timeline section:** Vertical, icons by event type, timestamp
+- **Snapshots section (collapsible):**
+  - Sent variables (formatted JSON)
+  - Resolved injectors (formatted JSON)
+- **Error section (if failed/bounced):**
+  - Provider error message
   - Bounce type (soft/hard)
   - Retry count
 
-### 5.5. Template Types — Lista
+### 5.5. Template Types — List
 
-- **Tabla:** Slug, Nombre, Adapter asignado (badge o "⚠️ Sin adapter"), Scope origen, Templates count
-- **Acciones por fila:** Editar, Asignar adapter
-- **Empty state:** "No hay tipos de plantilla configurados. Crea un tipo para definir el contrato de variables que tus templates usarán."
-- **Indicador de herencia:** Icon que muestra si viene de global, _system, o es propio
+- **Table:** Slug, Name, Assigned Adapter (badge or "⚠️ No adapter"), Source scope, Templates count
+- **Row actions:** Edit, Assign adapter
+- **Empty state:** "No template types configured. Create a type to define the variable contract your templates will use."
+- **Inheritance indicator:** Icon showing whether it comes from global, _system, or is local
 
-### 5.6. Templates — Lista y Versiones
+### 5.6. Templates — List and Versions
 
-**Lista de templates por tipo:**
-- Muestra si hay template en scope actual, en _system, o global
-- Si hay template propio: link al editor
-- Si no hay: botón "Crear template para este scope"
-- Si hereda: badge "Heredado de [scope]" con opción de crear override
+**Template list by type:**
+- Shows whether there is a template in the current scope, _system, or global
+- If there is a local template: link to the editor
+- If there is none: button "Create template for this scope"
+- If it is inherited: badge "Inherited from [scope]" with an option to create an override
 
-**Versiones de un template:**
-- Tabla: Versión #, Status (badge: draft/published/archived), Creado por, Fecha, Acciones
-- Solo una versión puede ser "published" (highlighted)
-- Acciones: Editar (si draft), Publicar (si draft + admin), Archivar, Preview
+**Template versions:**
+- Table: Version #, Status (badge: draft/published/archived), Created by, Date, Actions
+- Only one version can be "published" (highlighted)
+- Actions: Edit (if draft), Publish (if draft + admin), Archive, Preview
 
-### 5.7. Editor de Template
+### 5.7. Template Editor
 
-**Layout de 2 paneles (o tabs en mobile):**
+**Two-panel layout (or tabs on mobile):**
 
 ```
 ┌─────────────────────────┬──────────────────────────┐
 │ EDITOR                  │ PREVIEW                  │
 │                         │                          │
-│ [Visual] [Código]       │ [Desktop] [Mobile]       │
+│ [Visual] [Code]         │ [Desktop] [Mobile]       │
 │                         │                          │
 │ ┌─────────────────────┐ │ ┌──────────────────────┐ │
 │ │ Drag-and-drop MJML  │ │ │ Rendered HTML        │ │
@@ -494,7 +494,7 @@ El dashboard muestra el resultado en la sección Emails.
 │ │                     │ │ │                      │ │
 │ └─────────────────────┘ │ └──────────────────────┘ │
 │                         │                          │
-│ ── Metadatos ────────── │                          │
+│ ── Metadata ─────────── │                          │
 │ Subject: [___________]  │                          │
 │ Preview: [___________]  │                          │
 │ From:    [___________]  │                          │
@@ -508,119 +508,120 @@ El dashboard muestra el resultado en la sección Emails.
 │ [es] [en] [pt] [+ Add] │                          │
 └─────────────────────────┴──────────────────────────┘
 
-[Guardar Draft]  [Preview Completo]  [Enviar Test]  [Publicar ▼]
+[Save Draft]  [Full Preview]  [Send Test]  [Publish ▼]
 ```
 
-**Notas para UX/UI:**
-- El editor visual es un MJML block editor (similar a Stripo, Unlayer)
-- Modo código: syntax highlighting MJML con autocompletado de variables
-- Preview se actualiza en tiempo real al editar
-- Variables disponibles se muestran en sidebar/panel con click-to-insert
-- Locales: tabs para editar subject + body per locale. Base = default_locale
-- "Enviar Test": abre modal para ingresar email destinatario + variables de prueba
-- "Publicar": solo visible para admin+. Requiere confirmación.
+**UX/UI notes:**
+- The visual editor is an MJML block editor (similar to Stripo, Unlayer)
+- Code mode: MJML syntax highlighting with variable autocomplete
+- Preview updates in real time as the user edits
+- Available variables are shown in a sidebar/panel with click-to-insert
+- Locales: tabs to edit subject + body per locale. Base = default_locale
+- "Send Test": opens a modal to enter recipient email + test variables
 
-### 5.8. Injectors — Editar Valores
+- "Publish": visible only to admin+ and requires confirmation.
 
-**Layout para edición campo por campo:**
+### 5.8. Injectors — Edit Values
 
-Cada campo del injector se muestra con su cadena de herencia visual:
+**Field-by-field editing layout:**
+
+Each injector field shows its visual inheritance chain:
 
 ```
-Campo: logo (tipo: img)
+Field: logo (type: img)
 ┌──────────────────────────────────────────────┐
 │ 🌐 Global:     corp-logo.png                │
-│ ⚙️ _system:    — (hereda global)            │
-│ 📦 Workspace:  [___________] [Guardar] [🗑️] │
+│ ⚙️ _system:    — (inherits global)          │
+│ 📦 Workspace:  [___________] [Save] [🗑️]   │
 │                                              │
-│ Valor efectivo: corp-logo.png (de Global)    │
+│ Effective value: corp-logo.png (from Global)│
 └──────────────────────────────────────────────┘
 ```
 
-- Input type cambia según field_type: text → text input, img → URL + preview, html → rich text, url → URL input, number → number input, bool → toggle
-- Al guardar un override, el "valor efectivo" cambia
-- Al borrar override (🗑️), vuelve a heredar
-- Visual claro de qué nivel provee el valor actual
+- Input type changes based on field_type: text → text input, img → URL + preview, html → rich text, url → URL input, number → number input, bool → toggle
+- When an override is saved, the "effective value" changes
+- When an override is deleted (🗑️), inheritance is restored
+- Clear visual indication of which level provides the current value
 
 ### 5.9. Adapters — CRUD
 
-**Lista:**
-- Nombre, Tipo (badge: SES/Gmail), Scope, Default (✓ o —), Rate limit, Status
-- Indicador: "Usado por N template types"
+**List:**
+- Name, Type (badge: SES/Gmail), Scope, Default (✓ or —), Rate limit, Status
+- Indicator: "Used by N template types"
 
-**Crear/Editar:**
-- Nombre
-- Tipo: selector (SES, Gmail) — cambia el formulario de credentials dinámicamente
-- Credentials (formulario según tipo):
+**Create/Edit:**
+- Name
+- Type: selector (SES, Gmail) — changes the credentials form dynamically
+- Credentials (form by type):
   - SES: Region, Access Key ID, Secret Access Key
   - Gmail: OAuth Client ID, Client Secret, Refresh Token, Delegate Email
-- Rate limit: number input (emails/seg), default 14
-- Marcar como default: toggle
-- [Test Connection]: envía email de prueba al email del admin actual
+- Rate limit: number input (emails/sec), default 14
+- Mark as default: toggle
+- [Test Connection]: sends a test email to the current admin email
 
-**Seguridad visual:** Los campos de credentials muestran "••••••••" después de guardar. No se pueden ver otra vez, solo reemplazar.
+**Visual security:** Credentials fields show "••••••••" after saving. They cannot be viewed again, only replaced.
 
 ### 5.10. Domains
 
-**Lista:**
-- Dominio, Status badge (⏳ Pending / ✅ Verified / ❌ Error), Scope, Última verificación
-- Click → detalle
+**List:**
+- Domain, Status badge (⏳ Pending / ✅ Verified / ❌ Error), Scope, Last verification
+- Click → detail
 
-**Detalle:**
-- Status grande con última verificación
-- Tabla de DNS records copiables (botón copy por fila)
-- Si error: mensaje de error específico ("TXT record not found", "DKIM key mismatch")
-- [Verificar Ahora] → loading → resultado
-- Timeline de verificaciones (últimas 5)
+**Detail:**
+- Large status with last verification
+- Table of copyable DNS records (copy button per row)
+- If error: specific error message ("TXT record not found", "DKIM key mismatch")
+- [Verify Now] → loading → result
+- Verification timeline (last 5)
 
 ### 5.11. Webhooks
 
-**Lista:**
-- URL (truncada), Eventos suscritos (badges), Status (active/disabled), Failures
-- Si consecutive_failures > 0: warning badge
+**List:**
+- URL (truncated), Subscribed events (badges), Status (active/disabled), Failures
+- If consecutive_failures > 0: warning badge
 
-**Crear/Editar:**
-- URL (HTTPS obligatorio)
-- Eventos: multiselect checkboxes (sent, delivered, bounced, complained, failed)
-- Auto-generado: Secret (mostrado una sola vez al crear)
-- [Test Webhook]: envía ping → muestra respuesta (status code + latencia)
+**Create/Edit:**
+- URL (HTTPS required)
+- Events: multiselect checkboxes (sent, delivered, bounced, complained, failed)
+- Auto-generated: Secret (shown once on create)
+- [Test Webhook]: sends ping → shows response (status code + latency)
 
 ### 5.12. API Keys
 
-**Lista:**
-- Nombre, Hint (últimos 8 chars), Creado por, Fecha, Último uso, Status
-- Nunca muestra el key completo
+**List:**
+- Name, Hint (last 8 chars), Created by, Date, Last used, Status
+- Never shows the full key
 
-**Generar nueva:**
-- Campo: Nombre (label descriptivo)
-- [Generar]
-- Modal: "Tu API Key ha sido generada. Cópiala ahora — no se mostrará otra vez."
+**Generate new:**
+- Field: Name (descriptive label)
+- [Generate]
+- Modal: "Your API Key has been generated. Copy it now — it will never be shown again."
   ```
   senda_live_a3f8b9c2d4e5f6a7b8c9d0e1f2a3b4c5
   ```
-  [Copiar] [Cerrar]
+  [Copy] [Close]
 
-**Revocar:**
-- Confirmación: "¿Revocar key '{nombre}' (hint: ...b4c5)? Los servicios que la usan dejarán de funcionar."
+**Revoke:**
+- Confirmation: "Revoke key '{name}' (hint: ...b4c5)? Services using it will stop working."
 
 ### 5.13. Audit Log
 
-**Tabla paginada con filtros:**
-- Columnas: Fecha, Quién (email), Acción (badge), Recurso, Scope
-- Filtros: fecha (rango), acción (multiselect), recurso type, miembro
-- Click → detalle con cambios (JSON diff antes/después)
+**Paginated table with filters:**
+- Columns: Date, Who (email), Action (badge), Resource, Scope
+- Filters: date (range), action (multiselect), resource type, member
+- Click → detail with changes (before/after JSON diff)
 
 ### 5.14. Settings (Global)
 
-Solo visible para superadmin en scope global:
-- **OIDC:** Discovery URL, Client ID (client secret oculto)
+Visible only to superadmin in global scope:
+- **OIDC:** Discovery URL, Client ID (client secret hidden)
 - **Email defaults:** Max retries, backoff base, log retention days
-- **Alertas:** Bounce threshold %, Complaint threshold %
-- **Dominio:** Recheck interval hours
+- **Alerts:** Bounce threshold %, Complaint threshold %
+- **Domain:** Recheck interval hours
 
 ---
 
-## 6. Patrones de UI y Componentes
+## 6. UI Patterns and Components
 
 ### 6.1. Status Badges
 
@@ -647,129 +648,129 @@ Solo visible para superadmin en scope global:
 
 ### 6.2. Scope Indicators
 
-Siempre indicar de dónde viene un recurso heredado:
+Always indicate where an inherited resource comes from:
 - 🌐 = Global
 - ⚙️ = _system (tenant)
-- 📦 = Workspace actual
+- 📦 = Current workspace
 
-### 6.3. Herencia Visual
+### 6.3. Visual Inheritance
 
-Cuando un recurso es heredado, mostrarlo con:
-- Badge de scope origen
-- Texto sutil: "Heredado de [scope]"
-- Si está soft-deleted: warning amarillo "Este recurso está marcado como deprecado en [scope]. Se recomienda crear un override."
-- Acción visible: "Crear override" para reemplazar en el scope actual
+When a resource is inherited, show it with:
+- Source scope badge
+- Subtle text: "Inherited from [scope]"
+- If soft-deleted: yellow warning "This resource is marked as deprecated in [scope]. Creating an override is recommended."
+- Visible action: "Create override" to replace it in the current scope
 
 ### 6.4. Tables
 
-- Header sticky
+- Sticky header
 - Row hover highlight
-- Cursor pagination (no page numbers): [← Anterior] [Siguiente →]
-- Responsive: en mobile colapsan a card layout
-- Empty state siempre con mensaje descriptivo + acción sugerida
+- Cursor pagination (no page numbers): [← Previous] [Next →]
+- Responsive: collapses into cards on mobile
+- Empty state always includes a descriptive message + suggested action
 - Loading: skeleton rows
 
 ### 6.5. Forms
 
-- Validación inline (no esperar submit)
-- Errores bajo el campo con texto rojo
-- Campos requeridos: asterisco rojo
-- Slugs: auto-generate desde nombre (con opción de editar)
-- Credentials: password fields con toggle show/hide
+- Inline validation (do not wait for submit)
+- Errors below the field in red text
+- Required fields: red asterisk
+- Slugs: auto-generate from name (with edit option)
+- Credentials: password fields with show/hide toggle
 
-### 6.6. Confirmaciones Destructivas
+### 6.6. Destructive Confirmations
 
-Para acciones con consecuencias (publicar, revocar, eliminar, purge):
-- Modal de confirmación
-- Texto claro del impacto
-- Para purge: mostrar lista de dependencias afectadas
-- Input de confirmación para acciones críticas: "Escribe DELETE para confirmar"
+For actions with consequences (publish, revoke, delete, purge):
+- Confirmation modal
+- Clear impact text
+- For purge: show the list of affected dependencies
+- Confirmation input for critical actions: "Type DELETE to confirm"
 
 ### 6.7. Toasts / Notifications
 
-- Éxito: toast verde (auto-dismiss 3s)
-- Error: toast rojo (persiste hasta dismiss)
-- Warning: toast amarillo (auto-dismiss 5s)
-- Posición: bottom-right (desktop), bottom-center (mobile)
+- Success: green toast (auto-dismiss after 3s)
+- Error: red toast (persists until dismissed)
+- Warning: yellow toast (auto-dismiss after 5s)
+- Position: bottom-right (desktop), bottom-center (mobile)
 
 ### 6.8. Loading States
 
-- Tablas: skeleton rows
-- Formularios: botón disabled + spinner
-- Páginas: spinner centrado
-- Acciones inline: spinner reemplaza el botón
+- Tables: skeleton rows
+- Forms: disabled button + spinner
+- Pages: centered spinner
+- Inline actions: spinner replaces the button
 
 ---
 
 ## 7. Responsive Breakpoints
 
-| Breakpoint | Nombre | Layout |
+| Breakpoint | Name | Layout |
 |-----------|--------|--------|
 | < 640px | Mobile | Single column, hamburger nav, cards instead of tables |
-| 640–1024px | Tablet | Sidebar colapsable, tables with horizontal scroll |
-| > 1024px | Desktop | Sidebar visible, full tables, 2-panel editor |
+| 640–1024px | Tablet | Collapsible sidebar, tables with horizontal scroll |
+| > 1024px | Desktop | Visible sidebar, full tables, 2-panel editor |
 
-**Mobile-first:** Diseñar primero la experiencia mobile, luego expandir.
+**Mobile-first:** Design the mobile experience first, then expand it.
 
 ---
 
 ## 8. Empty States
 
-Cada pantalla sin datos debe tener un empty state útil:
+Every empty screen must have a useful empty state:
 
-| Pantalla | Mensaje | Acción |
+| Screen | Message | Action |
 |----------|---------|--------|
-| Dashboard (nuevo) | "Bienvenido a Senda. Completa la configuración inicial." | Link a checklist |
-| Emails | "No hay emails enviados aún. Configura un template y envía tu primer email vía API." | Link a docs de API |
-| Templates | "No hay template types configurados. Crea un tipo para definir el contrato de tus emails." | [+ Crear Template Type] |
-| Injectors | "No hay injectors en este scope. Los injectors proveen datos automáticos a tus templates." | [+ Crear Injector] |
-| Adapters | "No hay adapters configurados. Necesitas al menos un adapter para enviar emails." | [+ Crear Adapter] |
-| Domains | "No hay dominios verificados. Registra un dominio para poder enviar emails." | [+ Registrar Dominio] |
-| Webhooks | "No hay webhooks configurados. Los webhooks notifican a tus servicios sobre eventos de email." | [+ Crear Webhook] |
-| API Keys | "No hay API Keys activas. Genera una key para que tus servicios envíen emails." | [+ Generar API Key] |
-| Audit Log | "No hay eventos registrados aún." | — |
+| Dashboard (new) | "Welcome to Senda. Complete the initial setup." | Link to checklist |
+| Emails | "No emails have been sent yet. Configure a template and send your first email via the API." | Link to API docs |
+| Templates | "No template types configured. Create a type to define your email contract." | [+ Create Template Type] |
+| Injectors | "No injectors in this scope. Injectors provide automatic data to your templates." | [+ Create Injector] |
+| Adapters | "No adapters configured. You need at least one adapter to send emails." | [+ Create Adapter] |
+| Domains | "No domains verified. Register a domain to be able to send emails." | [+ Register Domain] |
+| Webhooks | "No webhooks configured. Webhooks notify your services about email events." | [+ Create Webhook] |
+| API Keys | "No active API Keys. Generate a key so your services can send emails." | [+ Generate API Key] |
+| Audit Log | "No events have been recorded yet." | — |
 
 ---
 
-## 9. Consideraciones de Accesibilidad
+## 9. Accessibility Considerations
 
-- Contraste WCAG 2.1 AA mínimo
-- Todos los formularios con labels asociados (no solo placeholder)
-- Focus visible en todos los elementos interactivos
-- Navegación por teclado completa (tab order)
-- Screen reader: ARIA labels en badges, iconos, y scope indicators
-- Color no es el único indicador de status (siempre acompañar con icono o texto)
+- Minimum WCAG 2.1 AA contrast
+- All forms have associated labels (not placeholder-only)
+- Visible focus on all interactive elements
+- Full keyboard navigation (tab order)
+- Screen reader: ARIA labels on badges, icons, and scope indicators
+- Color is not the only status indicator (always pair it with an icon or text)
 
 ---
 
-## 10. Editor Visual de Templates (Especificación para Fase 3)
+## 10. Visual Template Editor (Phase 3 Specification)
 
-El editor visual de templates es la funcionalidad más compleja del dashboard. En P1/Fase 1, puede ser solo editor de código MJML con preview. El editor drag-and-drop completo viene en Fase 3.
+The visual template editor is the dashboard's most complex feature. In P1/Phase 1, it can be only an MJML code editor with preview. The full drag-and-drop editor comes in Phase 3.
 
-**Fase 1 (P1) — Editor mínimo:**
-- Textarea con syntax highlighting para MJML
-- Preview panel (HTML renderizado desde MJML)
-- Panel de variables disponibles (click to insert)
-- Campos de metadatos (subject, from, etc.)
-- Tabs de locales
+**Phase 1 (P1) — Minimal editor:**
+- Textarea with MJML syntax highlighting
+- Preview panel (HTML rendered from MJML)
+- Panel of available variables (click to insert)
+- Metadata fields (subject, from, etc.)
+- Locale tabs
 
-**Fase 3 — Editor visual completo:**
-- Drag-and-drop de bloques MJML
-- Inline editing de texto sobre el preview
-- Selector visual de variables (dropdown en posición del cursor)
-- AI assistance para traducciones y copy
+**Phase 3 — Full visual editor:**
+- Drag-and-drop MJML blocks
+- Inline text editing on top of the preview
+- Visual variable picker (dropdown at cursor position)
+- AI assistance for translations and copy
 - Undo/redo
-- Version diff (comparar dos versiones)
+- Version diff (compare two versions)
 
 ---
 
-## 11. Entregables Esperados del UX/UI
+## 11. Expected UX/UI Deliverables
 
-1. **Wireframes** de todas las pantallas listadas en §3.3 (mobile + desktop)
-2. **Prototipos navegables** de los flujos principales (§4.1 a §4.8)
-3. **Design system** basado en Tailwind + shadcn/ui:
-   - Palette de colores (primary, status colors, scope colors)
-   - Tipografía (headings, body, code)
-   - Componentes customizados: scope switcher, herencia visual, status badges
-4. **Especificación de componentes** para: scope switcher, inheritance indicator, template editor (fase 1), timeline de eventos
-5. **Responsive specs** para breakpoints definidos en §7
+1. **Wireframes** for all screens listed in §3.3 (mobile + desktop)
+2. **Navigable prototypes** for the main flows (§4.1 to §4.8)
+3. **Design system** based on Tailwind + shadcn/ui:
+   - Color palette (primary, status colors, scope colors)
+   - Typography (headings, body, code)
+   - Customized components: scope switcher, visual inheritance, status badges
+4. **Component specification** for: scope switcher, inheritance indicator, template editor (phase 1), event timeline
+5. **Responsive specs** for the breakpoints defined in §7

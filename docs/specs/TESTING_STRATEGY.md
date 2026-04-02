@@ -1,52 +1,52 @@
 # Testing Strategy — Senda P1
 
-**Referencia:** TECH_SPEC v1.4 | TECH_STORIES.md
+**Reference:** TECH_SPEC v1.4 | TECH_STORIES.md
 
 ---
 
-## 1. Filosofía
+## 1. Philosophy
 
-TDD (Test-Driven Development) como práctica obligatoria. Todo código de producción nace de un test que falla primero. La pirámide de tests se respeta estrictamente: muchos unit tests, menos integration, pocos E2E.
+Test-Driven Development (TDD) is mandatory. Every piece of production code must begin with a failing test. The test pyramid is enforced strictly: many unit tests, fewer integration tests, and a small number of E2E tests.
 
 ---
 
-## 2. Pirámide de Tests
+## 2. Test Pyramid
 
 ```
          ╱╲
-        ╱ E2E ╲          ~5%   (flujos completos, browser o HTTP client)
+        ╱ E2E ╲          ~5%   (full flows, browser or HTTP client)
        ╱────────╲
-      ╱Integration╲      ~25%  (DB real, TestContainers)
+      ╱Integration╲      ~25%  (real DB, TestContainers)
      ╱──────────────╲
-    ╱   Unit Tests    ╲   ~70%  (mocks, sin I/O, rápidos)
+    ╱   Unit Tests    ╲   ~70%  (mocks, no I/O, fast)
    ╱────────────────────╲
 ```
 
 ---
 
-## 3. Tipos de Test
+## 3. Test Types
 
 ### 3.1. Unit Tests
 
-**Scope:** Lógica de dominio, services, resolution engine, middleware, utilities.
+**Scope:** Domain logic, services, resolution engine, middleware, utilities.
 
-**Principios:**
-- Sin I/O (no DB, no HTTP, no filesystem)
-- Ports mockeados con interfaces (Go interfaces naturales, sin frameworks de mock pesados)
-- Ejecución < 1 segundo por archivo
-- Naming: `TestNombreFuncion_Escenario_ResultadoEsperado`
+**Principles:**
+- No I/O (no DB, no HTTP, no filesystem)
+- Ports mocked with interfaces (plain Go interfaces, no heavy mock frameworks)
+- Execution time under 1 second per file
+- Naming: `TestFunctionName_Scenario_ExpectedResult`
 
-**Qué se testea:**
-- `internal/domain/` — Validaciones de entidades, parsing de addresses, slug validation
-- `internal/service/` — Lógica de negocio con stores/ports mockeados
+**What is tested:**
+- `internal/domain/` — Entity validations, address parsing, slug validation
+- `internal/service/` — Business logic with mocked stores/ports
 - `internal/resolution/` — ChainResolver, InjectorMerger, TemplateResolver, AdapterResolver, DomainResolver
 - `internal/http/middleware/` — Auth, RBAC, scope extraction
 - `pkg/` — slug validation, tracking ID generation, error types
 
-**Patrón de mocks:**
+**Mock pattern:**
 
 ```go
-// Ejemplo: mock manual (preferido sobre frameworks)
+// Example: manual mock (preferred over frameworks)
 type mockTenantStore struct {
     getByCodeFn func(ctx context.Context, code string) (*domain.Tenant, error)
 }
@@ -56,7 +56,7 @@ func (m *mockTenantStore) GetByCode(ctx context.Context, code string) (*domain.T
 }
 ```
 
-**Ejemplo de test TDD:**
+**TDD test example:**
 
 ```go
 func TestSendService_Send_SuppressedRecipient_Returns422(t *testing.T) {
@@ -80,24 +80,24 @@ func TestSendService_Send_SuppressedRecipient_Returns422(t *testing.T) {
 
 ### 3.2. Integration Tests
 
-**Scope:** Store implementations, cache, rate limiter, migrations, queries SQL complejas.
+**Scope:** Store implementations, cache, rate limiter, migrations, complex SQL queries.
 
-**Herramienta:** TestContainers for Go — levanta PostgreSQL 16 + pg_cron en container efímero por suite.
+**Tool:** TestContainers for Go — spins up PostgreSQL 16 + pg_cron in an ephemeral container per suite.
 
-**Principios:**
-- Cada suite crea su schema completo (run migrations)
-- Cada test usa transacción con rollback, o truncate tables entre tests
-- Tests tagged con `//go:build integration`
-- No se ejecutan en `make test` normal, solo con `make test-integration`
+**Principles:**
+- Each suite creates its full schema (runs migrations)
+- Each test uses a transaction rollback, or truncates tables between tests
+- Tests are tagged with `//go:build integration`
+- They do not run under the normal `make test`, only with `make test-integration`
 
-**Qué se testea:**
-- `internal/adapter/postgres/` — Todos los repos (CRUD, pagination, resolución por chain)
-- `internal/adapter/pgcache/` — Cache Get/Set/Delete/DeletePattern con TTL
+**What is tested:**
+- `internal/adapter/postgres/` — All repos (CRUD, pagination, chain resolution)
+- `internal/adapter/pgcache/` — Cache Get/Set/Delete/DeletePattern with TTL
 - Rate limiter — `take_send_token()` PL/pgSQL function
-- Migrations — up completo + down completo + idempotencia
-- Constraints — CHECKs, UNIQUEs, EXCLUDE, FKs
+- Migrations — full up + full down + idempotency
+- Constraints — CHECKs, UNIQUEs, EXCLUDEs, FKs
 
-**Setup compartido:**
+**Shared setup:**
 
 ```go
 // testutil/pgcontainer.go
@@ -126,33 +126,33 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 }
 ```
 
-**Qué se verifica:**
-- Resolución jerárquica: crear datos en global, _system, workspace → resolver → verificar prioridad
+**What is verified:**
+- Hierarchical resolution: create data in global, _system, workspace → resolve → verify priority
 - Soft delete: delete → verify not returned → verify still in DB
 - Cursor pagination: insert 100 records → paginate 20 at a time → verify order + completeness
-- Constraint violations: duplicate slug → expect error
+- Constraint violations: duplicate slug → expect an error
 - Token bucket: take N tokens → verify refill after time
 
 ### 3.3. E2E Tests
 
-**Scope:** Flujos completos de usuario vía HTTP API.
+**Scope:** Complete user flows through the HTTP API.
 
-**Herramienta:** TestContainers (PG) + HTTP test server (Echo test instance) + httptest.
+**Tool:** TestContainers (PG) + HTTP test server (Echo test instance) + `httptest`.
 
-**Principios:**
-- Pocos tests, solo happy paths críticos y edge cases de alto impacto
-- Cada test es un flujo completo: setup → action → verify side effects
-- Tagged con `//go:build e2e`
-- Se ejecutan con `make test-e2e`
+**Principles:**
+- Few tests, only critical happy paths and high-impact edge cases
+- Each test is a full flow: setup → action → verify side effects
+- Tagged with `//go:build e2e`
+- Run with `make test-e2e`
 
-**Flujos E2E mínimos:**
+**Minimum E2E flows:**
 
-| # | Flujo | Verifica |
+| # | Flow | Verifies |
 |---|-------|----------|
 | 1 | Onboarding | Fresh DB → GET status (false) → POST setup → GET status (true) |
 | 2 | Full CRUD cycle | Create tenant → workspace → template type → template → version → publish |
-| 3 | Send email | Setup data → POST /send → verify email record + queued job |
-| 4 | Provider event | POST SES webhook → verify email status updated + suppression created |
+| 3 | Send email | Set up data → POST /send → verify email record + queued job |
+| 4 | Provider event | POST SES webhook → verify updated email status + created suppression |
 | 5 | Auth flows | API Key auth → success; revoked key → 401; OIDC → member lookup |
 | 6 | Suppression | Add suppression → POST /send → verify 422 |
 | 7 | Resolution chain | Global template + workspace override → send → verify workspace version used |
@@ -161,7 +161,7 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 
 ## 4. Test Data & Fixtures
 
-### 4.1. Fixtures estáticos
+### 4.1. Static fixtures
 
 ```
 testdata/
@@ -200,52 +200,52 @@ func NewTenant(overrides ...func(*domain.Tenant)) *domain.Tenant {
 
 func NewWorkspace(tenantID uuid.UUID, overrides ...func(*domain.Workspace)) *domain.Workspace { ... }
 func NewAdapter(overrides ...func(*domain.Adapter)) *domain.Adapter { ... }
-// ... etc para cada entidad
+// ... etc. for every entity
 ```
 
-### 4.3. Seeder para integration tests
+### 4.3. Seeder for integration tests
 
 ```go
 // testutil/seeder.go
-// Crea un escenario completo: tenant + _system + workspace + injectors + adapter + template type + template + version published
+// Creates a full scenario: tenant + _system + workspace + injectors + adapter + template type + template + published version
 func SeedFullScenario(t *testing.T, pool *pgxpool.Pool) *TestScenario {
-    // Returns struct with all IDs for assertions
+    // Returns a struct with all IDs for assertions
 }
 ```
 
 ---
 
-## 5. Cobertura
+## 5. Coverage
 
-| Capa | Cobertura mínima | Notas |
+| Layer | Minimum coverage | Notes |
 |------|-------------------|-------|
-| `domain/` | 90% | Lógica pura, fácil de testear |
-| `service/` | 85% | Paths críticos + error handling |
-| `resolution/` | 90% | Core del producto |
-| `adapter/postgres/` | 80% | Integration tests cubren queries |
-| `adapter/ses/` | 70% | Mock de AWS SDK |
-| `http/middleware/` | 85% | Auth paths críticos |
-| `http/handler/` | 75% | Validación + response format |
-| `pkg/` | 95% | Utilities puras |
+| `domain/` | 90% | Pure logic, easy to test |
+| `service/` | 85% | Critical paths + error handling |
+| `resolution/` | 90% | Core product logic |
+| `adapter/postgres/` | 80% | Integration tests cover queries |
+| `adapter/ses/` | 70% | Mock AWS SDK |
+| `http/middleware/` | 85% | Critical auth paths |
+| `http/handler/` | 75% | Validation + response format |
+| `pkg/` | 95% | Pure utilities |
 
-**Enforcement:** `go test -coverprofile=coverage.out ./...` en CI. Build falla si cobertura global < 80%.
+**Enforcement:** `go test -coverprofile=coverage.out ./...` in CI. Build fails if global coverage is below 80%.
 
 ---
 
-## 6. Ejecución
+## 6. Execution
 
-### Comandos Make
+### Make commands
 
 ```makefile
-# Unit tests (rápido, sin dependencias externas)
+# Unit tests (fast, no external dependencies)
 test:
 	go test -v -count=1 -race ./internal/... ./pkg/...
 
-# Integration tests (requiere Docker para TestContainers)
+# Integration tests (requires Docker for TestContainers)
 test-integration:
 	go test -v -count=1 -tags=integration ./internal/adapter/...
 
-# E2E tests (requiere Docker)
+# E2E tests (requires Docker)
 test-e2e:
 	go test -v -count=1 -tags=e2e ./test/e2e/...
 
@@ -258,24 +258,24 @@ test-coverage:
 test-all: test test-integration test-e2e
 ```
 
-### CI Pipeline (cuando se implemente)
+### CI Pipeline (when implemented)
 
 ```
 push → lint (golangci-lint) → unit tests → integration tests → build → (optional: E2E)
 ```
 
 - Unit tests: run on every push
-- Integration tests: run on every push (TestContainers son rápidos)
+- Integration tests: run on every push (TestContainers are fast)
 - E2E tests: run on PR merge to main
-- Coverage report: uploaded como artefacto
+- Coverage report: uploaded as an artifact
 
 ---
 
-## 7. Principios TDD Aplicados al Proyecto
+## 7. TDD Principles Applied to the Project
 
-1. **Red → Green → Refactor** en cada funcionalidad
-2. **Un test, un comportamiento.** No testear implementación interna, testear comportamiento observable.
-3. **Tests son documentación.** Los nombres de test describen el comportamiento del sistema.
-4. **No mockear lo que no te pertenece.** Mockear ports (interfaces propias), no AWS SDK directamente. El SES adapter se testea con integration test o mock HTTP server.
-5. **Integration tests > mocks para queries SQL.** Las queries complejas (resolución por chain, pagination) se testean contra PG real, no contra mocks.
-6. **Cada HT produce sus tests.** No hay fase separada de "escribir tests". Los tests son parte del entregable de cada HT.
+1. **Red → Green → Refactor** for every feature
+2. **One test, one behavior.** Do not test internal implementation, test observable behavior.
+3. **Tests are documentation.** Test names describe system behavior.
+4. **Do not mock what you do not own.** Mock ports (your own interfaces), not the AWS SDK directly. The SES adapter is tested with an integration test or a mock HTTP server.
+5. **Integration tests > mocks for SQL queries.** Complex queries (chain resolution, pagination) are tested against a real PostgreSQL instance, not mocks.
+6. **Each HT produces its own tests.** There is no separate "write tests" phase. Tests are part of the deliverable for each HT.
