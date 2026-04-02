@@ -1,48 +1,48 @@
 # Tech Spec: Senda — Database Schema + Application Architecture
 
-**Versión:** 1.4 (DB Schema + Arquitectura + Operaciones + Migrations completas)
+**Version:** 1.4 (DB Schema + Architecture + Operations + Full Migrations)
 
-**Fecha:** 2026-02-16
+**Date:** 2026-02-16
 
-**Autor:** Rey + Claude (iteración colaborativa)
+**Author:** Rey + Claude (collaborative iteration)
 
-**Referencia:** PRD v5.0
+**Reference:** PRD v5.0
 
-**Estado:** En revisión — nada en este documento es versión final
+**Status:** Under review — nothing in this document is final
 
 ---
 
 ## Addendum 2026-02-25 — Provider-Managed Email Auth (Source of Truth)
 
-Este documento contiene secciones históricas de diseño inicial (dominios/DKIM in-app) que **ya no aplican** al P0 backend actual.
+This document contains historical early-design sections (domains/in-app DKIM) that **no longer apply** to the current P0 backend.
 
-**Decisión vigente:**
-- SPF/DKIM/DMARC son gestionados por el provider (SES/Gmail).
-- Senda valida y sincroniza identidades del provider.
-- Senda no genera DKIM keys ni firma DKIM en aplicación.
-- Referencias a tablas/servicios `domains`, `DomainResolver`, `DKIM signer` deben leerse como **deprecated/históricas** para P0.
-
----
-
-## 1. Principios de Diseño del Schema
-
-1. **Scope unificado:** Los recursos principales (inyectores, adapters, templates) pertenecen a un `workspace_id`. Para el nivel global, `workspace_id = NULL`. El workspace `_system` de cada tenant es un workspace normal con `is_system = true`, lo que unifica la resolución jerárquica.
-
-2. **Cadena de resolución como query:** La herencia `workspace → _system → global` se implementa buscando por `workspace_id IN (target_workspace_id, system_workspace_id, NULL)` con prioridad.
-
-3. **Soft delete universal:** Toda entidad con dependencia jerárquica tiene `deleted_at`. El recurso sigue disponible hasta purge explícito.
-
-4. **Audit trail append-only:** `audit_logs` es write-only desde la app. No tiene UPDATE ni DELETE.
-
-5. **Timestamps UTC:** Todos los timestamps en UTC. La zona horaria del display es responsabilidad del frontend.
-
-6. **UUIDs v7:** IDs ordenables por tiempo, mejores para B-tree indexes que UUIDv4.
-
-7. **Encrypted at rest:** Credenciales de adapters se almacenan encriptadas (AES-256-GCM). La columna almacena el ciphertext + nonce.
+**Current decision:**
+- SPF/DKIM/DMARC are managed by the provider (SES/Gmail).
+- Senda validates and syncs provider identities.
+- Senda does not generate DKIM keys or sign DKIM in the application.
+- References to `domains`, `DomainResolver`, and `DKIM signer` should be read as **deprecated/historical** for P0.
 
 ---
 
-## 2. Diagrama de Relaciones (Conceptual)
+## 1. Schema Design Principles
+
+1. **Unified scope:** Primary resources (injectors, adapters, templates) belong to a `workspace_id`. At the global level, `workspace_id = NULL`. Each tenant's `_system` workspace is a normal workspace with `is_system = true`, which unifies hierarchical resolution.
+
+2. **Resolution chain as a query:** The `workspace → _system → global` inheritance is implemented by querying `workspace_id IN (target_workspace_id, system_workspace_id, NULL)` with priority.
+
+3. **Universal soft delete:** Every entity with hierarchical dependency has `deleted_at`. The resource remains available until an explicit purge.
+
+4. **Append-only audit trail:** `audit_logs` is write-only from the app. It has no UPDATE or DELETE.
+
+5. **UTC timestamps:** All timestamps are stored in UTC. Display timezone handling is the frontend's responsibility.
+
+6. **UUIDv7:** Time-ordered IDs, better for B-tree indexes than UUIDv4.
+
+7. **Encrypted at rest:** Adapter credentials are stored encrypted (AES-256-GCM). The column stores the ciphertext + nonce.
+
+---
+
+## 2. Relationship Diagram (Conceptual)
 
 ```
                     ┌─────────────┐
@@ -96,9 +96,9 @@ Este documento contiene secciones históricas de diseño inicial (dominios/DKIM 
 
 ---
 
-## 3. Schema SQL Completo
+## 3. Complete SQL Schema
 
-### 3.1. Tipos Enumerados
+### 3.1. Enumerated Types
 
 ```sql
 -- Lifecycle states for emails
@@ -253,7 +253,7 @@ CREATE INDEX idx_workspaces_tenant ON workspaces (tenant_id) WHERE deleted_at IS
 CREATE INDEX idx_workspaces_code ON workspaces (tenant_id, code) WHERE deleted_at IS NULL;
 ```
 
-### 3.4. Inyectores (Data Injectors)
+### 3.4. Injectors (Data Injectors)
 
 ```sql
 -- Schema definition: who created the injector and what fields it has
@@ -351,10 +351,10 @@ CREATE UNIQUE INDEX idx_adapters_global_default
 CREATE INDEX idx_adapters_workspace ON adapters (workspace_id) WHERE deleted_at IS NULL;
 ```
 
-### 3.6. Dominios Verificados *(DEPRECATED en P0 provider-managed)*
+### 3.6. Verified Domains *(DEPRECATED in P0 provider-managed)*
 
 ```sql
--- DEPRECATED: flow de dominios y DKIM in-app no forma parte del P0 backend actual.
+-- DEPRECATED: the domains and in-app DKIM flow is not part of the current P0 backend.
 CREATE TABLE domains (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
@@ -576,7 +576,7 @@ CREATE TABLE api_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    UUID NOT NULL REFERENCES workspaces(id),
 
-    -- senda_live_<random> — only live keys (test is via dashboard/OIDC)
+    -- senda_live_<random> — only live keys (test access is via dashboard/OIDC)
     key_prefix      VARCHAR(20) NOT NULL DEFAULT 'senda_live',
     key_hash        VARCHAR(128) NOT NULL,  -- SHA-256 hex
     key_hint        VARCHAR(8) NOT NULL,    -- last 8 chars for identification
@@ -733,7 +733,7 @@ CREATE TABLE suppression_workspace (
 CREATE INDEX idx_suppression_ws_lookup ON suppression_workspace (workspace_id, email) WHERE removed_at IS NULL;
 ```
 
-### 3.13. Webhooks (Schema-ready para P1)
+### 3.13. Webhooks (Schema-ready for P1)
 
 ```sql
 CREATE TABLE webhooks (
@@ -843,7 +843,7 @@ $$ LANGUAGE sql STABLE;
 
 ## 4. Partitioning Strategy
 
-Para tablas de alto volumen (`emails`, `email_events`), aplicar partitioning por rango de tiempo:
+For high-volume tables (`emails`, `email_events`), apply time-range partitioning:
 
 ```sql
 -- Partition emails by month
@@ -864,11 +864,11 @@ CREATE TABLE email_events (
 ) PARTITION BY RANGE (occurred_at);
 ```
 
-**Nota:** En la definición de la sección 3.11, el schema es sin partitioning para claridad. En implementación real, `emails` y `email_events` serán partitioned. Los índices se crean como indexes globales o por partición según el patrón de query.
+**Note:** In section 3.11, the schema is shown without partitioning for clarity. In the real implementation, `emails` and `email_events` will be partitioned. Indexes are created either globally or per partition depending on the query pattern.
 
 ---
 
-## 5. Índices de Rendimiento Adicionales
+## 5. Additional Performance Indexes
 
 ```sql
 -- Composite index for the most common API query: send flow resolution
@@ -893,17 +893,17 @@ CREATE INDEX idx_template_resolution
 
 ---
 
-## 6. QA Results: Validaciones Requeridas a Nivel de Aplicación
+## 6. QA Results: Application-Level Validations Required
 
-El schema fue validado contra los 48 flujos principales del PRD. **44 pasan completamente a nivel de DB**, 4 requieren validación adicional en la capa de aplicación:
+The schema was validated against the PRD's 48 main flows. **44 pass entirely at the DB level**, and 4 require additional validation in the application layer:
 
-### VAL-01: Injector Field Ownership (Alta Prioridad)
+### VAL-01: Injector Field Ownership (High Priority)
 
-**Problema:** `injector_fields` tiene FK a `injector_definitions` pero no impide que un scope inferior añada campos a un inyector que no le pertenece.
+**Problem:** `injector_fields` has an FK to `injector_definitions` but does not prevent a lower scope from adding fields to an injector it does not own.
 
-**Regla:** Solo el scope que creó el inyector (`injector_definitions.workspace_id`) puede insertar filas en `injector_fields` para ese inyector.
+**Rule:** Only the scope that created the injector (`injector_definitions.workspace_id`) may insert rows into `injector_fields` for that injector.
 
-**Implementación:**
+**Implementation:**
 ```go
 func (s *InjectorService) AddField(ctx context.Context, injDefID uuid.UUID, field Field) error {
     injDef, err := s.repo.GetInjectorDefinition(ctx, injDefID)
@@ -917,15 +917,15 @@ func (s *InjectorService) AddField(ctx context.Context, injDefID uuid.UUID, fiel
 }
 ```
 
-**Test requerido:** Intentar añadir campo desde scope inferior → 422/403.
+**Required test:** Attempt to add a field from a lower scope → 422/403.
 
-### VAL-02: Injector Name Uniqueness Across Resolution Chain (Alta Prioridad)
+### VAL-02: Injector Name Uniqueness Across the Resolution Chain (High Priority)
 
-**Problema:** Un workspace podría crear un inyector con el mismo nombre que uno ya existente en su `_system` o global. El DB constraint solo valida unicidad dentro del mismo scope.
+**Problem:** A workspace could create an injector with the same name as one already existing in its `_system` or global scope. The DB constraint only enforces uniqueness within the same scope.
 
-**Regla:** Al crear un inyector, verificar que no existe otro con el mismo nombre en ningún nivel superior de la cadena.
+**Rule:** When creating an injector, verify that no other injector with the same name exists at any higher level in the chain.
 
-**Implementación:**
+**Implementation:**
 ```go
 func (s *InjectorService) Create(ctx context.Context, name string, wsID *uuid.UUID) error {
     chain := s.resolver.GetChain(ctx, wsID)
@@ -939,11 +939,11 @@ func (s *InjectorService) Create(ctx context.Context, name string, wsID *uuid.UU
 }
 ```
 
-### VAL-03: Dependency Check Before Purge (Media Prioridad)
+### VAL-03: Dependency Check Before Purge (Medium Priority)
 
-**Problema:** No hay FK explícito de dependencia entre recursos heredados. Antes de purge, el sistema debe computar qué scopes se verían afectados.
+**Problem:** There is no explicit FK dependency between inherited resources. Before purge, the system must compute which scopes would be affected.
 
-**Implementación:** Query en tiempo de ejecución — aceptable para Fase 1 dado que el número de workspaces típicamente es < 100.
+**Implementation:** Runtime query — acceptable for Phase 1 given that the number of workspaces is typically < 100.
 
 ```go
 func (s *ResourceService) GetDependents(ctx context.Context, resourceType string, resourceID uuid.UUID) ([]Workspace, error) {
@@ -954,15 +954,15 @@ func (s *ResourceService) GetDependents(ctx context.Context, resourceType string
 }
 ```
 
-**Fase 2:** Considerar materialized view para pre-computar dependencias.
+**Phase 2:** Consider a materialized view to precompute dependencies.
 
-### VAL-04: Template Type Uniqueness Across Resolution Chain (Media Prioridad)
+### VAL-04: Template Type Uniqueness Across the Resolution Chain (Medium Priority)
 
-**Problema similar a VAL-02:** Un workspace no debería poder crear un template type con el mismo slug que ya existe en `_system` o global (ya que se pisarían en la resolución).
+**Problem similar to VAL-02:** A workspace should not be able to create a template type with the same slug as one that already exists in `_system` or global (because they would overwrite each other during resolution).
 
-**Nota:** A diferencia de inyectores, aquí SÍ es válido que un workspace tenga un template (implementación) para un tipo definido arriba. Lo que no es válido es crear un **tipo nuevo** con el mismo slug.
+**Note:** Unlike injectors, it **is** valid here for a workspace to have a template (implementation) for a type defined above. What is not valid is creating a **new type** with the same slug.
 
-**Implementación:** Misma lógica que VAL-02 pero para `template_types`.
+**Implementation:** Same logic as VAL-02 but for `template_types`.
 
 ---
 
@@ -970,7 +970,7 @@ func (s *ResourceService) GetDependents(ctx context.Context, resourceType string
 
 ### Tool: golang-migrate
 
-Cada migration es un par `{N}_{name}.up.sql` / `{N}_{name}.down.sql`. El binario de Senda ejecuta migrations al arrancar si `database.migrate_on_start = true`.
+Each migration is a `{N}_{name}.up.sql` / `{N}_{name}.down.sql` pair. The Senda binary runs migrations on startup if `database.migrate_on_start = true`.
 
 ```
 migrations/
@@ -982,20 +982,20 @@ migrations/
 └── 000019_cron_jobs.down.sql
 ```
 
-### Principio: Sección 3 es la fuente de verdad
+### Principle: Section 3 Is the Source of Truth
 
-Las migrations de esta sección son la **implementación exacta** de la Sección 3 (Schema SQL Completo). Todo constraint, CHECK, EXCLUDE, índice y columna definido en la S3 está reflejado aquí. Las únicas adiciones son:
+The migrations in this section are the **exact implementation** of Section 3 (Full SQL Schema). Every constraint, CHECK, EXCLUDE, index, and column defined in S3 is reflected here. The only additions are:
 
-- **UNLOGGED tables** (cache, token_buckets) — no existen en S3 porque son infraestructura de runtime
-- **PL/pgSQL functions** — `take_send_token()` es custom, `get_resolution_chain()` viene de S3.16
-- **pg_cron jobs** — scheduled cleanup y partition creation
-- **`rate_limit_per_second`** en adapters y **`adapter_id`** en template_types — cambios arquitectónicos post-S3
+- **UNLOGGED tables** (cache, token_buckets) — they do not exist in S3 because they are runtime infrastructure
+- **PL/pgSQL functions** — `take_send_token()` is custom, `get_resolution_chain()` comes from S3.16
+- **pg_cron jobs** — scheduled cleanup and partition creation
+- **`rate_limit_per_second`** in adapters and **`adapter_id`** in template_types — architectural changes after S3
 
-### Catálogo Completo de Migrations
+### Complete Migration Catalog
 
 #### 000001 — Extensions
 
-Instala extensiones requeridas. Requiere permisos de superuser o `CREATE EXTENSION`.
+Installs the required extensions. Requires superuser permissions or `CREATE EXTENSION`.
 
 ```sql
 -- UP
@@ -1007,11 +1007,11 @@ DROP EXTENSION IF EXISTS "pg_cron";
 DROP EXTENSION IF EXISTS "pgcrypto";
 ```
 
-> **Nota sobre pg_cron:** La extensión debe estar en `shared_preload_libraries` del `postgresql.conf`. En Docker, se configura con la imagen `postgres:16-alpine` + `command: postgres -c shared_preload_libraries=pg_cron -c cron.database_name=senda`. El `docker-compose.yml` ya lo incluye.
+> **Note about pg_cron:** The extension must be listed in `shared_preload_libraries` in `postgresql.conf`. In Docker, it is configured with the `postgres:16-alpine` image plus `command: postgres -c shared_preload_libraries=pg_cron -c cron.database_name=senda`. The `docker-compose.yml` already includes it.
 
 #### 000002 — Enums
 
-Espejo exacto de Sección 3.1.
+Exact mirror of Section 3.1.
 
 ```sql
 -- UP
@@ -1050,7 +1050,7 @@ DROP TYPE IF EXISTS email_status;
 
 #### 000003 — Tenants y Workspaces
 
-Espejo de Sección 3.2 y 3.3.
+Mirror of Sections 3.2 and 3.3.
 
 ```sql
 -- UP
@@ -1110,7 +1110,7 @@ DROP TABLE IF EXISTS tenants;
 
 #### 000004 — Injectors (definitions, fields, values)
 
-Espejo de Sección 3.4.
+Mirror of Section 3.4.
 
 ```sql
 -- UP
@@ -1165,7 +1165,7 @@ DROP TABLE IF EXISTS injector_definitions;
 
 #### 000005 — Adapters
 
-Espejo de Sección 3.5 + `rate_limit_per_second` (cambio arquitectónico P1).
+Mirror of Section 3.5 + `rate_limit_per_second` (P1 architectural change).
 
 ```sql
 -- UP
@@ -1196,7 +1196,7 @@ DROP TABLE IF EXISTS adapters;
 
 #### 000006 — Domains
 
-Espejo de Sección 3.6.
+Mirror of Section 3.6.
 
 ```sql
 -- UP
@@ -1231,7 +1231,7 @@ DROP TABLE IF EXISTS domains;
 
 #### 000007 — Template Types y Templates
 
-Espejo de Sección 3.7 + 3.8 (templates). `adapter_id` es cambio arquitectónico P1.
+Mirror of Sections 3.7 + 3.8 (templates). `adapter_id` is a P1 architectural change.
 
 ```sql
 -- UP
@@ -1278,7 +1278,7 @@ DROP TABLE IF EXISTS template_types;
 
 #### 000008 — Template Versions y Locales
 
-Espejo de Sección 3.8 (versiones y locales).
+Mirror of Section 3.8 (versions and locales).
 
 ```sql
 -- UP
@@ -1329,11 +1329,11 @@ DROP TABLE IF EXISTS template_version_locales;
 DROP TABLE IF EXISTS template_versions;
 ```
 
-> **Nota:** `template_versions` tiene FK a `members(id)` via `created_by`. Esta migration debe ejecutarse después de 000009 (members). golang-migrate maneja dependencias por orden numérico, así que en producción se puede reordenar si es necesario, o bien hacer `created_by` sin FK y agregar la constraint en una migration posterior.
+> **Note:** `template_versions` has an FK to `members(id)` via `created_by`. This migration must run after 000009 (members). golang-migrate handles dependencies by numeric order, so in production it can be reordered if necessary, or `created_by` can be made without an FK and the constraint added in a later migration.
 
 #### 000009 — Members y Roles
 
-Espejo de Sección 3.9.
+Mirror of Section 3.9.
 
 ```sql
 -- UP
@@ -1384,7 +1384,7 @@ DROP TABLE IF EXISTS members;
 
 #### 000010 — API Keys
 
-Espejo de Sección 3.10.
+Mirror of Section 3.10.
 
 ```sql
 -- UP
@@ -1412,7 +1412,7 @@ DROP TABLE IF EXISTS api_keys;
 
 #### 000011 — Emails y Events
 
-Espejo de Sección 3.11 + partitioning de Sección 4.
+Mirror of Section 3.11 + partitioning from Section 4.
 
 ```sql
 -- UP
@@ -1449,7 +1449,7 @@ CREATE TABLE emails (
     PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
--- Particiones iniciales (3 meses, pg_cron crea las siguientes)
+-- Initial partitions (3 months; pg_cron creates the following ones)
 CREATE TABLE emails_2026_01 PARTITION OF emails
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
 CREATE TABLE emails_2026_02 PARTITION OF emails
@@ -1495,7 +1495,7 @@ DROP TABLE IF EXISTS emails CASCADE;
 
 #### 000012 — Suppression Lists
 
-Espejo de Sección 3.12.
+Mirror of Section 3.12.
 
 ```sql
 -- UP
@@ -1537,11 +1537,11 @@ DROP TABLE IF EXISTS suppression_workspace;
 DROP TABLE IF EXISTS suppression_global;
 ```
 
-> **Nota:** Las FKs a `emails(id)` y `members(id)` en suppression se definen sin constraint explícita porque `emails` es partitioned (PK es composite). Se valida a nivel de aplicación.
+> **Note:** The FKs to `emails(id)` and `members(id)` in suppression are defined without an explicit constraint because `emails` is partitioned (the PK is composite). Validation happens at the application level.
 
 #### 000013 — Webhooks
 
-Espejo de Sección 3.13.
+Mirror of Section 3.13.
 
 ```sql
 -- UP
@@ -1567,7 +1567,7 @@ DROP TABLE IF EXISTS webhooks;
 
 #### 000014 — Audit Logs
 
-Espejo de Sección 3.14 + partitioning.
+Mirror of Section 3.14 + partitioning.
 
 ```sql
 -- UP
@@ -1604,9 +1604,9 @@ CREATE INDEX idx_audit_created ON audit_logs (created_at DESC);
 DROP TABLE IF EXISTS audit_logs CASCADE;
 ```
 
-#### 000015 — Global Config con Seed Data
+#### 000015 — Global Config with Seed Data
 
-Espejo de Sección 3.15.
+Mirror of Section 3.15.
 
 ```sql
 -- UP
@@ -1636,7 +1636,7 @@ DROP TABLE IF EXISTS global_config;
 
 #### 000016 — UNLOGGED Tables (Cache + Token Buckets)
 
-Tablas sin WAL para performance. Se truncan automáticamente si PG crashea (aceptable para cache y rate limiting).
+Tables without WAL for performance. They are truncated automatically if PG crashes (acceptable for cache and rate limiting).
 
 ```sql
 -- UP
@@ -1667,7 +1667,7 @@ DROP TABLE IF EXISTS cache;
 ```sql
 -- UP
 
--- Resolution chain (Sección 3.16): retorna la cadena workspace → _system → global
+-- Resolution chain (Section 3.16): returns the workspace → _system → global chain
 CREATE OR REPLACE FUNCTION get_resolution_chain(p_workspace_id UUID)
 RETURNS TABLE(workspace_id UUID, priority INT) AS $$
     SELECT w.id, 1 AS priority
@@ -1681,7 +1681,7 @@ RETURNS TABLE(workspace_id UUID, priority INT) AS $$
     SELECT NULL::UUID, 3 AS priority
 $$ LANGUAGE sql STABLE;
 
--- Token bucket: atomic take-one-token (custom PL/pgSQL, sin dependencias externas)
+-- Token bucket: atomic take-one-token (custom PL/pgSQL, no external dependencies)
 CREATE OR REPLACE FUNCTION take_send_token(p_adapter_id UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -1730,7 +1730,7 @@ DROP FUNCTION IF EXISTS take_send_token(UUID);
 DROP FUNCTION IF EXISTS get_resolution_chain(UUID);
 ```
 
-#### 000018 — Performance Indices (Sección 5)
+#### 000018 — Performance Indices (Section 5)
 
 ```sql
 -- UP
@@ -1781,47 +1781,47 @@ SELECT cron.unschedule('create-partitions');
 SELECT cron.unschedule('cache-cleanup');
 ```
 
-### Resumen de Migrations
+### Migration Summary
 
-| # | Nombre | Fuente | Contenido |
+| # | Name | Source | Content |
 |---|--------|--------|-----------|
-| 001 | extensions | Nuevo | pgcrypto, pg_cron |
-| 002 | enums | S3.1 | 10 tipos enumerados |
-| 003 | tenants_workspaces | S3.2, S3.3 | Con CHECKs, EXCLUDE, partial indexes |
+| 001 | extensions | New | pgcrypto, pg_cron |
+| 002 | enums | S3.1 | 10 enumerated types |
+| 003 | tenants_workspaces | S3.2, S3.3 | With CHECKs, EXCLUDE, partial indexes |
 | 004 | injectors | S3.4 | definitions, fields (typed), values (per field) |
-| 005 | adapters | S3.5 + P1 | Con EXCLUDE default, + rate_limit_per_second |
-| 006 | domains | S3.6 | Con domain_status, DKIM, dns_records, verificación |
-| 007 | template_types_templates | S3.7, S3.8 | Con adapter_id FK (P1), UNIQUE NULLS NOT DISTINCT |
-| 008 | versions_locales | S3.8 | Con content completo, EXCLUDE one-published |
-| 009 | members_roles | S3.9 | Con OIDC, scope_type, CHECK constraints |
-| 010 | api_keys | S3.10 | Con key_prefix, key_hint, revoked_at |
+| 005 | adapters | S3.5 + P1 | With default EXCLUDE, + rate_limit_per_second |
+| 006 | domains | S3.6 | With domain_status, DKIM, dns_records, verification |
+| 007 | template_types_templates | S3.7, S3.8 | With adapter_id FK (P1), UNIQUE NULLS NOT DISTINCT |
+| 008 | versions_locales | S3.8 | With full content, EXCLUDE one-published |
+| 009 | members_roles | S3.9 | With OIDC, scope_type, CHECK constraints |
+| 010 | api_keys | S3.10 | With key_prefix, key_hint, revoked_at |
 | 011 | emails_events | S3.11, S4 | Partitioned, tracking_id, full columns |
-| 012 | suppressions | S3.12 | Con source_email_id, removed_by, removal_reason |
-| 013 | webhooks | S3.13 | Con failure tracking, disabled_at |
-| 014 | audit_logs | S3.14, S4 | Con audit_action enum, scope_type, partitioned |
-| 015 | global_config | S3.15 | Con description, updated_by, seed data completo |
-| 016 | unlogged_tables | Nuevo | cache (UNLOGGED), token_buckets (UNLOGGED) |
+| 012 | suppressions | S3.12 | With source_email_id, removed_by, removal_reason |
+| 013 | webhooks | S3.13 | With failure tracking, disabled_at |
+| 014 | audit_logs | S3.14, S4 | With audit_action enum, scope_type, partitioned |
+| 015 | global_config | S3.15 | With description, updated_by, complete seed data |
+| 016 | unlogged_tables | New | cache (UNLOGGED), token_buckets (UNLOGGED) |
 | 017 | plpgsql_functions | S3.16 + P1 | get_resolution_chain(TABLE), take_send_token() |
 | 018 | performance_indices | S5 | workspace_resolution, template_resolution (INCLUDE) |
-| 019 | cron_jobs | Nuevo | cache-cleanup (1min), create-partitions (monthly) |
+| 019 | cron_jobs | New | cache-cleanup (1min), create-partitions (monthly) |
 
-> **Total: 19 migrations.** Cada una es idempotente y reversible con su `down.sql`. La columna "Fuente" indica la sección del spec que la origina.
+> **Total: 19 migrations.** Each one is idempotent and reversible with its `down.sql`. The "Source" column indicates the spec section it originates from.
 
-> **Nota de ordenamiento:** La migration 000008 (template_versions) tiene FK a `members(id)` via `created_by`, pero members se crea en 000009. En implementación, se puede: (a) reordenar 009 antes de 008, (b) crear la FK como `DEFERRABLE`, o (c) agregar la FK constraint en una migration posterior (000020). Se decide al implementar.
-
----
+> **Ordering note:** Migration 000008 (template_versions) has an FK to `members(id)` via `created_by`, but members is created in 000009. In implementation, one can: (a) reorder 009 before 008, (b) create the FK as `DEFERRABLE`, or (c) add the FK constraint in a later migration (000020). This is decided during implementation.
 
 ---
 
-# PARTE II: Arquitectura de Aplicación
+---
+
+# PART II: Application Architecture
 
 ---
 
-## 8. Arquitectura General
+## 8. General Architecture
 
-### 8.1. Patrón: Hexagonal (Ports & Adapters)
+### 8.1. Pattern: Hexagonal (Ports & Adapters)
 
-Senda sigue arquitectura hexagonal con tres capas claras:
+Senda follows a hexagonal architecture with three clear layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1869,11 +1869,11 @@ Senda sigue arquitectura hexagonal con tres capas claras:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Regla de dependencia:** Las flechas apuntan hacia adentro. El core nunca importa paquetes de adapters. Los adapters implementan interfaces definidas en el core.
+**Dependency rule:** Arrows point inward. The core never imports adapter packages. Adapters implement interfaces defined in the core.
 
 ### 8.2. Dependency Injection
 
-Sin frameworks de DI. Composición manual en `main.go` via constructor injection:
+No DI frameworks. Manual composition in `main.go` via constructor injection:
 
 ```go
 func main() {
@@ -1927,7 +1927,7 @@ func main() {
 
 ---
 
-## 9. Estructura de Carpetas
+## 9. Folder Structure
 
 ```
 senda/
@@ -2427,7 +2427,7 @@ import (
     "time"
 )
 
-// Cache provides key-value caching via PG UNLOGGED table.
+// Cache provides key-value caching via a PG UNLOGGED table.
 type Cache interface {
     Get(ctx context.Context, key string) ([]byte, error)
     Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
@@ -2919,7 +2919,7 @@ type EmailEvent struct {
 
 ## 12. Resolution Engine
 
-El motor de resolución es el componente central de Senda. Resuelve recursos a través de la cadena jerárquica.
+The resolution engine is Senda's central component. It resolves resources through the hierarchical chain.
 
 ### 12.1. ChainResolver
 
@@ -3213,7 +3213,7 @@ func extractDomain(email string) string {
 
 ### 12.6. Cache Invalidation Strategy
 
-El resolution engine cachea datos para evitar queries repetitivos. La invalidación se basa en **event-driven invalidation** desde los servicios de management.
+The resolution engine caches data to avoid repetitive queries. Invalidation is based on **event-driven invalidation** from the management services.
 
 ```go
 // resolution/cache_invalidator.go
@@ -3267,20 +3267,20 @@ func (c *CacheInvalidator) InvalidateGlobal(ctx context.Context) {
 }
 ```
 
-**Reglas de invalidación por operación:**
+**Invalidation rules by operation:**
 
-| Operación | Keys invalidados |
+| Operation | Invalidated keys |
 |-----------|-----------------|
-| Modificar/eliminar adapter | `adapter:<adapter_id>` |
-| Crear/eliminar workspace | `chain:<workspace_id>` |
-| Modificar dominio | `domain_valid:<ws_id>:<domain>` (TTL natural) |
-| Modificar `_system` workspace | Todos los `chain:*` del tenant |
+| Modify/delete adapter | `adapter:<adapter_id>` |
+| Create/delete workspace | `chain:<workspace_id>` |
+| Modify domain | `domain_valid:<ws_id>:<domain>` (natural TTL) |
+| Modify `_system` workspace | All tenant `chain:*` keys |
 
-**Nota:** `DeletePattern` está definido en el port `Cache` (sección 10.5). La implementación in-memory usa `Clear()` dado que la invalidación global es rara.
+**Note:** `DeletePattern` is defined in the `Cache` port (section 10.5). The in-memory implementation uses `Clear()` because global invalidation is rare.
 
 ---
 
-## 13. SendService — Flujo Principal
+## 13. SendService — Main Flow
 
 ```go
 // service/send.go
@@ -3574,14 +3574,14 @@ func hasPermission(roles []*domain.MemberRole, minRole domain.Role, target Targe
 
 ### 15.1. Pagination (Cursor-based)
 
-Todas las rutas LIST usan paginación cursor-based con el siguiente contrato:
+All LIST routes use cursor-based pagination with the following contract:
 
 **Request query params:**
 ```
 ?cursor=<opaque_string>&limit=25
 ```
 
-- `cursor`: opaco, base64-encoded `timestamp:uuid`. Omitir para primera página.
+- `cursor`: opaque, base64-encoded `timestamp:uuid`. Omit for the first page.
 - `limit`: 1-100, default 25.
 
 **Response envelope:**
@@ -3593,7 +3593,7 @@ Todas las rutas LIST usan paginación cursor-based con el siguiente contrato:
 }
 ```
 
-**Implementación del cursor:**
+**Cursor implementation:**
 ```go
 // http/pagination.go
 package httputil
@@ -3645,12 +3645,12 @@ func DecodeCursor(cursor string) (*CursorData, error) {
 
 | HTTP | Code | Uso |
 |------|------|-----|
-| 400 | BAD_REQUEST | JSON malformado, params inválidos |
-| 401 | UNAUTHORIZED | Token/API Key faltante o inválido |
+| 400 | BAD_REQUEST | Malformed JSON, invalid params |
+| 401 | UNAUTHORIZED | Missing or invalid token/API key |
 | 403 | FORBIDDEN | Permisos insuficientes |
 | 404 | NOT_FOUND | Recurso no existe |
-| 409 | CONFLICT | Código duplicado, versión ya publicada |
-| 422 | UNPROCESSABLE | Sin adapter, dominio no verificado, variables inválidas |
+| 409 | CONFLICT | Duplicate code, version already published |
+| 422 | UNPROCESSABLE | No adapter, unverified domain, invalid variables |
 | 429 | RATE_LIMITED | Rate limit excedido |
 | 500 | INTERNAL_ERROR | Error interno |
 
@@ -4094,7 +4094,7 @@ type Config struct {
     Crypto   CryptoConfig   `yaml:"crypto"`
     Log      LogConfig      `yaml:"log"`
 }
-// Nota: el cache usa la misma conexión PG (tabla UNLOGGED).
+// Note: the cache uses the same PG connection (UNLOGGED table).
 // No necesita config separado.
 
 type ServerConfig struct {
@@ -4119,8 +4119,8 @@ type OIDCConfig struct {
     ClientSecret string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET" required:"true"`
 }
 
-// Nota: las credenciales de SES/SMTP no van en config global.
-// Se almacenan encriptadas por adapter en la DB (tabla adapters.config_encrypted).
+// Note: SES/SMTP credentials do not belong in the global config.
+// They are stored encrypted per adapter in the DB (table adapters.config_encrypted).
 
 type CryptoConfig struct {
     // Master key for AES-256-GCM encryption of adapter credentials and DKIM keys
@@ -4137,7 +4137,7 @@ type LogConfig struct {
 
 ## 18. Docker Compose (Desarrollo)
 
-> **Nota:** La stack es Go + PostgreSQL únicamente. El cache usa PG UNLOGGED table, la cola usa River (PG-native), y el rate limiting de providers usa PL/pgSQL token bucket. Solo se necesita PostgreSQL como dependencia externa.
+> **Note:** The stack is Go + PostgreSQL only. The cache uses a PG UNLOGGED table, the queue uses River (PG-native), and provider rate limiting uses a PL/pgSQL token bucket. PostgreSQL is the only external dependency required.
 
 ```yaml
 # docker/docker-compose.yml
@@ -4200,7 +4200,7 @@ volumes:
 
 ## 19. Provider Event Ingestion (Channel-Agnostic)
 
-El sistema recibe eventos del provider (bounces, deliveries, complaints) a través de canales configurables. La recepción es agnóstica al canal; el procesamiento es unificado.
+The system receives provider events (bounces, deliveries, complaints) through configurable channels. Reception is channel-agnostic; processing is unified.
 
 ### 19.1. Arquitectura
 
@@ -4393,7 +4393,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *port.ProviderEvent)
 ### 19.5. Route Registration
 
 ```go
-// En registerRoutes():
+// In registerRoutes():
 // Provider event ingestion (no auth — uses signature verification)
 e.POST("/api/v1/webhooks/ses/inbound", s.sesWebhookHandler.Handle)
 // Future: e.POST("/api/v1/webhooks/sendgrid/inbound", s.sendgridHandler.Handle)
@@ -4405,7 +4405,7 @@ e.POST("/api/v1/webhooks/ses/inbound", s.sesWebhookHandler.Handle)
 
 ### 20.1. Bootstrap: Primer Superadmin
 
-Cuando Senda arranca por primera vez, la DB está vacía (no hay miembros). El primer usuario que hace login OIDC se convierte en superadmin automáticamente.
+When Senda starts for the first time, the DB is empty (there are no members). The first user to log in with OIDC automatically becomes a superadmin.
 
 ```go
 // service/onboarding.go
@@ -4494,7 +4494,7 @@ type OnboardingStatus struct {
 }
 ```
 
-**Nota:** El endpoint `GET /onboarding/status` es público (sin auth). El `POST /onboarding` requiere OIDC token válido pero NO requiere ser miembro existente — es la excepción al middleware de auth estándar.
+**Note:** The `GET /onboarding/status` endpoint is public (no auth). `POST /onboarding` requires a valid OIDC token but does NOT require the user to already be a member — it is the exception to the standard auth middleware.
 
 ---
 
@@ -4502,7 +4502,7 @@ type OnboardingStatus struct {
 
 ### 21.1. Structured Logging (slog)
 
-`slog` es el estándar para todo el sistema. Formato JSON en producción, text en desarrollo.
+`slog` is the standard for the entire system. JSON in production, text in development.
 
 ```go
 // cmd/main.go — logger setup
@@ -4517,7 +4517,7 @@ func setupLogger(cfg config.LogConfig) {
 }
 ```
 
-**Convenciones de logging:**
+**Logging conventions:**
 
 ```go
 // Cada log entry incluye contexto estructurado
@@ -4545,11 +4545,11 @@ package handler
 
 import "github.com/prometheus/client_golang/prometheus/promhttp"
 
-// En registerRoutes():
+// In registerRoutes():
 e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 ```
 
-**Métricas expuestas:**
+**Exposed metrics:**
 
 ```go
 // internal/metrics/metrics.go
@@ -4709,7 +4709,7 @@ func GenerateKeyPair() (privateKeyPEM []byte, publicKeyBase64 string, err error)
 }
 ```
 
-### 22.2. Signing en SendWorker
+### 22.2. Signing in SendWorker
 
 ```go
 // internal/dkim/signer.go
@@ -4767,18 +4767,18 @@ func (s *Signer) Sign(ctx context.Context, rawMsg []byte, fromEmail string) ([]b
 
 ---
 
-## 23. Cache Distribuido en PostgreSQL (Sin Redis)
+## 23. Distributed Cache in PostgreSQL (No Redis)
 
-### 23.1. Decisión Arquitectural
+### 23.1. Architectural Decision
 
-Redis fue eliminado de la stack. El cache se implementa con una **tabla UNLOGGED** en PostgreSQL.
+Redis was removed from the stack. The cache is implemented with a **UNLOGGED table** in PostgreSQL.
 
-**Justificación:**
-- **Distribuido:** a diferencia de in-memory, el cache en PG es compartido si Senda corre múltiples instancias.
+**Rationale:**
+- **Distributed:** unlike in-memory, the PG cache is shared if Senda runs multiple instances.
 - **Sin infra adicional:** PG ya es dependencia obligatoria. No se agrega nada.
-- **Crash-safe para cache:** si PG crashea, la tabla UNLOGGED se vacía automáticamente — comportamiento esperado para cache.
-- **Performance suficiente:** UNLOGGED tables logran ~485K TPS writes. Para resolución de cadenas y adapters (decenas de req/s en el peor caso) es más que suficiente.
-- **Futuro:** si se necesita más throughput de cache, se puede implementar un adapter alternativo (ej: Valkey) sin cambiar los ports.
+- **Crash-safe for cache:** if PG crashes, the UNLOGGED table is automatically emptied — expected behavior for a cache.
+- **Sufficient performance:** UNLOGGED tables reach ~485K TPS writes. For chain and adapter resolution (tens of req/s in the worst case) this is more than enough.
+- **Future:** if more cache throughput is needed, an alternative adapter (e.g. Valkey) can be implemented without changing the ports.
 
 **Referencia:** [Martin Heinz — PostgreSQL as a Cache](https://martinheinz.dev/blog/105), [Tiger Data — Just Use Postgres (2026)](https://www.tigerdata.com/blog/its-2026-just-use-postgres), [Replace Redis with PostgreSQL UNLOGGED Tables](https://medium.com/@tihomir.manushev/replace-redis-with-postgresql-6c11f4666f23)
 
@@ -4786,7 +4786,7 @@ Redis fue eliminado de la stack. El cache se implementa con una **tabla UNLOGGED
 
 ```sql
 -- Cache table: UNLOGGED = no WAL overhead → 2-3x faster writes.
--- Si PG crashea, la tabla se vacía automáticamente (aceptable para cache).
+-- If PG crashes, the table is automatically emptied (acceptable for a cache).
 CREATE UNLOGGED TABLE cache (
     key         VARCHAR(512) PRIMARY KEY,
     value       JSONB NOT NULL,
@@ -4796,15 +4796,15 @@ CREATE UNLOGGED TABLE cache (
 
 CREATE INDEX idx_cache_expires ON cache (expires_at);
 
--- Limpieza de entradas expiradas:
--- Opción A (pg_cron instalado): cada minuto
+-- Cleanup of expired entries:
+-- Option A (pg_cron installed): every minute
 --   SELECT cron.schedule('cache-cleanup', '* * * * *',
 --       $$DELETE FROM cache WHERE expires_at < now()$$);
 --
--- Opción B (sin pg_cron): goroutine con time.Ticker en la app.
+-- Option B (without pg_cron): a goroutine with time.Ticker in the app.
 ```
 
-### 23.3. Implementación del Port Cache
+### 23.3. Cache Port Implementation
 
 ```go
 // adapter/cache/postgres.go
@@ -4852,14 +4852,14 @@ func (c *PGCache) Delete(ctx context.Context, key string) error {
 }
 
 func (c *PGCache) DeletePattern(ctx context.Context, pattern string) error {
-    // Convierte glob "chain:*" → SQL LIKE "chain:%"
+    // Converts glob "chain:*" → SQL LIKE "chain:%"
     likePattern := strings.ReplaceAll(pattern, "*", "%")
     _, err := c.db.ExecContext(ctx, `DELETE FROM cache WHERE key LIKE $1`, likePattern)
     return err
 }
 
-// StartCleanup inicia la limpieza periódica de entradas expiradas.
-// Usar si pg_cron no está disponible.
+// StartCleanup starts periodic cleanup of expired entries.
+// Use if pg_cron is not available.
 func (c *PGCache) StartCleanup(ctx context.Context, interval time.Duration) {
     go func() {
         ticker := time.NewTicker(interval)
@@ -4878,42 +4878,42 @@ func (c *PGCache) StartCleanup(ctx context.Context, interval time.Duration) {
 
 ---
 
-## 24. Provider Rate Limiting (Token Bucket en PG)
+## 24. Provider Rate Limiting (Token Bucket in PG)
 
-### 24.1. Problema
+### 24.1. Problem
 
-Los providers (SES, SMTP relay) tienen límites de envío (ej: SES = 14 emails/seg en sandbox, escalable). Si Senda excede esos límites, el provider bloquea la cuenta.
+Providers (SES, SMTP relay) have send limits (e.g. SES = 14 emails/sec in sandbox, scalable). If Senda exceeds those limits, the provider blocks the account.
 
-### 24.2. Enfoque: Token Bucket en PL/pgSQL
+### 24.2. Approach: Token Bucket in PL/pgSQL
 
-Se usa el algoritmo **Token Bucket** implementado como función PL/pgSQL. Una sola llamada `SELECT take_send_token(adapter_id)` devuelve `true/false`. Es atómico, thread-safe, y no necesita infraestructura adicional.
+The **Token Bucket** algorithm is implemented as a PL/pgSQL function. A single `SELECT take_send_token(adapter_id)` call returns `true/false`. It is atomic, thread-safe, and does not need additional infrastructure.
 
-**Referencia:** [Neon — Rate Limiting in Postgres](https://neon.com/guides/rate-limiting). La implementación es PL/pgSQL custom (no depende de librerías externas).
+**Reference:** [Neon — Rate Limiting in Postgres](https://neon.com/guides/rate-limiting). The implementation is custom PL/pgSQL (it does not depend on external libraries).
 
 ### 24.3. Schema
 
 ```sql
--- Configuración de rate limits por adapter
--- El admin configura el límite al crear/editar el adapter.
--- Se lee desde adapters.rate_limit_per_second (nuevo campo).
+-- Rate limit configuration per adapter
+-- The admin configures the limit when creating/editing the adapter.
+-- Read from `adapters.rate_limit_per_second` (new field).
 ALTER TABLE adapters ADD COLUMN rate_limit_per_second INT NOT NULL DEFAULT 14;
 
--- Tabla de buckets: un row por adapter, tracking de tokens disponibles.
+-- Bucket table: one row per adapter, tracking available tokens.
 CREATE UNLOGGED TABLE token_buckets (
     adapter_id      UUID PRIMARY KEY REFERENCES adapters(id),
     tokens          FLOAT NOT NULL,           -- tokens actuales
-    max_tokens      INT NOT NULL,             -- capacidad del bucket
-    refill_rate     FLOAT NOT NULL,           -- tokens por segundo
+    max_tokens      INT NOT NULL,             -- bucket capacity
+    refill_rate     FLOAT NOT NULL,           -- tokens per second
     last_refill     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
-### 24.4. Función PL/pgSQL: Token Bucket
+### 24.4. PL/pgSQL Function: Token Bucket
 
 ```sql
--- take_send_token: intenta consumir un token para el adapter dado.
--- Retorna TRUE si se puede enviar, FALSE si hay que esperar.
--- Atómico y thread-safe (row-level lock implícito en UPDATE).
+-- take_send_token: attempts to consume one token for the given adapter.
+-- Returns TRUE if sending is allowed, FALSE if the caller must wait.
+-- Atomic and thread-safe (implicit row-level lock in UPDATE).
 CREATE OR REPLACE FUNCTION take_send_token(p_adapter_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -4972,7 +4972,7 @@ END;
 $$;
 ```
 
-### 24.5. Integración en Go
+### 24.5. Go Integration
 
 ```go
 // internal/ratelimit/provider_limiter.go
@@ -5005,19 +5005,19 @@ func (l *ProviderRateLimiter) SyncBucket(ctx context.Context, adapterID uuid.UUI
 }
 ```
 
-### 24.6. Integración en SendWorker
+### 24.6. SendWorker Integration
 
 ```go
-// En SendWorker.Work(), antes de llamar al adapter:
+// In SendWorker.Work(), before calling the adapter:
 allowed, err := w.rateLimiter.TryAcquire(ctx, job.Args.AdapterID)
 if !allowed {
-    // Re-enqueue con delay corto — River JobSnooze pone el job en espera
+    // Re-enqueue with a short delay — River JobSnooze puts the job on hold
     return river.JobSnooze(1 * time.Second)
 }
 ```
 
-**Nota sobre rate limiting de API:** Removido de Fase 1. El producto es self-hosted, el admin controla el acceso. Se puede agregar como feature opcional si hay demanda.
+**Note about API rate limiting:** Removed from Phase 1. The product is self-hosted, and the admin controls access. It can be added as an optional feature if there is demand.
 
 ---
 
-*Siguiente paso: Armar las Historias Técnicas (HTs) basadas en el PRD v5 + Tech Spec.*
+*Next step: Build the Technical Stories (HTs) based on the PRD v5 + Tech Spec.*

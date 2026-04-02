@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -16,18 +18,54 @@ import (
 	"github.com/rendis/senda/internal/service"
 )
 
+type resolvedTemplateInvalidator interface {
+	InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID)
+	InvalidateAllResolvedTemplates(ctx context.Context)
+}
+
 // TemplateHandler handles template, version, locale CRUD, and MJML preview.
 type TemplateHandler struct {
-	svc         *service.TemplateService
-	store       port.TemplateStore
-	tsStore     port.TenantStore
-	wsStore     port.WorkspaceStore
-	testSendSvc *service.TestSendService
+	svc                 *service.TemplateService
+	store               port.TemplateStore
+	tsStore             port.TenantStore
+	wsStore             port.WorkspaceStore
+	testSendSvc         *service.TestSendService
+	templateInvalidator resolvedTemplateInvalidator
 }
 
 // NewTemplateHandler creates a new TemplateHandler.
-func NewTemplateHandler(svc *service.TemplateService, store port.TemplateStore, ts port.TenantStore, ws port.WorkspaceStore, testSendSvc *service.TestSendService) *TemplateHandler {
-	return &TemplateHandler{svc: svc, store: store, tsStore: ts, wsStore: ws, testSendSvc: testSendSvc}
+func NewTemplateHandler(
+	svc *service.TemplateService,
+	store port.TemplateStore,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	testSendSvc *service.TestSendService,
+	templateInvalidator resolvedTemplateInvalidator,
+) *TemplateHandler {
+	return &TemplateHandler{
+		svc:                 svc,
+		store:               store,
+		tsStore:             ts,
+		wsStore:             ws,
+		testSendSvc:         testSendSvc,
+		templateInvalidator: normalizeResolvedTemplateInvalidator(templateInvalidator),
+	}
+}
+
+func normalizeResolvedTemplateInvalidator(invalidator resolvedTemplateInvalidator) resolvedTemplateInvalidator {
+	if invalidator == nil {
+		return nil
+	}
+
+	value := reflect.ValueOf(invalidator)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
+	}
+
+	return invalidator
 }
 
 // CreateTemplate handles POST .../templates.
@@ -157,8 +195,20 @@ func (h *TemplateHandler) setTemplateDisabled(c *echo.Context, wsID *uuid.UUID, 
 			return mapTemplateError(c, err)
 		}
 	}
+	h.invalidateResolvedTemplates(c.Request().Context(), wsID)
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *TemplateHandler) invalidateResolvedTemplates(ctx context.Context, wsID *uuid.UUID) {
+	if h.templateInvalidator == nil {
+		return
+	}
+	if wsID == nil {
+		h.templateInvalidator.InvalidateAllResolvedTemplates(ctx)
+		return
+	}
+	h.templateInvalidator.InvalidateResolvedTemplates(ctx, *wsID)
 }
 
 // GetVersion handles GET .../templates/:template_id/versions/:version_id.

@@ -475,7 +475,7 @@ func GetTemplateIDByTypeID(t *testing.T, templateTypeID string) string {
 	conn := dbConn(t)
 	var id string
 	err := conn.QueryRow(context.Background(),
-		"SELECT id::text FROM templates WHERE template_type_id = $1::uuid AND deleted_at IS NULL LIMIT 1",
+		"SELECT id::text FROM templates WHERE template_type_id = $1::uuid AND deleted_at IS NULL ORDER BY id DESC LIMIT 1",
 		templateTypeID,
 	).Scan(&id)
 	if err != nil {

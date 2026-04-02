@@ -79,7 +79,7 @@ system-matrix: ## Generate system coverage matrix CSV into artifacts
 	mkdir -p artifacts/system
 	go run ./cmd/systemtest matrix --manifest test/system/screen-manifest.json --format csv --out artifacts/system/coverage-matrix.csv
 
-system-pr: ## Run PR system gate (functional + UI flow; visual opt-in)
+system-pr: ## Run PR system gate light (infra + API contract smoke; UI flow opt-in)
 	bash test/system/system-runner.sh pr
 
 system-nightly: ## Run nightly full system gate (functional + security/chaos + a11y; visual opt-in)

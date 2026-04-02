@@ -134,6 +134,17 @@ func (m *mockEmailSender) Send(ctx context.Context, msg *port.OutgoingEmail) (st
 func (m *mockEmailSender) Name() string                        { return "mock" }
 func (m *mockEmailSender) HealthCheck(_ context.Context) error { return nil }
 
+type mockDeprovisioner struct {
+	deprovisionFn func(ctx context.Context, adapterID uuid.UUID) error
+}
+
+func (m *mockDeprovisioner) Deprovision(ctx context.Context, adapterID uuid.UUID) error {
+	if m.deprovisionFn != nil {
+		return m.deprovisionFn(ctx, adapterID)
+	}
+	return nil
+}
+
 // --- Helpers ---
 
 func noopSenderFactory(_ context.Context, _ *domain.Adapter, _ []byte) (port.EmailSender, error) {
@@ -141,7 +152,7 @@ func noopSenderFactory(_ context.Context, _ *domain.Adapter, _ []byte) (port.Ema
 }
 
 func setupAdapterTest(as port.AdapterStore, crypto port.Crypto, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.AdapterHandler) {
-	return setupAdapterTestFull(as, crypto, ts, ws, noopSenderFactory, &mockAdapterIdentityStore{})
+	return setupAdapterTestFull(as, crypto, ts, ws, noopSenderFactory, &mockAdapterIdentityStore{}, nil)
 }
 
 func setupAdapterTestFull(
@@ -151,13 +162,14 @@ func setupAdapterTestFull(
 	ws port.WorkspaceStore,
 	sf port.SenderFactory,
 	is port.AdapterIdentityStore,
+	deprov port.Deprovisioner,
 ) (*echo.Echo, *handler.AdapterHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
-	h := handler.NewAdapterHandler(as, crypto, ts, ws, sf, is, nil, nil)
+	h := handler.NewAdapterHandler(as, crypto, ts, ws, sf, is, deprov, nil)
 
 	// Workspace-scoped routes.
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters", h.Create)
@@ -373,6 +385,49 @@ func TestAdapterHandler_SoftDelete_Success(t *testing.T) {
 	}
 }
 
+func TestAdapterHandler_SoftDelete_ContinuesAfterDeprovisionPanic(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	var deletedID uuid.UUID
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Adapter, error) {
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &ws.ID,
+				Name:        "SES",
+				AdapterType: domain.AdapterTypeSES,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		softDeleteFn: func(_ context.Context, id uuid.UUID) error {
+			deletedID = id
+			return nil
+		},
+	}
+	deprov := &mockDeprovisioner{
+		deprovisionFn: func(_ context.Context, _ uuid.UUID) error {
+			panic("boom")
+		},
+	}
+
+	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, noopSenderFactory, &mockAdapterIdentityStore{}, deprov)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if deletedID != adapterID {
+		t.Fatalf("expected deleted ID %s, got %s", adapterID, deletedID)
+	}
+}
+
 func TestAdapterHandler_Create_InvalidType(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 
@@ -455,7 +510,7 @@ func TestAdapterHandler_TestSend_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, sf, is)
+	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, sf, is, nil)
 
 	body := `{"to":"recipient@example.com","subject":"Test Email","body":"<h1>Hello</h1>"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))
@@ -529,7 +584,7 @@ func TestAdapterHandler_TestSend_NoDefaultIdentity(t *testing.T) {
 
 	is := &mockAdapterIdentityStore{} // GetDefault returns ErrNotFound by default
 
-	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, noopSenderFactory, is)
+	e, _ := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, noopSenderFactory, is, nil)
 
 	body := `{"to":"recipient@example.com","subject":"Test","body":"Hello"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))

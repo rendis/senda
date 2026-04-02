@@ -56,11 +56,15 @@ go run "$ROOT_DIR/cmd/systemtest" seed-rbac \
   --workspace-viewer-email "$WORKSPACE_VIEWER_EMAIL" \
   --no-member-email "$NO_MEMBER_EMAIL"
 
-log "api-contract-tester: make test"
-make -C "$ROOT_DIR" test
+if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
+  log "api-contract-tester: make test"
+  make -C "$ROOT_DIR" test
 
-log "api-contract-tester: make test-integration"
-make -C "$ROOT_DIR" test-integration
+  log "api-contract-tester: make test-integration"
+  make -C "$ROOT_DIR" test-integration
+else
+  log "api-contract-tester: skipping make test + make test-integration in PR mode (covered by dedicated gates)"
+fi
 
 POSTGRES_CONTAINER="$(jq -r '.runtime.containers.postgres // empty' "$ENV_REPORT_FILE")"
 if [[ -z "$POSTGRES_CONTAINER" ]]; then
@@ -77,8 +81,12 @@ fi
 export MAILPIT_URL="${MAILPIT_BASE_URL}"
 export SENDA_DATABASE_URL="postgres://senda:senda@127.0.0.1:${POSTGRES_PORT}/senda?sslmode=disable"
 
-log "api-contract-tester: make test-e2e-run"
-make -C "$ROOT_DIR" test-e2e-run
+if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
+  log "api-contract-tester: make test-e2e-run"
+  make -C "$ROOT_DIR" test-e2e-run
+else
+  log "api-contract-tester: skipping make test-e2e-run in PR mode (run locally before PR when change scope requires it)"
+fi
 
 ensure_runtime_env
 
@@ -123,6 +131,23 @@ process.stdout.write(JSON.stringify(out));
 NODE
 )"
 
+if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
+  EXECUTED_GATES=$(cat <<EOF_GATES
+1. \`make test\` (unit tests).
+2. \`make test-integration\` (integration tests).
+3. \`make test-e2e-run\` (deterministic E2E backend suites).
+4. Newman run over collection: \`$COLLECTION\`.
+EOF_GATES
+)
+else
+  EXECUTED_GATES=$(cat <<EOF_GATES
+1. Seed deterministic auth + RBAC fixtures for the system test tenant/workspace.
+2. Newman run over collection: \`$COLLECTION\`.
+3. Dedicated backend/unit/integration/E2E suites are expected to run outside this PR smoke gate.
+EOF_GATES
+)
+fi
+
 cat >"$REPORT_PATH" <<EOF_MD
 # API Contract Report
 
@@ -135,10 +160,7 @@ cat >"$REPORT_PATH" <<EOF_MD
 
 ## Executed Gates
 
-1. \`make test\` (unit tests).
-2. \`make test-integration\` (integration tests).
-3. \`make test-e2e-run\` (deterministic E2E backend suites).
-4. Newman run over collection: \`$COLLECTION\`.
+$EXECUTED_GATES
 
 ## Artifacts
 

@@ -1,26 +1,26 @@
-# Historias Técnicas (HTs) — Senda P1
+# Technical Stories (HTs) — Senda P1
 
-**Referencia:** TECH_SPEC v1.4 | PRD v5.0
+**Reference:** TECH_SPEC v1.4 | PRD v5.0
 
-**Granularidad:** Feature-level (3–5 días por HT)
+**Granularity:** Feature-level (3–5 days per HT)
 
-**Convenciones:**
-- Cada HT incluye: objetivo, secciones del spec relevantes, criterios de aceptación, y dependencias.
-- TDD obligatorio: cada HT produce tests unitarios. E2E con TestContainers donde aplique.
-- Las HTs están agrupadas en **Épicas** y ordenadas por dependencia.
+**Conventions:**
+- Every HT includes: objective, relevant spec sections, acceptance criteria, and dependencies.
+- TDD is mandatory: every HT produces unit tests. E2E with TestContainers where applicable.
+- HTs are grouped into **Epics** and ordered by dependency.
 
 ---
 
-## Mapa de Épicas
+## Epic Map
 
-| Épica | Scope | HTs |
+| Epic | Scope | HTs |
 |-------|-------|-----|
-| E1 — Foundation | Scaffolding, DB, Config, Crypto | HT-01 a HT-04 |
-| E2 — Core Domain | Modelos, Ports, Stores | HT-05 a HT-09 |
-| E3 — Resolution Engine | Chain, Injectors, Templates, Adapters, Domains | HT-10 a HT-12 |
-| E4 — Send Flow | SendService, Workers, DKIM, Rate Limiting | HT-13 a HT-16 |
-| E5 — API Layer | Middleware, Auth, Handlers, Contract | HT-17 a HT-22 |
-| E6 — Operations | Provider Events, Webhooks, Onboarding, Observability | HT-23 a HT-27 |
+| E1 — Foundation | Scaffolding, DB, Config, Crypto | HT-01 to HT-04 |
+| E2 — Core Domain | Models, Ports, Stores | HT-05 to HT-09 |
+| E3 — Resolution Engine | Chain, Injectors, Templates, Adapters, Domains | HT-10 to HT-12 |
+| E4 — Send Flow | SendService, Workers, DKIM, Rate Limiting | HT-13 to HT-16 |
+| E5 — API Layer | Middleware, Auth, Handlers, Contract | HT-17 to HT-22 |
+| E6 — Operations | Provider Events, Webhooks, Onboarding, Observability | HT-23 to HT-27 |
 
 ---
 
@@ -28,70 +28,70 @@
 
 ### HT-01: Project Scaffolding + Docker Compose
 
-**Objetivo:** Crear la estructura de carpetas del proyecto Go, configurar el módulo, Docker Compose con PostgreSQL 16 + pg_cron, y Makefile base.
+**Objective:** Create the Go project folder structure, initialize the module, set up Docker Compose with PostgreSQL 16 + pg_cron, and establish the base Makefile.
 
-**Spec:** §9 (Estructura de Carpetas), §18 (Docker Compose)
+**Spec:** §9 (Folder Structure), §18 (Docker Compose)
 
-**Entregables:**
-- `go.mod` inicializado con módulo `github.com/rendis/senda`
-- Estructura de carpetas: `cmd/senda/`, `internal/{domain,port,service,resolution,adapter,http}/`, `migrations/`, `config/`, `pkg/`, `docker/`
-- `docker-compose.yml` con postgres:16-alpine + pg_cron (`shared_preload_libraries`), caddy (profile https)
+**Deliverables:**
+- `go.mod` initialized with module `github.com/rendis/senda`
+- Folder structure: `cmd/senda/`, `internal/{domain,port,service,resolution,adapter,http}/`, `migrations/`, `config/`, `pkg/`, `docker/`
+- `docker-compose.yml` with postgres:16-alpine + pg_cron (`shared_preload_libraries`), caddy (https profile)
 - `Dockerfile` (multi-stage: build + alpine runtime)
-- `Dockerfile.dev` (con hot reload via air o similar)
-- `Makefile` con targets: `dev`, `build`, `test`, `migrate-up`, `migrate-down`, `lint`
+- `Dockerfile.dev` (with hot reload via air or similar)
+- `Makefile` with targets: `dev`, `build`, `test`, `migrate-up`, `migrate-down`, `lint`
 - `.gitignore`, `.editorconfig`
 
-**Criterios de Aceptación:**
-- [ ] `make dev` levanta el stack completo (senda + postgres) con docker compose
-- [ ] PostgreSQL acepta conexiones y pg_cron está habilitado (`SELECT * FROM cron.job` no falla)
-- [ ] `make build` genera el binario
-- [ ] `make test` ejecuta tests (aunque aún no haya ninguno)
+**Acceptance Criteria:**
+- [ ] `make dev` brings up the full stack (senda + postgres) with docker compose
+- [ ] PostgreSQL accepts connections and pg_cron is enabled (`SELECT * FROM cron.job` does not fail)
+- [ ] `make build` generates the binary
+- [ ] `make test` runs tests (even if there are none yet)
 
-**Dependencias:** Ninguna (primera HT)
+**Dependencies:** None (first HT)
 
 ---
 
 ### HT-02: Configuration + Secrets Management
 
-**Objetivo:** Implementar carga de configuración desde YAML + env vars, con validación y defaults.
+**Objective:** Implement configuration loading from YAML + environment variables, with validation and defaults.
 
 **Spec:** §17 (Configuration)
 
-**Entregables:**
-- `config/config.go` — struct `Config` con sub-configs: `ServerConfig`, `DatabaseConfig`, `OIDCConfig`, `CryptoConfig`, `LogConfig`
-- Parsing YAML + override por env vars (`SENDA_` prefix)
-- `config/config.example.yaml` con todos los valores documentados
-- Validación: campos requeridos, formatos de URL, master key length
+**Deliverables:**
+- `config/config.go` — `Config` struct with sub-configs: `ServerConfig`, `DatabaseConfig`, `OIDCConfig`, `CryptoConfig`, `LogConfig`
+- YAML parsing + env var overrides (`SENDA_` prefix)
+- `config/config.example.yaml` with all values documented
+- Validation: required fields, URL formats, master key length
 
-**Criterios de Aceptación:**
-- [ ] Config se carga desde YAML, env vars override funcionan
-- [ ] Errores claros si falta configuración requerida
-- [ ] `config.example.yaml` incluye todos los campos con comentarios
-- [ ] Tests unitarios para parsing, defaults, y validación
+**Acceptance Criteria:**
+- [ ] Config loads from YAML, env var overrides work
+- [ ] Clear errors when required configuration is missing
+- [ ] `config.example.yaml` includes all fields with comments
+- [ ] Unit tests for parsing, defaults, and validation
 
-**Dependencias:** HT-01
+**Dependencies:** HT-01
 
 ---
 
 ### HT-03: Database Connection + Migrations Runner
 
-**Objetivo:** Implementar pool de conexiones pgx v5, integrar golang-migrate, y crear todas las migrations SQL.
+**Objective:** Implement the pgx v5 connection pool, integrate golang-migrate, and create all SQL migrations.
 
-**Spec:** §7 (Migration Strategy completa — 19 migrations), §3 (Schema SQL), §4 (Partitioning), §5 (Índices)
+**Spec:** §7 (Full Migration Strategy — 19 migrations), §3 (SQL Schema), §4 (Partitioning), §5 (Indexes)
 
-**Entregables:**
+**Deliverables:**
 - `internal/adapter/postgres/db.go` — connection pool (pgxpool), health check, graceful shutdown
-- Integración golang-migrate: auto-run on start (configurable)
-- **19 archivos de migration** (up + down):
+- golang-migrate integration: auto-run on start (configurable)
+- **19 migration files** (up + down):
   - 000001: Extensions (pgcrypto, pg_cron)
   - 000002: 10 ENUMs
-  - 000003: tenants + workspaces (con CHECKs, EXCLUDE)
+  - 000003: tenants + workspaces (with CHECKs, EXCLUDE)
   - 000004: injectors (definitions, fields, values)
-  - 000005: adapters (con EXCLUDE default, rate_limit_per_second)
-  - 000006: domains (con domain_status, DKIM, dns_records)
-  - 000007: template_types (con adapter_id) + templates
-  - 000008: template_versions + locales (con EXCLUDE one-published)
-  - 000009: members + member_roles (con scope_type, CHECK)
+  - 000005: adapters (with default EXCLUDE, rate_limit_per_second)
+  - 000006: domains (with domain_status, DKIM, dns_records)
+  - 000007: template_types (with adapter_id) + templates
+  - 000008: template_versions + locales (with one-published EXCLUDE)
+  - 000009: members + member_roles (with scope_type, CHECK)
   - 000010: api_keys
   - 000011: emails + email_events (partitioned by month)
   - 000012: suppression lists
@@ -100,39 +100,39 @@
   - 000015: global_config + seed data
   - 000016: UNLOGGED tables (cache, token_buckets)
   - 000017: PL/pgSQL functions (get_resolution_chain, take_send_token)
-  - 000018: Performance indices
-  - 000019: pg_cron jobs (cache-cleanup, create-partitions)
+  - 000018: Performance indexes
+  - 000019: pg_cron jobs (cache cleanup, partition creation)
 
-**Criterios de Aceptación:**
-- [ ] `make migrate-up` ejecuta las 19 migrations sin error
-- [ ] `make migrate-down` revierte todas las migrations
-- [ ] Todas las tablas, constraints, ENUMs, funciones e índices existen
-- [ ] pg_cron jobs registrados (`SELECT * FROM cron.job` muestra 2 jobs)
-- [ ] Test de integración con TestContainers: migrate up → verify tables → migrate down → verify clean
+**Acceptance Criteria:**
+- [ ] `make migrate-up` runs all 19 migrations without errors
+- [ ] `make migrate-down` rolls back all migrations
+- [ ] All tables, constraints, ENUMs, functions, and indexes exist
+- [ ] pg_cron jobs are registered (`SELECT * FROM cron.job` returns 2 jobs)
+- [ ] Integration test with TestContainers: migrate up → verify tables → migrate down → verify clean state
 
-**Dependencias:** HT-01, HT-02
+**Dependencies:** HT-01, HT-02
 
 ---
 
 ### HT-04: Encryption Module (AES-256-GCM)
 
-**Objetivo:** Implementar encriptación/decriptación simétrica para credentials de adapters y DKIM keys.
+**Objective:** Implement symmetric encryption/decryption for adapter credentials and DKIM keys.
 
-**Spec:** §1.7 (Encrypted at rest), §17 (CryptoConfig con master_key)
+**Spec:** §1.7 (Encrypted at rest), §17 (CryptoConfig with master_key)
 
-**Entregables:**
-- `internal/adapter/crypto/aes.go` — `AESCrypto` struct implementando el port `Crypto`
-- `internal/port/crypto.go` — interface `Crypto { Encrypt(plaintext []byte) ([]byte, error); Decrypt(ciphertext []byte) ([]byte, error) }`
-- Derivación de key desde master key (HKDF o similar)
-- Nonce único por operación (GCM incluye nonce en ciphertext)
+**Deliverables:**
+- `internal/adapter/crypto/aes.go` — `AESCrypto` struct implementing the `Crypto` port
+- `internal/port/crypto.go` — `Crypto` interface `{ Encrypt(plaintext []byte) ([]byte, error); Decrypt(ciphertext []byte) ([]byte, error) }`
+- Key derivation from master key (HKDF or similar)
+- Unique nonce per operation (GCM includes nonce in ciphertext)
 
-**Criterios de Aceptación:**
-- [ ] Encrypt → Decrypt round-trip preserva el plaintext
-- [ ] Distinto ciphertext para mismo plaintext (nonce aleatorio)
-- [ ] Error claro si master key es inválida o ciphertext corrupto
-- [ ] Tests unitarios con vectores de prueba
+**Acceptance Criteria:**
+- [ ] Encrypt → Decrypt round-trip preserves the plaintext
+- [ ] Different ciphertext for the same plaintext (random nonce)
+- [ ] Clear error if the master key is invalid or ciphertext is corrupt
+- [ ] Unit tests with test vectors
 
-**Dependencias:** HT-02
+**Dependencies:** HT-02
 
 ---
 
@@ -140,52 +140,52 @@
 
 ### HT-05: Domain Models + Error Types
 
-**Objetivo:** Definir todas las entidades del dominio como structs Go y los errores de dominio.
+**Objective:** Define all domain entities as Go structs and define domain errors.
 
-**Spec:** §11 (Domain Models completo — 11.1 a 11.11)
+**Spec:** §11 (Complete Domain Models — 11.1 to 11.11)
 
-**Entregables:**
+**Deliverables:**
 - `internal/domain/tenant.go` — Tenant, Workspace
 - `internal/domain/injector.go` — InjectorDefinition, InjectorField, InjectorValue
-- `internal/domain/adapter.go` — Adapter (con AdapterType, RateLimitPerSecond)
-- `internal/domain/template.go` — TemplateType (con AdapterID), Template, TemplateVersion, TemplateVersionLocale
-- `internal/domain/email.go` — Email (con TrackingID, BodyMJML, snapshots), EmailEvent, EmailStatus
-- `internal/domain/member.go` — Member (con OIDC), MemberRole, Role, ScopeType
-- `internal/domain/apikey.go` — APIKey (con KeyPrefix, KeyHint, RevokedAt)
-- `internal/domain/domain_record.go` — Domain (con DomainStatus, DKIMSelector, DNSRecords)
+- `internal/domain/adapter.go` — Adapter (with AdapterType, RateLimitPerSecond)
+- `internal/domain/template.go` — TemplateType (with AdapterID), Template, TemplateVersion, TemplateVersionLocale
+- `internal/domain/email.go` — Email (with TrackingID, BodyMJML, snapshots), EmailEvent, EmailStatus
+- `internal/domain/member.go` — Member (with OIDC), MemberRole, Role, ScopeType
+- `internal/domain/apikey.go` — APIKey (with KeyPrefix, KeyHint, RevokedAt)
+- `internal/domain/domain_record.go` — Domain (with DomainStatus, DKIMSelector, DNSRecords)
 - `internal/domain/suppression.go` — SuppressionGlobal, SuppressionWorkspace
-- `internal/domain/webhook.go` — Webhook (con ConsecutiveFailures, DisabledAt)
-- `internal/domain/audit.go` — AuditLog (con AuditAction, ScopeType, Changes, Metadata)
+- `internal/domain/webhook.go` — Webhook (with ConsecutiveFailures, DisabledAt)
+- `internal/domain/audit.go` — AuditLog (with AuditAction, ScopeType, Changes, Metadata)
 - `internal/domain/config.go` — GlobalConfig
 - `internal/domain/addressing.go` — Address struct (TenantCode:WorkspaceCode:TemplateTypeSlug)
 - `internal/domain/errors.go` — ErrNotFound, ErrConflict, ErrValidation, ErrForbidden, ErrNoAdapterConfigured, etc.
-- `pkg/apperr/errors.go` — Application error types con HTTP status mapping
-- `pkg/slug/slug.go` — Validación de slugs (regex + reserved words)
-- `pkg/tracking/id.go` — Generación de tracking IDs
+- `pkg/apperr/errors.go` — application error types with HTTP status mapping
+- `pkg/slug/slug.go` — slug validation (regex + reserved words)
+- `pkg/tracking/id.go` — tracking ID generation
 
-**Criterios de Aceptación:**
-- [ ] Todas las entidades de §11 están definidas con los mismos campos y tipos
-- [ ] Enums mapeados correctamente (EmailStatus, Role, ScopeType, etc.)
-- [ ] Domain errors implementan `error` interface y son distinguibles con `errors.Is`
-- [ ] Slug validation cubre el regex del CHECK constraint de la DB
-- [ ] Tests unitarios para: slug validation, tracking ID generation, address parsing
+**Acceptance Criteria:**
+- [ ] All §11 entities are defined with the same fields and types
+- [ ] Enums are mapped correctly (EmailStatus, Role, ScopeType, etc.)
+- [ ] Domain errors implement `error` and are distinguishable with `errors.Is`
+- [ ] Slug validation covers the DB CHECK constraint regex
+- [ ] Unit tests for: slug validation, tracking ID generation, address parsing
 
-**Dependencias:** HT-01
+**Dependencies:** HT-01
 
 ---
 
-### HT-06: Port Interfaces (Contratos)
+### HT-06: Port Interfaces (Contracts)
 
-**Objetivo:** Definir todas las interfaces (ports) que conectan el domain con la infraestructura.
+**Objective:** Define all interfaces (ports) connecting the domain to infrastructure.
 
-**Spec:** §10 (Port Interfaces — 10.1 a 10.5)
+**Spec:** §10 (Port Interfaces — 10.1 to 10.5)
 
-**Entregables:**
-- `internal/port/email_sender.go` — `EmailSender` interface (SendEmail, con context + EmailMessage)
-- `internal/port/store.go` — Todas las store interfaces:
+**Deliverables:**
+- `internal/port/email_sender.go` — `EmailSender` interface (SendEmail, with context + EmailMessage)
+- `internal/port/store.go` — all store interfaces:
   - `TenantStore` (Create, GetByID, GetByCode, List, Update, SoftDelete)
   - `WorkspaceStore` (Create, GetByID, GetByCode, ListByTenant, Update, SoftDelete, GetSystem)
-  - `InjectorStore` (CRUD + GetByScope — resolución por workspace_id IN chain)
+  - `InjectorStore` (CRUD + GetByScope — resolution by workspace_id IN chain)
   - `TemplateTypeStore` (CRUD + GetBySlugInChain)
   - `TemplateStore` (CRUD + GetByTypeInChain)
   - `TemplateVersionStore` (Create, GetPublished, GetByID, List, Publish, Archive)
@@ -201,97 +201,97 @@
   - `WebhookStore` (CRUD + GetActiveByWorkspace)
   - `AuditLogStore` (Append, ListByScope, ListByResource)
   - `GlobalConfigStore` (Get, Set, GetAll)
-- `internal/port/queue.go` — `JobQueue` interface (Enqueue con job types: SendEmail, VerifyDomain, DeliverWebhook)
+- `internal/port/queue.go` — `JobQueue` interface (Enqueue with job types: SendEmail, VerifyDomain, DeliverWebhook)
 - `internal/port/template_compiler.go` — `TemplateCompiler` interface (CompileMJML → HTML)
 - `internal/port/cache.go` — `Cache` interface (Get, Set, Delete, DeletePattern)
-- Tipos auxiliares: `ListOptions` (cursor-based), `PageResult[T]` (items + next_cursor + has_more)
+- Helper types: `ListOptions` (cursor-based), `PageResult[T]` (items + next_cursor + has_more)
 
-**Criterios de Aceptación:**
-- [ ] Todas las interfaces de §10 definidas
-- [ ] Cada método tiene context.Context como primer parámetro
-- [ ] PageResult es genérico (`PageResult[T any]`)
-- [ ] ListOptions soporta cursor + limit
-- [ ] Compila sin errores (interfaces bien tipadas contra domain models)
+**Acceptance Criteria:**
+- [ ] All interfaces from §10 are defined
+- [ ] Every method has `context.Context` as its first parameter
+- [ ] `PageResult` is generic (`PageResult[T any]`)
+- [ ] `ListOptions` supports cursor + limit
+- [ ] Compiles without errors (interfaces are type-correct against domain models)
 
-**Dependencias:** HT-05
+**Dependencies:** HT-05
 
 ---
 
 ### HT-07: PostgreSQL Stores — Tenants, Workspaces, Config
 
-**Objetivo:** Implementar las store interfaces para las entidades base usando pgx v5.
+**Objective:** Implement the store interfaces for the base entities using pgx v5.
 
-**Spec:** §10.2 (Store Ports), §3.2–3.3 (Schema tenants/workspaces), §3.15 (global_config)
+**Spec:** §10.2 (Store Ports), §3.2–3.3 (tenants/workspaces schema), §3.15 (global_config)
 
-**Entregables:**
+**Deliverables:**
 - `internal/adapter/postgres/tenant_repo.go` — TenantStore implementation
 - `internal/adapter/postgres/workspace_repo.go` — WorkspaceStore implementation
 - `internal/adapter/postgres/global_config_repo.go` — GlobalConfigStore implementation
-- Patrón base: `pgxpool.Pool` inyectado, queries con `pgx.NamedArgs`, scans con `pgx.CollectRows`
-- Soft delete: queries filtran `WHERE deleted_at IS NULL` por defecto
-- Cursor-based pagination implementada como helper reutilizable
+- Base pattern: `pgxpool.Pool` injected, queries with `pgx.NamedArgs`, scans with `pgx.CollectRows`
+- Soft delete: queries filter `WHERE deleted_at IS NULL` by default
+- Cursor-based pagination implemented as a reusable helper
 
-**Criterios de Aceptación:**
-- [ ] CRUD completo para tenants y workspaces
-- [ ] GetByCode resuelve tenant+workspace por código
-- [ ] Soft delete funciona (no borra físicamente)
-- [ ] Cursor pagination produce resultados ordenados y estables
-- [ ] GlobalConfig get/set funciona con JSONB
-- [ ] Tests de integración con TestContainers (PG real)
+**Acceptance Criteria:**
+- [ ] Full CRUD for tenants and workspaces
+- [ ] GetByCode resolves tenant + workspace by code
+- [ ] Soft delete works (no physical delete)
+- [ ] Cursor pagination produces stable, ordered results
+- [ ] GlobalConfig get/set works with JSONB
+- [ ] Integration tests with TestContainers (real PG)
 
-**Dependencias:** HT-03, HT-05, HT-06
+**Dependencies:** HT-03, HT-05, HT-06
 
 ---
 
 ### HT-08: PostgreSQL Stores — Injectors, Adapters, Domains, Templates
 
-**Objetivo:** Implementar stores para las entidades de configuración de envío.
+**Objective:** Implement stores for email configuration entities.
 
 **Spec:** §10.2, §3.4–3.8
 
-**Entregables:**
-- `internal/adapter/postgres/injector_repo.go` — InjectorStore (definitions + fields + values, con resolución por chain)
-- `internal/adapter/postgres/adapter_repo.go` — AdapterStore (con encrypt/decrypt de credentials)
-- `internal/adapter/postgres/domain_repo.go` — DomainStore (con búsqueda por chain, pending verification)
+**Deliverables:**
+- `internal/adapter/postgres/injector_repo.go` — InjectorStore (definitions + fields + values, with chain-based resolution)
+- `internal/adapter/postgres/adapter_repo.go` — AdapterStore (with encrypt/decrypt of credentials)
+- `internal/adapter/postgres/domain_repo.go` — DomainStore (with chain lookup, pending verification)
 - `internal/adapter/postgres/template_repo.go` — TemplateTypeStore + TemplateStore + TemplateVersionStore + TemplateVersionLocaleStore
-- Resolución por chain: queries usan `workspace_id IN (unnest(get_resolution_chain($1)))` o equivalent Go logic
-- Version management: publish (con validación one-published), archive, draft
+- Chain resolution: queries use `workspace_id IN (unnest(get_resolution_chain($1)))` or equivalent Go logic
+- Version management: publish (with one-published validation), archive, draft
 
-**Criterios de Aceptación:**
-- [ ] Injector values se crean/resuelven por scope (workspace → _system → global)
-- [ ] Adapter credentials se encriptan al guardar y decriptan al leer
-- [ ] Template versions respetan el constraint one-published
-- [ ] Domain lookup busca en la cadena de resolución
-- [ ] Tests de integración: crear datos en distintos scopes y verificar resolución
+**Acceptance Criteria:**
+- [ ] Injector values are created/resolved by scope (workspace → _system → global)
+- [ ] Adapter credentials are encrypted on save and decrypted on read
+- [ ] Template versions respect the one-published constraint
+- [ ] Domain lookup searches the resolution chain
+- [ ] Integration tests: create data in different scopes and verify resolution
 
-**Dependencias:** HT-04, HT-07
+**Dependencies:** HT-04, HT-07
 
 ---
 
 ### HT-09: PostgreSQL Stores — Members, API Keys, Emails, Audit, Suppression, Webhooks
 
-**Objetivo:** Implementar las stores restantes para auth, tracking, y operaciones.
+**Objective:** Implement the remaining stores for auth, tracking, and operations.
 
 **Spec:** §10.2, §3.9–3.14
 
-**Entregables:**
-- `internal/adapter/postgres/member_repo.go` — MemberStore + MemberRoleStore (con scope_type check)
+**Deliverables:**
+- `internal/adapter/postgres/member_repo.go` — MemberStore + MemberRoleStore (with scope_type checks)
 - `internal/adapter/postgres/apikey_repo.go` — APIKeyStore (hash lookup, revoke)
-- `internal/adapter/postgres/email_repo.go` — EmailStore (insert, update status, query con pagination)
+- `internal/adapter/postgres/email_repo.go` — EmailStore (insert, status update, paginated query)
 - `internal/adapter/postgres/suppression_repo.go` — SuppressionStore (check global + workspace, add, remove)
 - `internal/adapter/postgres/audit_repo.go` — AuditLogStore (append-only, query by scope/resource/member)
 - `internal/adapter/postgres/webhook_repo.go` — WebhookStore (CRUD, get active by workspace)
 - `internal/adapter/postgres/email_event_repo.go` — EmailEventStore (append, list by email)
 
-**Criterios de Aceptación:**
-- [ ] Member roles respetan CHECK constraint (scope_type vs role)
-- [ ] API key lookup por hash funciona en < 5ms
-- [ ] Email insert incluye todas las columnas de §3.11
-- [ ] Suppression check consulta global + workspace en una sola transacción
-- [ ] Audit log es append-only (no update, no delete)
-- [ ] Tests de integración con TestContainers
+**Acceptance Criteria:**
+- [ ] Member roles respect the CHECK constraint (scope_type vs role)
+- [ ] API key lookup by hash works in under 5ms
+- [ ] Email insert includes all columns from §3.11
+- [ ] Suppression check queries global + workspace in a single transaction
+- [ ] Audit log is append-only (no update, no delete)
+- [ ] Integration tests with TestContainers
 
-**Dependencias:** HT-07
+**Dependencies:** HT-07
 
 ---
 
@@ -299,84 +299,84 @@
 
 ### HT-10: ChainResolver + InjectorMerger
 
-**Objetivo:** Implementar la resolución jerárquica workspace → _system → global y el merge de injectors campo por campo.
+**Objective:** Implement the workspace → _system → global hierarchy resolution and field-by-field injector merging.
 
 **Spec:** §12.1 (ChainResolver), §12.2 (InjectorMerger)
 
-**Entregables:**
+**Deliverables:**
 - `internal/resolution/chain.go` — `ChainResolver`
   - `Resolve(ctx, tenantCode, workspaceCode)` → `ResolvedChain{Workspace, SystemWorkspace, IsGlobal}`
-  - Usa cache (port.Cache) con TTL 5min, key `chain:{tenantCode}:{workspaceCode}`
+  - Uses cache (port.Cache) with a 5-minute TTL, key `chain:{tenantCode}:{workspaceCode}`
 - `internal/resolution/injector_merger.go` — `InjectorMerger`
   - `Merge(ctx, workspaceID, injectorNames)` → `map[string]map[string]any`
   - Field-by-field merge: workspace values override _system, _system overrides global
-  - Si un campo no tiene valor en ningún nivel y es required → error
+  - If a field has no value at any level and is required → error
 
-**Criterios de Aceptación:**
-- [ ] ChainResolver retorna los 3 niveles correctos (workspace, _system, global)
-- [ ] Cache hit evita query a DB
-- [ ] InjectorMerger combina campos de 3 niveles correctamente
-- [ ] Required fields sin valor producen error descriptivo
-- [ ] Tests unitarios con mock stores y mock cache
+**Acceptance Criteria:**
+- [ ] ChainResolver returns the correct 3 levels (workspace, _system, global)
+- [ ] Cache hits avoid DB queries
+- [ ] InjectorMerger combines fields from the 3 levels correctly
+- [ ] Required fields without values produce a descriptive error
+- [ ] Unit tests with mock stores and mock cache
 
-**Dependencias:** HT-06 (ports), HT-08 (stores para integration tests)
+**Dependencies:** HT-06 (ports), HT-08 (stores for integration tests)
 
 ---
 
 ### HT-11: TemplateResolver + AdapterResolver
 
-**Objetivo:** Implementar resolución de template (versión publicada + locale) y adapter (por template type).
+**Objective:** Implement template resolution (published version + locale) and adapter resolution (per template type).
 
 **Spec:** §12.3 (TemplateResolver), §12.4 (AdapterResolver)
 
-**Entregables:**
+**Deliverables:**
 - `internal/resolution/template_resolver.go` — `TemplateResolver`
   - `Resolve(ctx, workspaceID, templateTypeSlug, locale)` → `ResolvedTemplate{TemplateType, Template, Version, Locale, FinalSubject, FinalBody}`
-  - Busca template en chain (workspace → _system → global)
-  - Selecciona versión published
-  - Aplica locale fallback (requested → default_locale → base)
+  - Searches for the template in the chain (workspace → _system → global)
+  - Selects the published version
+  - Applies locale fallback (requested → default_locale → base)
 - `internal/resolution/adapter_resolver.go` — `AdapterResolver`
   - `ResolveForTemplateType(ctx, templateType)` → `ResolvedAdapter`
-  - Lee `templateType.AdapterID` → busca adapter → decrypt credentials
-  - Si AdapterID es nil → `ErrNoAdapterConfigured` (422)
+  - Reads `templateType.AdapterID` → looks up adapter → decrypts credentials
+  - If AdapterID is nil → `ErrNoAdapterConfigured` (422)
 
-**Criterios de Aceptación:**
-- [ ] Template se resuelve buscando en la cadena: primero workspace, luego _system, luego global
-- [ ] Si no hay template publicado → error descriptivo
-- [ ] Locale fallback funciona: es-CO → es → default
-- [ ] Adapter se resuelve desde template_type.adapter_id (no por chain)
-- [ ] Sin adapter_id → 422 con mensaje claro
-- [ ] Tests unitarios con mocks; integration test con datos en 3 niveles
+**Acceptance Criteria:**
+- [ ] Template resolution searches in the chain: workspace first, then _system, then global
+- [ ] If there is no published template → descriptive error
+- [ ] Locale fallback works: es-CO → es → default
+- [ ] Adapter resolves from `template_type.adapter_id` (not by chain)
+- [ ] No adapter_id → 422 with a clear message
+- [ ] Unit tests with mocks; integration test with data in 3 levels
 
-**Dependencias:** HT-10
+**Dependencies:** HT-10
 
 ---
 
 ### HT-12: DomainResolver + Cache Invalidation
 
-**Objetivo:** Validar from_email contra dominios verificados y implementar estrategia de invalidación de cache.
+**Objective:** Validate `from_email` against verified domains and implement cache invalidation strategy.
 
 **Spec:** §12.5 (DomainResolver), §12.6 (Cache Invalidation Strategy)
 
-**Entregables:**
+**Deliverables:**
 - `internal/resolution/domain_resolver.go` — `DomainResolver`
-  - `Validate(ctx, workspaceID, fromEmail)` → `ResolvedDomain` o error
-  - Extrae dominio del from_email, busca en chain
-  - Solo acepta dominios con `status = verified`
+  - `Validate(ctx, workspaceID, fromEmail)` → `ResolvedDomain` or error
+  - Extracts the domain from `from_email`, searches the chain
+  - Accepts only domains with `status = verified`
 - `internal/service/cache_invalidator.go` — `CacheInvalidator`
-  - `InvalidateWorkspace(ctx, workspaceID)` — borra keys de ese workspace
-  - `InvalidateAdapter(ctx, adapterID)` — borra keys de template types que usan ese adapter
-  - `InvalidateTenantWorkspaces(ctx, tenantID)` — borra keys de todos los workspaces del tenant
-  - `InvalidateGlobal(ctx)` — borra todas las keys de chain/template/adapter
+  - `InvalidateWorkspace(ctx, workspaceID)` — deletes keys for that workspace
+  - `InvalidateAdapter(ctx, adapterID)` — deletes keys for template types that use that adapter
+  - `InvalidateTenantWorkspaces(ctx, tenantID)` — deletes keys for all tenant workspaces
+  - `InvalidateGlobal(ctx)` — deletes all chain/template/adapter keys
 
-**Criterios de Aceptación:**
-- [ ] from_email con dominio no verificado → error 422
-- [ ] Dominio verificado en _system es válido para workspaces del tenant
-- [ ] CacheInvalidator borra patterns correctos
-- [ ] Después de invalidar, la siguiente resolución consulta DB (no cache stale)
-- [ ] Tests unitarios
+**Acceptance Criteria:**
+- [ ] Unverified-domain `from_email` → 422 error
+- [ ] Verified domain in _system is valid for tenant workspaces
+- [ ] CacheInvalidator deletes the correct patterns
+- [ ] After invalidation, the next resolution queries the DB (no stale cache)
+- [ ] Unit tests
 
-**Dependencias:** HT-10, HT-11
+**Dependencies:** HT-10, HT-11
 
 ---
 
@@ -384,79 +384,79 @@
 
 ### HT-13: PG Cache + Token Bucket Rate Limiter
 
-**Objetivo:** Implementar el adapter de cache con PG UNLOGGED table y el rate limiter de providers con token bucket PL/pgSQL.
+**Objective:** Implement the cache adapter using a PG UNLOGGED table and the provider rate limiter using a token bucket PL/pgSQL function.
 
 **Spec:** §23 (PG Cache), §24 (Token Bucket)
 
-**Entregables:**
-- `internal/adapter/pgcache/client.go` — `PGCache` implementando `port.Cache`
+**Deliverables:**
+- `internal/adapter/pgcache/client.go` — `PGCache` implementing `port.Cache`
   - Get: `SELECT value FROM cache WHERE key = $1 AND expires_at > now()`
   - Set: `INSERT ... ON CONFLICT (key) DO UPDATE`
   - Delete: `DELETE WHERE key = $1`
   - DeletePattern: `DELETE WHERE key LIKE $1`
-  - StartCleanup goroutine (backup para pg_cron)
+  - StartCleanup goroutine (fallback for pg_cron)
 - `internal/adapter/postgres/rate_limiter.go` — `RateLimiter`
-  - `TakeToken(ctx, adapterID) (bool, error)` — llama `SELECT take_send_token($1)`
-  - `WaitForToken(ctx, adapterID, timeout)` — retry con backoff hasta obtener token
-- Cache TTLs documentados: chain=5min, template=10min, adapter=10min, suppression=1min
+  - `TakeToken(ctx, adapterID) (bool, error)` — calls `SELECT take_send_token($1)`
+  - `WaitForToken(ctx, adapterID, timeout)` — retries with backoff until a token is available
+- Documented cache TTLs: chain=5min, template=10min, adapter=10min, suppression=1min
 
-**Criterios de Aceptación:**
-- [ ] Cache Get/Set/Delete funciona con JSONB
-- [ ] Cache entries expiran correctamente
-- [ ] DeletePattern borra por prefijo
-- [ ] TakeToken retorna true cuando hay tokens, false cuando bucket vacío
-- [ ] Token bucket se auto-crea desde adapter.rate_limit_per_second
-- [ ] Refill es proporcional al tiempo transcurrido
-- [ ] Tests de integración con TestContainers
+**Acceptance Criteria:**
+- [ ] Cache Get/Set/Delete works with JSONB
+- [ ] Cache entries expire correctly
+- [ ] DeletePattern deletes by prefix
+- [ ] TakeToken returns true when tokens are available, false when the bucket is empty
+- [ ] Token bucket auto-creates from `adapter.rate_limit_per_second`
+- [ ] Refill is proportional to elapsed time
+- [ ] Integration tests with TestContainers
 
-**Dependencias:** HT-03 (migrations incluyen UNLOGGED tables + PL/pgSQL)
+**Dependencies:** HT-03 (migrations include UNLOGGED tables + PL/pgSQL)
 
 ---
 
 ### HT-14: MJML Compiler + DKIM Signer
 
-**Objetivo:** Implementar compilación MJML → HTML y firma DKIM de emails.
+**Objective:** Implement MJML → HTML compilation and DKIM signing for emails.
 
 **Spec:** §22 (DKIM Signing), §10.4 (TemplateCompiler port)
 
-**Entregables:**
-- `internal/adapter/mjml/compiler.go` — `MJMLCompiler` implementando `port.TemplateCompiler`
-  - Usa gomjml (Go nativo) para convertir MJML → HTML responsive
-  - Fallback: si gomjml falla (feature no soportado), retorna error descriptivo
+**Deliverables:**
+- `internal/adapter/mjml/compiler.go` — `MJMLCompiler` implementing `port.TemplateCompiler`
+  - Uses gomjml (native Go) to convert MJML → responsive HTML
+  - Fallback: if gomjml fails (unsupported feature), returns a descriptive error
 - `internal/adapter/dkim/signer.go` — `DKIMSigner`
   - `GenerateKeyPair()` → (privateKey, publicKey, error) — RSA-2048
   - `Sign(message []byte, domain, selector string, privateKey []byte)` → signed message
-  - Usa go-msgauth para firma DKIM
-- `internal/adapter/dkim/dns.go` — helpers para generar DNS records (DKIM TXT, SPF, DMARC)
+  - Uses go-msgauth for DKIM signing
+- `internal/adapter/dkim/dns.go` — helpers to generate DNS records (DKIM TXT, SPF, DMARC)
 
-**Criterios de Aceptación:**
-- [ ] MJML válido se compila a HTML responsive
-- [ ] MJML inválido produce error descriptivo (no panic)
-- [ ] DKIM sign + verify round-trip funciona
-- [ ] DNS records generados son correctos para la config
-- [ ] Tests unitarios con fixtures MJML
+**Acceptance Criteria:**
+- [ ] Valid MJML compiles to responsive HTML
+- [ ] Invalid MJML returns a descriptive error (no panic)
+- [ ] DKIM sign + verify round-trip works
+- [ ] Generated DNS records are correct for the config
+- [ ] Unit tests with MJML fixtures
 
-**Dependencias:** HT-01 (go.mod deps)
+**Dependencies:** HT-01 (go.mod deps)
 
 ---
 
 ### HT-15: SendService — Orchestration Core
 
-**Objetivo:** Implementar el servicio principal de envío que orquesta resolución, compilación, y encolado.
+**Objective:** Implement the main send service that orchestrates resolution, compilation, and queueing.
 
-**Spec:** §13 (SendService — Flujo Principal)
+**Spec:** §13 (SendService — Main Flow)
 
-**Entregables:**
+**Deliverables:**
 - `internal/service/send.go` — `SendService`
   - `Send(ctx, request) → (trackingID, error)`
-  - Flujo:
+  - Flow:
     1. Parse address (tenantCode:workspaceCode:templateTypeSlug)
     2. ChainResolver → resolve workspace chain
     3. TemplateResolver → resolve template + locale
     4. InjectorMerger → merge injector values
-    5. Render variables into template (Go text/template)
-    6. AdapterResolver → get adapter for template type
-    7. DomainResolver → validate from_email domain
+    5. Render variables into the template (Go text/template)
+    6. AdapterResolver → get adapter for the template type
+    7. DomainResolver → validate the `from_email` domain
     8. Check suppression (global + workspace)
     9. Compile MJML → HTML
     10. Create email record (status=queued, with snapshots)
@@ -464,61 +464,61 @@
     12. Return tracking ID
 - Request DTO validation (required fields, email format)
 
-**Criterios de Aceptación:**
+**Acceptance Criteria:**
 - [ ] Happy path: send request → email record created → job enqueued → tracking ID returned
-- [ ] Suppressed recipient → 422 con motivo
+- [ ] Suppressed recipient → 422 with reason
 - [ ] No adapter configured → 422
 - [ ] Unverified domain → 422
 - [ ] Template not found → 404
 - [ ] Invalid variables (schema mismatch) → 400
-- [ ] Snapshots guardados (variables, injectors) para auditoría
-- [ ] Tests unitarios con todos los resolvers mockeados
-- [ ] Integration test con stack real: send → verify email record + job in queue
+- [ ] Snapshots are saved (variables, injectors) for auditability
+- [ ] Unit tests with all resolvers mocked
+- [ ] Integration test with real stack: send → verify email record + job in queue
 
-**Dependencias:** HT-10, HT-11, HT-12, HT-13, HT-14
+**Dependencies:** HT-10, HT-11, HT-12, HT-13, HT-14
 
 ---
 
 ### HT-16: River Workers (Send, Domain Verify, Webhook)
 
-**Objetivo:** Implementar los background workers que procesan jobs de la cola River.
+**Objective:** Implement the background workers that process River queue jobs.
 
-**Spec:** §16 (Background Workers — 16.1 a 16.4)
+**Spec:** §16 (Background Workers — 16.1 to 16.4)
 
-**Entregables:**
-- `internal/adapter/river/client.go` — River client setup, job types registration
+**Deliverables:**
+- `internal/adapter/river/client.go` — River client setup, job type registration
 - `internal/adapter/river/send_worker.go` — `SendWorker`
-  - Toma email record, decrypta adapter credentials
-  - Rate limit check (TakeToken) — si no hay token, requeue con delay
-  - DKIM sign the message
-  - Send via EmailSender port (SES adapter)
-  - Update email status (sent/failed)
-  - Dispatch email event
+  - Loads the email record, decrypts adapter credentials
+  - Rate limit check (TakeToken) — if no token is available, requeue with a delay
+  - DKIM signs the message
+  - Sends via EmailSender port (SES adapter)
+  - Updates email status (sent/failed)
+  - Dispatches email events
   - Retry logic: max 3, exponential backoff
 - `internal/adapter/river/verify_worker.go` — `DomainVerifyWorker`
-  - DNS lookup para DKIM, SPF, DMARC records
+  - DNS lookup for DKIM, SPF, DMARC records
   - Update domain status (pending → verified / error)
-  - Schedule recheck
+  - Schedule a recheck
 - `internal/adapter/river/webhook_worker.go` — `WebhookWorker`
-  - HTTP POST con payload JSON
+  - HTTP POST with JSON payload
   - HMAC-SHA256 signature header (`X-Senda-Signature`)
   - Retry: max 5, exponential backoff
-  - Track consecutive failures → auto-disable webhook after 10
-- `internal/adapter/ses/adapter.go` — `SESAdapter` implementando `port.EmailSender`
-  - AWS SDK v2, usa credentials decriptadas del adapter
+  - Track consecutive failures → auto-disable webhook after 10 failures
+- `internal/adapter/ses/adapter.go` — `SESAdapter` implementing `port.EmailSender`
+  - AWS SDK v2, uses decrypted adapter credentials
 
-**Criterios de Aceptación:**
-- [ ] SendWorker: envía email via SES, actualiza status, registra event
-- [ ] SendWorker: respeta rate limit (requeue si bucket vacío)
-- [ ] SendWorker: DKIM firma el mensaje antes de enviar
-- [ ] SendWorker: retry con backoff en caso de error transitorio
-- [ ] DomainVerifyWorker: DNS check funciona, actualiza status
-- [ ] WebhookWorker: HMAC signature es verificable por el receptor
-- [ ] WebhookWorker: auto-disable después de 10 failures consecutivos
-- [ ] SES adapter: envía email real (test con SES sandbox o mock)
-- [ ] Tests unitarios para cada worker; integration test para send flow completo
+**Acceptance Criteria:**
+- [ ] SendWorker: sends email via SES, updates status, records event
+- [ ] SendWorker: respects rate limiting (requeues if the bucket is empty)
+- [ ] SendWorker: DKIM-signs the message before sending
+- [ ] SendWorker: retries with backoff on transient errors
+- [ ] DomainVerifyWorker: DNS check works, updates status
+- [ ] WebhookWorker: HMAC signature is verifiable by the receiver
+- [ ] WebhookWorker: auto-disables after 10 consecutive failures
+- [ ] SES adapter: sends a real email (test with SES sandbox or mock)
+- [ ] Unit tests for each worker; integration test for the full send flow
 
-**Dependencias:** HT-13, HT-14, HT-15
+**Dependencies:** HT-13, HT-14, HT-15
 
 ---
 
@@ -526,178 +526,178 @@
 
 ### HT-17: Echo v5 Server + Base Middleware
 
-**Objetivo:** Configurar el servidor HTTP Echo v5 con middleware base y graceful shutdown.
+**Objective:** Configure the Echo v5 HTTP server with base middleware and graceful shutdown.
 
-**Spec:** §14 (Middleware Chain), §8.2 (DI en main.go)
+**Spec:** §14 (Middleware Chain), §8.2 (DI in main.go)
 
-**Entregables:**
+**Deliverables:**
 - `internal/http/server.go` — Echo v5 setup, route registration, graceful shutdown
 - `internal/http/middleware/requestid.go` — X-Request-ID generation/propagation
-- `internal/http/middleware/logger.go` — Structured access logging con slog
-- `internal/http/middleware/recovery.go` — Panic recovery con stack trace logging
-- `internal/http/middleware/scope.go` — Extract tenant_code/workspace_code de URL params, set in context
-- `cmd/senda/main.go` — DI composition root (wiring de todos los componentes)
+- `internal/http/middleware/logger.go` — structured access logging with slog
+- `internal/http/middleware/recovery.go` — panic recovery with stack trace logging
+- `internal/http/middleware/scope.go` — extract tenant_code/workspace_code from URL params, store them in context
+- `cmd/senda/main.go` — DI composition root (manual wiring of all components)
 
-**Criterios de Aceptación:**
-- [ ] Server arranca, responde a requests, shutdown graceful en SIGTERM
-- [ ] Request ID se genera y propaga en headers + logs
-- [ ] Access logs incluyen method, path, status, duration, request_id
-- [ ] Panic en handler no crashea el server, retorna 500
-- [ ] Scope middleware extrae tenant/workspace y los pone en context
-- [ ] main.go compone todos los componentes manualmente (sin framework DI)
+**Acceptance Criteria:**
+- [ ] Server starts, responds to requests, and shuts down gracefully on SIGTERM
+- [ ] Request ID is generated and propagated in headers + logs
+- [ ] Access logs include method, path, status, duration, request_id
+- [ ] Panic in a handler does not crash the server; it returns 500
+- [ ] Scope middleware extracts tenant/workspace and stores them in context
+- [ ] main.go composes all components manually (no DI framework)
 
-**Dependencias:** HT-02
+**Dependencies:** HT-02
 
 ---
 
 ### HT-18: Auth Middleware (OIDC + API Keys)
 
-**Objetivo:** Implementar autenticación dual: OIDC JWT para management plane, API Keys para data plane.
+**Objective:** Implement dual authentication: OIDC JWT for the management plane, API Keys for the data plane.
 
 **Spec:** §14.2 (Auth Middleware), §14.3 (RBAC Middleware)
 
-**Entregables:**
+**Deliverables:**
 - `internal/http/middleware/auth.go` — `AuthMiddleware`
-  - Detecta tipo de auth: `Bearer` → OIDC, `ApiKey` → API Key
-  - OIDC: verifica JWT contra discovery URL, extrae email → busca member
+  - Detects auth type: `Bearer` → OIDC, `ApiKey` → API Key
+  - OIDC: verifies JWT against discovery URL, extracts email → looks up member
   - API Key: hash → lookup → verify active + not expired
-  - Set auth context: member, role, scope, auth type
+  - Sets auth context: member, role, scope, auth type
 - `internal/http/middleware/rbac.go` — `RequireRole(minRole)`
-  - Verifica que el role del member sea >= minRole para el scope actual
+  - Verifies that the member's role is >= minRole for the current scope
   - Hierarchy: superadmin > tenant_admin > workspace_admin > workspace_editor > workspace_viewer
 
-**Criterios de Aceptación:**
-- [ ] OIDC token válido → authenticated, member info in context
-- [ ] OIDC token inválido → 401
-- [ ] API Key válida → authenticated, workspace scope in context
-- [ ] API Key revocada → 401
+**Acceptance Criteria:**
+- [ ] Valid OIDC token → authenticated, member info in context
+- [ ] Invalid OIDC token → 401
+- [ ] Valid API Key → authenticated, workspace scope in context
+- [ ] Revoked API Key → 401
 - [ ] Missing auth header → 401
-- [ ] RBAC: viewer no puede hacer POST → 403
-- [ ] RBAC: superadmin puede acceder a cualquier scope
-- [ ] Tests unitarios con OIDC mock y API key fixtures
+- [ ] RBAC: viewer cannot perform POST → 403
+- [ ] RBAC: superadmin can access any scope
+- [ ] Unit tests with OIDC mock and API key fixtures
 
-**Dependencias:** HT-09 (member + apikey stores), HT-17
+**Dependencies:** HT-09 (member + apikey stores), HT-17
 
 ---
 
 ### HT-19: CRUD Handlers — Tenants, Workspaces, Members
 
-**Objetivo:** Implementar handlers HTTP para gestión de tenants, workspaces, y members.
+**Objective:** Implement HTTP handlers for managing tenants, workspaces, and members.
 
 **Spec:** §15.3 (Routes), §15.1 (Pagination), §15.2 (Error Response)
 
-**Entregables:**
-- `internal/http/handler/tenant.go` — CRUD tenants (superadmin only)
-- `internal/http/handler/workspace.go` — CRUD workspaces (tenant_admin+)
-- `internal/http/handler/member.go` — CRUD members + role assignment
-- `internal/http/handler/config.go` — Global config get/set (superadmin only)
-- `internal/http/request/` — Request DTOs con validación
-- `internal/http/response/` — Response DTOs (standardized format)
+**Deliverables:**
+- `internal/http/handler/tenant.go` — tenant CRUD (superadmin only)
+- `internal/http/handler/workspace.go` — workspace CRUD (tenant_admin+)
+- `internal/http/handler/member.go` — member CRUD + role assignment
+- `internal/http/handler/config.go` — global config get/set (superadmin only)
+- `internal/http/request/` — request DTOs with validation
+- `internal/http/response/` — response DTOs (standardized format)
 - Error response contract: `{"error": {"code": "...", "message": "...", "details": [...]}}`
 - Cursor pagination: `?cursor=xxx&limit=50` → `{"items": [...], "next_cursor": "...", "has_more": true}`
 
-**Criterios de Aceptación:**
-- [ ] Todos los endpoints de tenants/workspaces/members/config de §15.3
-- [ ] Pagination funciona con cursor
-- [ ] Error responses siguen el contrato de §15.2
-- [ ] Validación de request bodies (campos requeridos, formatos)
-- [ ] RBAC aplicado: solo roles permitidos pueden acceder
-- [ ] Tests de integración: HTTP request → response verification
+**Acceptance Criteria:**
+- [ ] All tenant/workspace/member/config endpoints from §15.3
+- [ ] Pagination works with cursor
+- [ ] Error responses follow the §15.2 contract
+- [ ] Request body validation (required fields, formats)
+- [ ] RBAC applied: only allowed roles can access endpoints
+- [ ] Integration tests: HTTP request → response verification
 
-**Dependencias:** HT-07, HT-17, HT-18
+**Dependencies:** HT-07, HT-17, HT-18
 
 ---
 
 ### HT-20: CRUD Handlers — Injectors, Adapters, Domains
 
-**Objetivo:** Implementar handlers para recursos de configuración de envío.
+**Objective:** Implement handlers for email configuration resources.
 
-**Spec:** §15.3 (Routes para injectors, adapters, domains)
+**Spec:** §15.3 (Routes for injectors, adapters, domains)
 
-**Entregables:**
-- `internal/http/handler/injector.go` — CRUD injector definitions + fields + values
-- `internal/http/handler/adapter.go` — CRUD adapters (con encrypt de credentials en create/update)
-- `internal/http/handler/domain.go` — CRUD domains + trigger verification
+**Deliverables:**
+- `internal/http/handler/injector.go` — injector definitions + fields + values CRUD
+- `internal/http/handler/adapter.go` — adapter CRUD (encrypt credentials on create/update)
+- `internal/http/handler/domain.go` — domain CRUD + verification trigger
 - `internal/service/domain.go` — `DomainService`
-  - Create: genera DKIM key pair, encripta private key, genera DNS records
-  - Verify: enqueue DomainVerify job
-  - GetDNSRecords: retorna records para que el admin configure
+  - Create: generates DKIM key pair, encrypts the private key, generates DNS records
+  - Verify: enqueues a DomainVerify job
+  - GetDNSRecords: returns records for the admin to configure
 
-**Criterios de Aceptación:**
-- [ ] Injector CRUD respeta scope (workspace_id context)
-- [ ] Adapter create encripta credentials; list no expone credentials
-- [ ] Domain create genera DKIM keys y DNS records
-- [ ] Domain verify enqueue job que ejecuta DNS check
-- [ ] Tests con assertions de seguridad: credentials nunca en response
+**Acceptance Criteria:**
+- [ ] Injector CRUD respects scope (workspace_id context)
+- [ ] Adapter create encrypts credentials; list does not expose credentials
+- [ ] Domain create generates DKIM keys and DNS records
+- [ ] Domain verify enqueues a job that runs DNS checks
+- [ ] Security assertions: credentials are never returned in responses
 
-**Dependencias:** HT-08, HT-14 (DKIM), HT-17, HT-18
+**Dependencies:** HT-08, HT-14 (DKIM), HT-17, HT-18
 
 ---
 
 ### HT-21: CRUD Handlers — Templates, Versions, Locales
 
-**Objetivo:** Implementar handlers para el sistema de templates con versionado y i18n.
+**Objective:** Implement handlers for the template system with versioning and i18n.
 
-**Spec:** §15.3 (Routes para templates)
+**Spec:** §15.3 (Template routes)
 
-**Entregables:**
-- `internal/http/handler/template_type.go` — CRUD template types (con adapter_id assignment)
-- `internal/http/handler/template.go` — CRUD templates + versions + locales
+**Deliverables:**
+- `internal/http/handler/template_type.go` — template type CRUD (with adapter_id assignment)
+- `internal/http/handler/template.go` — template + version + locale CRUD
 - `internal/service/template.go` — `TemplateService`
   - Create version (draft)
-  - Publish version (validates MJML, archives previous published)
+  - Publish version (validates MJML, archives previous published version)
   - Archive version
   - CRUD locales per version
 - `internal/service/template_type.go` — `TemplateTypeService`
-  - CRUD con validación de variable_schema (JSON Schema format)
+  - CRUD with variable_schema validation (JSON Schema format)
   - Assign/unassign adapter_id
 
-**Criterios de Aceptación:**
-- [ ] Template type CRUD funciona, adapter assignment persiste
+**Acceptance Criteria:**
+- [ ] Template type CRUD works, adapter assignment persists
 - [ ] Version lifecycle: draft → published → archived
-- [ ] Solo una versión published por template (constraint)
-- [ ] Locales se CRUD dentro de una versión
-- [ ] MJML preview endpoint: compila y retorna HTML
-- [ ] Tests: crear type → template → version → locale → publish → verify
+- [ ] Only one version can be published per template (constraint)
+- [ ] Locales are CRUD within a version
+- [ ] MJML preview endpoint compiles and returns HTML
+- [ ] Tests: create type → template → version → locale → publish → verify
 
-**Dependencias:** HT-08, HT-14 (MJML), HT-17, HT-18
+**Dependencies:** HT-08, HT-14 (MJML), HT-17, HT-18
 
 ---
 
 ### HT-22: Send Endpoint + Email Query + Tracking
 
-**Objetivo:** Implementar el endpoint de envío, consulta de emails, y lifecycle events.
+**Objective:** Implement the send endpoint, email queries, and lifecycle events.
 
 **Spec:** §15.3 (POST /send, GET /emails), §13 (SendService)
 
-**Entregables:**
+**Deliverables:**
 - `internal/http/handler/send.go` — `POST /api/v1/send`
   - Auth: API Key only
   - Request: `{to, template_type, variables, locale?, from_email?, from_name?}`
   - Response: `{tracking_id, status}`
-  - Calls SendService.Send()
-- `internal/http/handler/email.go` — Email query handlers
+  - Calls `SendService.Send()`
+- `internal/http/handler/email.go` — email query handlers
   - `GET /api/v1/emails` — list by workspace (pagination)
   - `GET /api/v1/emails/:id` — detail with events
   - `GET /api/v1/emails/:id/events` — lifecycle events
-- `internal/http/handler/suppression.go` — Suppression list management
+- `internal/http/handler/suppression.go` — suppression list management
   - `GET /api/v1/suppressions` — list (global + workspace)
   - `POST /api/v1/suppressions` — add manual suppression
   - `DELETE /api/v1/suppressions/:id` — remove
-- `internal/http/handler/audit.go` — Audit log queries
+- `internal/http/handler/audit.go` — audit log queries
   - `GET /api/v1/audit-logs` — list by scope (pagination, filters)
 
-**Criterios de Aceptación:**
-- [ ] POST /send: happy path retorna tracking_id + 202
-- [ ] POST /send: errores de validación retornan 400 con detalles
+**Acceptance Criteria:**
+- [ ] POST /send: happy path returns tracking_id + 202
+- [ ] POST /send: validation errors return 400 with details
 - [ ] POST /send: suppressed → 422, no adapter → 422, no template → 404
-- [ ] GET /emails: pagination, filtros por status/date
-- [ ] GET /emails/:id: incluye events timeline
-- [ ] Suppression CRUD funciona para global y workspace scope
-- [ ] Audit logs queryables por scope, resource, actor
-- [ ] E2E test: send → check email created → check event logged → check audit logged
+- [ ] GET /emails: pagination, filters by status/date
+- [ ] GET /emails/:id: includes events timeline
+- [ ] Suppression CRUD works for global and workspace scope
+- [ ] Audit logs queryable by scope, resource, actor
+- [ ] E2E test: send → verify email created → verify event logged → verify audit logged
 
-**Dependencias:** HT-15, HT-16, HT-17, HT-18
+**Dependencies:** HT-15, HT-16, HT-17, HT-18
 
 ---
 
@@ -705,11 +705,11 @@
 
 ### HT-23: Provider Event Ingestion (SES Webhooks)
 
-**Objetivo:** Recibir eventos de providers (SES bounces, complaints, deliveries) y procesarlos.
+**Objective:** Receive provider events (SES bounces, complaints, deliveries) and process them.
 
-**Spec:** §19 (Provider Event Ingestion — 19.1 a 19.5)
+**Spec:** §19 (Provider Event Ingestion — 19.1 to 19.5)
 
-**Entregables:**
+**Deliverables:**
 - `internal/http/handler/provider_webhook.go` — `POST /api/v1/webhooks/ses/inbound`
   - SNS message parsing (SubscriptionConfirmation + Notification)
   - SNS signature verification
@@ -717,90 +717,90 @@
 - `internal/service/event_processor.go` — `EventProcessor`
   - Update email status based on event type
   - Side effects:
-    - Hard bounce → add to suppression_global
-    - Complaint → add to suppression_workspace
+    - Hard bounce → add to `suppression_global`
+    - Complaint → add to `suppression_workspace`
     - Delivered/Opened → update email timestamps
   - Dispatch webhook events to workspace webhooks
 
-**Criterios de Aceptación:**
-- [ ] SNS SubscriptionConfirmation auto-confirmed
+**Acceptance Criteria:**
+- [ ] SNS SubscriptionConfirmation is auto-confirmed
 - [ ] SNS signature verification blocks invalid payloads
 - [ ] SES bounce → email status updated + suppression entry created
 - [ ] SES complaint → workspace suppression entry created
-- [ ] SES delivery → email delivered_at updated
-- [ ] SES open → email opened_at updated
-- [ ] Events dispatched to active webhooks
-- [ ] Unknown provider events logged but not processed (no error)
-- [ ] Tests con SNS payload fixtures
+- [ ] SES delivery → email `delivered_at` updated
+- [ ] SES open → email `opened_at` updated
+- [ ] Events are dispatched to active webhooks
+- [ ] Unknown provider events are logged but not processed (no error)
+- [ ] Tests with SNS payload fixtures
 
-**Dependencias:** HT-09, HT-16 (webhook worker), HT-17
+**Dependencies:** HT-09, HT-16 (webhook worker), HT-17
 
 ---
 
 ### HT-24: Webhook System (Dispatch + CRUD)
 
-**Objetivo:** Implementar el sistema de webhooks para notificar a consumidores sobre eventos de email.
+**Objective:** Implement the webhook system to notify consumers about email events.
 
 **Spec:** §16.3–16.4 (WebhookWorker + WebhookService), §15.3 (Routes)
 
-**Entregables:**
-- `internal/http/handler/webhook.go` — CRUD webhooks
-  - Create: genera secret automáticamente
-  - List/Get/Update/Delete por workspace
-  - Test endpoint: envía ping webhook
+**Deliverables:**
+- `internal/http/handler/webhook.go` — webhook CRUD
+  - Create: auto-generates the secret
+  - List/Get/Update/Delete by workspace
+  - Test endpoint: sends a ping webhook
 - `internal/service/webhook.go` — `WebhookService`
   - `Dispatch(ctx, workspaceID, eventType, payload)` → enqueue webhook jobs
-  - Filtra webhooks por event type subscription
+  - Filters webhooks by event-type subscription
 
-**Criterios de Aceptación:**
-- [ ] CRUD webhooks funciona
-- [ ] Secret auto-generated en create (no en response de list)
-- [ ] Dispatch enqueue un job por cada webhook activo suscrito al evento
-- [ ] WebhookWorker (de HT-16) entrega con firma HMAC verificable
-- [ ] Test webhook endpoint envía ping y reporta resultado
-- [ ] Tests de integración: create webhook → trigger event → verify delivery
+**Acceptance Criteria:**
+- [ ] Webhook CRUD works
+- [ ] Secret is auto-generated on create (not returned in list responses)
+- [ ] Dispatch enqueues one job per active webhook subscribed to the event
+- [ ] WebhookWorker (from HT-16) delivers with a verifiable HMAC signature
+- [ ] Test webhook endpoint sends a ping and reports the result
+- [ ] Integration tests: create webhook → trigger event → verify delivery
 
-**Dependencias:** HT-16, HT-17, HT-18
+**Dependencies:** HT-16, HT-17, HT-18
 
 ---
 
 ### HT-25: Onboarding Flow
 
-**Objetivo:** Implementar el wizard de primer uso: primer login OIDC → superadmin → tenant + workspace.
+**Objective:** Implement the first-use wizard: first OIDC login → superadmin → tenant + workspace.
 
 **Spec:** §20 (Onboarding Flow)
 
-**Entregables:**
+**Deliverables:**
 - `internal/service/onboarding.go` — `OnboardingService`
   - `Status(ctx)` → `{completed: bool, step: string}` (public, no auth)
-  - `Setup(ctx, request)` — guard: count(members) == 0
+  - `Setup(ctx, request)` — guard: `count(members) == 0`
     - Create member from OIDC claims
     - Assign superadmin role (scope=global)
     - Create first tenant + _system workspace
     - Set `onboarding.completed = true` in global_config
 - `internal/http/handler/onboarding.go`
   - `GET /api/v1/onboarding/status` — public
-  - `POST /api/v1/onboarding/setup` — requires OIDC auth, guard count==0
+  - `POST /api/v1/onboarding/setup` — requires OIDC auth, guard `count==0`
 
-**Criterios de Aceptación:**
-- [ ] Status endpoint es público (no auth)
-- [ ] Setup funciona solo cuando no hay members (guard)
-- [ ] Setup crea member + superadmin + tenant + _system workspace en una transaction
-- [ ] Segundo call a setup → 409 Conflict
-- [ ] Después del setup, status retorna completed=true
-- [ ] Test E2E: fresh DB → status=false → setup → status=true → second setup fails
+**Acceptance Criteria:**
+- [ ] Status endpoint is public (no auth)
+- [ ] Setup works only when there are no members (guard)
+- [ ] Setup creates member + superadmin + tenant + _system workspace in one transaction
+- [ ] Second call to setup → 409 Conflict
+- [ ] After setup, status returns `completed=true`
+- [ ] E2E test: fresh DB → status=false → setup → status=true → second setup fails
 
-**Dependencias:** HT-07, HT-09, HT-17, HT-18
+**Dependencies:** HT-07, HT-09, HT-17, HT-18
 
 ---
 
 ### HT-26: Observability (Metrics + Health + Logging)
 
-**Objetivo:** Implementar /metrics Prometheus, health check, y structured logging global.
+**Objective:** Implement Prometheus `/metrics`, health checks, and global structured logging.
 
-**Spec:** §21 (Observability — 21.1 a 21.3)
+**Spec:** §21 (Observability — 21.1 to 21.3)
 
-**Entregables:**
+**Deliverables:**
 - `internal/http/middleware/metrics.go` — Prometheus middleware
   - `http_requests_total{method, path, status}`
   - `http_request_duration_seconds{method, path}`
@@ -814,47 +814,47 @@
   - `senda_queue_depth{job_type}`
   - `senda_provider_errors_total{adapter, error_type}`
   - `senda_bounce_rate{workspace}` (gauge)
-- slog setup: JSON format en prod, text en dev, level configurable
+- slog setup: JSON in prod, text in dev, configurable level
 
-**Criterios de Aceptación:**
-- [ ] GET /metrics retorna métricas en formato Prometheus
-- [ ] GET /healthz retorna status con checks
-- [ ] Todas las métricas de §21.2 se registran correctamente
-- [ ] Logs son structured JSON en producción
-- [ ] Request ID se propaga en todos los logs de un request
+**Acceptance Criteria:**
+- [ ] GET /metrics returns Prometheus-formatted metrics
+- [ ] GET /healthz returns status with checks
+- [ ] All metrics from §21.2 are recorded correctly
+- [ ] Logs are structured JSON in production
+- [ ] Request ID is propagated in all logs for a request
 - [ ] Tests: verify metrics increment after operations
 
-**Dependencias:** HT-17
+**Dependencies:** HT-17
 
 ---
 
 ### HT-27: API Keys Service + Management Endpoints
 
-**Objetivo:** Implementar generación, validación, y gestión de API keys.
+**Objective:** Implement API key generation, validation, and management.
 
 **Spec:** §3.10 (Schema), §10.2 (APIKeyStore), §15.3 (Routes)
 
-**Entregables:**
+**Deliverables:**
 - `internal/service/apikey.go` — `APIKeyService`
-  - `Generate(ctx, workspaceID, name, createdBy)` → `{key: "senda_live_xxx...", id, key_hint}` (key solo visible una vez)
+  - `Generate(ctx, workspaceID, name, createdBy)` → `{key: "senda_live_xxx...", id, key_hint}` (key visible only once)
   - Key format: `senda_live_` + 32 random hex chars
-  - Storage: SHA-256 hash of key, last 8 chars as hint
+  - Storage: SHA-256 hash of the key, last 8 chars as hint
   - `Validate(ctx, rawKey)` → `(APIKey, error)`
-  - `Revoke(ctx, keyID)` → soft-revoke (set revoked_at)
-  - `ListByWorkspace(ctx, workspaceID)` → list (sin key, solo hint)
+  - `Revoke(ctx, keyID)` → soft revoke (set `revoked_at`)
+  - `ListByWorkspace(ctx, workspaceID)` → list (no key, only hint)
 - `internal/http/handler/apikey.go`
   - `POST /workspaces/:code/api-keys` — generate
   - `GET /workspaces/:code/api-keys` — list
   - `DELETE /workspaces/:code/api-keys/:id` — revoke
 
-**Criterios de Aceptación:**
-- [ ] Generate retorna key completa solo una vez (nunca más recuperable)
-- [ ] Key hash lookup funciona para auth
-- [ ] Revoked key rechaza auth
-- [ ] List no expone key ni hash (solo hint)
+**Acceptance Criteria:**
+- [ ] Generate returns the full key only once (never recoverable again)
+- [ ] Key hash lookup works for auth
+- [ ] Revoked key rejects auth
+- [ ] List does not expose the key or hash (only hint)
 - [ ] Tests: generate → validate → revoke → validate fails
 
-**Dependencias:** HT-09, HT-17, HT-18
+**Dependencies:** HT-09, HT-17, HT-18
 
 ---
 
@@ -893,77 +893,28 @@ HT-01 (Scaffolding)
 
 ---
 
-## Suggested Implementation Order (4 tracks parallelizables)
+## Suggested Implementation Order (4 parallelizable tracks)
 
 ### Track A — Infrastructure (1 dev)
 ```
 HT-01 → HT-02 → HT-03 → HT-04 → HT-13 → HT-14
 ```
-*~4 semanas*
+*~4 weeks*
 
 ### Track B — Domain + Resolution (1 dev, starts after HT-01)
 ```
 HT-05 → HT-06 → HT-07 → HT-08 → HT-09 → HT-10 → HT-11 → HT-12
 ```
-*~5 semanas*
+*~5 weeks*
 
 ### Track C — API Layer (1 dev, starts after HT-17+HT-18)
 ```
 HT-17 → HT-18 → HT-19 → HT-20 → HT-21 → HT-27 → HT-25
 ```
-*~5 semanas*
+*~5 weeks*
 
-### Track D — Send Flow + Operations (1 dev, starts after dependencies met)
+### Track D — Send Flow + Operations (1 dev, starts after dependencies are met)
 ```
 HT-15 → HT-16 → HT-22 → HT-23 → HT-24 → HT-26
 ```
-*~4 semanas*
-
-### Timeline estimado (con 2 devs)
-
-| Semana | Dev 1 | Dev 2 |
-|--------|-------|-------|
-| S1 | HT-01 (Scaffolding) | HT-05 (Domain Models) |
-| S2 | HT-02 (Config) + HT-04 (Crypto) | HT-06 (Ports) |
-| S3 | HT-03 (DB + Migrations) | HT-07 (Stores: Base) |
-| S4 | HT-13 (Cache + Rate Limit) + HT-14 (MJML/DKIM) | HT-08 (Stores: Config) |
-| S5 | HT-17 (Echo Server) | HT-09 (Stores: Rest) |
-| S6 | HT-18 (Auth) | HT-10 (Chain + Injector Merger) |
-| S7 | HT-19 (CRUD: Base) | HT-11 (Template + Adapter Resolver) |
-| S8 | HT-20 (CRUD: Config) | HT-12 (Domain + Cache Invalidation) |
-| S9 | HT-21 (CRUD: Templates) | HT-15 (SendService) |
-| S10 | HT-25 (Onboarding) + HT-27 (API Keys) | HT-16 (Workers) |
-| S11 | HT-26 (Observability) | HT-22 (Send Endpoint + Query) |
-| S12 | HT-24 (Webhooks) | HT-23 (Provider Events) |
-
-**Total estimado: ~12 semanas con 2 devs.**
-
----
-
-## Checklist de Cobertura vs Tech Spec
-
-| Sección Spec | HT que la cubre |
-|-------------|-----------------|
-| §1 Principios | Transversal |
-| §3 Schema SQL | HT-03 (migrations) |
-| §4 Partitioning | HT-03 |
-| §5 Índices | HT-03 |
-| §6 Validaciones App | HT-08, HT-11, HT-12 |
-| §7 Migrations | HT-03 |
-| §8 Arquitectura | HT-17 (server), HT-05/06 (domain/ports) |
-| §9 Carpetas | HT-01 |
-| §10 Port Interfaces | HT-06 |
-| §11 Domain Models | HT-05 |
-| §12 Resolution Engine | HT-10, HT-11, HT-12 |
-| §13 SendService | HT-15 |
-| §14 Middleware | HT-17, HT-18 |
-| §15 API Contract | HT-19..22 |
-| §16 Workers | HT-16 |
-| §17 Config | HT-02 |
-| §18 Docker Compose | HT-01 |
-| §19 Provider Events | HT-23 |
-| §20 Onboarding | HT-25 |
-| §21 Observability | HT-26 |
-| §22 DKIM | HT-14 |
-| §23 PG Cache | HT-13 |
-| §24 Rate Limiting | HT-13 |
+*~4 weeks*
