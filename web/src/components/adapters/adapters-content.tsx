@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plug, Plus, Check, Trash2, Zap, Pencil, Mail } from "lucide-react";
+import { Plug, Plus, Trash2, Zap, Pencil, Mail } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useAdapterList,
@@ -117,16 +117,6 @@ function AdaptersTable() {
       id: "scope",
       header: "SCOPE",
       cell: () => <ScopeIndicator scope="workspace" />,
-    },
-    {
-      accessorKey: "is_default",
-      header: "DEFAULT",
-      cell: ({ row }) =>
-        row.original.is_default ? (
-          <Check className="h-4 w-4 text-primary" />
-        ) : (
-          <span className="text-muted-foreground">&mdash;</span>
-        ),
     },
     {
       accessorKey: "rate_limit_per_second",
