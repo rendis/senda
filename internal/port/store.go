@@ -131,6 +131,7 @@ type MemberStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Member, error)
 	CountAll(ctx context.Context) (int64, error) // For onboarding check
 	ListAll(ctx context.Context, opts ListOptions) ([]*domain.Member, string, error)
+	ListInScope(ctx context.Context, scopeType domain.ScopeType, scopeID *uuid.UUID, opts ListOptions) ([]*domain.Member, string, error)
 
 	AddRole(ctx context.Context, role *domain.MemberRole) error
 	RemoveRole(ctx context.Context, roleID uuid.UUID) error

@@ -137,6 +137,72 @@ func (r *MemberRepo) ListAll(ctx context.Context, opts port.ListOptions) ([]*dom
 	return members, nextCursor, nil
 }
 
+func (r *MemberRepo) ListInScope(ctx context.Context, scopeType domain.ScopeType, scopeID *uuid.UUID, opts port.ListOptions) ([]*domain.Member, string, error) {
+	limit, afterID, err := ApplyPagination(opts)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if scopeType != domain.ScopeTenant && scopeType != domain.ScopeWorkspace {
+		return nil, "", fmt.Errorf("unsupported member scope %q", scopeType)
+	}
+	if scopeID == nil {
+		return nil, "", fmt.Errorf("scope id is required for scoped member listing")
+	}
+
+	fetchLimit := limit + 1
+	args := pgx.NamedArgs{
+		"scope_type": scopeType,
+		"scope_id":   *scopeID,
+		"limit":      fetchLimit,
+	}
+
+	query := `
+		SELECT id, email, display_name, oidc_subject, oidc_issuer, created_at, updated_at
+		FROM members m
+		WHERE EXISTS (
+			SELECT 1
+			FROM member_roles mr
+			WHERE mr.member_id = m.id
+			  AND mr.scope_type = @scope_type`
+
+	switch scopeType {
+	case domain.ScopeTenant:
+		query += " AND mr.tenant_id = @scope_id"
+	case domain.ScopeWorkspace:
+		query += " AND mr.workspace_id = @scope_id"
+	}
+
+	query += `
+		)
+	`
+	if afterID != nil {
+		query += " AND id < @after_id"
+		args["after_id"] = *afterID
+	}
+	query += `
+		ORDER BY id DESC
+		LIMIT @limit`
+
+	rows, err := r.pool.Query(ctx, query, args)
+	if err != nil {
+		return nil, "", fmt.Errorf("listing members by scope: %w", err)
+	}
+
+	members, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.Member])
+	if err != nil {
+		return nil, "", fmt.Errorf("collecting scoped members: %w", err)
+	}
+
+	var nextCursor string
+	if len(members) > limit {
+		members = members[:limit]
+		nextCursor = EncodeCursor(members[limit-1].ID)
+	}
+
+	return members, nextCursor, nil
+}
+
 func (r *MemberRepo) CountAll(ctx context.Context) (int64, error) {
 	var count int64
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM members`).Scan(&count)

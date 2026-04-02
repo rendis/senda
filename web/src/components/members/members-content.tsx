@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Users, ShieldPlus, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { MemberScopeBadge } from "./scope-badge";
 import { InviteMemberForm } from "./invite-member-form";
 import { RoleEditor } from "./role-editor";
 import {
+  useCurrentMember,
   useMembers,
   useInviteMember,
   useAddMemberRole,
@@ -26,24 +27,70 @@ import {
 } from "@/hooks/use-members-mgmt";
 import { useScope } from "@/hooks/use-scope";
 import type { MemberWithRoles, MemberRoleDetail } from "@/types/members-ext";
+import type { Role, ScopeLevel } from "@/types/api";
 
-export function MembersContent() {
-  const { level } = useScope();
-
-  if (level !== "global") {
-    return (
-      <EmptyState
-        icon={Users}
-        title="Global scope required"
-        description="Members management is only available at global scope. Switch to global scope to manage members."
-      />
-    );
+function canManageMembers(roles: MemberRoleDetail[], scopeLevel: ScopeLevel): boolean {
+  if (roles.some((r) => r.role === "superadmin")) return true;
+  switch (scopeLevel) {
+    case "global":
+      return false;
+    case "tenant":
+      return roles.some((r) => r.role === "tenant_admin");
+    case "workspace":
+      return roles.some((r) => r.role === "tenant_admin" || r.role === "workspace_admin");
   }
-
-  return <MembersTable />;
 }
 
-function MembersTable() {
+function allowedRolesForScope(scopeLevel: ScopeLevel): Role[] {
+  switch (scopeLevel) {
+    case "tenant":
+      return ["tenant_admin"];
+    case "workspace":
+      return ["workspace_viewer", "workspace_editor", "workspace_admin"];
+    case "global":
+    default:
+      return ["workspace_viewer", "workspace_editor", "workspace_admin", "tenant_admin", "superadmin"];
+  }
+}
+
+function scopeLabel(scopeLevel: ScopeLevel, tenantCode?: string, workspaceCode?: string): string {
+  switch (scopeLevel) {
+    case "tenant":
+      return tenantCode ? `tenant "${tenantCode}"` : "this tenant";
+    case "workspace":
+      return workspaceCode ? `workspace "${workspaceCode}"` : "this workspace";
+    case "global":
+    default:
+      return "global scope";
+  }
+}
+
+export function MembersContent() {
+  const scope = useScope();
+  const { data: currentMember } = useCurrentMember();
+  const canManage = canManageMembers(currentMember?.roles ?? [], scope.level);
+
+  return (
+    <MembersTable
+      canManage={canManage}
+      scopeLevel={scope.level}
+      tenantCode={scope.tenantCode}
+      workspaceCode={scope.workspaceCode}
+    />
+  );
+}
+
+function MembersTable({
+  canManage,
+  scopeLevel,
+  tenantCode,
+  workspaceCode,
+}: {
+  canManage: boolean;
+  scopeLevel: ScopeLevel;
+  tenantCode?: string;
+  workspaceCode?: string;
+}) {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useMembers();
   const inviteMutation = useInviteMember();
@@ -63,21 +110,21 @@ function MembersTable() {
     if (error) toast.error("Failed to load members");
   }, [error]);
 
-  const allMembers = data?.pages.flatMap((p) => p.items) ?? [];
-
-  const visibleMembers = allMembers.filter((member) => (member.roles?.length ?? 0) > 0);
-
-  const members = searchQuery
-    ? visibleMembers.filter(
-        (m) =>
-          m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : visibleMembers;
+  const members = useMemo(() => {
+    const allMembers = data?.pages.flatMap((p) => p.items) ?? [];
+    const visibleMembers = allMembers.filter((member) => (member.roles?.length ?? 0) > 0);
+    if (!searchQuery) return visibleMembers;
+    return visibleMembers.filter(
+      (m) =>
+        m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [data?.pages, searchQuery]);
 
   const handleInvite = async (formData: {
     email: string;
     display_name?: string;
+    role: Role;
   }) => {
     await inviteMutation.mutateAsync(formData);
     toast.success("Member invited");
@@ -85,11 +132,11 @@ function MembersTable() {
 
   const handleAddRole = async (
     memberId: string,
-    roleData: { role: string; scope_type: string }
+    data: { role: Role; scope_type: ScopeLevel }
   ) => {
     await addRoleMutation.mutateAsync({
       memberId,
-      data: roleData as Parameters<typeof addRoleMutation.mutateAsync>[0]["data"],
+      data,
     });
     setRoleEditorTarget(null);
     toast.success("Role added");
@@ -149,36 +196,40 @@ function MembersTable() {
         );
       },
     },
-    {
-      id: "actions",
-      size: 40,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const member = row.original;
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setRoleEditorTarget(member)}>
-                  <ShieldPlus className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Add Role</TooltipContent>
-            </Tooltip>
-            {(member.roles ?? []).map((role) => (
-              <Tooltip key={role.id}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setRevokeTarget({ member, role })}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Remove {role.role}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        );
-      },
-    },
+    ...(canManage
+      ? [
+          {
+            id: "actions",
+            size: 40,
+            enableSorting: false,
+            cell: ({ row }: { row: { original: MemberWithRoles } }) => {
+              const member = row.original;
+              return (
+                <div className="flex items-center justify-end gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setRoleEditorTarget(member)}>
+                        <ShieldPlus className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Add Role</TooltipContent>
+                  </Tooltip>
+                  {(member.roles ?? []).map((role) => (
+                    <Tooltip key={role.id}>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setRevokeTarget({ member, role })}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Remove {role.role}</TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              );
+            },
+          } satisfies ColumnDef<MemberWithRoles>,
+        ]
+      : []),
   ];
 
   return (
@@ -193,10 +244,12 @@ function MembersTable() {
             className="pl-9 h-9"
           />
         </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite Member
-        </Button>
+        {canManage && (
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite Member
+          </Button>
+        )}
       </div>
 
       <DataTable
@@ -210,24 +263,30 @@ function MembersTable() {
           <EmptyState
             icon={Users}
             title="No members yet"
-            description="Invite team members to collaborate on this scope."
+            description={`Invite team members to collaborate on ${scopeLabel(scopeLevel, tenantCode, workspaceCode)}.`}
             action={
-              <Button onClick={() => setInviteOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite Member
-              </Button>
+              canManage ? (
+                <Button onClick={() => setInviteOpen(true)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite Member
+                </Button>
+              ) : undefined
             }
           />
         }
       />
 
-      <InviteMemberForm
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        onSubmit={handleInvite}
-      />
+      {canManage && (
+        <InviteMemberForm
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          onSubmit={handleInvite}
+          allowedRoles={allowedRolesForScope(scopeLevel)}
+          scopeLabel={scopeLabel(scopeLevel, tenantCode, workspaceCode)}
+        />
+      )}
 
-      {roleEditorTarget && (
+      {roleEditorTarget && canManage && (
         <RoleEditor
           open={!!roleEditorTarget}
           onOpenChange={(open) => {
@@ -235,6 +294,9 @@ function MembersTable() {
           }}
           memberEmail={roleEditorTarget.email}
           onSubmit={(data) => handleAddRole(roleEditorTarget.id, data)}
+          scopeType={scopeLevel === "global" ? undefined : scopeLevel}
+          allowedRoles={allowedRolesForScope(scopeLevel)}
+          scopeLabel={scopeLabel(scopeLevel, tenantCode, workspaceCode)}
         />
       )}
 

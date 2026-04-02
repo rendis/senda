@@ -197,6 +197,56 @@ func TestHandleVideoThumbnail_Success_PNG(t *testing.T) {
 	}
 }
 
+// TestHandleVideoThumbnail_YouTubeFallback verifies that when the preferred
+// YouTube maxres thumbnail does not exist, the handler falls back to a lower
+// quality variant instead of failing the preview.
+func TestHandleVideoThumbnail_YouTubeFallback(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+
+		switch r.URL.Path {
+		case "/vi/dQw4w9WgXcQ/maxresdefault.jpg":
+			http.NotFound(w, r)
+		case "/vi/dQw4w9WgXcQ/hqdefault.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(jpegBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer thumbServer.Close()
+
+	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
+
+	thumbURL := thumbServer.URL + "/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("expected Content-Type image/png, got %q", rec.Header().Get("Content-Type"))
+	}
+
+	if _, err := png.Decode(rec.Body); err != nil {
+		t.Fatalf("response is not valid PNG: %v", err)
+	}
+
+	if reqCount != 2 {
+		t.Fatalf("expected fallback to request 2 URLs, got %d", reqCount)
+	}
+}
+
 // TestHandleVideoThumbnail_UpstreamError verifies that when the upstream server
 // returns a non-2xx status the handler returns 502 Bad Gateway.
 func TestHandleVideoThumbnail_UpstreamError(t *testing.T) {

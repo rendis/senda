@@ -21,8 +21,10 @@ export function AppHeader({
     "/webhooks": t("webhooks"),
     "/members": t("members"),
     "/api-keys": t("apiKeys"),
+    "/api-docs": t("apiDocs"),
     "/audit-log": t("auditLog"),
     "/settings": t("settings"),
+    "/help": t("help"),
   };
 
   // Strip scope prefix: /global, /t/[code], /t/[code]/w/[code]

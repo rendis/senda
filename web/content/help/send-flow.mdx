@@ -1,0 +1,63 @@
+---
+title: Send flow
+description: How Senda resolves a send request from ref to adapter.
+---
+
+# Send flow
+
+When Senda sends an email, it follows a resolution chain instead of guessing.
+
+## The short version
+
+1. Parse the request reference
+2. Resolve the scope chain
+3. Resolve the template
+4. Merge injectors
+5. Resolve the adapter
+6. Send the message
+7. Record tracking and events
+
+## How resolution works
+
+Senda resolves from the most specific scope to the least specific one:
+
+- workspace
+- `_system`
+- global
+
+That lets a workspace override defaults from the tenant or platform without copying everything.
+
+## Templates, injectors, and adapters
+
+These three parts do different jobs:
+
+- **Templates** define the content
+- **Injectors** provide data to the template
+- **Adapters** deliver the email through the provider
+
+The adapter is chosen by template type, not by copying the same configuration everywhere.
+
+## API keys and the data plane
+
+The data-plane APIs use workspace API keys.
+
+That is why the API key guide and the workspace API Docs page matter together:
+
+- [API Keys](api-keys)
+- workspace API Docs page in the sidebar
+
+## When a send fails
+
+Failures usually mean one of these:
+
+- no adapter is configured in the chain
+- the template cannot be resolved
+- required injector data is missing
+- the provider rejects the send
+
+## Related docs
+
+- [Members](members)
+- [API Keys](api-keys)
+- [SES tracking](ses-tracking)
+- [FAQ](faq)

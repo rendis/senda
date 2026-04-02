@@ -45,16 +45,16 @@ type mockMemberStore struct {
 	getRolesFn   func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 }
 
-func (m *mockMemberStore) Create(_ context.Context, _ *domain.Member) error        { return nil }
+func (m *mockMemberStore) Create(_ context.Context, _ *domain.Member) error { return nil }
 func (m *mockMemberStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.Member, error) {
 	return nil, nil
 }
 func (m *mockMemberStore) GetByEmail(ctx context.Context, email string) (*domain.Member, error) {
 	return m.getByEmailFn(ctx, email)
 }
-func (m *mockMemberStore) CountAll(_ context.Context) (int64, error) { return 0, nil }
-func (m *mockMemberStore) AddRole(_ context.Context, _ *domain.MemberRole) error   { return nil }
-func (m *mockMemberStore) RemoveRole(_ context.Context, _ uuid.UUID) error          { return nil }
+func (m *mockMemberStore) CountAll(_ context.Context) (int64, error)             { return 0, nil }
+func (m *mockMemberStore) AddRole(_ context.Context, _ *domain.MemberRole) error { return nil }
+func (m *mockMemberStore) RemoveRole(_ context.Context, _ uuid.UUID) error       { return nil }
 func (m *mockMemberStore) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error) {
 	return m.getRolesFn(ctx, memberID)
 }
@@ -65,6 +65,9 @@ func (m *mockMemberStore) GetRolesByMembers(_ context.Context, _ []uuid.UUID) (m
 	return nil, nil
 }
 func (m *mockMemberStore) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
+func (m *mockMemberStore) ListInScope(_ context.Context, _ domain.ScopeType, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
 

@@ -58,9 +58,9 @@ type mockTx struct {
 	queryRowFn func(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error)  { return &mockTx{}, nil }
-func (m *mockTx) Commit(_ context.Context) error            { return nil }
-func (m *mockTx) Rollback(_ context.Context) error          { return nil }
+func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error) { return &mockTx{}, nil }
+func (m *mockTx) Commit(_ context.Context) error          { return nil }
+func (m *mockTx) Rollback(_ context.Context) error        { return nil }
 func (m *mockTx) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
 	return 0, nil
 }
@@ -114,6 +114,9 @@ func (m *mockMemberStoreOnb) AddRole(ctx context.Context, role *domain.MemberRol
 	return nil
 }
 func (m *mockMemberStoreOnb) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
+	return nil, "", nil
+}
+func (m *mockMemberStoreOnb) ListInScope(_ context.Context, _ domain.ScopeType, _ *uuid.UUID, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
 func (m *mockMemberStoreOnb) RemoveRole(_ context.Context, _ uuid.UUID) error { return nil }

@@ -1,0 +1,57 @@
+---
+title: Members
+description: How member management works across global, tenant, and workspace scopes.
+---
+
+# Members
+
+Members are the people who can access Senda through the management UI.
+
+Depending on where you are in the app, you manage members at different scopes:
+
+- **Global** — platform-wide administration
+- **Tenant** — access within one tenant
+- **Workspace** — access within one workspace
+
+## What you can do
+
+On a members page you can usually:
+
+- invite a new member
+- assign a role
+- remove a role
+- search members by email or name
+
+## Why the Invite button may not appear
+
+The Invite button is role-aware.
+
+If you do not have permission for the current scope, Senda hides the action instead of showing an error after the fact.
+
+Typical rules:
+
+- **Superadmin** can manage everything
+- **Tenant admin** can manage members inside the tenant
+- **Workspace admin** can manage members inside the workspace
+- **Editor / Viewer** usually have read-only access
+
+If you expected to see Invite and do not, check:
+
+1. that you are in the correct scope
+2. that your role allows member changes there
+3. that you are not on a read-only page state
+
+## Good mental model
+
+Think of members as access control for the product itself.
+They are not the same thing as API Keys.
+
+- Members use the management UI
+- API Keys are for programmatic access to data-plane endpoints
+
+If you need to generate an API key, open [API Keys](api-keys).
+
+## Related docs
+
+- [FAQ](faq)
+- [Send flow](send-flow)

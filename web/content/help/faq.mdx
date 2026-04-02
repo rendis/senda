@@ -1,0 +1,52 @@
+---
+title: FAQ
+description: Short answers to the most common Senda questions.
+---
+
+# FAQ
+
+## I do not see the Invite Member button. Why?
+
+Most likely one of these is true:
+
+- you are in the wrong scope
+- your role does not allow member changes
+- the page is read-only for your access level
+
+See [Members](members) for the role and scope model.
+
+## I created an API key and then closed the dialog. Can I see the full secret again?
+
+No.
+
+The full secret is shown only once at creation time.
+After that, the list shows only the hint.
+
+See [API Keys](api-keys).
+
+## Does SES tracking reuse resources across workspaces?
+
+No.
+
+Tracking is adapter-scoped. A new adapter means new tracking resources, even if it uses the same AWS account.
+
+See [SES tracking](ses-tracking).
+
+## Where is the interactive API reference?
+
+Open the workspace API Docs page from the sidebar.
+
+That page contains the OpenAPI reference for the APIs used by API key clients.
+
+## What is the difference between members and API keys?
+
+Members are people.
+API keys are secrets for integrations and services.
+
+See [Members](members) and [API Keys](api-keys).
+
+## Can I use the same help center in every scope?
+
+Yes.
+
+The help center is available inside the authenticated dashboard and adapts to the scope you are currently in.

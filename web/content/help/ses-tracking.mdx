@@ -1,0 +1,54 @@
+---
+title: SES tracking
+description: What Senda provisions for SES tracking and why the behavior is adapter-scoped.
+---
+
+# SES tracking
+
+Senda can help you set up email tracking for an SES adapter.
+
+The important thing to understand is that tracking is **adapter-scoped**, not account-scoped.
+
+## What gets created
+
+When tracking is provisioned, Senda works with the adapter's SES setup to create:
+
+- a Configuration Set
+- an SNS Topic
+- an HTTPS subscription back to Senda
+
+## What is reused
+
+If you retry provisioning for the **same adapter**, Senda reuses the persisted provisioning state for that adapter.
+
+That means retries are safe and do not need to rebuild the whole setup from scratch.
+
+## What is not reused
+
+If you create another adapter, even if it points to the same AWS account or the same SES credentials, Senda treats it as a new adapter.
+
+So a new adapter gets its own tracking resources.
+
+That is true when the second adapter lives in:
+
+- the same workspace
+- another workspace
+
+## Why it works this way
+
+The provisioning identity is derived from the adapter, not from the AWS account.
+
+This keeps adapter setups isolated and makes the behavior easier to reason about.
+
+## What this means for you
+
+If you are trying to reuse an existing SES setup:
+
+- reuse the same adapter if that is the behavior you want
+- create a new adapter if you want a separate tracking setup
+
+## Related docs
+
+- [API Keys](api-keys)
+- [Send flow](send-flow)
+- [FAQ](faq)

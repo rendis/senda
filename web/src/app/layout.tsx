@@ -5,6 +5,7 @@ import { Providers } from "@/providers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
+import "fumadocs-ui/style.css";
 
 const sora = Sora({
   variable: "--font-sora",

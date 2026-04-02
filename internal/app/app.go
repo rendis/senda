@@ -185,7 +185,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	// 11. HTTP handlers.
 	tenantH := handler.NewTenantHandler(tenantRepo, wsRepo)
 	workspaceH := handler.NewWorkspaceHandler(tenantRepo, wsRepo)
-	memberH := handler.NewMemberHandler(memberRepo)
+	memberH := handler.NewMemberHandler(memberRepo, tenantRepo, wsRepo)
 	configH := handler.NewConfigHandler(configRepo, handler.OIDCInfo{
 		DiscoveryURL:    cfg.OIDC.DiscoveryURL,
 		ClientID:        cfg.OIDC.ClientID,

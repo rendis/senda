@@ -415,6 +415,13 @@ func (s *Server) registerRoutes() {
 			mgmt.GET("/members/:member_id", s.memberHandler.Get, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 			mgmt.POST("/members/:member_id/roles", s.memberHandler.AddRole, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 			mgmt.DELETE("/members/:member_id/roles/:role_id", s.memberHandler.RemoveRole, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
+
+			tenantMembers := mgmt.Group("/tenants/:tenant_code")
+			tenantMembers.GET("/members", s.memberHandler.ListTenant, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			tenantMembers.POST("/members", s.memberHandler.Create, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			tenantMembers.GET("/members/:member_id", s.memberHandler.GetTenant, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			tenantMembers.POST("/members/:member_id/roles", s.memberHandler.AddRoleTenant, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			tenantMembers.DELETE("/members/:member_id/roles/:role_id", s.memberHandler.RemoveRoleTenant, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 		}
 
 		// Config (superadmin).
@@ -508,6 +515,14 @@ func (s *Server) registerRoutes() {
 				ws.GET("/emails", s.emailHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/emails/:tracking_id", s.emailHandler.GetByTrackingID, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/emails/:tracking_id/events", s.emailHandler.GetEvents, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			}
+
+			if s.memberHandler != nil {
+				ws.GET("/members", s.memberHandler.ListWorkspace, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/members", s.memberHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/members/:member_id", s.memberHandler.GetWorkspace, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/members/:member_id/roles", s.memberHandler.AddRoleWorkspace, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.DELETE("/members/:member_id/roles/:role_id", s.memberHandler.RemoveRoleWorkspace, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 
 			// Suppression list (HT-22).

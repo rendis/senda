@@ -12,20 +12,33 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Role } from "@/types/api";
 
 interface InviteMemberFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { email: string; display_name?: string }) => Promise<void>;
+  onSubmit: (data: { email: string; display_name?: string; role: Role }) => Promise<void>;
+  allowedRoles: Role[];
+  scopeLabel?: string;
 }
 
 export function InviteMemberForm({
   open,
   onOpenChange,
   onSubmit,
+  allowedRoles,
+  scopeLabel = "this scope",
 }: InviteMemberFormProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState<Role>(allowedRoles[0] ?? "workspace_viewer");
   const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
 
@@ -46,9 +59,11 @@ export function InviteMemberForm({
       await onSubmit({
         email: email.trim(),
         display_name: displayName.trim() || undefined,
+        role,
       });
       setEmail("");
       setDisplayName("");
+      setRole(allowedRoles[0] ?? "workspace_viewer");
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -59,6 +74,7 @@ export function InviteMemberForm({
     if (!next) {
       setEmail("");
       setDisplayName("");
+      setRole(allowedRoles[0] ?? "workspace_viewer");
       setEmailError("");
     }
     onOpenChange(next);
@@ -71,7 +87,7 @@ export function InviteMemberForm({
           <DialogHeader>
             <DialogTitle>Invite Member</DialogTitle>
             <DialogDescription>
-              Send an invitation to join this scope. They will receive access
+              Send an invitation to join {scopeLabel}. They will receive access
               once they accept.
             </DialogDescription>
           </DialogHeader>
@@ -101,6 +117,24 @@ export function InviteMemberForm({
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedRoles.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item
+                        .split("_")
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join(" ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
