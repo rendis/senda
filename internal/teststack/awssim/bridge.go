@@ -33,13 +33,13 @@ var (
 )
 
 type Config struct {
-	BackendBaseURL string
-	Region         string
-	AccessKeyID    string
+	BackendBaseURL  string
+	Region          string
+	AccessKeyID     string
 	SecretAccessKey string
-	Publisher      Publisher
-	Subscriptions  SubscriptionResolver
-	Deliverer      NotificationDeliverer
+	Publisher       Publisher
+	Subscriptions   SubscriptionResolver
+	Deliverer       NotificationDeliverer
 }
 
 type EventDestinationRecord struct {
@@ -65,10 +65,10 @@ type State struct {
 }
 
 type emitEventRequest struct {
-	NotificationType string    `json:"notification_type"`
-	ProviderMessageID string   `json:"provider_message_id"`
-	Recipient        string    `json:"recipient,omitempty"`
-	Timestamp        time.Time `json:"timestamp,omitempty"`
+	NotificationType  string    `json:"notification_type"`
+	ProviderMessageID string    `json:"provider_message_id"`
+	Recipient         string    `json:"recipient,omitempty"`
+	Timestamp         time.Time `json:"timestamp,omitempty"`
 }
 
 type createEventDestinationRequest struct {
@@ -85,8 +85,8 @@ type createEventDestinationRequest struct {
 type sendEmailRequest struct {
 	ConfigurationSetName string `json:"ConfigurationSetName"`
 	Destination          struct {
-		ToAddresses []string `json:"ToAddresses"`
-		CcAddresses []string `json:"CcAddresses"`
+		ToAddresses  []string `json:"ToAddresses"`
+		CcAddresses  []string `json:"CcAddresses"`
 		BccAddresses []string `json:"BccAddresses"`
 	} `json:"Destination"`
 }
@@ -133,11 +133,11 @@ type NotificationDeliverer interface {
 }
 
 type Bridge struct {
-	backendURL *url.URL
-	proxy      *httputil.ReverseProxy
-	publisher  Publisher
+	backendURL    *url.URL
+	proxy         *httputil.ReverseProxy
+	publisher     Publisher
 	subscriptions SubscriptionResolver
-	deliverer  NotificationDeliverer
+	deliverer     NotificationDeliverer
 
 	mu                sync.RWMutex
 	eventDestinations map[string]EventDestinationRecord
@@ -154,10 +154,10 @@ func NewBridge(cfg Config) (*Bridge, error) {
 	}
 
 	bridge := &Bridge{
-		backendURL:         backendURL,
-		proxy:              httputil.NewSingleHostReverseProxy(backendURL),
-		eventDestinations:  make(map[string]EventDestinationRecord),
-		messages:           make(map[string]MessageRecord),
+		backendURL:        backendURL,
+		proxy:             httputil.NewSingleHostReverseProxy(backendURL),
+		eventDestinations: make(map[string]EventDestinationRecord),
+		messages:          make(map[string]MessageRecord),
 	}
 	bridge.proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
@@ -235,7 +235,9 @@ func (b *Bridge) handleHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -339,7 +341,9 @@ func (b *Bridge) handleSendEmail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -438,8 +442,8 @@ func (b *Bridge) handleEmitSESEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"topic_arn":      topicARN,
-		"notification":   req.NotificationType,
+		"topic_arn":           topicARN,
+		"notification":        req.NotificationType,
 		"provider_message_id": req.ProviderMessageID,
 	})
 }
@@ -600,7 +604,9 @@ func (d *httpNotificationDeliverer) Deliver(ctx context.Context, endpoint string
 	if err != nil {
 		return fmt.Errorf("deliver webhook: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("deliver webhook: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
