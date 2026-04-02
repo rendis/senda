@@ -1,24 +1,24 @@
-# PRD: Senda — Plataforma de Orquestación de Email
+# PRD: Senda — Email Orchestration Platform
 
-**Versión:** 5.0 (Draft para revisión)
+**Version:** 5.0 (Draft for review)
 
-**Fecha:** 2026-02-16
+**Date:** 2026-02-16
 
-**Autor:** Rey + Claude (iteración colaborativa)
+**Author:** Rey + Claude (collaborative iteration)
 
-**Estado:** En revisión — nada en este documento es versión final
+**Status:** Under review — nothing in this document is final
 
 ---
 
 ## 1. Problem Statement
 
-Las empresas que gestionan múltiples marcas, regiones o clientes necesitan enviar emails transaccionales y de notificación desde diferentes contextos, cada uno con su propia identidad visual, datos de dominio y proveedores de envío. Hoy resuelven esto de tres formas, todas deficientes:
+Companies that manage multiple brands, regions, or clients need to send transactional and notification emails from different contexts, each with its own visual identity, domain data, and sending provider. Today they solve this in three ways, all of them flawed:
 
-Conectar cada aplicación directamente a un proveedor (SES, Gmail), dispersando la lógica de envío, duplicando templates, e imposibilitando la visibilidad centralizada. Usar un SaaS como SendGrid o Resend, cediendo control sobre la infraestructura y aceptando limitaciones de customización. Usar herramientas open source como Listmonk o Postal, que no ofrecen multi-tenancy jerárquico con herencia de configuración, ni trazabilidad por ID de negocio externo.
+Connecting each application directly to a provider (SES, Gmail), scattering sending logic, duplicating templates, and making centralized visibility impossible. Using a SaaS such as SendGrid or Resend, giving up control over the infrastructure and accepting customization limits. Using open source tools such as Listmonk or Postal, which do not provide hierarchical multi-tenancy with configuration inheritance or traceability by external business ID.
 
-**¿Quién experimenta este problema?** Empresas con múltiples productos, marcas, regiones o clientes que necesitan enviar emails transaccionales de forma centralizada.
+**Who experiences this problem?** Companies with multiple products, brands, regions, or clients that need to send transactional emails centrally.
 
-**¿Costo de no resolverlo?** Templates duplicados, emails que fallan sin visibilidad, imposibilidad de auditar la comunicación por email, dependencia de SaaS con costos crecientes, y deuda técnica por integraciones directas.
+**Cost of not solving it?** Duplicate templates, emails that fail without visibility, inability to audit email communication, dependency on SaaS with growing costs, and technical debt from direct integrations.
 
 ---
 
@@ -26,335 +26,335 @@ Conectar cada aplicación directamente a un proveedor (SES, Gmail), dispersando 
 
 **User Goals:**
 
-1. Un punto centralizado donde cualquier aplicación envía emails, con visibilidad completa del ciclo de vida.
-2. Gestión jerárquica en 3 niveles (Global → Tenant → Workspace) con herencia automática y override donde sea necesario.
-3. Trazabilidad de todos los emails de un caso de negocio vía external_id, cross-workspace y cross-tenant.
-4. Templates reutilizables con editor visual (drag-and-drop + inline) para usuarios no técnicos.
-5. Inyectores de datos tipados que proveen contexto automáticamente según la jerarquía.
-6. Addressing determinístico: `tenantCode:workspaceCode:templateType` resuelve siempre al template publicado, sin manejar IDs internos.
-7. Soporte de i18n en templates con asistencia de IA para traducciones y armado de contenido.
+1. A centralized place where any application sends emails, with full lifecycle visibility.
+2. Hierarchical management at 3 levels (Global → Tenant → Workspace) with automatic inheritance and overrides where needed.
+3. Traceability for all emails in a business case via `external_id`, across workspaces and tenants.
+4. Reusable templates with a visual editor (drag-and-drop + inline) for non-technical users.
+5. Typed data injectors that automatically provide context according to the hierarchy.
+6. Deterministic addressing: `tenantCode:workspaceCode:templateType` always resolves to the published template, without handling internal IDs.
+7. i18n support in templates with AI assistance for translations and content creation.
 
 **Business Goals:**
 
-1. Reducir N integraciones directas a una sola plataforma centralizada.
-2. Auditar el 100% de la comunicación por email en un solo lugar.
-3. Proyecto open source sin dependencia de SaaS.
+1. Reduce N direct integrations to a single centralized platform.
+2. Audit 100% of email communication in one place.
+3. Open source project with no SaaS dependency.
 
 ---
 
 ## 3. Non-Goals
 
-1. **Senda NO es un proveedor de envío de email.** No compite con SES o Gmail. Es una capa de orquestación que usa esos proveedores como transporte vía adapters.
+1. **Senda is NOT an email sending provider.** It does not compete with SES or Gmail. It is an orchestration layer that uses those providers as transport through adapters.
 
-2. **Senda NO controla qué evento dispara un email.** La lógica de "cuándo enviar" vive fuera de Senda. Un servicio externo decide qué enviar y llama a la API con los datos.
+2. **Senda does NOT control which event triggers an email.** The logic for "when to send" lives outside Senda. An external service decides what to send and calls the API with the data.
 
-3. **Senda NO es una herramienta de email marketing.** No gestiona listas de suscriptores, segmentación, A/B testing de campañas, ni scheduling de marketing.
+3. **Senda is NOT an email marketing tool.** It does not manage subscriber lists, segmentation, campaign A/B testing, or marketing scheduling.
 
-4. **Senda NO es un Identity Provider.** La autenticación del dashboard se delega a OIDC externo. Senda gestiona membresía y roles (autorización), pero no autenticación (no hay signup, password recovery, ni MFA propios).
+4. **Senda is NOT an Identity Provider.** Dashboard authentication is delegated to an external OIDC provider. Senda manages membership and roles (authorization), but not authentication (there is no signup, password recovery, or native MFA).
 
-5. **Senda NO expone un SMTP relay.** Comunicación exclusivamente vía REST API.
+5. **Senda does NOT expose an SMTP relay.** Communication is exclusively through the REST API.
 
 ---
 
-## 4. Conceptos Fundamentales
+## 4. Core Concepts
 
-### 4.1. Jerarquía: Global → Tenant → Workspace
+### 4.1. Hierarchy: Global → Tenant → Workspace
 
-Senda opera con **tres niveles jerárquicos**. Los nombres son genéricos — cada empresa define qué significa cada nivel.
+Senda operates with **three hierarchical levels**. The names are generic — each company decides what each level means.
 
-**Global** es la capa raíz. Administrada por superadmins. Define defaults heredados por toda la plataforma: templates base, inyectores corporativos, adapters de envío por defecto, dominios verificados, configuraciones de plataforma.
+**Global** is the root layer. It is managed by superadmins. It defines defaults inherited across the platform: base templates, corporate injectors, default sending adapters, verified domains, and platform settings.
 
-**Tenant** es el primer nivel de agrupación (país, región, división, línea de negocio). Cada instalación tiene al menos 1 tenant. Cada tenant se identifica por un **código único** (slug): `latam`, `europe`, `division-norte`.
+**Tenant** is the first grouping level (country, region, division, business line). Each installation has at least 1 tenant. Each tenant is identified by a **unique code** (slug): `latam`, `europe`, `northern-division`.
 
-**Workspace** es la unidad operativa granular (cliente, marca, producto, equipo). Cada tenant tiene al menos 1 workspace. Cada workspace se identifica por un **código único dentro de su tenant**: `acme-corp`, `brand-x`, `soporte`.
+**Workspace** is the granular operational unit (client, brand, product, team). Each tenant has at least 1 workspace. Each workspace is identified by a **code unique within its tenant**: `acme-corp`, `brand-x`, `support`.
 
-#### Workspace de Sistema (`_system`)
+#### System Workspace (`_system`)
 
-Cada tenant tiene un workspace especial auto-creado llamado `_system`. Este workspace:
+Each tenant has an auto-created special workspace called `_system`. This workspace:
 
-- Es donde se configuran templates, inyectores, adapters y dominios que **heredan todos los workspaces del tenant**.
-- No se puede eliminar ni renombrar.
-- No se pueden enviar emails desde él directamente.
-- Es el equivalente a "configuración a nivel tenant" pero gestionado de forma uniforme como un workspace.
+- Is where templates, injectors, adapters, and domains are configured so that they **inherit to all workspaces in the tenant**.
+- Cannot be deleted or renamed.
+- Cannot send emails directly.
+- Is the equivalent of "tenant-level configuration" but managed uniformly as a workspace.
 
-#### Cadena de Resolución
+#### Resolution Chain
 
-Cuando el sistema necesita resolver cualquier recurso (template, inyector, adapter, dominio, configuración), busca en esta cadena:
+When the system needs to resolve any resource (template, injector, adapter, domain, setting), it searches this chain:
 
 ```
 Workspace → Tenant _system → Global
 ```
 
-La primera coincidencia gana. Esto permite definir defaults arriba y overrides abajo.
+The first match wins. This allows defaults to be defined above and overrides below.
 
-**Error si no se resuelve:** Si un recurso necesario no se encuentra en ningún nivel de la cadena (ej: no hay adapter configurado), Senda retorna `422 Unprocessable Entity` con un mensaje descriptivo: `"No email adapter configured for workspace 'acme' in tenant 'latam'. Configure an adapter at workspace, tenant (_system), or global level."` El workspace queda inutilizable para envío hasta que se configure el recurso faltante.
+**Error if unresolved:** If a required resource is not found at any level in the chain (for example, no adapter is configured), Senda returns `422 Unprocessable Entity` with a descriptive message: `"No email adapter configured for workspace 'acme' in tenant 'latam'. Configure an adapter at workspace, tenant (_system), or global level."` The workspace remains unusable for sending until the missing resource is configured.
 
-**Ejemplo concreto:**
+**Concrete example:**
 
 ```
 Global
-├── Inyector "brand": {logo: corp-logo.png, name: "MiEmpresa", email: soporte@miempresa.com}
+├── Injector "brand": {logo: corp-logo.png, name: "MyCompany", email: support@mycompany.com}
 ├── Template "welcome" (global)
 ├── Adapter: SES us-east-1
-├── Dominio verificado: miempresa.com
+├── Verified domain: mycompany.com
 │
-├── Tenant "latam" (código: latam)
+├── Tenant "latam" (code: latam)
 │   ├── _system workspace
-│   │   ├── Inyector "brand": {logo: latam-logo.png}  ← override parcial, hereda name y email
-│   │   ├── Template "welcome" (LATAM)                 ← override del global
-│   │   ├── Adapter: SES sa-east-1                     ← override del global
-│   │   └── Dominio verificado: latam.miempresa.com    ← adicional al global
+│   │   ├── Injector "brand": {logo: latam-logo.png}  ← partial override, inherits name and email
+│   │   ├── Template "welcome" (LATAM)                 ← override of the global one
+│   │   ├── Adapter: SES sa-east-1                      ← override of the global one
+│   │   └── Verified domain: latam.mycompany.com        ← additional to the global one
 │   │
-│   ├── Workspace "acme" (código: acme)
-│   │   ├── Inyector "brand": {name: "Acme Corp"}      ← override parcial
-│   │   ├── Template "welcome" (Acme)                   ← override del tenant
-│   │   └── (hereda adapter de _system: SES sa-east-1)
+│   ├── Workspace "acme" (code: acme)
+│   │   ├── Injector "brand": {name: "Acme Corp"}     ← partial override
+│   │   ├── Template "welcome" (Acme)                  ← override of the tenant one
+│   │   └── (inherits adapter from _system: SES sa-east-1)
 │   │
-│   └── Workspace "beta" (código: beta)
-│       └── (hereda todo de _system y global)
+│   └── Workspace "beta" (code: beta)
+│       └── (inherits everything from _system and global)
 ```
 
-En este ejemplo, un email "welcome" enviado desde `latam:acme` usa:
-- Template "welcome" de Acme (workspace).
-- Inyector "brand" mergeado: `{logo: latam-logo.png, name: "Acme Corp", email: soporte@miempresa.com}`.
-- Adapter SES sa-east-1 (de `_system`).
-- Dominio: latam.miempresa.com (de `_system`) o miempresa.com (de global), según configuración del from address.
+In this example, a "welcome" email sent from `latam:acme` uses:
+- The Acme "welcome" template (workspace).
+- The merged `brand` injector: `{logo: latam-logo.png, name: "Acme Corp", email: support@mycompany.com}`.
+- The SES sa-east-1 adapter (from `_system`).
+- The domain: latam.mycompany.com (from `_system`) or mycompany.com (from global), depending on the from-address configuration.
 
-Un email "welcome" desde `latam:beta` usa:
-- Template "welcome" de LATAM (_system).
-- Inyector "brand": `{logo: latam-logo.png, name: "MiEmpresa", email: soporte@miempresa.com}`.
-- Adapter SES sa-east-1 (de `_system`).
+A "welcome" email sent from `latam:beta` uses:
+- The LATAM "welcome" template (`_system`).
+- The `brand` injector: `{logo: latam-logo.png, name: "MyCompany", email: support@mycompany.com}`.
+- The SES sa-east-1 adapter (from `_system`).
 
-#### Aislamiento Cross-Tenant
+#### Cross-Tenant Isolation
 
-Los roles no-superadmin están **estrictamente aislados** por tenant:
-- Un `tenant-admin` de "latam" NO tiene visibilidad alguna sobre el tenant "europe" ni sus workspaces.
-- Un `workspace-admin` de "latam:acme" NO puede ver ni acceder a "latam:beta".
-- Solo los `superadmin` tienen visibilidad cross-tenant.
-- Las API Keys están scoped a un workspace y no pueden operar fuera de él.
+Non-superadmin roles are **strictly isolated** by tenant:
+- A `tenant-admin` for "latam" has NO visibility over the "europe" tenant or its workspaces.
+- A `workspace-admin` for "latam:acme" cannot see or access "latam:beta".
+- Only `superadmin` users have cross-tenant visibility.
+- API Keys are scoped to a workspace and cannot operate outside it.
 
-### 4.2. Códigos (Slugs)
+### 4.2. Codes (Slugs)
 
-Tenants y workspaces se identifican por **códigos** en formato slug:
+Tenants and workspaces are identified by **codes** in slug format:
 
-- Lowercase alfanumérico + guiones: `[a-z][a-z0-9-]*`
-- Mínimo 2, máximo 50 caracteres.
-- Debe empezar con letra.
-- Sin guiones consecutivos (`--`).
-- Sin guion al final.
-- Reservados: `_system`, `global`, `admin`, `api`, `system` (no pueden usarse como códigos de workspace o tenant).
+- Lowercase alphanumeric plus hyphens: `[a-z][a-z0-9-]*`
+- Minimum 2, maximum 50 characters.
+- Must start with a letter.
+- No consecutive hyphens (`--`).
+- No trailing hyphen.
+- Reserved: `_system`, `global`, `admin`, `api`, `system` (they cannot be used as workspace or tenant codes).
 
-**Unicidad:**
-- Código de tenant: **único global** (no pueden existir dos tenants con el mismo código).
-- Código de workspace: **único dentro de su tenant** (dos tenants pueden tener un workspace "main", pero un mismo tenant no puede tener dos "main").
+**Uniqueness:**
+- Tenant code: **globally unique** (you cannot have two tenants with the same code).
+- Workspace code: **unique within its tenant** (two tenants can both have a workspace called `main`, but a single tenant cannot have two `main` workspaces).
 
-**Inmutabilidad:** Los códigos son inmutables después de la creación. Cambiar un código rompería integraciones externas que usan el addressing `tenantCode:workspaceCode:templateType`.
+**Immutability:** Codes are immutable after creation. Changing a code would break external integrations that use the addressing `tenantCode:workspaceCode:templateType`.
 
-### 4.3. Inyectores (Data Injectors)
+### 4.3. Injectors (Data Injectors)
 
-Un **inyector** es un conjunto nombrado de pares key-value tipados que se inyectan automáticamente en templates al compilar. Son los datos de contexto — la información que no viene del evento sino de la identidad del workspace/tenant/global.
+An **injector** is a named set of typed key-value pairs that are injected automatically into templates at compile time. They are context data — information that does not come from the event, but from the workspace/tenant/global identity.
 
-**Tipos de campo** soportados:
+**Supported field types:**
 
-| Tipo | Descripción | Ejemplo de valor |
+| Type | Description | Example value |
 |---|---|---|
-| `text` | Cadena de texto | "Acme Corporation" |
-| `number` | Valor numérico | 42, 3.14 |
-| `bool` | Verdadero/falso | true, false |
-| `img` | URL de imagen | "https://cdn.acme.com/logo.png" |
-| `url` | URL | "https://acme.com/soporte" |
-| `html` | Bloque HTML sanitizado | "\<p>Footer legal\</p>" |
+| `text` | Text string | "Acme Corporation" |
+| `number` | Numeric value | 42, 3.14 |
+| `bool` | True/false | true, false |
+| `img` | Image URL | "https://cdn.acme.com/logo.png" |
+| `url` | URL | "https://acme.com/support" |
+| `html` | Sanitized HTML block | "<p>Legal footer</p>" |
 
-#### Modelo de Schema: Top-Down Fijo
+#### Top-Down Fixed Schema Model
 
-El nivel que **crea** un inyector define su **schema** (nombres de campos y tipos). Esto es inmutable:
+The level that **creates** an injector defines its **schema** (field names and types). This is immutable:
 
-- Si el superadmin crea el inyector `brand` a nivel global con campos `{logo: img, name: text, email: text}`, ese es el contrato.
-- Los niveles inferiores (`_system`, workspace) pueden **override valores** de esos campos, pero **NO pueden agregar campos nuevos ni eliminar campos existentes**.
-- Si un `tenant-admin` necesita campos adicionales para su contexto, debe crear un **inyector nuevo** (ej: `brand-extra`) en su scope, no extender el inyector global.
+- If the superadmin creates the `brand` injector at global level with fields `{logo: img, name: text, email: text}`, that is the contract.
+- Lower levels (`_system`, workspace) can **override values** for those fields, but they **CANNOT add new fields or remove existing fields**.
+- If a `tenant-admin` needs additional fields for their context, they must create a **new injector** (for example, `brand-extra`) in their scope, not extend the global injector.
 
-Esto garantiza:
-- Predicibilidad: un template que usa `{{ injector.brand.logo }}` sabe que el campo existe en todos los niveles.
-- Validación: al compilar, si un campo referenciado no existe en el schema del inyector, es un error de template, no un problema de datos.
-- Claridad: no hay "campos fantasma" que aparecen solo en algunos workspaces.
+This guarantees:
+- Predictability: a template that uses `{{ injector.brand.logo }}` knows the field exists at all levels.
+- Validation: at compile time, if a referenced field does not exist in the injector schema, it is a template error, not a data problem.
+- Clarity: there are no "ghost fields" that appear only in some workspaces.
 
-#### Herencia campo por campo
+#### Field-by-field inheritance
 
-La resolución de campos sigue la cadena workspace → `_system` → global, campo por campo:
-- Si el workspace define `brand.logo`, ese valor gana.
-- Si no, se busca en `_system` del tenant.
-- Si no, se busca en global.
-- Los campos no overrideados se heredan del nivel superior.
-- Un campo **no puede ponerse en null** para "borrar" un valor heredado. Si necesitas un campo vacío, usa un valor vacío del tipo correspondiente (ej: `""` para text, `0` para number).
+Field resolution follows the workspace → `_system` → global chain, field by field:
+- If the workspace defines `brand.logo`, that value wins.
+- Otherwise, it searches in the tenant's `_system`.
+- Otherwise, it searches globally.
+- Unoverridden fields are inherited from the higher level.
+- A field **cannot be set to null** to "remove" an inherited value. If you need an empty field, use an empty value for that type (for example, `""` for text, `0` for number).
 
-**Diferencia con variables del evento:**
-- **Inyectores:** Datos de contexto estáticos/semi-estáticos (marca, logos, URLs, datos de contacto). Resueltos automáticamente por Senda según la jerarquía.
-- **Variables del evento:** Datos de instancia dinámicos (nombre del usuario, número de orden, monto). Enviados en cada request de la API por el servicio externo.
+**Difference from event variables:**
+- **Injectors:** Static/semi-static context data (brand, logos, URLs, contact details). Resolved automatically by Senda according to the hierarchy.
+- **Event variables:** Dynamic instance data (user name, order number, amount). Sent on every API request by the external service.
 
-### 4.4. Ports y Adapters (Envío de Email)
+### 4.4. Ports and Adapters (Email Sending)
 
-Senda usa **arquitectura hexagonal** para el envío:
+Senda uses **hexagonal architecture** for sending:
 
-**Port (interfaz):** Contrato que cualquier proveedor de email debe cumplir.
+**Port (interface):** Contract that any email provider must satisfy.
 
-**Adapter (implementación):** Implementación concreta para un proveedor. Inicialmente: SESAdapter y GmailAdapter.
+**Adapter (implementation):** Concrete implementation for a provider. Initially: SESAdapter and GmailAdapter.
 
-Los adapters se configuran jerárquicamente (global → tenant `_system` → workspace) y siguen la misma cadena de resolución. Agregar nuevos adapters (SendGrid, Mailgun) requiere implementar un solo adapter sin tocar el core.
+Adapters are configured hierarchically (global → tenant `_system` → workspace) and follow the same resolution chain. Adding new adapters (SendGrid, Mailgun) requires implementing a single adapter without touching the core.
 
-**Resolución de adapter:** Al enviar un email, Senda busca adapter en: workspace → `_system` → global. Si no existe en ningún nivel → `422 Unprocessable Entity`. Un workspace puede tener su propio adapter (ej: una cuenta SES específica) o heredar del tenant/global.
+**Adapter resolution:** When sending an email, Senda looks for the adapter in: workspace → `_system` → global. If none exists at any level → `422 Unprocessable Entity`. A workspace can have its own adapter (for example, a dedicated SES account) or inherit from the tenant/global.
 
-### 4.5. Sistema de Templates
+### 4.5. Template System
 
-#### Tipos de Plantilla
+#### Template Types
 
-Un **tipo de plantilla** define un contrato: nombre (slug), descripción, y schema JSON de las variables del evento que espera. Los tipos se definen jerárquicamente:
-- Tipos globales: disponibles para toda la plataforma.
-- Tipos en `_system` del tenant: disponibles para todos los workspaces del tenant.
-- Tipos en un workspace: solo disponibles en ese workspace.
+A **template type** defines a contract: name (slug), description, and JSON schema of the event variables it expects. Types are defined hierarchically:
+- Global types: available across the platform.
+- Types in the tenant `_system`: available to all workspaces in the tenant.
+- Types in a workspace: available only in that workspace.
 
-La visibilidad sigue la misma cadena: un workspace puede usar tipos propios + tipos de su `_system` + tipos globales. Un workspace **puede crear tipos nuevos** que no existen en `_system` ni en global — estos tipos solo son visibles y usables dentro de ese workspace.
+Visibility follows the same chain: a workspace can use its own types + types from its `_system` + global types. A workspace **can create new types** that do not exist in `_system` or global — those types are visible and usable only within that workspace.
 
-#### Plantillas y Versiones
+#### Templates and Versions
 
-Una **plantilla** es la implementación visual de un tipo. Cada plantilla tiene **versiones** con estados:
+A **template** is the visual implementation of a type. Each template has **versions** with states:
 
-| Estado | Descripción |
+| State | Description |
 |---|---|
-| `draft` | En edición. Puede haber múltiples drafts. No se usa para envío. |
-| `published` | Activa para envío. **Solo puede haber UNA versión publicada por plantilla.** |
-| `archived` | Versión anterior preservada para historial. No se usa para envío. |
+| `draft` | Being edited. Multiple drafts can exist. Not used for sending. |
+| `published` | Active for sending. **Only one published version may exist per template.** |
+| `archived` | Previous version preserved for history. Not used for sending. |
 
-Al publicar un draft, la versión previamente publicada pasa automáticamente a `archived`.
+When a draft is published, the previously published version is automatically archived.
 
-#### Contenido del Template
+#### Template Content
 
-Cada template contiene:
+Each template contains:
 
-- **Body:** Código MJML (editado visual o manualmente) que define el contenido del email.
-- **Subject:** Línea de asunto. Soporta variables de inyectores y del evento (ej: `"Bienvenido {{ event.user_name }} a {{ injector.brand.name }}"`).
-- **Preview text:** Texto de preview que aparece en la bandeja de entrada después del subject. Soporta variables.
-- **From address:** Dirección de remitente. Se compone de:
-  - **From name:** Nombre visible (ej: "Soporte Acme"). Configurable por template, con fallback jerárquico. Soporta variables de inyectores.
-  - **From email:** Email del remitente (ej: `soporte@acme.com`). Debe corresponder a un dominio verificado en la cadena de resolución. Configurable por template, con fallback jerárquico.
-- **Reply-to:** (Opcional) Email de respuesta. Configurable por workspace/tenant/global con herencia.
-- **Locale tags:** (Opcional) Etiquetas de idioma en bloques de texto para soporte i18n.
+- **Body:** MJML code (edited visually or manually) that defines the email content.
+- **Subject:** Subject line. Supports injector and event variables (for example, `"Welcome {{ event.user_name }} to {{ injector.brand.name }}"`).
+- **Preview text:** Preview text shown in the inbox after the subject. Supports variables.
+- **From address:** Sender address. It is composed of:
+  - **From name:** Visible name (for example, "Acme Support"). Configurable per template, with hierarchical fallback. Supports injector variables.
+  - **From email:** Sender email (for example, `support@acme.com`). It must correspond to a verified domain in the resolution chain. Configurable per template, with hierarchical fallback.
+- **Reply-to:** (Optional) Reply email. Configurable by workspace/tenant/global with inheritance.
+- **Locale tags:** (Optional) Language tags in text blocks for i18n support.
 
-#### Regla de Unicidad por Scope
+#### Type uniqueness by scope
 
-Dentro de cualquier scope (workspace, `_system`, o global), un tipo de plantilla **solo puede tener una plantilla asignada**. Esta regla aplica uniformemente en los tres niveles:
+Within any scope (workspace, `_system`, or global), a template type **can only have one assigned template**. This rule applies uniformly at the three levels:
 
-- Workspace "acme" tiene tipo "welcome" → solo puede haber UNA plantilla "welcome" en ese workspace.
-- `_system` de "latam" tiene tipo "welcome" → solo puede haber UNA plantilla "welcome" en ese `_system`.
-- Global tiene tipo "welcome" → solo puede haber UNA plantilla "welcome" a nivel global.
+- Workspace "acme" has type "welcome" → only ONE "welcome" template can exist in that workspace.
+- "latam" `_system` has type "welcome" → only ONE "welcome" template can exist in that `_system`.
+- Global has type "welcome" → only ONE "welcome" template can exist at global level.
 
-Esta regla es fundamental para el addressing determinístico.
+This rule is fundamental to deterministic addressing.
 
-#### Addressing Determinístico
+#### Deterministic Addressing
 
-Los emails se envían usando la referencia:
+Emails are sent using the reference:
 
 ```
 tenantCode:workspaceCode:templateType
 ```
 
-Ejemplo: `latam:acme:welcome`
+Example: `latam:acme:welcome`
 
-Esta referencia se resuelve así:
-1. Busca el tenant con código `latam`.
-2. Busca el workspace con código `acme` dentro de ese tenant.
-3. Busca la plantilla asignada al tipo `welcome` en ese workspace.
-4. Si no existe en el workspace, busca en `_system` del tenant `latam`.
-5. Si no existe en `_system`, busca a nivel global.
-6. Toma la versión `published` del template encontrado.
-7. Si no hay template en ningún nivel → `404 Not Found`: `"No published template found for type 'welcome' in resolution chain of workspace 'acme', tenant 'latam'"`.
+This reference resolves as follows:
+1. Find the tenant with code `latam`.
+2. Find the workspace with code `acme` within that tenant.
+3. Find the template assigned to type `welcome` in that workspace.
+4. If none exists in the workspace, look in the `latam` tenant `_system`.
+5. If none exists in `_system`, look at global level.
+6. Take the `published` version of the found template.
+7. If there is no template at any level → `404 Not Found`: `"No published template found for type 'welcome' in resolution chain of workspace 'acme', tenant 'latam'"`.
 
-El servicio externo nunca necesita conocer IDs internos, versiones, ni estados. Solo necesita saber: tenant, workspace, y tipo de template. Senda resuelve el resto.
+The external service never needs to know internal IDs, versions, or states. It only needs to know: tenant, workspace, and template type. Senda resolves the rest.
 
-#### Desactivar Envío por Template
+#### Disable Sending by Template
 
-Un template puede ser **desactivado** (kill switch) sin archivarlo ni eliminarlo. Un template desactivado:
-- Mantiene su versión `published` pero no se usa para envío.
-- Si se intenta enviar un email con un template desactivado, Senda responde con `409 Conflict`: `"Template 'welcome' is disabled in workspace 'acme'"`.
-- **Importante:** Si el template desactivado está en un nivel superior (`_system` o global) y un workspace no tiene override, el envío falla. Esto es intencional — el kill switch es una decisión administrativa que afecta hacia abajo.
-- Es un mecanismo de emergencia para detener envíos sin perder la configuración.
-- Reactivable en cualquier momento por un admin del scope correspondiente.
+A template can be **disabled** (kill switch) without archiving or deleting it. A disabled template:
+- Keeps its `published` version but is not used for sending.
+- If an email send is attempted with a disabled template, Senda responds with `409 Conflict`: `"Template 'welcome' is disabled in workspace 'acme'"`.
+- **Important:** If the disabled template is at a higher level (`_system` or global) and a workspace has no override, the send fails. This is intentional — the kill switch is an administrative decision that affects lower levels.
+- It is an emergency mechanism to stop sends without losing configuration.
+- It can be re-enabled at any time by an admin in the corresponding scope.
 
-#### Variables en Templates
+#### Variables in Templates
 
-Los templates MJML pueden usar dos tipos de variables:
+MJML templates can use two types of variables:
 
-- Variables de **inyectores** (resueltas automáticamente por la jerarquía):
+- **Injector variables** (resolved automatically by the hierarchy):
   ```
   {{ injector.brand.logo_url }}
   {{ injector.brand.company_name }}
   {{ injector.legal.footer_html }}
   ```
 
-- Variables del **evento** (enviadas en el request de la API):
+- **Event variables** (sent in the API request):
   ```
   {{ event.user_name }}
   {{ event.order_number }}
   {{ event.activation_url }}
   ```
 
-Ambos tipos de variables pueden usarse en el **body**, **subject** y **preview text**.
+Both types of variables can be used in the **body**, **subject**, and **preview text**.
 
-### 4.6. Editor Visual
+### 4.6. Visual Editor
 
-El editor de templates tiene dos modos complementarios:
+The template editor has two complementary modes:
 
-**Drag-and-drop:** Arrastrar componentes (texto, imagen, botón, columnas, divider, spacer, social links) para construir la estructura.
+**Drag-and-drop:** Drag components (text, image, button, columns, divider, spacer, social links) to build the structure.
 
-**Inline editing:** Clic directo sobre el contenido del preview para editar texto, insertar variables, cambiar estilos. Edición WYSIWYG sobre el template renderizado.
+**Inline editing:** Click directly on the preview content to edit text, insert variables, and change styles. WYSIWYG editing on the rendered template.
 
-Ambos modos trabajan sobre la misma representación interna (JSON Schema del editor ↔ MJML source). El usuario puede alternar entre modo visual y modo código (MJML directo).
+Both modes work on the same internal representation (editor JSON Schema ↔ MJML source). The user can switch between visual mode and code mode (raw MJML).
 
-#### i18n en Templates
+#### i18n in Templates
 
-Los bloques de texto del template (no inyectables, es decir, el contenido estático del template) pueden tener **configuración de idioma**:
+The template's text blocks (non-injectable, meaning the static content of the template) can have **language configuration**:
 
-- Cada bloque de texto puede marcarse con un **locale tag** (ej: `es`, `en`, `pt-BR`).
-- Un template puede contener variantes de idioma para cada bloque de texto.
-- El idioma se selecciona al momento del envío (el servicio externo indica `locale` en el request) o por configuración del workspace.
-- Si no hay variante para el locale solicitado, se usa el locale por defecto del template.
+- Each text block can be marked with a **locale tag** (for example, `es`, `en`, `pt-BR`).
+- A template can contain language variants for each text block.
+- The language is selected at send time (the external service sends `locale` in the request) or by workspace configuration.
+- If there is no variant for the requested locale, the template's default locale is used.
 
-**Integración con IA:**
+**AI integration:**
 
-El editor integra asistencia de IA para:
-- **Armado de templates:** Sugerir estructura, copys y diseño basado en el tipo de email y contexto.
-- **Traducciones:** Traducir automáticamente bloques de texto a los idiomas configurados.
-- **Optimización de copy:** Mejorar textos para claridad, tono y engagement.
-- **Consistencia:** Verificar que el tono y estilo sean coherentes entre variantes de idioma.
+The editor integrates AI assistance for:
+- **Template creation:** Suggest structure, copy, and design based on the email type and context.
+- **Translations:** Automatically translate text blocks into the configured languages.
+- **Copy optimization:** Improve text for clarity, tone, and engagement.
+- **Consistency:** Check that tone and style are coherent across language variants.
 
-La integración de IA es una asistencia — el editor siempre retiene el control sobre el contenido final.
+AI integration is assistance — the editor always retains control over the final content.
 
-### 4.7. Flujo de Envío
+### 4.7. Sending Flow
 
-1. Servicio externo llama a la API: `POST /api/v1/send` con:
-   - `ref`: `"latam:acme:welcome"` (addressing determinístico)
-   - `to`: array de destinatarios (máx 50 por request)
-   - `variables`: variables del evento (user_name, order_number, etc.)
-   - `external_id`: (opcional) ID del caso de negocio
-   - `cc`: (opcional) array de emails en copia
-   - `bcc`: (opcional) array de emails en copia oculta
-   - `locale`: (opcional) código de idioma para i18n (ej: `"es"`, `"pt-BR"`)
+1. An external service calls the API: `POST /api/v1/send` with:
+   - `ref`: `"latam:acme:welcome"` (deterministic addressing)
+   - `to`: array of recipients (max 50 per request)
+   - `variables`: event variables (`user_name`, `order_number`, etc.)
+   - `external_id`: (optional) business case ID
+   - `cc`: (optional) array of carbon-copy emails
+   - `bcc`: (optional) array of blind-carbon-copy emails
+   - `locale`: (optional) language code for i18n (for example, `"es"`, `"pt-BR"`)
 
-2. Senda parsea la referencia → resuelve tenant, workspace, template type.
-3. Senda verifica que el template no esté desactivado.
-4. Senda resuelve la plantilla (workspace → `_system` → global) y toma la versión `published`.
-5. Senda valida variables del evento contra el schema del tipo de plantilla.
-6. Senda resuelve los inyectores (merge campo por campo: workspace → `_system` → global).
-7. Senda resuelve el `from_email` usando la identidad default del adapter efectivo.
-8. Senda valida que la identidad esté habilitada/verificada según el provider.
-9. Senda resuelve subject y preview text (del template, aplicando variables).
-10. Senda selecciona variante de idioma si `locale` fue proporcionado.
-11. Senda compila MJML con inyectores + variables del evento → HTML responsive.
-12. Senda encola como job transaccional (River/PostgreSQL). Un job por cada destinatario en `to`.
-13. Worker envía vía el adapter configurado, respetando rate limits.
-14. Senda registra resultado y actualiza lifecycle tracking. Cada destinatario recibe su propio `tracking_id`.
-15. Si hay webhooks configurados, notifica al workspace/tenant.
+2. Senda parses the reference → resolves tenant, workspace, and template type.
+3. Senda verifies that the template is not disabled.
+4. Senda resolves the template (workspace → `_system` → global) and takes the `published` version.
+5. Senda validates event variables against the template type schema.
+6. Senda resolves injectors (field-by-field merge: workspace → `_system` → global).
+7. Senda resolves `from_email` using the default identity of the effective adapter.
+8. Senda validates that the identity is enabled/verified according to the provider.
+9. Senda resolves subject and preview text (from the template, applying variables).
+10. Senda selects a language variant if `locale` was provided.
+11. Senda compiles MJML with injectors + event variables → responsive HTML.
+12. Senda enqueues the email as a transactional job (River/PostgreSQL). One job per recipient in `to`.
+13. The worker sends through the configured adapter, respecting rate limits.
+14. Senda records the result and updates lifecycle tracking. Each recipient gets its own `tracking_id`.
+15. If webhooks are configured, it notifies the workspace/tenant.
 
-#### Request y Response de la API
+#### API Request and Response
 
 **Request:**
 ```json
@@ -367,7 +367,7 @@ Authorization: Bearer senda_live_abc123...
   "cc": ["manager@example.com"],
   "bcc": ["audit@internal.com"],
   "variables": {
-    "user_name": "María García",
+    "user_name": "Maria Garcia",
     "order_number": "ORD-12345",
     "activation_url": "https://app.acme.com/activate/xyz"
   },
@@ -392,320 +392,320 @@ Authorization: Bearer senda_live_abc123...
 
 **Error Responses:**
 
-| Code | Cuando | Ejemplo |
+| Code | When | Example |
 |---|---|---|
-| `400` | Request malformado | Campos faltantes, JSON inválido |
-| `401` | API Key inválida o revocada | |
-| `403` | API Key no tiene acceso al workspace | |
-| `404` | Template no encontrado en cadena | `"No published template for 'welcome' in chain"` |
-| `409` | Template desactivado | `"Template 'welcome' is disabled in workspace 'acme'"` |
-| `422` | Error de configuración o validación | No adapter, variables inválidas, dominio no verificado |
-| `429` | Rate limit excedido | Retry-After header incluido |
+| `400` | Malformed request | Missing fields, invalid JSON |
+| `401` | Invalid or revoked API Key | |
+| `403` | API Key has no access to the workspace | |
+| `404` | Template not found in chain | `"No published template for 'welcome' in chain"` |
+| `409` | Template disabled | `"Template 'welcome' is disabled in workspace 'acme'"` |
+| `422` | Configuration or validation error | No adapter, invalid variables, unverified domain |
+| `429` | Rate limit exceeded | Retry-After header included |
 
-### 4.8. External ID y Trazabilidad
+### 4.8. External ID and Traceability
 
-Cada email puede llevar un **external_id**: identificador del sistema de negocio (ej: order_12345, ticket_789). El campo es **opcional** — si no se envía, el email se trackea solo por su `tracking_id` interno.
+Each email can carry an **external_id**: the business system identifier (for example, `order_12345`, `ticket_789`). The field is **optional** — if it is not sent, the email is tracked only by its internal `tracking_id`.
 
-Permite:
-- Consultar todos los emails de un caso de negocio. **Scope por rol:** workspace-admin/editor/viewer solo ven external_ids de su workspace. Tenant-admin ve de todos sus workspaces. Superadmin ve cross-workspace y cross-tenant.
-- Búsqueda por email de destinatario/remitente (mismo scope por rol).
-- Exportación masiva con filtros.
-- Paginación cursor-based en todas las APIs de consulta.
-- API Keys: solo retornan datos del workspace al que pertenecen.
+This enables:
+- Querying all emails for a business case. **Scope by role:** workspace-admin/editor/viewer only see external_ids from their workspace. Tenant-admin sees all workspaces in their tenant. Superadmin sees cross-workspace and cross-tenant data.
+- Search by recipient/sender email address (same scope by role).
+- Bulk export with filters.
+- Cursor-based pagination in all query APIs.
+- API Keys: they only return data from the workspace they belong to.
 
 ### 4.9. Email Lifecycle Tracking
 
-Estados del ciclo de vida:
+Lifecycle states:
 
-| Estado | Descripción |
+| State | Description |
 |---|---|
-| `queued` | Request recibido, job encolado |
-| `processing` | Worker compilando y preparando envío |
-| `sent` | Entregado al proveedor (SES/Gmail aceptó) |
-| `delivered` | Proveedor confirmó entrega al destino |
-| `opened` | Destinatario abrió el email (solo si tracking activo) |
-| `bounced` | Rebote (soft o hard) |
-| `complained` | Marcado como spam |
-| `failed` | Error en el envío |
-| `suppressed` | Dirección en suppression list, email no enviado |
+| `queued` | Request received, job enqueued |
+| `processing` | Worker compiling and preparing the send |
+| `sent` | Delivered to the provider (SES/Gmail accepted) |
+| `delivered` | Provider confirmed delivery to the destination |
+| `opened` | Recipient opened the email (only if tracking is active) |
+| `bounced` | Bounce (soft or hard) |
+| `complained` | Marked as spam |
+| `failed` | Send error |
+| `suppressed` | Address is on the suppression list, email not sent |
 
-#### Open Tracking (Pixel de Apertura)
+#### Open Tracking (Open Pixel)
 
-El tracking de apertura está **desactivado por defecto** y se activa **opt-in por workspace**:
+Open tracking is **disabled by default** and is enabled **opt-in by workspace**:
 
-- Cada `workspace-admin` decide si activar open tracking para su workspace.
-- Si está activo, Senda inserta automáticamente un pixel de tracking en el email.
-- Se añade automáticamente un disclaimer configurable al footer del email cuando el tracking está activo.
-- El estado `opened` solo se registra si el tracking está activo en el workspace del email.
-- Consideraciones GDPR: el disclaimer informa al destinatario. Cada empresa es responsable de cumplir con su regulación local.
+- Each `workspace-admin` decides whether to enable open tracking for their workspace.
+- If enabled, Senda automatically inserts a tracking pixel into the email.
+- A configurable disclaimer is automatically added to the email footer when tracking is enabled.
+- The `opened` state is only recorded if tracking is active in the email's workspace.
+- GDPR considerations: the disclaimer informs the recipient. Each company is responsible for complying with local regulations.
 
-### 4.10. Miembros y Roles (Autorización)
+### 4.10. Members and Roles (Authorization)
 
-Senda separa **autenticación** (quién eres) de **autorización** (qué puedes hacer):
+Senda separates **authentication** (who you are) from **authorization** (what you can do):
 
-- **Autenticación:** Delegada a OIDC externo (Google Workspace, Keycloak, etc.). Senda no gestiona contraseñas ni identidades.
-- **Autorización:** Gestionada internamente por Senda. Un usuario autenticado por OIDC solo accede a Senda si está registrado como **miembro**.
+- **Authentication:** Delegated to an external OIDC provider (Google Workspace, Keycloak, etc.). Senda does not manage passwords or identities.
+- **Authorization:** Managed internally by Senda. An OIDC-authenticated user only gets access to Senda if they are registered as a **member**.
 
-#### Miembros
+#### Members
 
-Un **miembro** es un registro en Senda identificado por su email. Para acceder al dashboard:
-1. El usuario se autentica contra el proveedor OIDC.
-2. Senda verifica que el email del token OIDC existe como miembro registrado.
-3. Si no existe → acceso denegado (incluso si OIDC pasó correctamente): `"Acceso denegado. Tu email no está registrado como miembro. Contacta a tu administrador."`.
-4. Si existe → Senda carga los roles asignados al miembro.
+A **member** is a record in Senda identified by email. To access the dashboard:
+1. The user authenticates against the OIDC provider.
+2. Senda verifies that the email in the OIDC token exists as a registered member.
+3. If it does not exist → access denied (even if OIDC succeeded): `"Access denied. Your email is not registered as a member. Contact your administrator."`.
+4. If it exists → Senda loads the roles assigned to the member.
 
-Los miembros se agregan por invitación (un admin registra el email). No existe auto-registro.
+Members are added by invitation (an admin registers the email). There is no self-signup.
 
 #### Roles
 
-Un miembro puede tener **diferentes roles en diferentes scopes**. Los roles son fijos (no customizables):
+A member can have **different roles in different scopes**. Roles are fixed (not customizable):
 
-| Rol | Scope | Capacidades |
+| Role | Scope | Capabilities |
 |---|---|---|
-| `superadmin` | Global | Acceso total. Gestiona toda la plataforma: tenants, configuración global, dominios, miembros en cualquier nivel. |
-| `tenant-admin` | Tenant específico | Gestiona el tenant: `_system` workspace, workspaces, inyectores, templates, adapters, dominios, y miembros dentro de su tenant. |
-| `workspace-admin` | Workspace específico | Gestiona el workspace: inyectores, templates, dominios, webhooks, y miembros del workspace. |
-| `workspace-editor` | Workspace específico | Edita templates e inyectores del workspace. No gestiona miembros, dominios ni adapters. |
-| `workspace-viewer` | Workspace específico | Solo lectura. Ve templates, métricas y estado de emails del workspace. No puede modificar nada. |
+| `superadmin` | Global | Full access. Manages the whole platform: tenants, global settings, domains, members at any level. |
+| `tenant-admin` | Specific tenant | Manages the tenant: `_system` workspace, workspaces, injectors, templates, adapters, domains, and members within their tenant. |
+| `workspace-admin` | Specific workspace | Manages the workspace: injectors, templates, domains, webhooks, and workspace members. |
+| `workspace-editor` | Specific workspace | Edits templates and injectors in the workspace. Does not manage members, domains, or adapters. |
+| `workspace-viewer` | Specific workspace | Read-only. Sees templates, metrics, and email status for the workspace. Cannot modify anything. |
 
-**Múltiples superadmins:** Puede haber múltiples superadmins. El superadmin original (creado en onboarding) puede crear otros superadmins. Esto es útil para empresas donde más de una persona necesita acceso total a la plataforma.
+**Multiple superadmins:** There can be multiple superadmins. The original superadmin (created during onboarding) can create other superadmins. This is useful for companies where more than one person needs full platform access.
 
-**Roles múltiples:** Un miembro puede ser `tenant-admin` en el tenant "latam" y `workspace-viewer` en un workspace del tenant "europe". Los roles no se heredan — ser `tenant-admin` no otorga automáticamente `workspace-admin` en los workspaces del tenant, sino que el `tenant-admin` tiene acceso a todos los workspaces de su tenant como parte de su propio rol.
+**Multiple roles:** A member can be `tenant-admin` in the "latam" tenant and `workspace-viewer` in a workspace in the "europe" tenant. Roles are not inherited — being a `tenant-admin` does not automatically grant `workspace-admin` access in the tenant's workspaces, but the `tenant-admin` has access to all workspaces in their tenant as part of that role.
 
-**Tabla de permisos:**
+**Permissions table:**
 
-| Acción | superadmin | tenant-admin | ws-admin | ws-editor | ws-viewer |
+| Action | superadmin | tenant-admin | ws-admin | ws-editor | ws-viewer |
 |---|---|---|---|---|---|
-| Crear/gestionar tenants | ✓ | — | — | — | — |
-| Config global (adapters, inyectores, templates, dominios) | ✓ | — | — | — | — |
-| Agregar miembros a cualquier nivel | ✓ | — | — | — | — |
-| Crear otros superadmins | ✓ | — | — | — | — |
-| Config `_system` del tenant | ✓ | ✓ | — | — | — |
-| Crear/gestionar workspaces del tenant | ✓ | ✓ | — | — | — |
-| Gestionar dominios del tenant | ✓ | ✓ | — | — | — |
-| Agregar miembros al tenant y sus workspaces | ✓ | ✓ | — | — | — |
-| Ver métricas del tenant (todos los workspaces) | ✓ | ✓ | — | — | — |
-| Config workspace (adapters, dominios, webhooks) | ✓ | ✓ | ✓ | — | — |
-| Agregar miembros al workspace | ✓ | ✓ | ✓ | — | — |
-| Gestionar API Keys del workspace | ✓ | ✓ | ✓ | — | — |
-| Editar templates e inyectores del workspace | ✓ | ✓ | ✓ | ✓ | — |
-| Publicar/archivar/desactivar templates | ✓ | ✓ | ✓ | — | — |
-| Ver templates, métricas, estado de emails | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Enviar test emails desde dashboard | ✓ | ✓ | ✓ | ✓ | — |
+| Create/manage tenants | ✓ | — | — | — | — |
+| Global settings (adapters, injectors, templates, domains) | ✓ | — | — | — | — |
+| Add members at any level | ✓ | — | — | — | — |
+| Create other superadmins | ✓ | — | — | — | — |
+| Configure tenant `_system` | ✓ | ✓ | — | — | — |
+| Create/manage tenant workspaces | ✓ | ✓ | — | — | — |
+| Manage tenant domains | ✓ | ✓ | — | — | — |
+| Add members to the tenant and its workspaces | ✓ | ✓ | — | — | — |
+| View tenant metrics (all workspaces) | ✓ | ✓ | — | — | — |
+| Workspace settings (adapters, domains, webhooks) | ✓ | ✓ | ✓ | — | — |
+| Add members to the workspace | ✓ | ✓ | ✓ | — | — |
+| Manage workspace API Keys | ✓ | ✓ | ✓ | — | — |
+| Edit workspace templates and injectors | ✓ | ✓ | ✓ | ✓ | — |
+| Publish/archive/disable templates | ✓ | ✓ | ✓ | — | — |
+| View templates, metrics, and email status | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Send test emails from dashboard | ✓ | ✓ | ✓ | ✓ | — |
 
-Nota: `workspace-editor` puede crear y editar drafts de templates, pero **no puede publicarlos** — eso requiere `workspace-admin` o superior. Esto permite un flujo de revisión donde el editor prepara y el admin aprueba.
+Note: `workspace-editor` can create and edit template drafts, but **cannot publish them** — that requires `workspace-admin` or above. This enables a review flow where the editor prepares and the admin approves.
 
-#### Onboarding Inicial
+#### Initial Onboarding
 
-Cuando Senda se instala por primera vez y la base de datos está vacía:
+When Senda is first installed and the database is empty:
 
-1. El primer usuario que completa el login OIDC se registra automáticamente como **superadmin**.
-2. Se crea el primer tenant (el sistema pide código y nombre).
-3. Se crea el workspace `_system` automáticamente.
-4. Se crea el primer workspace regular (el sistema pide código y nombre).
-5. A partir de aquí, el superadmin gestiona todo manualmente.
+1. The first user who completes OIDC login is automatically registered as **superadmin**.
+2. The system prompts that user to create the first tenant (code + name).
+3. The `_system` workspace is created automatically.
+4. The first regular workspace is created (the system prompts for code + name).
+5. From that point on, the superadmin manages everything manually.
 
-Este flujo solo ocurre una vez. Si ya existe al menos un miembro, el login OIDC valida contra la tabla de miembros normalmente.
+This flow happens only once. If at least one member already exists, OIDC login is validated against the members table normally.
 
 ### 4.11. API Keys
 
-El acceso a la API de envío y consulta (plano de datos) no usa OIDC sino **API Keys** de larga duración:
+Access to the send and query API (data plane) does not use OIDC but long-lived **API Keys**:
 
-- Cada API Key pertenece a un workspace específico.
-- Formato con prefijo identificable: `senda_live_<random>` (producción) y `senda_test_<random>` (sandbox).
-- Se almacenan hasheadas en la base de datos (nunca texto plano).
-- Un workspace puede tener múltiples API Keys activas.
-- Las API Keys se pueden revocar individualmente.
-- Una API Key solo puede enviar emails y consultar datos dentro de su workspace (y la resolución jerárquica aplica desde ese workspace).
+- Each API Key belongs to a specific workspace.
+- Identifiable prefix format: `senda_live_<random>` (production) and `senda_test_<random>` (sandbox).
+- They are stored hashed in the database (never in plaintext).
+- A workspace can have multiple active API Keys.
+- API Keys can be revoked individually.
+- An API Key can only send emails and query data within its workspace (and hierarchical resolution applies from that workspace).
 
-**Operaciones permitidas con API Key:**
-- Enviar emails (`POST /api/v1/send`)
-- Consultar estado de email por tracking_id
-- Consultar emails por external_id
-- Buscar emails por destinatario/remitente
-- Exportar registros con filtros
+**Allowed API Key operations:**
+- Send emails (`POST /api/v1/send`)
+- Query email status by `tracking_id`
+- Query emails by `external_id`
+- Search emails by recipient/sender
+- Export records with filters
 
-**Modo test/sandbox:** La funcionalidad de test y simulación (enviar un email de prueba sin entregarlo realmente) se realiza desde el **dashboard** autenticado vía OIDC, no desde la API. Esto permite que editores y admins prueben templates sin necesidad de API Keys de test.
+**Test/sandbox mode:** Test and simulation functionality (sending a test email without actually delivering it) is performed from the **dashboard** authenticated via OIDC, not from the API. This lets editors and admins test templates without needing test API Keys.
 
-### 4.12. Soft Delete y Gestión de Dependencias
+### 4.12. Soft Delete and Dependency Management
 
-Cuando un admin elimina un recurso (template, inyector, adapter) que podría estar siendo heredado por niveles inferiores:
+When an admin deletes a resource (template, injector, adapter) that may be inherited by lower levels:
 
-**Soft delete:** El recurso no se borra físicamente. Se marca como `deleted` con timestamp.
+**Soft delete:** The resource is not physically removed. It is marked as `deleted` with a timestamp.
 
-**Comportamiento:**
-- El recurso sigue disponible en la cadena de resolución para los scopes que lo heredaban.
-- Los scopes que lo heredan ven un **warning visual** en el dashboard: `"Este recurso está marcado como deprecado en [nivel]. Se recomienda configurar un override."`.
-- Los envíos siguen funcionando normalmente — el soft delete no interrumpe operaciones.
-- Un admin puede hacer **purge** (eliminación definitiva) después de verificar que no hay dependencias, o que los dependientes ya tienen overrides.
+**Behavior:**
+- The resource remains available in the resolution chain for scopes that inherited it.
+- Inheriting scopes show a **visual warning** in the dashboard: `"This resource is marked as deprecated at [level]. Configure an override."`.
+- Sends continue to work normally — soft delete does not interrupt operations.
+- An admin can perform a **purge** (permanent delete) after verifying there are no dependencies, or that dependents already have overrides.
 
-**Antes del purge**, el sistema muestra:
-- Lista de scopes que heredan el recurso sin override propio.
-- Impacto estimado: cuántos workspaces/templates quedarían afectados.
-- Requiere confirmación explícita.
+**Before purge**, the system shows:
+- A list of scopes inheriting the resource without their own override.
+- Estimated impact: how many workspaces/templates would be affected.
+- Explicit confirmation required.
 
-**Audit trail:** Todas las operaciones de soft delete y purge se registran con: quién, cuándo, qué recurso, y estado de dependencias al momento de la acción.
+**Audit trail:** All soft delete and purge operations are recorded with: who, when, which resource, and the dependency state at the time of the action.
 
-### 4.13. Identidades de Envío (Provider-Managed)
+### 4.13. Sending Identities (Provider-Managed)
 
-Senda usa modelo **provider-managed** para autenticación de email:
+Senda uses a **provider-managed** model for email authentication:
 
-- SPF/DKIM/DMARC son responsabilidad del proveedor (SES/Gmail).
-- Senda no genera ni firma DKIM en aplicación.
-- Senda sincroniza y valida identidades disponibles en el provider para cada adapter.
+- SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail).
+- Senda does not generate or sign DKIM in the application.
+- Senda synchronizes and validates available identities in the provider for each adapter.
 
-**Flujo:**
-1. Admin configura adapter SES/Gmail en el scope correspondiente.
-2. Senda sincroniza identidades desde provider (emails/dominios verificados, estado de envío).
-3. Admin selecciona identidad default por adapter.
-4. `POST /send` usa la identidad default efectiva del adapter resuelto.
+**Flow:**
+1. The admin configures the SES/Gmail adapter in the corresponding scope.
+2. Senda syncs identities from the provider (verified emails/domains, sending status).
+3. The admin selects the default identity for the adapter.
+4. `POST /send` uses the effective default identity of the resolved adapter.
 
-**Regla de envío:** si el adapter no tiene identidad default válida/verificada, el envío falla con error funcional (`422`).
+**Sending rule:** if the adapter has no valid/verified default identity, sending fails with a functional error (`422`).
 
 ### 4.14. Suppression Lists
 
-Senda mantiene dos niveles de suppression:
+Senda maintains two suppression levels:
 
-**Suppression global (hard bounces):**
-- Un email que genera hard bounce se añade automáticamente a la suppression list global.
-- Bloquea envíos a esa dirección en **todos los workspaces** de toda la plataforma.
-- Solo un `superadmin` puede remover una dirección de la suppression global (con justificación registrada).
+**Global suppression (hard bounces):**
+- An email that hard-bounces is automatically added to the global suppression list.
+- It blocks sends to that address in **all workspaces** across the entire platform.
+- Only a `superadmin` can remove an address from global suppression (with a recorded justification).
 
-**Suppression por workspace (complaints):**
-- Si un destinatario marca como spam un email de un workspace específico, se suprime solo para ese workspace.
-- El `workspace-admin` puede ver su lista de suppressions.
-- No afecta otros workspaces (un complaint en "acme" no suprime en "beta").
+**Workspace suppression (complaints):**
+- If a recipient marks a workspace-specific email as spam, it is suppressed only for that workspace.
+- The `workspace-admin` can see their suppression list.
+- It does not affect other workspaces (a complaint in "acme" does not suppress in "beta").
 
-**Interacción:**
-- Al enviar, Senda verifica ambas listas. Si el email está en cualquiera → estado `suppressed`, email no enviado.
-- La suppression global es absoluta: un workspace-admin NO puede des-suprimir una dirección que está en la lista global.
+**Interaction:**
+- On send, Senda checks both lists. If the email is in either one → `suppressed`, email not sent.
+- Global suppression is absolute: a workspace-admin CANNOT unsuppress an address that is on the global list.
 
 **Soft bounces:**
-- Soft bounce → retry automático (máx 3 intentos con backoff exponencial).
-- Después de 3 intentos fallidos → estado `failed` (no se suprime automáticamente).
-- Si un email genera 3+ soft bounces en 7 días → alerta al workspace-admin.
+- Soft bounce → automatic retry (max 3 attempts with exponential backoff).
+- After 3 failed attempts → `failed` (not automatically suppressed).
+- If an email generates 3+ soft bounces in 7 days → alert the workspace-admin.
 
-**Alertas:**
-- Si bounce rate > 5% en 24h para un workspace → alerta al workspace-admin y tenant-admin.
-- Si complaint rate > 0.1% → alerta inmediata.
+**Alerts:**
+- If bounce rate > 5% in 24h for a workspace → alert the workspace-admin and tenant-admin.
+- If complaint rate > 0.1% → immediate alert.
 
 ### 4.15. Audit Logging
 
-Senda registra un **audit log** de todas las acciones administrativas:
+Senda records an **audit log** of all administrative actions:
 
-- **Quién:** Email del miembro que realizó la acción.
-- **Cuándo:** Timestamp UTC.
-- **Qué:** Acción realizada (create, update, delete, publish, disable, etc.).
-- **Dónde:** Scope (global, tenant, workspace).
-- **Detalle:** Cambios específicos (ej: "field 'logo' changed from 'old.png' to 'new.png'").
+- **Who:** Email of the member who performed the action.
+- **When:** UTC timestamp.
+- **What:** Action performed (create, update, delete, publish, disable, etc.).
+- **Where:** Scope (global, tenant, workspace).
+- **Details:** Specific changes (for example, `"field 'logo' changed from 'old.png' to 'new.png'"`).
 
-El audit log es append-only (no se puede modificar ni eliminar). Visible para admins del scope correspondiente y superadmins.
+The audit log is append-only (it cannot be modified or deleted). It is visible to admins in the corresponding scope and to superadmins.
 
 ---
 
 ## 5. User Stories
 
-### Administrador Global (Superadmin)
+### Global Administrator (Superadmin)
 
-**US-01:** Como superadmin, quiero definir inyectores base a nivel global con su schema (campos y tipos) para que todos los tenants y workspaces hereden esos valores como default.
+**US-01:** As a superadmin, I want to define base injectors at the global level with their schema (fields and types) so that all tenants and workspaces inherit those values as defaults.
 
-**US-02:** Como superadmin, quiero definir tipos de plantilla globales con su schema de variables para establecer estándares de datos validados.
+**US-02:** As a superadmin, I want to define global template types with their variable schema so that I can establish validated data standards.
 
-**US-03:** Como superadmin, quiero crear plantillas globales para cada tipo (incluyendo subject, preview text y from address) para que workspaces sin personalización tengan un diseño base funcional.
+**US-03:** As a superadmin, I want to create global templates for each type (including subject, preview text, and from address) so that workspaces without customization have a functional base design.
 
-**US-04:** Como superadmin, quiero configurar adapters de envío (SES, Gmail) globales como transporte por defecto.
+**US-04:** As a superadmin, I want to configure global sending adapters (SES, Gmail) as the default transport.
 
-**US-05:** Como superadmin, quiero ver métricas agregadas de toda la plataforma.
+**US-05:** As a superadmin, I want to see aggregated metrics for the entire platform.
 
-**US-06:** Como superadmin, quiero gestionar adapters e identidades verificadas del provider a nivel global.
+**US-06:** As a superadmin, I want to manage provider adapters and verified identities at the global level.
 
-**US-07:** Como superadmin, quiero configurar parámetros globales (rate limits, reintentos, retención de logs).
+**US-07:** As a superadmin, I want to configure global parameters (rate limits, retries, log retention).
 
-**US-08:** Como superadmin, quiero crear tenants con códigos únicos y gestionar su configuración base.
+**US-08:** As a superadmin, I want to create tenants with unique codes and manage their base configuration.
 
-**US-09:** Como superadmin, quiero agregar miembros (por email) y asignarles roles en cualquier nivel (global, tenant, workspace), incluyendo crear otros superadmins.
+**US-09:** As a superadmin, I want to add members (by email) and assign roles to them at any level (global, tenant, workspace), including creating other superadmins.
 
-**US-10:** Como superadmin, quiero que al instalar Senda por primera vez, el primer login OIDC me registre automáticamente como superadmin y me guíe para crear el primer tenant y workspace.
+**US-10:** As a superadmin, I want the first OIDC login to automatically register me as a superadmin when Senda is installed for the first time and guide me through creating the first tenant and workspace.
 
-**US-11:** Como superadmin, quiero ver el audit log de acciones administrativas de toda la plataforma.
+**US-11:** As a superadmin, I want to see the audit log of administrative actions across the entire platform.
 
-### Administrador de Tenant
+### Tenant Administrator
 
-**US-12:** Como admin de tenant, quiero configurar templates, inyectores y adapters en el workspace `_system` para que sean heredados por todos mis workspaces.
+**US-12:** As a tenant admin, I want to configure templates, injectors, and adapters in the `_system` workspace so they are inherited by all my workspaces.
 
-**US-13:** Como admin de tenant, quiero crear workspaces con códigos únicos (dentro de mi tenant) para organizar mis clientes/marcas/productos.
+**US-13:** As a tenant admin, I want to create workspaces with unique codes (within my tenant) to organize my clients/brands/products.
 
-**US-14:** Como admin de tenant, quiero crear tipos de plantilla adicionales en `_system` propios de mi contexto de negocio.
+**US-14:** As a tenant admin, I want to create additional template types in `_system` for my business context.
 
-**US-15:** Como admin de tenant, quiero ver métricas agregadas de todos mis workspaces.
+**US-15:** As a tenant admin, I want to see aggregated metrics for all my workspaces.
 
-**US-16:** Como admin de tenant, quiero gestionar identidades de envío del provider a nivel tenant (`_system`) para que mis workspaces las hereden.
+**US-16:** As a tenant admin, I want to manage provider sending identities at the tenant (`_system`) level so my workspaces can inherit them.
 
-**US-17:** Como admin de tenant, quiero agregar miembros a mi tenant y a los workspaces de mi tenant, asignándoles roles apropiados.
+**US-17:** As a tenant admin, I want to add members to my tenant and its workspaces, assigning appropriate roles.
 
-**US-18:** Como admin de tenant, quiero soft-deletear recursos en `_system` y ver qué workspaces serían afectados antes de hacer purge.
+**US-18:** As a tenant admin, I want to soft-delete resources in `_system` and see which workspaces would be affected before purging.
 
-### Administrador de Workspace
+### Workspace Administrator
 
-**US-19:** Como admin de workspace, quiero overridear valores de inyectores heredados (campo por campo, sin modificar el schema) para personalizar la identidad de mis emails.
+**US-19:** As a workspace admin, I want to override inherited injector values (field by field, without changing the schema) to customize the identity of my emails.
 
-**US-20:** Como admin de workspace, quiero crear plantillas propias para tipos existentes, sabiendo que solo puedo tener una plantilla por tipo, con subject, preview text y from address.
+**US-20:** As a workspace admin, I want to create my own templates for existing types, knowing that I can only have one template per type, with subject, preview text, and from address.
 
-**US-21:** Como admin de workspace, quiero gestionar versiones de mis templates: crear drafts, publicar (reemplazando la versión publicada anterior), y ver historial de versiones archivadas.
+**US-21:** As a workspace admin, I want to manage my template versions: create drafts, publish (replacing the previous published version), and view archived version history.
 
-**US-22:** Como admin de workspace, quiero desactivar un template para detener envíos de emergencia sin perder la configuración.
+**US-22:** As a workspace admin, I want to disable a template to stop emergency sends without losing the configuration.
 
-**US-23:** Como admin de workspace, quiero configurar webhooks para recibir notificaciones de cambio de estado de emails.
+**US-23:** As a workspace admin, I want to configure webhooks to receive email status change notifications.
 
-**US-24:** Como admin de workspace, quiero ver métricas exclusivas de mi workspace.
+**US-24:** As a workspace admin, I want to see metrics exclusive to my workspace.
 
-**US-25:** Como admin de workspace, quiero agregar miembros a mi workspace con roles de editor o viewer.
+**US-25:** As a workspace admin, I want to add members to my workspace with editor or viewer roles.
 
-**US-26:** Como admin de workspace, quiero gestionar API Keys de mi workspace: crear, ver (parcialmente ocultas), y revocar.
+**US-26:** As a workspace admin, I want to manage my workspace API Keys: create, view (partially masked), and revoke them.
 
-**US-27:** Como admin de workspace, quiero activar/desactivar open tracking para mi workspace.
+**US-27:** As a workspace admin, I want to enable/disable open tracking for my workspace.
 
-**US-28:** Como admin de workspace, quiero enviar test emails desde el dashboard para probar templates antes de publicar.
+**US-28:** As a workspace admin, I want to send test emails from the dashboard to try templates before publishing them.
 
-### Servicio Externo (API Consumer)
+### External Service (API Consumer)
 
-**US-29:** Como servicio externo, quiero enviar un email vía API usando la referencia `tenantCode:workspaceCode:templateType` con un array de hasta 50 destinatarios, y recibir un 202 Accepted con tracking_ids.
+**US-29:** As an external service, I want to send an email through the API using the `tenantCode:workspaceCode:templateType` reference with an array of up to 50 recipients, and receive a `202 Accepted` with `tracking_ids`.
 
-**US-30:** Como servicio externo, quiero consultar el estado de un email por tracking_id.
+**US-30:** As an external service, I want to query the status of an email by `tracking_id`.
 
-**US-31:** Como servicio externo, quiero consultar todos los emails de un external_id con paginación.
+**US-31:** As an external service, I want to query all emails for an `external_id` with pagination.
 
-**US-32:** Como servicio externo, quiero buscar emails por dirección de destinatario o remitente con paginación.
+**US-32:** As an external service, I want to search emails by recipient or sender address with pagination.
 
-**US-33:** Como servicio externo, quiero exportar masivamente registros de email con filtros.
+**US-33:** As an external service, I want to bulk export email records with filters.
 
-**US-34:** Como servicio externo, quiero recibir un error claro si intento enviar con un template desactivado (409 Conflict).
+**US-34:** As an external service, I want to receive a clear error if I try to send with a disabled template (`409 Conflict`).
 
-**US-35:** Como servicio externo, quiero especificar un `locale` en el request para seleccionar la variante de idioma del template.
+**US-35:** As an external service, I want to specify a `locale` in the request to select the template's language variant.
 
 ### Workspace Editor
 
-**US-36:** Como editor de workspace, quiero crear y editar drafts de templates usando el editor visual o código MJML, incluyendo subject y preview text.
+**US-36:** As a workspace editor, I want to create and edit template drafts using the visual editor or MJML code, including subject and preview text.
 
-**US-37:** Como editor de workspace, quiero editar texto directamente sobre el preview (inline editing).
+**US-37:** As a workspace editor, I want to edit text directly on the preview (inline editing).
 
-**US-38:** Como editor de workspace, quiero previsualizar en desktop y mobile.
+**US-38:** As a workspace editor, I want to preview on desktop and mobile.
 
-**US-39:** Como editor de workspace, quiero insertar variables de inyectores y del evento desde un selector visual.
+**US-39:** As a workspace editor, I want to insert injector and event variables from a visual selector.
 
-**US-40:** Como editor de workspace, quiero guardar como draft, sabiendo que un admin debe publicarlo.
+**US-40:** As a workspace editor, I want to save as draft, knowing that an admin must publish it.
 
-**US-41:** Como editor de workspace, quiero configurar variantes de idioma para bloques de texto del template.
+**US-41:** As a workspace editor, I want to configure language variants for the template's text blocks.
 
-**US-42:** Como editor de workspace, quiero usar asistencia de IA para traducir bloques de texto y mejorar el copy.
+**US-42:** As a workspace editor, I want to use AI assistance to translate text blocks and improve copy.
 
-**US-43:** Como editor de workspace, quiero enviar test emails para verificar cómo se ve el template.
+**US-43:** As a workspace editor, I want to send test emails to verify how the template looks.
 
-### Miembros
+### Members
 
-**US-44:** Como usuario con email registrado como miembro, quiero autenticarme vía OIDC y acceder automáticamente a los tenants y workspaces donde tengo rol asignado.
+**US-44:** As a user whose email is registered as a member, I want to authenticate via OIDC and automatically access the tenants and workspaces where I have an assigned role.
 
-**US-45:** Como usuario no registrado como miembro, quiero recibir un mensaje claro de "acceso denegado, contacta a tu administrador" al intentar acceder después de autenticarme por OIDC.
+**US-45:** As a user who is not registered as a member, I want to receive a clear "access denied, contact your administrator" message when I try to access after authenticating via OIDC.
 
 ---
 
@@ -713,276 +713,276 @@ El audit log es append-only (no se puede modificar ni eliminar). Visible para ad
 
 ### Must-Have (P0)
 
-**R-01: Jerarquía de 3 niveles con herencia y `_system`**
-Global → Tenant → Workspace. Cada tenant tiene un workspace `_system` auto-creado para configuración heredable. Resolución: workspace → `_system` del tenant → global.
-- [x] Aislamiento: recursos de workspace A no visibles desde workspace B (excepto herencia de `_system`/global).
-- [x] `_system` se crea automáticamente al crear un tenant. No se puede eliminar ni renombrar.
-- [x] No se pueden enviar emails desde `_system`.
-- [x] Si workspace no define recurso, hereda de `_system`; si `_system` no lo define, hereda de global.
-- [x] Si recurso no existe en ningún nivel → error claro (422).
-- [x] Mínimo: 1 tenant + 1 workspace (además de `_system`).
-- [x] Cross-tenant isolation: roles no-superadmin no tienen visibilidad fuera de su scope.
+**R-01: 3-level hierarchy with inheritance and `_system`**
+Global → Tenant → Workspace. Each tenant has an auto-created `_system` workspace for inheritable configuration. Resolution: workspace → tenant `_system` → global.
+- [x] Isolation: resources from workspace A are not visible from workspace B (except via `_system`/global inheritance).
+- [x] `_system` is created automatically when a tenant is created. It cannot be deleted or renamed.
+- [x] Emails cannot be sent from `_system`.
+- [x] If a workspace does not define a resource, it inherits from `_system`; if `_system` does not define it, it inherits from global.
+- [x] If a resource does not exist at any level → clear error (422).
+- [x] Minimum: 1 tenant + 1 workspace (in addition to `_system`).
+- [x] Cross-tenant isolation: non-superadmin roles have no visibility outside their scope.
 
-**R-02: Códigos (slugs) para tenants y workspaces**
-Identificadores humanos en formato slug.
-- [x] Formato: `[a-z][a-z0-9-]*`, 2-50 chars, sin `--`, sin guion final.
-- [x] Tenant code: único global.
-- [x] Workspace code: único dentro de su tenant.
-- [x] Reservados: `_system`, `global`, `admin`, `api`, `system`.
-- [x] Inmutables después de creación (para no romper integraciones externas).
+**R-02: Slugs for tenants and workspaces**
+Human-readable identifiers in slug format.
+- [x] Format: `[a-z][a-z0-9-]*`, 2-50 chars, no `--`, no trailing hyphen.
+- [x] Tenant code: globally unique.
+- [x] Workspace code: unique within its tenant.
+- [x] Reserved: `_system`, `global`, `admin`, `api`, `system`.
+- [x] Immutable after creation (to avoid breaking external integrations).
 
-**R-03: Inyectores tipados con schema top-down fijo y herencia campo por campo**
-Conjuntos nombrados de key-value tipados. Schema definido por el nivel creador; niveles inferiores solo override valores.
-- [x] Tipos validados: text, number, bool, img, url, html.
-- [x] Schema fijo: el nivel que crea el inyector define campos + tipos. Niveles inferiores no pueden agregar ni eliminar campos.
-- [x] Override parcial: workspace overridea solo los valores que necesita.
-- [x] No se puede poner un campo en null (usar valor vacío del tipo correspondiente).
-- [x] Si un nivel necesita campos extra, crea un inyector nuevo con otro nombre.
-- [x] Validación: en compilación, si un template referencia un campo que no existe en el schema → error.
+**R-03: Typed injectors with fixed top-down schema and field-by-field inheritance**
+Named typed key-value sets. Schema defined by the creating level; lower levels only override values.
+- [x] Validated types: text, number, bool, img, url, html.
+- [x] Fixed schema: the level that creates the injector defines fields + types. Lower levels cannot add or remove fields.
+- [x] Partial override: workspace overrides only the values it needs.
+- [x] A field cannot be set to null (use an empty value of the corresponding type).
+- [x] If a level needs extra fields, it creates a new injector with a different name.
+- [x] Validation: during compilation, if a template references a field that does not exist in the schema → error.
 
-**R-04: API de envío con addressing determinístico**
-`POST /api/v1/send` con referencia `tenantCode:workspaceCode:templateType`.
-- [x] Parsea referencia → resuelve tenant, workspace, template.
-- [x] `to`: array de emails, máximo 50 por request. Cada uno genera un email independiente con tracking_id propio.
-- [x] `cc` y `bcc`: opcionales, arrays de emails.
-- [x] `external_id`: opcional.
-- [x] `locale`: opcional, para seleccionar variante de idioma.
-- [x] Valida variables contra schema del tipo.
-- [x] Verifica template no desactivado.
-- [x] Verifica dominio verificado para el from address.
-- [x] Respuesta < 100ms p99 con tracking_ids.
-- [x] 400 malformado, 401 API Key inválida, 403 sin acceso, 404 template no encontrado, 409 template desactivado, 422 error de config/validación, 429 rate limit.
+**R-04: Send API with deterministic addressing**
+`POST /api/v1/send` with the `tenantCode:workspaceCode:templateType` reference.
+- [x] Parses the reference → resolves tenant, workspace, and template.
+- [x] `to`: array of emails, maximum 50 per request. Each one generates an independent email with its own `tracking_id`.
+- [x] `cc` and `bcc`: optional arrays of emails.
+- [x] `external_id`: optional.
+- [x] `locale`: optional, for language variant selection.
+- [x] Validates variables against the template type schema.
+- [x] Verifies the template is not disabled.
+- [x] Verifies the verified domain for the from address.
+- [x] Response < 100ms p99 with `tracking_ids`.
+- [x] 400 malformed, 401 invalid API Key, 403 no access, 404 template not found, 409 template disabled, 422 config/validation error, 429 rate limit.
 
-**R-05: Templates MJML con subject, preview text, from address y resolución jerárquica**
-MJML compilado vía gomjml. Variables de inyectores + evento en body, subject y preview text.
-- [x] Compilación < 10ms p99.
-- [x] XSS prevention en variables.
-- [x] Subject y preview text soportan variables de inyectores y evento.
-- [x] From address: from_name + from_email configurables por template con fallback jerárquico.
-- [x] From email debe corresponder a dominio verificado en la cadena.
-- [x] Reply-to configurable por workspace/tenant/global con herencia.
-- [x] Renderiza en Gmail, Outlook, Apple Mail.
+**R-05: MJML templates with subject, preview text, from address, and hierarchical resolution**
+MJML compiled via gomjml. Injector + event variables in body, subject, and preview text.
+- [x] Compilation < 10ms p99.
+- [x] XSS prevention in variables.
+- [x] Subject and preview text support injector and event variables.
+- [x] From address: `from_name` + `from_email` configurable per template with hierarchical fallback.
+- [x] From email must correspond to a verified domain in the chain.
+- [x] Reply-to configurable by workspace/tenant/global with inheritance.
+- [x] Renders in Gmail, Outlook, and Apple Mail.
 
-**R-06: Tipos de plantilla con schema de variables**
-Contrato: nombre (slug), descripción, schema JSON del evento.
-- [x] Validación de variables al enviar.
-- [x] Visibilidad jerárquica (global, `_system`, workspace).
+**R-06: Template types with variable schema**
+Contract: name (slug), description, JSON schema of the event.
+- [x] Variable validation at send time.
+- [x] Hierarchical visibility (global, `_system`, workspace).
 
-**R-07: Versionado de templates con estados**
-draft → published → archived. Solo UNA versión published por template.
-- [x] Múltiples drafts permitidos.
-- [x] Al publicar: draft → published, published anterior → archived.
-- [x] Solo la versión published se usa para envío.
-- [x] Historial de versiones archivadas visible.
-- [x] Revertir: crear nuevo draft desde una versión archivada.
+**R-07: Template versioning with states**
+draft → published → archived. Only ONE published version per template.
+- [x] Multiple drafts allowed.
+- [x] On publish: draft → published, previous published version → archived.
+- [x] Only the published version is used for sending.
+- [x] Archived version history is visible.
+- [x] Revert: create a new draft from an archived version.
 
-**R-08: Unicidad de tipo por scope**
-Un tipo de plantilla solo puede tener UNA plantilla asignada dentro de un scope (workspace, `_system`, o global).
-- [x] Aplica uniformemente en los tres niveles.
-- [x] Al intentar crear segunda plantilla del mismo tipo en un scope → error.
-- [x] Esto garantiza que el addressing determinístico siempre resuelve a exactamente un template.
+**R-08: Type uniqueness per scope**
+A template type can have only ONE assigned template within a scope (workspace, `_system`, or global).
+- [x] Applies uniformly at the three levels.
+- [x] Trying to create a second template for the same type in a scope → error.
+- [x] This guarantees that deterministic addressing always resolves to exactly one template.
 
-**R-09: Desactivar template (kill switch)**
-Posibilidad de desactivar un template sin archivarlo.
-- [x] Template desactivado mantiene su versión published pero no se envía.
-- [x] API retorna 409 Conflict con mensaje claro.
-- [x] Reactivable en cualquier momento por admin del scope.
-- [x] Si desactivado en nivel superior y workspace no tiene override, envío falla.
-- [x] Estado visible en dashboard.
+**R-09: Disable template (kill switch)**
+Ability to disable a template without archiving it.
+- [x] A disabled template keeps its published version but is not sent.
+- [x] API returns `409 Conflict` with a clear message.
+- [x] Re-enable at any time by an admin in the scope.
+- [x] If disabled at a higher level and the workspace has no override, sending fails.
+- [x] Visible status in the dashboard.
 
-**R-10: Ports y Adapters para envío (SES + Gmail)**
-Arquitectura hexagonal. Port define contrato, adapters lo implementan.
-- [x] SESAdapter: region, access key, secret key (encriptados).
-- [x] GmailAdapter: OAuth credentials (encriptados).
-- [x] Herencia jerárquica de adapters.
-- [x] Si no hay adapter en ningún nivel → 422 con mensaje descriptivo.
-- [x] Extensible sin modificar core.
+**R-10: Ports and adapters for sending (SES + Gmail)**
+Hexagonal architecture. The port defines the contract; adapters implement it.
+- [x] SESAdapter: region, access key, secret key (encrypted).
+- [x] GmailAdapter: OAuth credentials (encrypted).
+- [x] Hierarchical adapter inheritance.
+- [x] If there is no adapter at any level → 422 with a descriptive message.
+- [x] Extensible without modifying the core.
 
 **R-11: Email lifecycle tracking**
 queued → processing → sent → delivered → opened → bounced → complained → failed → suppressed.
-- [x] Consulta por tracking_id.
-- [x] Historial con timestamps.
-- [x] Webhooks del proveedor actualizan automáticamente.
-- [x] `opened` solo disponible si tracking está activo en el workspace.
+- [x] Query by `tracking_id`.
+- [x] History with timestamps.
+- [x] Provider webhooks update the state automatically.
+- [x] `opened` is only available if tracking is active in the workspace.
 
-**R-12: Trazabilidad por external_id**
-- [x] Campo opcional en el request de envío.
-- [x] Consulta paginada con filtros.
-- [x] Indexado para eficiencia.
-- [x] Cross-workspace/cross-tenant para superadmin.
+**R-12: Traceability by `external_id`**
+- [x] Optional field in the send request.
+- [x] Paginated query with filters.
+- [x] Indexed for efficiency.
+- [x] Cross-workspace/cross-tenant for superadmins.
 
-**R-13: Autenticación de email (provider-managed)**
-- [x] SPF/DKIM/DMARC delegados al provider (SES/Gmail).
-- [x] Senda valida identidad default del adapter antes de enviar.
-- [x] Si identidad no verificada/no habilitada, envío falla.
-- [x] Senda no implementa firma DKIM in-app.
+**R-13: Email authentication (provider-managed)**
+- [x] SPF/DKIM/DMARC delegated to the provider (SES/Gmail).
+- [x] Senda validates the adapter's default identity before sending.
+- [x] If the identity is not verified/enabled, sending fails.
+- [x] Senda does not implement in-app DKIM signing.
 
-**R-14: Sincronización de identidades con herencia**
-- [x] Sync manual/API de identidades por adapter.
-- [x] Estados de identidad reflejan estado del provider.
-- [x] Identidad default configurable por scope.
-- [x] Herencia de adapter/identidad: workspace → `_system` → global.
-- [x] Fallback explícito para adapters sin listado de identidades (ej. SMTP/manual).
+**R-14: Identity synchronization with inheritance**
+- [x] Manual/API sync of identities by adapter.
+- [x] Identity states reflect the provider's state.
+- [x] Default identity configurable by scope.
+- [x] Adapter/identity inheritance: workspace → `_system` → global.
+- [x] Explicit fallback for adapters that do not list identities (for example, SMTP/manual).
 
-**R-15: Bounce y complaint handling con suppression lists**
-- [x] Suppression global (hard bounces): bloquea en TODOS los workspaces. Solo superadmin puede remover.
-- [x] Suppression por workspace (complaints): solo afecta ese workspace.
-- [x] Al enviar: verifica ambas listas. Si está en cualquiera → `suppressed`.
-- [x] Soft bounce → retry (máx 3, backoff exponencial). Después → `failed`.
-- [x] Alerta si bounce > 5% en 24h por workspace.
-- [x] Alerta si complaint > 0.1%.
+**R-15: Bounce and complaint handling with suppression lists**
+- [x] Global suppression (hard bounces): blocks in ALL workspaces. Only a superadmin can remove.
+- [x] Workspace suppression (complaints): affects only that workspace.
+- [x] On send: checks both lists. If the email is in either one → `suppressed`.
+- [x] Soft bounce → retry (max 3, exponential backoff). After that → `failed`.
+- [x] Alert if bounce rate > 5% in 24h per workspace.
+- [x] Alert if complaint rate > 0.1%.
 
-**R-16: Dashboard con métricas**
-- [x] Vistas: global, por tenant, por workspace.
-- [x] Tendencias: 7d, 30d, 90d.
-- [x] Detalle de emails individuales con lifecycle.
+**R-16: Dashboard with metrics**
+- [x] Views: global, by tenant, by workspace.
+- [x] Trends: 7d, 30d, 90d.
+- [x] Detail of individual emails with lifecycle.
 
-**R-17: Autenticación vía OIDC + Membresía**
-Autenticación delegada a OIDC. Autorización gestionada por Senda via membresía.
-- [x] Configuración de proveedor OIDC con discovery URL.
-- [x] Post-OIDC: Senda verifica que el email existe como miembro registrado.
-- [x] Si no es miembro → acceso denegado con mensaje claro.
-- [x] Si es miembro → carga roles y scopes del miembro.
+**R-17: OIDC authentication + membership**
+Authentication delegated to OIDC. Authorization managed by Senda through membership.
+- [x] OIDC provider configuration with discovery URL.
+- [x] Post-OIDC: Senda verifies that the email exists as a registered member.
+- [x] If not a member → access denied with a clear message.
+- [x] If a member → load the member's roles and scopes.
 
-**R-18: Sistema de miembros y roles**
-Miembros registrados por email. Roles fijos con scopes jerárquicos.
+**R-18: Members and roles system**
+Members registered by email. Fixed roles with hierarchical scopes.
 - [x] Roles: superadmin, tenant-admin, workspace-admin, workspace-editor, workspace-viewer.
-- [x] Múltiples superadmins permitidos.
-- [x] Un miembro puede tener diferentes roles en diferentes scopes.
-- [x] Superadmin puede agregar miembros y asignar cualquier rol en cualquier nivel, incluyendo crear otros superadmins.
-- [x] Tenant-admin puede agregar miembros a su tenant y sus workspaces.
-- [x] Workspace-admin puede agregar miembros a su workspace (roles: editor, viewer).
-- [x] La tabla de permisos (sección 4.10) se aplica estrictamente en cada endpoint.
-- [x] workspace-editor puede crear/editar drafts pero NO puede publicar templates.
+- [x] Multiple superadmins allowed.
+- [x] A member can have different roles in different scopes.
+- [x] Superadmin can add members and assign any role at any level, including creating other superadmins.
+- [x] Tenant-admin can add members to their tenant and its workspaces.
+- [x] Workspace-admin can add members to their workspace (roles: editor, viewer).
+- [x] The permissions table (section 4.10) applies strictly on every endpoint.
+- [x] workspace-editor can create/edit drafts but CANNOT publish templates.
 
-**R-19: Onboarding inicial**
-Primer usuario se convierte en superadmin automáticamente.
-- [x] Si la DB está vacía y un usuario completa OIDC → se registra como superadmin.
-- [x] El sistema guía al superadmin para crear primer tenant (código + nombre) y primer workspace.
-- [x] `_system` se crea automáticamente con el primer tenant.
-- [x] Este flujo solo ocurre una vez (si ya hay miembros, login normal).
+**R-19: Initial onboarding**
+The first user automatically becomes superadmin.
+- [x] If the DB is empty and a user completes OIDC → they are registered as superadmin.
+- [x] The system guides the superadmin to create the first tenant (code + name) and first workspace.
+- [x] `_system` is created automatically with the first tenant.
+- [x] This flow happens only once (if members already exist, login is normal).
 
-**R-20: API Keys para plano de datos**
-Autenticación de la API de envío y consulta via API Keys de larga duración.
-- [x] Cada API Key pertenece a un workspace.
-- [x] Formato: `senda_live_<random>` (prod). Solo se muestra completa al momento de creación.
-- [x] Almacenadas hasheadas (nunca texto plano).
-- [x] Un workspace puede tener múltiples API Keys.
-- [x] Revocación individual.
-- [x] API Key permite: enviar, consultar estado, buscar emails, exportar. Solo dentro de su workspace.
+**R-20: API Keys for the data plane**
+Authentication for the send and query API uses long-lived API Keys.
+- [x] Each API Key belongs to a workspace.
+- [x] Format: `senda_live_<random>` (prod). It is only shown in full at creation time.
+- [x] Stored hashed (never plaintext).
+- [x] A workspace can have multiple API Keys.
+- [x] Individual revocation.
+- [x] API Key allows: send, query status, search emails, export. Only within its workspace.
 
-**R-21: API de consulta y búsqueda**
-- [x] Por external_id, email, filtros combinados.
-- [x] Paginación cursor-based.
-- [x] Exportación masiva.
-- [x] Scoped por API Key (solo datos del workspace).
+**R-21: Query and search API**
+- [x] By `external_id`, email, combined filters.
+- [x] Cursor-based pagination.
+- [x] Bulk export.
+- [x] Scoped by API Key (workspace-only data).
 
-**R-22: Soft delete y gestión de dependencias**
-- [x] Recursos eliminados se marcan como `deleted` (soft delete).
-- [x] Siguen disponibles en herencia, con warning visual.
-- [x] Purge requiere: ver lista de dependencias, confirmar explícitamente.
-- [x] Audit trail de deletes y purges.
+**R-22: Soft delete and dependency management**
+- [x] Deleted resources are marked as `deleted` (soft delete).
+- [x] They remain available in inheritance, with a visual warning.
+- [x] Purge requires: view dependency list, explicit confirmation.
+- [x] Audit trail for deletes and purges.
 
 **R-23: Audit logging**
-- [x] Registro de todas las acciones administrativas.
-- [x] Quién, cuándo, qué, dónde, detalle de cambios.
-- [x] Append-only (no modificable).
-- [x] Visible por admins del scope y superadmins.
+- [x] Record of all administrative actions.
+- [x] Who, when, what, where, change details.
+- [x] Append-only (not editable).
+- [x] Visible to scope admins and superadmins.
 
 ### Nice-to-Have (P1)
 
-**R-24: Editor visual drag-and-drop + inline con i18n**
-- [ ] Componentes arrastrables.
-- [ ] Inline editing en preview.
-- [ ] Selector visual de variables.
-- [ ] Alternancia modo visual / modo código.
-- [ ] Bloques de texto con locale tags para variantes de idioma.
-- [ ] Selector de locale por defecto del template.
+**R-24: Drag-and-drop visual editor + inline editing with i18n**
+- [ ] Draggable components.
+- [ ] Inline editing in preview.
+- [ ] Visual variable selector.
+- [ ] Toggle visual mode / code mode.
+- [ ] Text blocks with locale tags for language variants.
+- [ ] Default locale selector for the template.
 
-**R-25: Integración con IA en editor**
-- [ ] Asistencia para armado de templates (sugerir estructura y copy).
-- [ ] Traducción automática de bloques de texto.
-- [ ] Optimización de copy (claridad, tono, engagement).
-- [ ] Verificación de consistencia entre variantes de idioma.
+**R-25: AI integration in the editor**
+- [ ] Assistance for template creation (suggest structure and copy).
+- [ ] Automatic translation of text blocks.
+- [ ] Copy optimization (clarity, tone, engagement).
+- [ ] Consistency checks between language variants.
 
-**R-26: Open tracking (opt-in por workspace)**
-- [ ] Desactivado por defecto.
-- [ ] Workspace-admin activa/desactiva.
-- [ ] Pixel de tracking insertado automáticamente.
-- [ ] Disclaimer configurable en footer cuando activo.
+**R-26: Open tracking (opt-in per workspace)**
+- [ ] Disabled by default.
+- [ ] Workspace-admin enables/disables it.
+- [ ] Tracking pixel inserted automatically.
+- [ ] Configurable disclaimer in the footer when active.
 
-**R-27: Webhooks de eventos**
-- [ ] Configuración por workspace.
-- [ ] Retry con backoff exponencial (máx 5 intentos).
-- [ ] Firma HMAC-SHA256 para verificación.
-- [ ] Eventos: sent, delivered, opened, bounced, complained, failed.
+**R-27: Event webhooks**
+- [ ] Configuration per workspace.
+- [ ] Exponential backoff retry (max 5 attempts).
+- [ ] HMAC-SHA256 signature for verification.
+- [ ] Events: sent, delivered, opened, bounced, complained, failed.
 - [ ] Payload: `{ event, tracking_id, external_id, workspace, tenant, timestamp, data }`.
 
-**R-28: Rate limiting por adapter**
-- [ ] Token bucket distribuido (Redis).
-- [ ] Configurable por adapter, tenant, workspace.
-- [ ] Backpressure sin fallar: encola y espera, no descarta.
-- [ ] Nota: rate limiting básico para respetar límites de SES/Gmail debe estar en Fase 1.
+**R-28: Rate limiting by adapter**
+- [ ] Distributed token bucket (Redis).
+- [ ] Configurable by adapter, tenant, workspace.
+- [ ] Backpressure without failing: enqueue and wait, do not drop.
+- [ ] Note: basic rate limiting to respect SES/Gmail limits must be in Phase 1.
 
-**R-29: Test emails desde dashboard**
-- [ ] Enviar email de prueba desde el editor (autenticado vía OIDC, no API Key).
-- [ ] Ejecuta pipeline completo excepto: no registra en lifecycle real, marca como "test".
-- [ ] Destinatario: el email del miembro que hace el test u otro especificado.
+**R-29: Test emails from dashboard**
+- [ ] Send a test email from the editor (authenticated via OIDC, not API Key).
+- [ ] Executes the full pipeline except: does not register in the real lifecycle, marks as "test".
+- [ ] Recipient: the email of the member performing the test, or another specified email.
 
 ### Future Considerations (P2)
 
 **R-30:** SMTP Relay.
-**R-31:** Adapters adicionales (SendGrid, Mailgun, Postmark).
-**R-32:** A/B testing de templates.
-**R-33:** Scheduling de envíos.
-**R-34:** Template sharing entre workspaces.
-**R-35:** Roles customizables (RBAC completo con permisos configurables por instalación).
-**R-36:** Batch endpoint `/api/v1/send/batch` para envíos masivos (hasta 10K destinatarios, retorna batch_id).
+**R-31:** Additional adapters (SendGrid, Mailgun, Postmark).
+**R-32:** Template A/B testing.
+**R-33:** Send scheduling.
+**R-34:** Template sharing between workspaces.
+**R-35:** Customizable roles (full RBAC with permissions configurable per installation).
+**R-36:** Batch endpoint `/api/v1/send/batch` for bulk sends (up to 10K recipients, returns `batch_id`).
 
 ---
 
-## 7. Stack Tecnológico
+## 7. Technology Stack
 
 ### Backend
 
-| Componente | Tecnología | Justificación |
+| Component | Technology | Rationale |
 |---|---|---|
-| Lenguaje | Go 1.23+ | Performance, binario estático, concurrencia nativa |
-| Web Framework | Echo 4.x | HTTP/2, middleware net/http, ecosistema maduro |
-| Base de datos | PostgreSQL 16+ | ACID, RLS, partitioning |
-| Job Queue | River (PostgreSQL) | Transaccional, ~10K jobs/seg, Web UI |
+| Language | Go 1.23+ | Performance, static binary, native concurrency |
+| Web Framework | Echo 4.x | HTTP/2, net/http middleware, mature ecosystem |
+| Database | PostgreSQL 16+ | ACID, RLS, partitioning |
+| Job Queue | River (PostgreSQL) | Transactional, ~10K jobs/sec, Web UI |
 | Templates | gomjml (pure Go) | ~3ms compile, ~2MB RAM |
-| Email Auth (SPF/DKIM/DMARC) | Provider-managed (SES/Gmail) | Evita duplicar firma/validación en app |
-| Cache/Rate Limit | PostgreSQL (UNLOGGED + PL/pgSQL) | Sin Redis, operación unificada en PG |
+| Email Auth (SPF/DKIM/DMARC) | Provider-managed (SES/Gmail) | Avoids duplicating signing/validation in the app |
+| Cache/Rate Limit | PostgreSQL (UNLOGGED + PL/pgSQL) | No Redis, unified operations in PG |
 
 ### Frontend
 
-| Componente | Tecnología |
+| Component | Technology |
 |---|---|
 | Core | React 19 + React Compiler |
 | Build | Vite 6 |
-| Estilos | Tailwind CSS v4 |
-| Estado | TanStack Query v5 + Zustand |
+| Styles | Tailwind CSS v4 |
+| State | TanStack Query v5 + Zustand |
 
 ### Deployment
 
-Docker + Docker Compose. Caddy opcional para HTTPS.
+Docker + Docker Compose. Caddy optional for HTTPS.
 
-### Diagrama de Arquitectura
+### Architecture Diagram
 
 ```
                          ┌──────────────────────────┐
-   Servicio Externo ───► │     REST API (Echo)       │
+   External Service ───► │      REST API (Echo)      │
                          │  tenantCode:wsCode:type   │
                          └────────────┬─────────────┘
                                       │
                          ┌────────────▼─────────────┐
-                         │    Application Core       │
+                         │     Application Core      │
                          │                           │
                          │  ┌─ Hierarchy Resolver    │
                          │  ├─ Injector Resolver     │
-                         │  ├─ Template Engine        │
-                         │  ├─ Lifecycle Tracker      │
+                         │  ├─ Template Engine       │
+                         │  ├─ Lifecycle Tracker     │
                          │  ├─ Suppression Manager   │
                          │  ├─ Domain Verifier       │
                          │  └─ Audit Logger          │
@@ -1003,17 +1003,17 @@ Docker + Docker Compose. Caddy opcional para HTTPS.
 
 ### Leading
 
-| Métrica | Target |
+| Metric | Target |
 |---|---|
-| API response time (envío) | < 100ms p99 |
-| Tasa de entrega | > 98% |
-| Compilación template | < 10ms p99 |
-| Resolución inyectores | < 5ms p99 |
-| Resolución addressing | < 2ms p99 |
+| API response time (send) | < 100ms p99 |
+| Delivery rate | > 98% |
+| Template compilation | < 10ms p99 |
+| Injector resolution | < 5ms p99 |
+| Addressing resolution | < 2ms p99 |
 
 ### Lagging
 
-| Métrica | Target |
+| Metric | Target |
 |---|---|
 | Bounce rate | < 2% |
 | Complaint rate | < 0.1% |
@@ -1024,42 +1024,42 @@ Docker + Docker Compose. Caddy opcional para HTTPS.
 
 ### Blocking
 
-**OQ-01 [Engineering]:** ~~Open tracking.~~ **RESUELTO:** Opt-in por workspace. Desactivado por defecto. Disclaimer automático cuando activo.
+**OQ-01 [Engineering]:** ~~Open tracking.~~ **RESOLVED:** Opt-in by workspace. Disabled by default. Automatic disclaimer when enabled.
 
-**OQ-02 [Engineering]:** Editor visual: ¿custom, GrapeJS, Unlayer, u otro OS? Decisión diferida a Fase 3 (editor visual).
+**OQ-02 [Engineering]:** Visual editor: custom, GrapeJS, Unlayer, or another open-source tool? Decision deferred to Phase 3 (visual editor).
 
-**OQ-03 [Product]:** ~~Mapeo OIDC → tenant/workspace~~ **RESUELTO:** El mapeo es por membresía explícita. Un admin registra el email del miembro y le asigna roles en scopes específicos. No se mapea automáticamente por dominio ni claim.
+**OQ-03 [Product]:** ~~OIDC → tenant/workspace mapping~~ **RESOLVED:** Mapping is by explicit membership. An admin registers the member email and assigns roles in specific scopes. There is no automatic mapping by domain or claim.
 
-**OQ-04 [Engineering]:** Gmail: 2K msg/día/cuenta. ¿Rotación? ¿Documentar limitación? → Documentar como limitación conocida del GmailAdapter. Rotación de cuentas como feature futura.
+**OQ-04 [Engineering]:** Gmail: 2K msg/day/account. Rotation? Document limitation? → Document as a known limitation of the GmailAdapter. Account rotation as a future feature.
 
-**OQ-05 [Product]:** ~~external_id: ¿obligatorio u opcional?~~ **RESUELTO:** Opcional. Si no se envía, el email se trackea solo por tracking_id interno.
+**OQ-05 [Product]:** ~~external_id: required or optional?~~ **RESOLVED:** Optional. If not sent, the email is tracked only by the internal `tracking_id`.
 
-**OQ-06 [Engineering]:** ~~Schema de inyectores~~ **RESUELTO:** Schema top-down fijo. El nivel que crea el inyector define campos + tipos. Niveles inferiores solo override valores, no pueden agregar ni eliminar campos.
+**OQ-06 [Engineering]:** ~~Injector schema~~ **RESOLVED:** Fixed top-down schema. The level that creates the injector defines fields + types. Lower levels only override values; they cannot add or remove fields.
 
 ### Non-Blocking
 
-**OQ-07:** Partitioning de PostgreSQL (mes + tenant).
-**OQ-08:** RLS adicional o solo en aplicación.
-**OQ-09:** Dashboard: SPA o server-rendered.
-**OQ-10:** Integración IA: ¿qué modelo/proveedor? ¿Self-hosted o API externa?
-**OQ-11:** API versioning: ¿URL prefix (/v1/, /v2/) o header? Recomendado: URL prefix.
+**OQ-07:** PostgreSQL partitioning (month + tenant).
+**OQ-08:** Additional RLS or application-only.
+**OQ-09:** Dashboard: SPA or server-rendered.
+**OQ-10:** AI integration: which model/provider? Self-hosted or external API?
+**OQ-11:** API versioning: URL prefix (`/v1/`, `/v2/`) or header? Recommended: URL prefix.
 
 ---
 
 ## 10. Phasing
 
-### Fase 1 — Core
-Jerarquía 3 niveles + `_system`, códigos slug, inyectores tipados (schema top-down), API con addressing determinístico (array to, cc, bcc, locale), templates MJML code-based (con subject, preview text, from address), versionado con estados, kill switch, lifecycle tracking, external_id (opcional), SES/Gmail adapters, autenticación de email provider-managed (sin DKIM in-app), miembros y roles (múltiples superadmins), onboarding inicial, API Keys (send + query), OIDC, suppression lists (global + workspace), soft delete + dependencias, audit logging, rate limiting básico (respetar límites SES), soporte básico de i18n (campo `locale` en API + resolución de variante en template).
+### Phase 1 — Core
+3-level hierarchy + `_system`, slug codes, typed injectors (top-down schema), API with deterministic addressing (array `to`, `cc`, `bcc`, `locale`), code-based MJML templates (with subject, preview text, from address), versioning with states, kill switch, lifecycle tracking, optional `external_id`, SES/Gmail adapters, provider-managed email authentication (no in-app DKIM), members and roles (multiple superadmins), initial onboarding, API Keys (send + query), OIDC, suppression lists (global + workspace), soft delete + dependencies, audit logging, basic rate limiting (respect SES limits), basic i18n support (field `locale` in the API + template variant resolution).
 
-### Fase 2 — Observabilidad
-Dashboard, métricas, búsqueda avanzada, exportación masiva, alertas de bounce/complaint, test emails desde dashboard.
+### Phase 2 — Observability
+Dashboard, metrics, advanced search, bulk export, bounce/complaint alerts, test emails from dashboard.
 
-### Fase 3 — UX
-Editor visual drag-and-drop + inline, gestión visual de variantes de idioma en editor, integración IA (traducción + armado de templates + copy), webhooks de eventos.
+### Phase 3 — UX
+Drag-and-drop visual editor + inline editing, visual management of language variants in the editor, AI integration (translation + template creation + copy), event webhooks.
 
-### Fase 4 — Hardening
-Rate limiting avanzado (token bucket distribuido), Gmail adapter, open tracking (opt-in), optimización de performance, documentación OS.
+### Phase 4 — Hardening
+Advanced rate limiting (distributed token bucket), Gmail adapter, open tracking (opt-in), performance optimization, open source documentation.
 
 ---
 
-*Draft para iteración. Nada es versión final.*
+*Draft for iteration. Nothing is final.*

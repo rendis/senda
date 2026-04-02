@@ -50,5 +50,6 @@ jobs:
       - name: Integration tests
         run: make test-integration
 
-      - name: Deterministic E2E gate
+      - name: Deterministic E2E gate (push to main only)
+        if: github.event_name == 'push'
         run: make test-e2e

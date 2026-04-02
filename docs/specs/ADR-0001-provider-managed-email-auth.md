@@ -6,24 +6,24 @@
 
 ## Context
 
-Había contradicción entre documentos y código respecto a autenticación de email:
-- Parte de la especificación describía DKIM/SPF/DMARC implementado en app (tablas `domains`, signing DKIM propio).
-- El backend actual y README operan sobre modelo provider-managed (SES/Gmail).
+There was a contradiction between the documentation and the code regarding email authentication:
+- Part of the specification described DKIM/SPF/DMARC implemented in the app (custom `domains` tables, in-app DKIM signing).
+- The current backend and README follow a provider-managed model (SES/Gmail).
 
-Esto generaba ambigüedad funcional para R-13/R-14 y para el gate de QA.
+This created functional ambiguity for R-13/R-14 and for the QA gate.
 
 ## Decision
 
-Senda adopta **provider-managed email auth** como única fuente de verdad para P0:
+Senda adopts **provider-managed email auth** as the single source of truth for P0:
 
-1. SPF/DKIM/DMARC son responsabilidad del provider (SES/Gmail).
-2. Senda **no** firma DKIM ni genera registros DNS desde la app.
-3. Senda valida capacidad de envío mediante identidades del provider (sync + default identity).
-4. Flujos/artefactos de `domains` y DKIM in-app quedan deprecados para P0.
+1. SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail).
+2. Senda **does not** sign DKIM or generate DNS records from the app.
+3. Senda validates sending capability through provider identities (sync + default identity).
+4. The `domains` flows/artifacts and in-app DKIM are deprecated for P0.
 
 ## Consequences
 
-- `POST /send` valida identidad efectiva del adapter, no dominio DKIM local.
-- Sync de identidades SES/Gmail es parte del flujo funcional requerido.
-- Bloques de PRD/TECH_SPEC sobre domain verification in-app se marcan como históricos/deprecated.
-- QA usa este ADR como criterio de interpretación para R-13/R-14.
+- `POST /send` validates the effective identity of the adapter, not a local DKIM domain.
+- SES/Gmail identity sync is part of the required functional flow.
+- PRD/TECH_SPEC blocks about in-app domain verification are marked as historical/deprecated.
+- QA uses this ADR as the interpretation criterion for R-13/R-14.
