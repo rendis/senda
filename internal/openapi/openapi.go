@@ -132,38 +132,41 @@ func GenerateSwagDocsContent(routes []Route) string {
 	buf.WriteString("type DocHealthResponse struct {\n\tStatus string `json:\"status\"`\n\tError string `json:\"error,omitempty\"`\n}\n\n")
 	buf.WriteString("type DocStatusResponse struct {\n\tStatus string `json:\"status\"`\n}\n\n")
 	buf.WriteString("type DocTemplateLocaleListResponse struct {\n\tItems []response.TemplateVersionLocaleResponse `json:\"items\"`\n}\n\n")
+	writef := func(format string, args ...any) {
+		_, _ = fmt.Fprintf(&buf, format, args...)
+	}
 
 	for _, route := range routes {
 		op := buildOperationDoc(route)
 		fnName := operationFuncName(route)
 
-		buf.WriteString(fmt.Sprintf("// %s auto-generated route documentation.\n", fnName))
-		buf.WriteString(fmt.Sprintf("// @Summary      %s\n", op.Summary))
+		writef("// %s auto-generated route documentation.\n", fnName)
+		writef("// @Summary      %s\n", op.Summary)
 		buf.WriteString("// @Description  Auto-generated route stub for OpenAPI + MCP discovery.\n")
-		buf.WriteString(fmt.Sprintf("// @Tags         %s\n", op.Tag))
+		writef("// @Tags         %s\n", op.Tag)
 		if op.AcceptJSON {
 			buf.WriteString("// @Accept       json\n")
 		}
 		if op.Produce != "" {
-			buf.WriteString(fmt.Sprintf("// @Produce      %s\n", op.Produce))
+			writef("// @Produce      %s\n", op.Produce)
 		}
 		for _, sec := range op.Security {
-			buf.WriteString(fmt.Sprintf("// @Security     %s\n", sec))
+			writef("// @Security     %s\n", sec)
 		}
 		for _, param := range op.Params {
-			buf.WriteString(fmt.Sprintf("// @Param        %s  %s  %s  %t  %q\n",
-				param.Name, param.In, param.Type, param.Required, param.Description))
+			writef("// @Param        %s  %s  %s  %t  %q\n",
+				param.Name, param.In, param.Type, param.Required, param.Description)
 		}
 		if op.BodyType != "" {
-			buf.WriteString(fmt.Sprintf("// @Param        body  body  %s  %t  %q\n",
-				op.BodyType, op.BodyRequired, "Request body"))
+			writef("// @Param        body  body  %s  %t  %q\n",
+				op.BodyType, op.BodyRequired, "Request body")
 		}
-		buf.WriteString(fmt.Sprintf("// @Success      %d  {%s}  %s\n", op.SuccessStatus, op.SuccessKind, op.SuccessType))
+		writef("// @Success      %d  {%s}  %s\n", op.SuccessStatus, op.SuccessKind, op.SuccessType)
 		for _, failure := range []int{400, 401, 403, 404, 409, 422, 500} {
-			buf.WriteString(fmt.Sprintf("// @Failure      %d  {object}  DocErrorResponse\n", failure))
+			writef("// @Failure      %d  {object}  DocErrorResponse\n", failure)
 		}
-		buf.WriteString(fmt.Sprintf("// @Router       %s [%s]\n", NormalizeEchoPath(route.Path), strings.ToLower(route.Method)))
-		buf.WriteString(fmt.Sprintf("func %s() {}\n\n", fnName))
+		writef("// @Router       %s [%s]\n", NormalizeEchoPath(route.Path), strings.ToLower(route.Method))
+		writef("func %s() {}\n\n", fnName)
 	}
 
 	return buf.String()

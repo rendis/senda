@@ -31,7 +31,7 @@ func (r *ProvisioningStepRepo) InitDeprovisionSteps(ctx context.Context, adapter
 func (r *ProvisioningStepRepo) initStepDefs(ctx context.Context, adapterID uuid.UUID, defs []struct {
 	Name  domain.ProvisionStepName
 	Order int
-}) error {
+}) (err error) {
 	query := `INSERT INTO adapter_provisioning_steps (adapter_id, step_name, step_order)
 		VALUES (@adapter_id, @step_name, @step_order)
 		ON CONFLICT (adapter_id, step_name) DO NOTHING`
@@ -46,7 +46,11 @@ func (r *ProvisioningStepRepo) initStepDefs(ctx context.Context, adapterID uuid.
 	}
 
 	br := r.pool.SendBatch(ctx, batch)
-	defer br.Close()
+	defer func() {
+		if closeErr := br.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("closing provisioning step batch: %w", closeErr)
+		}
+	}()
 
 	for range defs {
 		if _, err := br.Exec(); err != nil {
