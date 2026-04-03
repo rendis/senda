@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   type CreateTenantInput,
+  type UpdateTenantInput,
   useCreateTenant,
   useDeleteTenant,
   useTenants,
