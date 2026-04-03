@@ -122,13 +122,13 @@ func (m *mockWorkspaceStore) SoftDelete(ctx context.Context, id uuid.UUID) error
 
 // --- Helper ---
 
-func setupTenantTest(ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.TenantHandler) {
+func setupTenantTest(ts port.TenantStore, ws port.WorkspaceStore, as port.AdapterStore) (*echo.Echo, *handler.TenantHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
-	h := handler.NewTenantHandler(ts, ws)
+	h := handler.NewTenantHandler(ts, ws, as)
 	e.POST("/api/v1/manage/tenants", h.Create)
 	e.GET("/api/v1/manage/tenants", h.List)
 	e.GET("/api/v1/manage/tenants/:tenant_code", h.GetByCode)
@@ -156,7 +156,7 @@ func TestTenantHandler_Create_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, ws)
+	e, _ := setupTenantTest(ts, ws, nil)
 
 	body := `{"code":"acme","name":"Acme Corp"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants", strings.NewReader(body))
@@ -199,7 +199,7 @@ func TestTenantHandler_Create_Success(t *testing.T) {
 }
 
 func TestTenantHandler_Create_InvalidSlug(t *testing.T) {
-	e, _ := setupTenantTest(&mockTenantStore{}, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(&mockTenantStore{}, &mockWorkspaceStore{}, nil)
 
 	body := `{"code":"AB","name":"Too short and uppercase"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants", strings.NewReader(body))
@@ -213,7 +213,7 @@ func TestTenantHandler_Create_InvalidSlug(t *testing.T) {
 }
 
 func TestTenantHandler_Create_MissingName(t *testing.T) {
-	e, _ := setupTenantTest(&mockTenantStore{}, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(&mockTenantStore{}, &mockWorkspaceStore{}, nil)
 
 	body := `{"code":"acme","name":""}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants", strings.NewReader(body))
@@ -233,7 +233,7 @@ func TestTenantHandler_Create_Conflict(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	body := `{"code":"acme","name":"Acme Corp"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants", strings.NewReader(body))
@@ -262,7 +262,7 @@ func TestTenantHandler_List_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants", nil)
 	rec := httptest.NewRecorder()
@@ -287,6 +287,63 @@ func TestTenantHandler_List_Success(t *testing.T) {
 	}
 }
 
+func TestTenantHandler_List_IncludesDeleteBlockedReasonForTenantWithSESAdapter(t *testing.T) {
+	now := time.Now().UTC()
+	tenantWithSES := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", CreatedAt: now, UpdatedAt: now}
+	tenantWithoutSES := &domain.Tenant{ID: uuid.New(), Code: "globex", Name: "Globex", CreatedAt: now, UpdatedAt: now}
+	systemWS := &domain.Workspace{ID: uuid.New(), TenantID: tenantWithSES.ID, Code: "_system", Name: "System", IsSystem: true}
+
+	ts := &mockTenantStore{
+		listFn: func(_ context.Context, _ port.ListOptions) ([]*domain.Tenant, string, error) {
+			return []*domain.Tenant{tenantWithSES, tenantWithoutSES}, "", nil
+		},
+	}
+	ws := &mockWorkspaceStore{
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			if tenantID == tenantWithSES.ID {
+				return []*domain.Workspace{systemWS}, "", nil
+			}
+			return []*domain.Workspace{}, "", nil
+		},
+	}
+	as := &mockAdapterStore{
+		listByWorkspaceFn: func(_ context.Context, workspaceID *uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.Adapter], error) {
+			if workspaceID != nil && *workspaceID == systemWS.ID {
+				return &port.PageResult[domain.Adapter]{
+					Items: []*domain.Adapter{
+						{ID: uuid.New(), Name: "SES Prod", WorkspaceID: workspaceID, AdapterType: domain.AdapterTypeSES},
+					},
+				}, nil
+			}
+			return &port.PageResult[domain.Adapter]{Items: []*domain.Adapter{}}, nil
+		},
+	}
+
+	e, _ := setupTenantTest(ts, ws, as)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TenantListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(resp.Items))
+	}
+	if resp.Items[0].DeleteBlockedReason == "" {
+		t.Fatal("expected blocked reason for tenant with SES adapter")
+	}
+	if resp.Items[1].DeleteBlockedReason != "" {
+		t.Fatal("expected no blocked reason for tenant without SES adapter")
+	}
+}
+
 func TestTenantHandler_GetByCode_Success(t *testing.T) {
 	now := time.Now().UTC()
 	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", CreatedAt: now, UpdatedAt: now}
@@ -300,7 +357,7 @@ func TestTenantHandler_GetByCode_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme", nil)
 	rec := httptest.NewRecorder()
@@ -326,7 +383,7 @@ func TestTenantHandler_GetByCode_NotFound(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/nonexistent", nil)
 	rec := httptest.NewRecorder()
@@ -354,7 +411,7 @@ func TestTenantHandler_Update_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	body := `{"name":"Acme Industries"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme", strings.NewReader(body))
@@ -389,7 +446,7 @@ func TestTenantHandler_Update_Status_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	body := `{"is_active":false}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme", strings.NewReader(body))
@@ -431,7 +488,7 @@ func TestTenantHandler_SoftDelete_Success(t *testing.T) {
 		},
 	}
 
-	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{}, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme", nil)
 	rec := httptest.NewRecorder()
@@ -442,5 +499,55 @@ func TestTenantHandler_SoftDelete_Success(t *testing.T) {
 	}
 	if deletedID != tenant.ID {
 		t.Fatalf("expected deleted ID %s, got %s", tenant.ID, deletedID)
+	}
+}
+
+func TestTenantHandler_SoftDelete_BlocksWhenTenantHasSESAdapter(t *testing.T) {
+	now := time.Now().UTC()
+	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", CreatedAt: now, UpdatedAt: now}
+	systemWS := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
+
+	softDeleteCalled := false
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return tenant, nil
+		},
+		softDeleteFn: func(_ context.Context, _ uuid.UUID) error {
+			softDeleteCalled = true
+			return nil
+		},
+	}
+	ws := &mockWorkspaceStore{
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			if tenantID != tenant.ID {
+				t.Fatalf("expected tenant ID %s, got %s", tenant.ID, tenantID)
+			}
+			return []*domain.Workspace{systemWS}, "", nil
+		},
+	}
+	as := &mockAdapterStore{
+		listByWorkspaceFn: func(_ context.Context, workspaceID *uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.Adapter], error) {
+			if workspaceID == nil || *workspaceID != systemWS.ID {
+				t.Fatalf("expected workspace ID %s", systemWS.ID)
+			}
+			return &port.PageResult[domain.Adapter]{
+				Items: []*domain.Adapter{
+					{ID: uuid.New(), Name: "SES Prod", WorkspaceID: workspaceID, AdapterType: domain.AdapterTypeSES},
+				},
+			}, nil
+		},
+	}
+
+	e, _ := setupTenantTest(ts, ws, as)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if softDeleteCalled {
+		t.Fatal("expected tenant soft delete to be blocked")
 	}
 }

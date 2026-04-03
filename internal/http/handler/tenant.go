@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -177,6 +178,12 @@ func (h *TenantHandler) SoftDelete(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
+	if blockedReason, err := h.deleteBlockedReason(ctx, tenant.ID); err != nil {
+		return mapStoreError(c, err)
+	} else if blockedReason != "" {
+		return response.WriteError(c, http.StatusConflict, "CONFLICT", blockedReason)
+	}
+
 	if err := h.store.SoftDelete(ctx, tenant.ID); err != nil {
 		return mapStoreError(c, err)
 	}
@@ -186,6 +193,11 @@ func (h *TenantHandler) SoftDelete(c *echo.Context) error {
 
 const tenantDeleteBlockedReasonTemplate = "Delete disabled: tenant still has active SES adapter %q in workspace %q. Delete it first."
 
+// deleteBlockedReason performs a paginated scan of the tenant workspaces and
+// their adapters to find the first active SES adapter that should block tenant
+// deletion. This is intentionally simple as a short-term safety guard, but it
+// has an N+1 access pattern. If this path becomes hot, replace it with a
+// dedicated store/service query such as "has active SES adapters by tenant".
 func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.UUID) (string, error) {
 	if h.adapterStore == nil {
 		return "", nil
@@ -214,7 +226,7 @@ func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.U
 
 				for _, adapter := range page.Items {
 					if adapter.AdapterType == domain.AdapterTypeSES {
-						return responseMessageDeleteBlocked(adapter.Name, ws.Code), nil
+						return deleteBlockedReasonMessage(adapter.Name, ws.Code), nil
 					}
 				}
 
@@ -234,7 +246,7 @@ func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.U
 	return "", nil
 }
 
-func responseMessageDeleteBlocked(adapterName, workspaceCode string) string {
+func deleteBlockedReasonMessage(adapterName, workspaceCode string) string {
 	return fmt.Sprintf(tenantDeleteBlockedReasonTemplate, adapterName, workspaceCode)
 }
 

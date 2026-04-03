@@ -185,42 +185,54 @@ export function TenantsContent() {
       header: "",
       size: 64,
       enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setEditTarget(row.original);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Edit tenant</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setDeleteTarget(row.original);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Delete tenant</TooltipContent>
-          </Tooltip>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const deleteBlockedReason = row.original.delete_blocked_reason;
+
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setEditTarget(row.original);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit tenant</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="inline-flex"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive"
+                    disabled={Boolean(deleteBlockedReason)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteTarget(row.original);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {deleteBlockedReason ?? "Delete tenant"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
@@ -251,9 +263,14 @@ export function TenantsContent() {
 
   const handleDeleteTenant = async () => {
     if (!deleteTarget) return;
-    await deleteTenant.mutateAsync(deleteTarget.code);
-    toast.success(`Tenant \"${deleteTarget.name}\" deleted`);
-    setDeleteTarget(null);
+    try {
+      await deleteTenant.mutateAsync(deleteTarget.code);
+      toast.success(`Tenant \"${deleteTarget.name}\" deleted`);
+      setDeleteTarget(null);
+    } catch (error) {
+      const apiError = await parseApiError(error);
+      toast.error(apiError.error.message || "Failed to delete tenant");
+    }
   };
 
   return (

@@ -6,13 +6,13 @@ import (
 
 // TenantResponse is the JSON response for a single tenant.
 type TenantResponse struct {
-	ID        string `json:"id"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
-	IsActive  bool   `json:"is_active"`
+	ID                  string `json:"id"`
+	Code                string `json:"code"`
+	Name                string `json:"name"`
+	IsActive            bool   `json:"is_active"`
 	DeleteBlockedReason string `json:"delete_blocked_reason,omitempty"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
 }
 
 // TenantListResponse is the JSON response for a paginated list of tenants.

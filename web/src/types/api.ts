@@ -68,6 +68,7 @@ export interface Tenant {
   code: string;
   name: string;
   is_active: boolean;
+  delete_blocked_reason?: string;
   created_at: string;
   updated_at: string;
 }
