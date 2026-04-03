@@ -122,8 +122,8 @@ export function AppSidebar({
     isMobile: boolean,
   ) {
     return (
-      <div className="flex h-full flex-col justify-between bg-sidebar text-sidebar-foreground">
-        <div className="flex flex-col gap-1">
+      <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-4">
           <div className="mt-5 flex h-10 items-center gap-2.5 px-3">
             <BrandLogo
               size="sm"
@@ -169,7 +169,7 @@ export function AppSidebar({
           </nav>
         </div>
 
-        <div className="flex flex-col gap-2 px-3 pb-5">
+        <div className="shrink-0 flex flex-col gap-2 px-3 pb-5">
           <Link
             href={helpHref}
             onClick={() => {
@@ -283,7 +283,7 @@ export function AppSidebar({
 
       <aside
         className={cn(
-          "hidden min-h-screen flex-col justify-between bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
+          "hidden h-svh overflow-hidden flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
