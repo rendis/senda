@@ -282,14 +282,43 @@ function ResponseCard({
       <div className="space-y-4 px-4 py-4">
         {contentEntries.length > 0 ? (
           contentEntries.map(([contentType, content]) => {
-            const rows = getSchemaRows(content.schema);
+            const summaryRows = getSchemaSummaryRows(content.schema);
+            const detailRows = getSchemaRows(content.schema);
+            const example = content.example ?? getExampleValue(content.schema, contentType);
             return (
               <div key={contentType} className="space-y-3">
                 <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   <span className="font-semibold text-foreground">Content-Type:</span>{" "}
                   {contentType}
                 </div>
-                <FieldTable rows={rows} emptyLabel="None" />
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Schema summary
+                  </h4>
+                  <FieldTable rows={summaryRows} emptyLabel="None" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Example
+                  </h4>
+                  {example !== null ? (
+                    <CodeBlock value={formatExampleValue(example, contentType)} />
+                  ) : (
+                    <EmptyLabel label="None" />
+                  )}
+                </div>
+                <details className="group/response rounded-md border border-border/70 bg-background/20">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm text-muted-foreground marker:content-none">
+                    <span className="group-open/response:hidden">View full schema fields</span>
+                    <span className="hidden group-open/response:inline">Hide full schema fields</span>
+                    <span className="text-xs uppercase tracking-[0.16em] transition-transform group-open/response:rotate-90">
+                      ›
+                    </span>
+                  </summary>
+                  <div className="border-t border-border/70 p-3">
+                    <FieldTable rows={detailRows} emptyLabel="None" />
+                  </div>
+                </details>
               </div>
             );
           })
@@ -418,6 +447,36 @@ function getSchemaRows(schema?: OpenAPISchema): FieldRow[] {
   return rows;
 }
 
+function getSchemaSummaryRows(schema?: OpenAPISchema): FieldRow[] {
+  if (!schema) return [];
+
+  const resolved = resolveSchema(schema);
+
+  if (!resolved.properties || Object.keys(resolved.properties).length === 0) {
+    return [
+      {
+        name: "schema",
+        type: formatSchemaType(resolved),
+        required: true,
+        description: formatSchemaDescription(resolved),
+      },
+    ];
+  }
+
+  return Object.entries(resolved.properties).map(([name, childSchema]) => {
+    const childResolved = resolveSchema(childSchema);
+    const nestedKeys = getNestedFieldHint(childResolved);
+    const description = formatSchemaDescription(childResolved);
+
+    return {
+      name,
+      type: formatSchemaType(childResolved),
+      required: new Set(resolved.required ?? []).has(name),
+      description: [description, nestedKeys].filter(Boolean).join(" · ") || undefined,
+    };
+  });
+}
+
 function collectSchemaRows(
   rows: FieldRow[],
   schema: OpenAPISchema,
@@ -525,4 +584,99 @@ function formatSchemaDescription(
   }
 
   return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function getNestedFieldHint(schema?: OpenAPISchema): string | undefined {
+  const resolved = resolveSchema(schema);
+
+  if (resolved.type === "object" && resolved.properties) {
+    const nestedFields = Object.keys(resolved.properties);
+    if (nestedFields.length === 0) return undefined;
+    return `Fields: ${nestedFields.join(", ")}`;
+  }
+
+  if (resolved.type === "array" && resolved.items) {
+    const itemSchema = resolveSchema(resolved.items);
+
+    if (itemSchema.type === "object" && itemSchema.properties) {
+      const nestedFields = Object.keys(itemSchema.properties);
+      if (nestedFields.length === 0) return undefined;
+      return `Item fields: ${nestedFields.join(", ")}`;
+    }
+  }
+
+  return undefined;
+}
+
+function getExampleValue(
+  schema?: OpenAPISchema,
+  contentType?: string,
+): unknown | null {
+  if (contentType === "text/csv") {
+    return "tracking_id,status\ntr_01HXYZABC123,queued";
+  }
+
+  const resolved = resolveSchema(schema);
+
+  if (resolved.default !== undefined) return resolved.default;
+  if (resolved.enum && resolved.enum.length > 0) return resolved.enum[0];
+
+  switch (resolved.type) {
+    case "string":
+      return getStringExample(resolved.format);
+    case "integer":
+      return 1;
+    case "number":
+      return 1;
+    case "boolean":
+      return true;
+    case "array": {
+      const itemExample = getExampleValue(resolved.items);
+      return itemExample === null ? [] : [itemExample];
+    }
+    case "object": {
+      const properties = resolved.properties ?? {};
+      if (Object.keys(properties).length === 0) {
+        if (resolved.additionalProperties && resolved.additionalProperties !== true) {
+          const valueExample = getExampleValue(resolved.additionalProperties);
+          return valueExample === null ? {} : { key: valueExample };
+        }
+        return {};
+      }
+
+      return Object.fromEntries(
+        Object.entries(properties).map(([name, childSchema]) => [
+          name,
+          getExampleValue(childSchema),
+        ]),
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function getStringExample(format?: string): string {
+  switch (format) {
+    case "uuid":
+      return "0195f8b7-8d8a-7c14-b0b8-5f0f7d6f4c21";
+    case "email":
+      return "hello@example.com";
+    case "date-time":
+      return "2026-04-03T12:00:00Z";
+    case "date":
+      return "2026-04-03";
+    case "uri":
+      return "https://api.example.com/resource";
+    default:
+      return "string";
+  }
+}
+
+function formatExampleValue(value: unknown, contentType?: string): string {
+  if (typeof value === "string" && contentType === "text/csv") {
+    return value;
+  }
+
+  return JSON.stringify(value, null, 2);
 }

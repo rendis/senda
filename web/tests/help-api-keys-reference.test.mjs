@@ -69,3 +69,32 @@ test("API endpoint reference renders collapsible sections with complete endpoint
     );
   }
 });
+
+test("API endpoint reference renders compact responses with expandable deep detail", () => {
+  const component = read("web/src/components/help/api-endpoint-reference.tsx");
+
+  for (const label of [
+    "Schema summary",
+    "Example",
+    "View full schema fields",
+    "Hide full schema fields",
+  ]) {
+    assert.match(
+      component,
+      new RegExp(label),
+      `Response rendering should include the ${label} affordance`,
+    );
+  }
+
+  assert.match(
+    component,
+    /getSchemaSummaryRows/,
+    "Response rendering should summarize schema fields instead of only dumping the full flattened matrix",
+  );
+
+  assert.match(
+    component,
+    /getExampleValue/,
+    "Response rendering should generate example payloads when the OpenAPI spec does not provide one",
+  );
+});
