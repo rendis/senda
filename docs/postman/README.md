@@ -40,6 +40,14 @@ To get an API key:
 2. Save the `key` from the response (returned only once)
 3. Set the `api_key` environment variable
 
+Available data-plane endpoints for API key clients:
+
+- `POST /api/v1/send`
+- `GET /api/v1/emails`
+- `GET /api/v1/emails/:tracking_id`
+- `GET /api/v1/emails/:tracking_id/events`
+- `GET /api/v1/emails/export`
+
 ### No Auth
 
 - `GET /health`, `GET /healthz`, `GET /metrics` - public health checks
@@ -64,7 +72,7 @@ The collection is organized into folders matching the API structure:
 | **Template Types** | 3         | OIDC (workspace roles)   | Template type CRUD                         |
 | **Templates**      | 9         | OIDC (workspace roles)   | Templates, versions, locales, MJML preview |
 | **Send**           | 1         | Bearer `senda_live_*`    | Send emails                                |
-| **Emails**         | 3         | OIDC (workspace_viewer+) | Email query and event history              |
+| **Emails**         | 4         | Bearer `senda_live_*`    | Data-plane email query and event history   |
 | **Suppression**    | 3         | OIDC (workspace roles)   | Suppression list management                |
 | **Audit Log**      | 1         | OIDC (workspace_viewer+) | Workspace audit log                        |
 | **Webhooks**       | 6         | OIDC (workspace roles)   | Webhook CRUD and test                      |
@@ -112,6 +120,7 @@ For a full end-to-end flow, run requests in this order:
 12. Send > Send Email
 13. Emails > List Emails
 14. Emails > Get Email by Tracking ID
+15. Emails > Export Emails (optional)
 
 ## Pagination
 
