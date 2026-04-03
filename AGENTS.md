@@ -473,6 +473,8 @@ make test
 make test-integration
 ```
 
+Do NOT wait for GitHub Actions to catch basic breakage. If you are pushing a branch that will back a PR, you MUST run the applicable local gate first. A PR must not be opened or updated with unverified changes.
+
 And also run:
 
 ```bash
