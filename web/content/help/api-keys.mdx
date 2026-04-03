@@ -34,11 +34,7 @@ The key is for programmatic access, not for logging into the UI.
 
 Workspace API keys are for the data plane only.
 
-- `POST /api/v1/send` — queue an email send
-- `GET /api/v1/emails` — list workspace emails with filters and pagination
-- `GET /api/v1/emails/:tracking_id` — fetch one email by tracking ID
-- `GET /api/v1/emails/:tracking_id/events` — fetch delivery and lifecycle events
-- `GET /api/v1/emails/export` — export workspace emails as CSV
+<ApiEndpointReference />
 
 These requests are scoped automatically to the workspace that owns the key.
 They do not grant access to management endpoints.
