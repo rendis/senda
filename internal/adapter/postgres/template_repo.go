@@ -56,11 +56,12 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
 	row := r.pool.QueryRow(ctx,
 		`UPDATE template_types
-		 SET name = @name, adapter_id = @adapter_id, sender_identity_id = @sender_identity_id, updated_at = now()
+		 SET slug = @slug, name = @name, adapter_id = @adapter_id, sender_identity_id = @sender_identity_id, updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
 		 RETURNING updated_at`,
 		pgx.NamedArgs{
 			"id":                 tt.ID,
+			"slug":               tt.Slug,
 			"name":               tt.Name,
 			"adapter_id":         tt.AdapterID,
 			"sender_identity_id": tt.SenderIdentityID,

@@ -16,6 +16,7 @@ type CreateTemplateTypeRequest struct {
 
 // UpdateTemplateTypeRequest is the request body for PUT template-types/:slug.
 type UpdateTemplateTypeRequest struct {
+	Slug             *string          `json:"slug,omitempty"`
 	Name             *string          `json:"name,omitempty"`
 	Description      *string          `json:"description,omitempty"`
 	AdapterID        *string          `json:"adapter_id,omitempty"`

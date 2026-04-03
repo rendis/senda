@@ -200,9 +200,9 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	}
 	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo,
 		river.DefaultAdapterSenderFactory, adapterIdentityRepo, trackingProvisioner, logger)
-	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo)
-	testSendSvc := service.NewTestSendService(templateRepo, adapterRepo, adapterIdentityRepo, aesCrypto, compiler, renderer, river.DefaultAdapterSenderFactory)
 	cacheInvalidator := resolution.NewCacheInvalidator(cache, wsRepo)
+	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo, cacheInvalidator)
+	testSendSvc := service.NewTestSendService(templateRepo, adapterRepo, adapterIdentityRepo, aesCrypto, compiler, renderer, river.DefaultAdapterSenderFactory)
 	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc, sendSvc, auditRepo, cfg.Send.BatchMaxItems, cacheInvalidator)
 	sendH := handler.NewSendHandler(sendSvc, cfg.Send.BatchMaxItems)
 	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)

@@ -18,6 +18,7 @@ type mockTemplateStore struct {
 	createTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
 	getTypeBySlugFn         func(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
 	findTypeBySlugInScopeFn func(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
+	updateTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
 	createTemplateFn        func(ctx context.Context, tpl *domain.Template) error
 	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
@@ -100,7 +101,7 @@ func (m *mockTemplateStore) GetLatestVersion(_ context.Context, _ uuid.UUID) (*d
 	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStore) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
+func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -131,8 +132,13 @@ func (m *mockTemplateStore) ListByType(_ context.Context, _ uuid.UUID, _ *uuid.U
 func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
 	return nil, "", nil
 }
-func (m *mockTemplateStore) UpdateType(_ context.Context, _ *domain.TemplateType) error { return nil }
-func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error              { return nil }
+func (m *mockTemplateStore) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
+	if m.updateTypeFn != nil {
+		return m.updateTypeFn(ctx, tt)
+	}
+	return nil
+}
+func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) GetTemplateByID(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
 	return nil, domain.ErrNotFound
 }

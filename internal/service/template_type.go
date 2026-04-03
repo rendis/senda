@@ -56,8 +56,17 @@ func (s *TemplateTypeService) Create(ctx context.Context, slug, name string, des
 	return tt, nil
 }
 
-// Update updates a template type (name, adapter_id).
-func (s *TemplateTypeService) Update(ctx context.Context, tt *domain.TemplateType) error {
+// Update updates a template type and validates slug uniqueness when it changes.
+func (s *TemplateTypeService) Update(ctx context.Context, tt *domain.TemplateType, previousSlug string) error {
+	if tt.Slug != previousSlug {
+		existing, err := s.store.FindTypeBySlugInScope(ctx, tt.Slug, tt.WorkspaceID)
+		if err != nil && !isNotFoundErr(err) {
+			return err
+		}
+		if existing != nil && existing.ID != tt.ID {
+			return fmt.Errorf("%w: template type with slug %q already exists in scope", domain.ErrConflict, tt.Slug)
+		}
+	}
 	return s.store.UpdateType(ctx, tt)
 }
 

@@ -39,17 +39,22 @@ export function useUpdateTemplateType(scopedPath: string, slug: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name?: string; adapter_id?: string; sender_identity_id?: string }) =>
+    mutationFn: (data: { name?: string; slug?: string; adapter_id?: string; sender_identity_id?: string }) =>
       api
         .put(`${scopedPath}/template-types/${slug}`, { json: data })
         .json<TemplateType>(),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({
         queryKey: ["template-types", scopedPath],
       });
       queryClient.invalidateQueries({
         queryKey: ["template-type", scopedPath, slug],
       });
+      if (updated.slug && updated.slug !== slug) {
+        queryClient.invalidateQueries({
+          queryKey: ["template-type", scopedPath, updated.slug],
+        });
+      }
     },
   });
 }

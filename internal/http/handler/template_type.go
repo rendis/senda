@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -14,16 +15,22 @@ import (
 	"github.com/rendis/senda/pkg/slug"
 )
 
+type templateTypeResolvedTemplateInvalidator interface {
+	InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID)
+	InvalidateAllResolvedTemplates(ctx context.Context)
+}
+
 // TemplateTypeHandler handles CRUD operations for template types.
 type TemplateTypeHandler struct {
-	svc     *service.TemplateTypeService
-	tsStore port.TenantStore
-	wsStore port.WorkspaceStore
+	svc                 *service.TemplateTypeService
+	tsStore             port.TenantStore
+	wsStore             port.WorkspaceStore
+	templateInvalidator templateTypeResolvedTemplateInvalidator
 }
 
 // NewTemplateTypeHandler creates a new TemplateTypeHandler.
-func NewTemplateTypeHandler(svc *service.TemplateTypeService, ts port.TenantStore, ws port.WorkspaceStore) *TemplateTypeHandler {
-	return &TemplateTypeHandler{svc: svc, tsStore: ts, wsStore: ws}
+func NewTemplateTypeHandler(svc *service.TemplateTypeService, ts port.TenantStore, ws port.WorkspaceStore, invalidator templateTypeResolvedTemplateInvalidator) *TemplateTypeHandler {
+	return &TemplateTypeHandler{svc: svc, tsStore: ts, wsStore: ws, templateInvalidator: invalidator}
 }
 
 // Create handles POST /tenants/:tenant_code/workspaces/:workspace_code/template-types.
@@ -119,6 +126,7 @@ func (h *TemplateTypeHandler) deleteType(c *echo.Context, workspaceID *uuid.UUID
 	if err := h.svc.DeleteType(c.Request().Context(), tt.ID); err != nil {
 		return mapStoreError(c, err)
 	}
+	h.invalidateResolvedTemplates(c.Request().Context(), workspaceID)
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -153,6 +161,27 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) er
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 	}
 
+	var fieldErrors []response.FieldError
+	if req.Slug != nil {
+		if err := slug.Validate(*req.Slug); err != nil {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "slug", Message: err.Error()})
+		}
+	}
+	if req.Name != nil {
+		if *req.Name == "" {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "name", Message: "is required"})
+		} else if len(*req.Name) > 255 {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "name", Message: "must be at most 255 characters"})
+		}
+	}
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	previousSlug := tt.Slug
+	if req.Slug != nil {
+		tt.Slug = *req.Slug
+	}
 	if req.Name != nil {
 		tt.Name = *req.Name
 	}
@@ -180,11 +209,23 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) er
 		}
 	}
 
-	if err := h.svc.Update(c.Request().Context(), tt); err != nil {
+	if err := h.svc.Update(c.Request().Context(), tt, previousSlug); err != nil {
 		return mapStoreError(c, err)
 	}
+	h.invalidateResolvedTemplates(c.Request().Context(), workspaceID)
 
 	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+}
+
+func (h *TemplateTypeHandler) invalidateResolvedTemplates(ctx context.Context, wsID *uuid.UUID) {
+	if h.templateInvalidator == nil {
+		return
+	}
+	if wsID == nil {
+		h.templateInvalidator.InvalidateAllResolvedTemplates(ctx)
+		return
+	}
+	h.templateInvalidator.InvalidateResolvedTemplates(ctx, *wsID)
 }
 
 // Get handles GET /tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug.

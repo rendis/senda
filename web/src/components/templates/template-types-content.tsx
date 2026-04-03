@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import {
@@ -11,16 +11,16 @@ import {
   Pencil,
   Eye,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
-import { generateSlug } from "@/lib/validations/slug";
+import { cn } from "@/lib/utils";
+import { generateSlug, nameSchema, slugSchema } from "@/lib/validations/slug";
 import { useTemplateTypes, useCreateTemplateType, useUpdateTemplateType, useDeleteTemplateType } from "@/hooks/use-template-types";
 import { useAdapterList } from "@/hooks/use-adapters";
 import { useIdentityList } from "@/hooks/use-identities";
 import { DataTable } from "@/components/shared/data-table";
-
-const SENDER_DEFAULT = "__default__";
-const SENDER_NONE = "__none__";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { FormDialog } from "@/components/shared/form-dialog";
@@ -42,6 +42,14 @@ import {
 } from "@/components/ui/tooltip";
 import type { TemplateType } from "@/types/templates";
 import { toast } from "sonner";
+
+const SENDER_DEFAULT = "__default__";
+const SENDER_NONE = "__none__";
+const SLUG_WARNING_LINES = [
+  "Integraciones que usan el ref actual pueden dejar de resolver.",
+  "Links o bookmarks al template type actual pueden quedar obsoletos.",
+  "El historial y los filtros por slug pueden quedar divididos entre el valor viejo y el nuevo.",
+] as const;
 
 export function TemplateTypesContent() {
   const scope = useScope();
@@ -163,7 +171,13 @@ function TemplateTypesTable() {
         <div className="flex items-center justify-end gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(buildTypePath(row.original.slug))}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={`View templates for ${row.original.slug}`}
+                onClick={() => router.push(buildTypePath(row.original.slug))}
+              >
                 <Eye className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -171,7 +185,13 @@ function TemplateTypesTable() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditTarget(row.original)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={`Edit template type ${row.original.slug}`}
+                onClick={() => setEditTarget(row.original)}
+              >
                 <Pencil className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -179,7 +199,13 @@ function TemplateTypesTable() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(row.original)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive"
+                aria-label={`Delete template type ${row.original.slug}`}
+                onClick={() => setDeleteTarget(row.original)}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -342,19 +368,48 @@ function EditTemplateTypeDialog({
 }) {
   const scopedPath = useScopedPath();
   const updateMutation = useUpdateTemplateType(scopedPath, templateType.slug);
+  const shouldReduceMotion = useReducedMotion();
+  const slugInputRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(templateType.name);
+  const [slug, setSlug] = useState(templateType.slug);
   const [adapterId, setAdapterId] = useState(templateType.adapter_id ?? "");
   const [senderIdentityId, setSenderIdentityId] = useState(templateType.sender_identity_id ?? "");
 
+  const originalSlug = templateType.slug;
+  const slugDirty = slug !== originalSlug;
+  const slugValidation = slugSchema.safeParse(slug);
+  const nameValidation = nameSchema.safeParse(name);
+  const slugError = slugValidation.success ? null : slugValidation.error.issues[0]?.message ?? "Invalid slug";
+  const nameError = nameValidation.success ? null : nameValidation.error.issues[0]?.message ?? "Invalid name";
+  const hasValidationError = !!slugError || !!nameError;
+  const slugWarningId = "template-type-slug-warning";
+  const slugErrorId = "template-type-slug-error";
+  const slugDescribedBy = [slugError ? slugErrorId : null, slugDirty ? slugWarningId : null]
+    .filter(Boolean)
+    .join(" ");
+
+  function resetSlug() {
+    setSlug(originalSlug);
+    requestAnimationFrame(() => slugInputRef.current?.focus());
+  }
+
   async function handleSubmit() {
+    if (hasValidationError) {
+      return true;
+    }
+
     try {
       const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
       await updateMutation.mutateAsync({
+        name: name.trim(),
+        slug: slug.trim(),
         adapter_id: adapterId || undefined,
         sender_identity_id: senderIdValue || undefined,
       });
       toast.success("Template type updated");
     } catch {
       toast.error("Failed to update");
+      return true;
     }
   }
 
@@ -364,17 +419,104 @@ function EditTemplateTypeDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`Edit — ${templateType.name}`}
-      description="Change the adapter and sender assigned to this template type."
+      description="Change the name, slug, adapter, and sender assigned to this template type."
       submitLabel="Update"
       onSubmit={handleSubmit}
+      submitDisabled={hasValidationError || updateMutation.isPending}
     >
-      <AdapterSelect
-        adapters={adapters}
-        value={adapterId}
-        onChange={setAdapterId}
-        senderIdentityId={senderIdentityId}
-        onSenderIdentityChange={setSenderIdentityId}
-      />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-tt-name">Name</Label>
+          <Input
+            id="edit-tt-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={nameError ? true : undefined}
+          />
+          {nameError && (
+            <p className="text-xs text-destructive">{nameError}</p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-tt-slug">Slug</Label>
+          <div className="relative">
+            <Input
+              ref={slugInputRef}
+              id="edit-tt-slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              className={cn(
+                "font-mono pr-10",
+                slugDirty && "border-status-complained focus-visible:ring-status-complained/20"
+              )}
+              aria-invalid={slugError ? true : undefined}
+              aria-describedby={slugDescribedBy || undefined}
+            />
+            <AnimatePresence initial={false}>
+              {slugDirty && (
+                <motion.button
+                  type="button"
+                  aria-label="Restaurar slug original"
+                  title="Restaurar slug original"
+                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  onClick={resetSlug}
+                  disabled={updateMutation.isPending}
+                  initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {slugError && (
+            <p id={slugErrorId} className="text-xs text-destructive">
+              {slugError}
+            </p>
+          )}
+
+          <AnimatePresence initial={false}>
+            {slugDirty && (
+              <motion.div
+                id={slugWarningId}
+                className="overflow-hidden"
+                initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, y: -4 }}
+                animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: "auto", y: 0 }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, y: -4 }}
+                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              >
+                <div className="rounded-md border border-status-complained/40 bg-status-complained-bg px-3 py-2 text-xs text-status-complained">
+                  <div className="flex items-start gap-2">
+                    <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <div className="space-y-1.5">
+                      <p className="font-medium">
+                        Cambiar el slug puede romper referencias existentes.
+                      </p>
+                      <ul className="list-disc space-y-1 pl-4">
+                        {SLUG_WARNING_LINES.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <AdapterSelect
+          adapters={adapters}
+          value={adapterId}
+          onChange={setAdapterId}
+          senderIdentityId={senderIdentityId}
+          onSenderIdentityChange={setSenderIdentityId}
+        />
+      </div>
     </FormDialog>
   );
 }

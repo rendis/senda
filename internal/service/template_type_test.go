@@ -195,3 +195,70 @@ func TestTemplateTypeService_FindBySlugInScope_Success(t *testing.T) {
 		t.Fatalf("expected ID %s, got %s", expected.ID, tt.ID)
 	}
 }
+
+func TestTemplateTypeService_Update_SlugChanged_Success(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	tt := &domain.TemplateType{
+		ID:          uuid.Must(uuid.NewV7()),
+		WorkspaceID: &wsID,
+		Slug:        "welcome-email-v2",
+		Name:        "Welcome Email V2",
+	}
+
+	var updated *domain.TemplateType
+	store := &mockTemplateStore{
+		findTypeBySlugInScopeFn: func(_ context.Context, slug string, ws *uuid.UUID) (*domain.TemplateType, error) {
+			if slug != "welcome-email-v2" {
+				t.Fatalf("expected lookup for new slug, got %q", slug)
+			}
+			if ws == nil || *ws != wsID {
+				t.Fatalf("expected workspace ID %s", wsID)
+			}
+			return nil, domain.ErrNotFound
+		},
+		updateTypeFn: func(_ context.Context, candidate *domain.TemplateType) error {
+			updated = candidate
+			return nil
+		},
+	}
+
+	svc := service.NewTemplateTypeService(store)
+
+	if err := svc.Update(context.Background(), tt, "welcome-email"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated == nil {
+		t.Fatal("expected template type to be updated")
+	}
+	if updated.Slug != "welcome-email-v2" {
+		t.Fatalf("expected updated slug, got %q", updated.Slug)
+	}
+}
+
+func TestTemplateTypeService_Update_SlugChanged_Conflict(t *testing.T) {
+	wsID := uuid.Must(uuid.NewV7())
+	tt := &domain.TemplateType{
+		ID:          uuid.Must(uuid.NewV7()),
+		WorkspaceID: &wsID,
+		Slug:        "welcome-email-v2",
+	}
+
+	store := &mockTemplateStore{
+		findTypeBySlugInScopeFn: func(_ context.Context, slug string, _ *uuid.UUID) (*domain.TemplateType, error) {
+			if slug != "welcome-email-v2" {
+				t.Fatalf("expected lookup for new slug, got %q", slug)
+			}
+			return &domain.TemplateType{ID: uuid.Must(uuid.NewV7()), Slug: slug}, nil
+		},
+	}
+
+	svc := service.NewTemplateTypeService(store)
+
+	err := svc.Update(context.Background(), tt, "welcome-email")
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+	if !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("expected ErrConflict, got %v", err)
+	}
+}

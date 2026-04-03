@@ -222,6 +222,39 @@ func TestTemplateRepo_FindTypeBySlugInScope_NotFound(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_UpdateType_UpdatesSlugAndName(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	tt := &domain.TemplateType{
+		ID:             uuid.New(),
+		Slug:           "welcome-email",
+		Name:           "Welcome Email",
+		VariableSchema: map[string]any{},
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	tt.Slug = "welcome-email-v2"
+	tt.Name = "Welcome Email V2"
+	if err := repo.UpdateType(ctx, tt); err != nil {
+		t.Fatalf("UpdateType() error: %v", err)
+	}
+
+	got, err := repo.FindTypeBySlugInScope(ctx, "welcome-email-v2", nil)
+	if err != nil {
+		t.Fatalf("FindTypeBySlugInScope() error: %v", err)
+	}
+	if got.Name != "Welcome Email V2" {
+		t.Fatalf("expected updated name, got %q", got.Name)
+	}
+	if got.Slug != "welcome-email-v2" {
+		t.Fatalf("expected updated slug, got %q", got.Slug)
+	}
+}
+
 // --- Template tests ---
 
 func TestTemplateRepo_CreateTemplate(t *testing.T) {

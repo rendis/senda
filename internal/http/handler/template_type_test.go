@@ -115,7 +115,7 @@ func (m *mockTemplateStore) GetLatestVersion(_ context.Context, _ uuid.UUID) (*d
 	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStore) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
+func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -191,17 +191,19 @@ func setupTemplateTypeTest(store port.TemplateStore, ts port.TenantStore, ws por
 	e.Use(middleware.Scope())
 
 	svc := service.NewTemplateTypeService(store)
-	h := handler.NewTemplateTypeHandler(svc, ts, ws)
+	h := handler.NewTemplateTypeHandler(svc, ts, ws, nil)
 
 	// Workspace-scoped routes.
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types", h.Create)
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types", h.List)
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Get)
+	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Update)
 
 	// Global routes.
 	e.POST("/api/v1/manage/global/template-types", h.CreateGlobal)
 	e.GET("/api/v1/manage/global/template-types", h.ListGlobal)
 	e.GET("/api/v1/manage/global/template-types/:slug", h.GetGlobal)
+	e.PUT("/api/v1/manage/global/template-types/:slug", h.UpdateGlobal)
 
 	return e, h
 }
@@ -458,6 +460,80 @@ func TestTemplateTypeHandler_GetGlobal_Success(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateTypeHandler_Update_Success(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ttID := uuid.Must(uuid.NewV7())
+	original := &domain.TemplateType{
+		ID:               ttID,
+		WorkspaceID:      &ws.ID,
+		Slug:             "welcome-email",
+		Name:             "Welcome Email",
+		SenderIdentityID: nil,
+	}
+
+	var updated *domain.TemplateType
+	store := &mockTemplateStore{
+		findTypeBySlugInScopeFn: func(_ context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error) {
+			switch slug {
+			case "welcome-email":
+				return original, nil
+			case "welcome-email-v2":
+				return nil, domain.ErrNotFound
+			default:
+				return nil, domain.ErrNotFound
+			}
+		},
+		updateTypeFn: func(_ context.Context, tt *domain.TemplateType) error {
+			updated = tt
+			return nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{"name":"Welcome Email v2","slug":"welcome-email-v2"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil {
+		t.Fatal("expected updated template type")
+	}
+	if updated.Slug != "welcome-email-v2" {
+		t.Fatalf("expected updated slug, got %q", updated.Slug)
+	}
+	if updated.Name != "Welcome Email v2" {
+		t.Fatalf("expected updated name, got %q", updated.Name)
+	}
+}
+
+func TestTemplateTypeHandler_Update_InvalidSlug(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ttID := uuid.Must(uuid.NewV7())
+	store := &mockTemplateStore{
+		findTypeBySlugInScopeFn: func(_ context.Context, slug string, _ *uuid.UUID) (*domain.TemplateType, error) {
+			if slug == "welcome-email" {
+				return &domain.TemplateType{ID: ttID, WorkspaceID: &ws.ID, Slug: slug, Name: "Welcome"}, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{"slug":"AB"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
