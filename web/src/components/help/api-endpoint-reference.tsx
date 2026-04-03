@@ -270,16 +270,23 @@ function ResponseCard({
   const contentEntries = Object.entries(response.content ?? {});
 
   return (
-    <div className="rounded-lg border border-border/70 bg-background/40">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-3">
-        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-foreground">
-          {statusCode}
-        </span>
-        <span className="text-sm text-muted-foreground">
-          {response.description ?? "Response"}
-        </span>
-      </div>
-      <div className="space-y-4 px-4 py-4">
+    <details className="group/status-response overflow-hidden rounded-lg border border-border/70 bg-background/40">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3 marker:content-none">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-foreground">
+            {statusCode}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {response.description ?? "Response"}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <span className="group-open/status-response:hidden">View response details</span>
+          <span className="hidden group-open/status-response:inline">Hide response details</span>
+          <span className="transition-transform group-open/status-response:rotate-90">›</span>
+        </div>
+      </summary>
+      <div className="space-y-4 border-t border-border/70 px-4 py-4">
         {contentEntries.length > 0 ? (
           contentEntries.map(([contentType, content]) => {
             const summaryRows = getSchemaSummaryRows(content.schema);
@@ -326,7 +333,7 @@ function ResponseCard({
           <EmptyLabel label="None" />
         )}
       </div>
-    </div>
+    </details>
   );
 }
 

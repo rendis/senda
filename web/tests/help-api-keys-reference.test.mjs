@@ -98,3 +98,30 @@ test("API endpoint reference renders compact responses with expandable deep deta
     "Response rendering should generate example payloads when the OpenAPI spec does not provide one",
   );
 });
+
+test("API endpoint reference makes each response code card collapsible", () => {
+  const component = read("web/src/components/help/api-endpoint-reference.tsx");
+
+  assert.match(
+    component,
+    /<details className=\"group\/status-response/,
+    "Each response code card should be wrapped in its own collapsible details element",
+  );
+
+  assert.match(
+    component,
+    /group-open\/status-response:rotate-90/,
+    "Each response code summary should show collapsible affordance state",
+  );
+
+  for (const label of [
+    "View response details",
+    "Hide response details",
+  ]) {
+    assert.match(
+      component,
+      new RegExp(label),
+      `Each response card should expose the ${label} label`,
+    );
+  }
+});
