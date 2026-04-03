@@ -36,7 +36,7 @@ const articleDefinitions: Record<HelpArticleKey, HelpArticleDefinition> = {
   "api-keys": {
     key: "api-keys",
     title: "API Keys",
-    description: "How to generate, reveal, and use workspace-scoped API keys.",
+    description: "How to generate, reveal, and use workspace-scoped API keys and their data-plane endpoints.",
     load: () => import("../../content/help/api-keys.mdx"),
   },
   "ses-tracking": {

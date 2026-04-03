@@ -2137,26 +2137,31 @@
     },
     {
       "name": "Emails",
-      "description": "Email query and event history (workspace-scoped).",
+      "description": "Data-plane email query and event history. Requires a workspace API key in `Authorization: Bearer senda_live_...`.",
       "item": [
         {
           "name": "List Emails",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/emails?limit=25",
+              "raw": "{{base_url}}/api/v1/emails?limit=25",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
                 "emails"
               ],
               "query": [
@@ -2170,6 +2175,18 @@
                   "value": "25"
                 },
                 {
+                  "key": "external_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by external business ID"
+                },
+                {
+                  "key": "recipient",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by recipient email"
+                },
+                {
                   "key": "status",
                   "value": "",
                   "disabled": true,
@@ -2180,6 +2197,12 @@
                   "value": "",
                   "disabled": true,
                   "description": "Filter by template type slug"
+                },
+                {
+                  "key": "adapter_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by adapter UUID"
                 },
                 {
                   "key": "since",
@@ -2195,7 +2218,7 @@
                 }
               ]
             },
-            "description": "List emails with optional filters and cursor-based pagination.\n\n**Required role:** workspace_viewer"
+            "description": "List workspace emails with optional filters and cursor-based pagination.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
           },
           "response": [],
           "event": [
@@ -2219,26 +2242,31 @@
         {
           "name": "Get Email by Tracking ID",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/emails/{{tracking_id}}",
+              "raw": "{{base_url}}/api/v1/emails/{{tracking_id}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
                 "emails",
                 "{{tracking_id}}"
               ]
             },
-            "description": "Get a single email with all its events.\n\n**Required role:** workspace_viewer"
+            "description": "Get a single workspace email with all its events.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
           },
           "response": [],
           "event": [
@@ -2263,27 +2291,116 @@
         {
           "name": "Get Email Events",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/emails/{{tracking_id}}/events",
+              "raw": "{{base_url}}/api/v1/emails/{{tracking_id}}/events",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
                 "emails",
                 "{{tracking_id}}",
                 "events"
               ]
             },
-            "description": "Get event history for an email (sent, delivered, bounced, etc.).\n\n**Required role:** workspace_viewer"
+            "description": "Get lifecycle events for a workspace email.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Emails",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/emails/export?limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "emails",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "external_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by external business ID"
+                },
+                {
+                  "key": "recipient",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by recipient email"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by status: queued, sent, delivered, bounced, complained, failed"
+                },
+                {
+                  "key": "template_type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by template type slug"
+                },
+                {
+                  "key": "adapter_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by adapter UUID"
+                },
+                {
+                  "key": "since",
+                  "value": "",
+                  "disabled": true,
+                  "description": "RFC3339 timestamp"
+                },
+                {
+                  "key": "until",
+                  "value": "",
+                  "disabled": true,
+                  "description": "RFC3339 timestamp"
+                }
+              ]
+            },
+            "description": "Export workspace emails as CSV using the same filters as the list endpoint.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
           },
           "response": []
         }

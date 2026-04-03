@@ -35,7 +35,8 @@ export default async function WorkspaceApiDocsPage({
 {`Authorization: Bearer <api-key>`}
             </pre>
             <p>
-              The reference below is generated from the real OpenAPI spec shipped with Senda.
+              The reference below includes every endpoint available to workspace API key clients,
+              with auth, params, request bodies, and responses.
             </p>
           </CardContent>
         </Card>

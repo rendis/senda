@@ -30,6 +30,19 @@ Authorization: Bearer <api-key>
 
 The key is for programmatic access, not for logging into the UI.
 
+## APIs available with an API key
+
+Workspace API keys are for the data plane only.
+
+- `POST /api/v1/send` — queue an email send
+- `GET /api/v1/emails` — list workspace emails with filters and pagination
+- `GET /api/v1/emails/:tracking_id` — fetch one email by tracking ID
+- `GET /api/v1/emails/:tracking_id/events` — fetch delivery and lifecycle events
+- `GET /api/v1/emails/export` — export workspace emails as CSV
+
+These requests are scoped automatically to the workspace that owns the key.
+They do not grant access to management endpoints.
+
 ## What you will see in the table
 
 The list view shows:
