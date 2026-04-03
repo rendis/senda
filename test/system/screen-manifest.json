@@ -364,6 +364,44 @@
       "critical": true
     },
     {
+      "route": "/global/tenants",
+      "scope": [
+        "global"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:global__tenants",
+      "critical": false
+    },
+    {
       "route": "/global/settings",
       "scope": [
         "global"

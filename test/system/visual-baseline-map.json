@@ -47,6 +47,11 @@
       "critical": true
     },
     {
+      "route": "/global/tenants",
+      "pencilFrameId": "frame:global__tenants",
+      "critical": false
+    },
+    {
       "route": "/global/settings",
       "pencilFrameId": "frame:global__settings",
       "critical": false
