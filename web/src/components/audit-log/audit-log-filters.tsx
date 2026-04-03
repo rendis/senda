@@ -32,10 +32,27 @@ interface AuditLogFiltersBarProps {
 
 function getDateRange(value: string): { since?: string; until?: string } {
   if (value === "all") return {};
-  const days = parseInt(value);
+  const days = parseInt(value, 10);
   const since = new Date();
   since.setDate(since.getDate() - days);
   return { since: since.toISOString() };
+}
+
+function FilterField({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={className ?? "flex flex-col gap-1.5"}>
+      <label className="text-[13px] font-medium">{label}</label>
+      {children}
+    </div>
+  );
 }
 
 export function AuditLogFiltersBar({
@@ -43,24 +60,25 @@ export function AuditLogFiltersBar({
   onFiltersChange,
 }: AuditLogFiltersBarProps) {
   return (
-    <div className="flex items-center gap-3 w-full">
-      <div className="relative w-60">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search..."
-          className="h-9 pl-9 text-[13px]"
-          onChange={(e) => {
-            const val = e.target.value.trim();
-            onFiltersChange({
-              ...filters,
-              entity_type: val || undefined,
-            });
-          }}
-        />
-      </div>
+    <div className="grid w-full gap-3 md:grid-cols-[minmax(0,1.6fr)_220px_220px] md:items-end">
+      <FilterField label="Search" className="flex flex-col gap-1.5 md:min-w-0">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            className="h-9 pl-9 text-[13px]"
+            onChange={(e) => {
+              const val = e.target.value.trim();
+              onFiltersChange({
+                ...filters,
+                entity_type: val || undefined,
+              });
+            }}
+          />
+        </div>
+      </FilterField>
 
-      <div className="flex flex-col gap-1.5 w-[220px]">
-        <label className="text-[13px] font-medium">Action</label>
+      <FilterField label="Action" className="flex flex-col gap-1.5 md:w-[220px]">
         <Select
           defaultValue="all"
           onValueChange={(val) =>
@@ -81,10 +99,9 @@ export function AuditLogFiltersBar({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </FilterField>
 
-      <div className="flex flex-col gap-1.5 w-[220px]">
-        <label className="text-[13px] font-medium">Date</label>
+      <FilterField label="Date" className="flex flex-col gap-1.5 md:w-[220px]">
         <Select
           defaultValue="7d"
           onValueChange={(val) => {
@@ -107,7 +124,7 @@ export function AuditLogFiltersBar({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </FilterField>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   Plug,
   Webhook,
   Users,
+  Building2,
   Key,
   ScrollText,
   Settings,
@@ -77,6 +78,7 @@ export function AppSidebar({
 
   const navItems = [
     { label: t("dashboard"), icon: LayoutDashboard, href: "" },
+    { label: t("tenants"), icon: Building2, href: "/tenants" },
     { label: t("emails"), icon: Mail, href: "/emails" },
     { label: t("templates"), icon: FileText, href: "/templates" },
     { label: t("injectors"), icon: Database, href: "/injectors" },
@@ -106,9 +108,12 @@ export function AppSidebar({
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
   const helpHref = getContextualHelpHref(pathname);
 
-  const visibleNavItems = navItems.filter(
-    (item) => !(item.href === "/settings" && level !== "global"),
-  );
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.href === "/settings" || item.href === "/tenants") {
+      return level === "global";
+    }
+    return true;
+  });
 
   function hrefForItem(href: string) {
     if (href === "/settings") {

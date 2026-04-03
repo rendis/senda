@@ -21,6 +21,7 @@ export function AppHeader({
     "/webhooks": t("webhooks"),
     "/members": t("members"),
     "/api-keys": t("apiKeys"),
+    "/tenants": t("tenants"),
     "/api-docs": t("apiDocs"),
     "/audit-log": t("auditLog"),
     "/settings": t("settings"),
