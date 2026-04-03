@@ -224,15 +224,31 @@ function SimpleList({
 function FieldTable({
   rows,
   emptyLabel,
+  variant = "default",
 }: {
   rows: FieldRow[];
   emptyLabel: string;
+  variant?: "default" | "flat";
 }) {
   if (rows.length === 0) return <EmptyLabel label={emptyLabel} />;
 
+  const isFlat = variant === "flat";
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70">
-      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 border-b border-border/70 bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+    <div
+      className={
+        isFlat
+          ? "overflow-hidden"
+          : "overflow-hidden rounded-lg border border-border/70"
+      }
+    >
+      <div
+        className={
+          isFlat
+            ? "grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 px-1 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            : "grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 border-b border-border/70 bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+        }
+      >
         <span>Name</span>
         <span>Type</span>
         <span>Required</span>
@@ -240,7 +256,11 @@ function FieldTable({
       {rows.map((row) => (
         <div
           key={`${row.name}-${row.type}`}
-          className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 border-b border-border/50 px-4 py-3 last:border-b-0"
+          className={
+            isFlat
+              ? "grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 border-b border-border/40 px-1 py-3 last:border-b-0"
+              : "grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] gap-3 border-b border-border/50 px-4 py-3 last:border-b-0"
+          }
         >
           <div className="min-w-0">
             <div className="font-mono text-sm text-foreground">{row.name}</div>
@@ -293,18 +313,20 @@ function ResponseCard({
             const detailRows = getSchemaRows(content.schema);
             const example = content.example ?? getExampleValue(content.schema, contentType);
             return (
-              <div key={contentType} className="space-y-3">
-                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">Content-Type:</span>{" "}
-                  {contentType}
+              <div key={contentType} className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">Content-Type</span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-muted px-2.5 py-1 font-mono text-xs text-foreground">
+                    {contentType}
+                  </span>
                 </div>
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Schema summary
                   </h4>
-                  <FieldTable rows={summaryRows} emptyLabel="None" />
+                  <FieldTable rows={summaryRows} emptyLabel="None" variant="flat" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 border-t border-border/50 pt-4">
                   <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Example
                   </h4>

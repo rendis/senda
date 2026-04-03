@@ -125,3 +125,19 @@ test("API endpoint reference makes each response code card collapsible", () => {
     );
   }
 });
+
+test("API response cards use flatter inner sections instead of nested boxed wrappers", () => {
+  const component = read("web/src/components/help/api-endpoint-reference.tsx");
+
+  assert.match(
+    component,
+    /variant=\s*\"flat\"/,
+    "Response summaries should use the flat table variant to avoid box-in-box rendering",
+  );
+
+  assert.match(
+    component,
+    /inline-flex items-center gap-2 rounded-full/,
+    "Content type should be rendered as an inline badge instead of a bordered inner box",
+  );
+});
