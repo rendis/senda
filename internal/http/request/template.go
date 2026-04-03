@@ -60,3 +60,8 @@ type SetLocaleRequest struct {
 type MJMLPreviewRequest struct {
 	MJML string `json:"mjml"`
 }
+
+// TemplateBulkSendRequest is the request body for POST .../templates/:template_id/bulk-send.
+type TemplateBulkSendRequest struct {
+	Items []SendBatchItemRequest `json:"items"`
+}

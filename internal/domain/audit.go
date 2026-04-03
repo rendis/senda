@@ -17,6 +17,7 @@ const (
 	AuditArchive    AuditAction = "archive"
 	AuditDisable    AuditAction = "disable"
 	AuditEnable     AuditAction = "enable"
+	AuditBulkSend   AuditAction = "bulk_send"
 	AuditRevoke     AuditAction = "revoke"
 	AuditInvite     AuditAction = "invite"
 	AuditRemoveRole AuditAction = "remove_role"

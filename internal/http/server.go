@@ -355,6 +355,7 @@ func (s *Server) registerRoutes() {
 	// POST /api/v1/send — API Key auth (HT-22).
 	if s.sendHandler != nil {
 		api.POST("/send", s.sendHandler.Send, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
+		api.POST("/send/batch", s.sendHandler.SendBatch, middleware.Auth(s.apiKeyStore, s.memberStore, s.oidcVerifier, s.apiKeyPepper))
 	}
 
 	// Data-plane email query endpoints — API Key auth.
@@ -487,6 +488,8 @@ func (s *Server) registerRoutes() {
 				ws.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.GET("/templates/:template_id/bulk-send-config", s.templateHandler.BulkSendConfig, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/bulk-send", s.templateHandler.BulkSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/disable", s.templateHandler.DisableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/enable", s.templateHandler.EnableTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/templates/:template_id", s.templateHandler.DeleteTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))

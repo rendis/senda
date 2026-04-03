@@ -26,6 +26,8 @@ server:
   read_timeout: "10s"
   write_timeout: "20s"
   shutdown_timeout: "5s"
+send:
+  batch_max_items: 250
 database:
   url: "postgres://user:pass@localhost:5432/senda"
   max_open_conns: 50
@@ -63,6 +65,9 @@ log:
 	}
 	if cfg.Server.ShutdownTimeout != 5*time.Second {
 		t.Errorf("Server.ShutdownTimeout = %v, want %v", cfg.Server.ShutdownTimeout, 5*time.Second)
+	}
+	if cfg.Send.BatchMaxItems != 250 {
+		t.Errorf("Send.BatchMaxItems = %d, want %d", cfg.Send.BatchMaxItems, 250)
 	}
 
 	// Database
@@ -139,6 +144,9 @@ crypto:
 	if cfg.Server.ShutdownTimeout != 15*time.Second {
 		t.Errorf("default Server.ShutdownTimeout = %v, want %v", cfg.Server.ShutdownTimeout, 15*time.Second)
 	}
+	if cfg.Send.BatchMaxItems != 100 {
+		t.Errorf("default Send.BatchMaxItems = %d, want %d", cfg.Send.BatchMaxItems, 100)
+	}
 	if cfg.Database.MaxOpenConns != 60 {
 		t.Errorf("default Database.MaxOpenConns = %d, want 60", cfg.Database.MaxOpenConns)
 	}
@@ -186,6 +194,7 @@ crypto:
 	t.Setenv("SENDA_OIDC_CLIENT_SECRET", "env-secret")
 	t.Setenv("SENDA_MASTER_KEY", "env-master-key-that-is-at-least-32-chars!!")
 	t.Setenv("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION", "true")
+	t.Setenv("SENDA_SEND_BATCH_MAX_ITEMS", "333")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -215,6 +224,9 @@ crypto:
 	}
 	if !cfg.SNS.SkipSignatureVerification {
 		t.Errorf("env override SNS.SkipSignatureVerification = %v, want true", cfg.SNS.SkipSignatureVerification)
+	}
+	if cfg.Send.BatchMaxItems != 333 {
+		t.Errorf("env override Send.BatchMaxItems = %d, want %d", cfg.Send.BatchMaxItems, 333)
 	}
 }
 

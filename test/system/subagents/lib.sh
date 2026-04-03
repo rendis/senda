@@ -59,6 +59,7 @@ load_env_report() {
       .services as $s
       | [
           "export SENDA_BASE_URL=" + (($s.senda // "") | @sh),
+          "export SENDA_DATABASE_URL=" + (($s.postgres // env.SENDA_DATABASE_URL // "") | @sh),
           "export MAILPIT_BASE_URL=" + (($s.mailpit // "") | @sh),
           "export KEYCLOAK_BASE_URL=" + (($s.keycloak // "") | @sh),
           "export FRONTEND_BASE_URL=" + (($s.frontend // env.FRONTEND_BASE_URL // "") | @sh)

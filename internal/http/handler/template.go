@@ -30,6 +30,9 @@ type TemplateHandler struct {
 	tsStore             port.TenantStore
 	wsStore             port.WorkspaceStore
 	testSendSvc         *service.TestSendService
+	sendSvc             sendService
+	auditStore          port.AuditLogStore
+	batchMaxItems       int
 	templateInvalidator resolvedTemplateInvalidator
 }
 
@@ -40,6 +43,9 @@ func NewTemplateHandler(
 	ts port.TenantStore,
 	ws port.WorkspaceStore,
 	testSendSvc *service.TestSendService,
+	sendSvc sendService,
+	auditStore port.AuditLogStore,
+	batchMaxItems int,
 	templateInvalidator resolvedTemplateInvalidator,
 ) *TemplateHandler {
 	return &TemplateHandler{
@@ -48,6 +54,9 @@ func NewTemplateHandler(
 		tsStore:             ts,
 		wsStore:             ws,
 		testSendSvc:         testSendSvc,
+		sendSvc:             sendSvc,
+		auditStore:          auditStore,
+		batchMaxItems:       batchMaxItems,
 		templateInvalidator: normalizeResolvedTemplateInvalidator(templateInvalidator),
 	}
 }
@@ -326,6 +335,148 @@ func (h *TemplateHandler) TestSend(c *echo.Context) error {
 		"provider_message_id": result.ProviderMessageID,
 		"from":                result.FromAddress,
 	})
+}
+
+// BulkSendConfig exposes server-side UI constraints for workspace-scoped template bulk sends.
+func (h *TemplateHandler) BulkSendConfig(c *echo.Context) error {
+	if _, err := resolveWorkspace(c, h.tsStore, h.wsStore); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, response.TemplateBulkSendConfigResponse{
+		MaxItems:        h.effectiveBatchMaxItems(),
+		VersionStrategy: "published",
+		RequestShape:    "items_only",
+	})
+}
+
+// BulkSend handles POST .../templates/:template_id/bulk-send.
+func (h *TemplateHandler) BulkSend(c *echo.Context) error {
+	if h.sendSvc == nil {
+		return response.WriteError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "bulk send not configured")
+	}
+
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	member, ok := c.Get("member").(*domain.Member)
+	if !ok || member == nil {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+	}
+
+	var req request.TemplateBulkSendRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	if fieldErrors := validateBatchItems(req.Items, h.effectiveBatchMaxItems()); len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	tpl, err := h.store.GetTemplateByID(c.Request().Context(), templateID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+	if tpl.WorkspaceID == nil || *tpl.WorkspaceID != ws.ID {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	tt, err := h.store.GetTypeByID(c.Request().Context(), tpl.TemplateTypeID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	headers := make(map[string]string)
+	for k, vals := range c.Request().Header {
+		if len(vals) > 0 {
+			headers[k] = vals[0]
+		}
+	}
+
+	items := make([]service.SendBatchItemRequest, len(req.Items))
+	for i, item := range req.Items {
+		items[i] = service.SendBatchItemRequest{
+			To:         item.To,
+			CC:         item.CC,
+			BCC:        item.BCC,
+			Variables:  item.Variables,
+			ExternalID: item.ExternalID,
+			Locale:     item.Locale,
+		}
+	}
+
+	resp, err := h.sendSvc.SendBatch(c.Request().Context(), &service.SendBatchRequest{
+		Ref:     fmt.Sprintf("%s:%s:%s", c.Param("tenant_code"), c.Param("workspace_code"), tt.Slug),
+		Items:   items,
+		Headers: headers,
+		Source: service.SendSource{
+			Type:          domain.EmailSourceTypeManagementTemplateBulkUpload,
+			ActorMemberID: &member.ID,
+			ActorEmail:    &member.Email,
+		},
+	})
+	if err != nil {
+		return mapSendError(c, err)
+	}
+
+	if h.auditStore != nil {
+		_ = h.auditStore.Append(c.Request().Context(), &domain.AuditLog{
+			ID:          uuid.Must(uuid.NewV7()),
+			ActorID:     member.ID,
+			ActorEmail:  member.Email,
+			Action:      domain.AuditBulkSend,
+			EntityType:  "template",
+			EntityID:    templateID,
+			TenantID:    &ws.TenantID,
+			WorkspaceID: &ws.ID,
+			ScopeType:   domain.ScopeWorkspace,
+			Changes: map[string]any{
+				"item_count":       len(req.Items),
+				"accepted_count":   resp.AcceptedCount,
+				"suppressed_count": resp.SuppressedCount,
+				"failed_count":     resp.FailedCount,
+				"template_ref":     resp.TemplateResolved,
+			},
+		})
+	}
+
+	return c.JSON(http.StatusAccepted, response.NewSendBatchResponse(resp))
+}
+
+func (h *TemplateHandler) effectiveBatchMaxItems() int {
+	if h.batchMaxItems > 0 {
+		return h.batchMaxItems
+	}
+	return 100
+}
+
+func validateBatchItems(items []request.SendBatchItemRequest, maxItems int) []response.FieldError {
+	var fieldErrors []response.FieldError
+	if len(items) == 0 {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "items", Message: "must contain at least 1 item"})
+	}
+	if len(items) > maxItems {
+		fieldErrors = append(fieldErrors, response.FieldError{
+			Field:   "items",
+			Message: fmt.Sprintf("must contain at most %d items", maxItems),
+		})
+	}
+	for i, item := range items {
+		if item.To == "" {
+			fieldErrors = append(fieldErrors, response.FieldError{
+				Field:   fmt.Sprintf("items[%d].to", i),
+				Message: "is required",
+			})
+		}
+	}
+	return fieldErrors
 }
 
 func mapTestSendError(c *echo.Context, err error) error {

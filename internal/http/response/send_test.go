@@ -80,3 +80,33 @@ func TestNewSendEmailResponse_JSONOmitsEmptyError(t *testing.T) {
 	assert.True(t, hasError, "failed entry must serialize 'error' field")
 	assert.Equal(t, "timeout", raw.TrackingIDs[1]["error"])
 }
+
+func TestNewSendBatchResponse_MapsItemsAndCounters(t *testing.T) {
+	extID := "batch-ext-1"
+	svcResp := &service.SendBatchResponse{
+		Status:           "partial",
+		TemplateResolved: "latam:acme:welcome",
+		AcceptedCount:    1,
+		SuppressedCount:  1,
+		FailedCount:      1,
+		Items: []service.SendBatchItemResult{
+			{Index: 0, To: "ok@example.com", TrackingID: "trk_ok", Status: "accepted"},
+			{Index: 1, To: "suppressed@example.com", TrackingID: "trk_sup", Status: "suppressed"},
+			{Index: 2, To: "fail@example.com", Status: "failed", ExternalID: &extID, Error: "db down"},
+		},
+	}
+
+	got := NewSendBatchResponse(svcResp)
+
+	assert.Equal(t, "partial", got.Status)
+	assert.Equal(t, "latam:acme:welcome", got.TemplateResolved)
+	assert.Equal(t, 1, got.AcceptedCount)
+	assert.Equal(t, 1, got.SuppressedCount)
+	assert.Equal(t, 1, got.FailedCount)
+	require.Len(t, got.Items, 3)
+	assert.Equal(t, "trk_ok", got.Items[0].TrackingID)
+	assert.Equal(t, "suppressed", got.Items[1].Status)
+	require.NotNil(t, got.Items[2].ExternalID)
+	assert.Equal(t, "batch-ext-1", *got.Items[2].ExternalID)
+	assert.Equal(t, "db down", got.Items[2].Error)
+}

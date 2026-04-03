@@ -71,6 +71,43 @@ export interface TestSendRequest {
   locale?: string;
 }
 
+export interface TemplateBulkSendItem {
+  to: string;
+  cc?: string[];
+  bcc?: string[];
+  variables?: Record<string, unknown>;
+  external_id?: string;
+  locale?: string;
+}
+
+export interface TemplateBulkSendRequest {
+  items: TemplateBulkSendItem[];
+}
+
+export interface TemplateBulkSendResultItem {
+  index: number;
+  to: string;
+  tracking_id?: string;
+  status: "accepted" | "suppressed" | "failed";
+  external_id?: string;
+  error?: string;
+}
+
+export interface TemplateBulkSendResponse {
+  status: "accepted" | "partial" | "failed";
+  template_resolved: string;
+  items: TemplateBulkSendResultItem[];
+  accepted_count: number;
+  suppressed_count: number;
+  failed_count: number;
+}
+
+export interface TemplateBulkSendConfig {
+  max_items: number;
+  version_strategy: "published";
+  request_shape: "items_only";
+}
+
 /** MJML preview response */
 export interface MjmlPreviewResponse {
   html: string;

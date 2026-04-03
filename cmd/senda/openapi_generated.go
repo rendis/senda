@@ -2271,6 +2271,48 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templa
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id} [delete]
 func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id() {}
 
+// doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send auto-generated route documentation.
+// @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  request.TemplateBulkSendRequest  true  "Request body"
+// @Success      202  {object}  response.SendBatchResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send [post]
+func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send() {}
+
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send_config auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      200  {object}  response.TemplateBulkSendConfigResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send_config() {}
+
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_disable auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -2788,6 +2830,25 @@ func doc_get_api_v1_onboarding_status() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/send [post]
 func doc_post_api_v1_send() {}
+
+// doc_post_api_v1_send_batch auto-generated route documentation.
+// @Summary      POST /api/v1/send/batch
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         send
+// @Accept       json
+// @Produce      json
+// @Security     WorkspaceAPIKeyBearer
+// @Param        body  body  request.SendBatchRequest  true  "Request body"
+// @Success      202  {object}  response.SendBatchResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/send/batch [post]
+func doc_post_api_v1_send_batch() {}
 
 // doc_post_api_v1_webhooks_ses_inbound auto-generated route documentation.
 // @Summary      POST /api/v1/webhooks/ses/inbound

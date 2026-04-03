@@ -152,6 +152,145 @@
         }
       }
     },
+    "/api/v1/send/batch": {
+      "post": {
+        "tags": [
+          "send"
+        ],
+        "summary": "Queue a same-template batch send",
+        "description": "Send a same-template batch using a workspace-scoped API key. Each item resolves its own variables and injectors and returns its own status and tracking ID.",
+        "security": [
+          {
+            "WorkspaceAPIKeyBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBatchRequest"
+              },
+              "example": {
+                "ref": "acme:production:welcome-email",
+                "items": [
+                  {
+                    "to": "ana@example.com",
+                    "variables": {
+                      "first_name": "Ana",
+                      "activation_url": "https://app.example.com/activate?token=ana"
+                    },
+                    "external_id": "signup-ana-1",
+                    "locale": "es"
+                  },
+                  {
+                    "to": "bob@example.com",
+                    "variables": {
+                      "first_name": "Bob",
+                      "activation_url": "https://app.example.com/activate?token=bob"
+                    },
+                    "external_id": "signup-bob-2",
+                    "locale": "en"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/emails": {
       "get": {
         "tags": [
@@ -888,6 +1027,128 @@
           },
           "template_version": {
             "type": "integer"
+          }
+        }
+      },
+      "SendBatchRequest": {
+        "type": "object",
+        "required": [
+          "ref",
+          "items"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "description": "Shared template ref in tenant:workspace:template_type format."
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/SendBatchItemRequest"
+            }
+          }
+        }
+      },
+      "SendBatchItemRequest": {
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "type": "string",
+            "format": "email"
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          "bcc": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "external_id": {
+            "type": "string",
+            "description": "Per-item correlation or idempotency identifier."
+          },
+          "locale": {
+            "type": "string",
+            "description": "BCP-47 locale such as en or es-419."
+          }
+        }
+      },
+      "SendBatchResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "template_resolved",
+          "items",
+          "accepted_count",
+          "suppressed_count",
+          "failed_count"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "partial"
+          },
+          "template_resolved": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SendBatchItemResponse"
+            }
+          },
+          "accepted_count": {
+            "type": "integer"
+          },
+          "suppressed_count": {
+            "type": "integer"
+          },
+          "failed_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "SendBatchItemResponse": {
+        "type": "object",
+        "required": [
+          "index",
+          "to",
+          "status"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "to": {
+            "type": "string",
+            "format": "email"
+          },
+          "tracking_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
           }
         }
       },

@@ -313,7 +313,7 @@ func routeTag(route Route) string {
 		return "tracking"
 	case normalized == "/public/video-thumbnail":
 		return "media"
-	case normalized == "/api/v1/send":
+	case normalized == "/api/v1/send", normalized == "/api/v1/send/batch":
 		return "send"
 	case strings.HasPrefix(normalized, "/api/v1/emails"):
 		return "emails"
@@ -370,6 +370,7 @@ func routeSecurity(route Route) []string {
 		normalized == "/api/v1/onboarding/setup":
 		return []string{"ManagementBearer"}
 	case normalized == "/api/v1/send",
+		normalized == "/api/v1/send/batch",
 		strings.HasPrefix(normalized, "/api/v1/emails"):
 		return []string{"WorkspaceAPIKeyBearer"}
 	default:
@@ -382,6 +383,10 @@ func routeRequestType(route Route) string {
 	switch normalized {
 	case "/api/v1/send":
 		return "request.SendEmailRequest"
+	case "/api/v1/send/batch":
+		return "request.SendBatchRequest"
+	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send":
+		return "request.TemplateBulkSendRequest"
 	case "/api/v1/onboarding/setup":
 		return "request.OnboardingSetupRequest"
 	case "/api/v1/manage/tenants":
@@ -457,6 +462,12 @@ func routeSuccessType(route Route) string {
 		return "DocHealthResponse"
 	case "/api/v1/send":
 		return "response.SendEmailResponse"
+	case "/api/v1/send/batch":
+		return "response.SendBatchResponse"
+	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send":
+		return "response.SendBatchResponse"
+	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config":
+		return "response.TemplateBulkSendConfigResponse"
 	case "/api/v1/onboarding/status":
 		return "response.OnboardingStatusResponse"
 	case "/api/v1/onboarding/setup":
@@ -583,7 +594,9 @@ func routeSuccessStatus(route Route) int {
 	switch route.Method {
 	case "POST":
 		switch {
-		case normalized == "/api/v1/send":
+		case normalized == "/api/v1/send",
+			normalized == "/api/v1/send/batch",
+			normalized == "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send":
 			return 202
 		case strings.HasSuffix(normalized, "/setup"),
 			strings.HasSuffix(normalized, "/tenants"),

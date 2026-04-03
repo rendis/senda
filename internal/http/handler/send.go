@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -14,14 +16,20 @@ import (
 	"github.com/rendis/senda/internal/service"
 )
 
+type sendService interface {
+	Send(ctx context.Context, req *service.SendRequest) (*service.SendResponse, error)
+	SendBatch(ctx context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error)
+}
+
 // SendHandler handles the data-plane send endpoint (API Key auth).
 type SendHandler struct {
-	sendService *service.SendService
+	sendService   sendService
+	batchMaxItems int
 }
 
 // NewSendHandler creates a new SendHandler.
-func NewSendHandler(ss *service.SendService) *SendHandler {
-	return &SendHandler{sendService: ss}
+func NewSendHandler(ss sendService, batchMaxItems int) *SendHandler {
+	return &SendHandler{sendService: ss, batchMaxItems: batchMaxItems}
 }
 
 // Send handles POST /api/v1/send.
@@ -72,6 +80,9 @@ func (h *SendHandler) Send(c *echo.Context) error {
 		Locale:          req.Locale,
 		AuthWorkspaceID: wsID,
 		Headers:         headers,
+		Source: service.SendSource{
+			Type: domain.EmailSourceTypeDataPlaneAPIKey,
+		},
 	}
 
 	resp, err := h.sendService.Send(c.Request().Context(), svcReq)
@@ -80,6 +91,86 @@ func (h *SendHandler) Send(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusAccepted, response.NewSendEmailResponse(resp))
+}
+
+// SendBatch handles POST /api/v1/send/batch.
+// Accepts API Key auth -- workspace_id is resolved from the API key context.
+func (h *SendHandler) SendBatch(c *echo.Context) error {
+	wsID, ok := c.Get(middleware.ContextKeyWorkspaceID).(uuid.UUID)
+	if !ok || wsID == uuid.Nil {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "workspace context required (API key auth)")
+	}
+
+	var req request.SendBatchRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	var fieldErrors []response.FieldError
+	if req.Ref == "" {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "ref", Message: "is required"})
+	}
+	if len(req.Items) == 0 {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "items", Message: "must contain at least 1 item"})
+	}
+	if len(req.Items) > h.effectiveBatchMaxItems() {
+		fieldErrors = append(fieldErrors, response.FieldError{
+			Field:   "items",
+			Message: fmt.Sprintf("must contain at most %d items", h.effectiveBatchMaxItems()),
+		})
+	}
+	for i, item := range req.Items {
+		if item.To == "" {
+			fieldErrors = append(fieldErrors, response.FieldError{
+				Field:   fmt.Sprintf("items[%d].to", i),
+				Message: "is required",
+			})
+		}
+	}
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	headers := make(map[string]string)
+	for k, vals := range c.Request().Header {
+		if len(vals) > 0 {
+			headers[k] = vals[0]
+		}
+	}
+
+	items := make([]service.SendBatchItemRequest, len(req.Items))
+	for i, item := range req.Items {
+		items[i] = service.SendBatchItemRequest{
+			To:         item.To,
+			CC:         item.CC,
+			BCC:        item.BCC,
+			Variables:  item.Variables,
+			ExternalID: item.ExternalID,
+			Locale:     item.Locale,
+		}
+	}
+
+	resp, err := h.sendService.SendBatch(c.Request().Context(), &service.SendBatchRequest{
+		Ref:             req.Ref,
+		Items:           items,
+		AuthWorkspaceID: wsID,
+		Headers:         headers,
+		Source: service.SendSource{
+			Type: domain.EmailSourceTypeDataPlaneAPIKey,
+		},
+	})
+	if err != nil {
+		return mapSendError(c, err)
+	}
+
+	return c.JSON(http.StatusAccepted, response.NewSendBatchResponse(resp))
+}
+
+func (h *SendHandler) effectiveBatchMaxItems() int {
+	if h.batchMaxItems > 0 {
+		return h.batchMaxItems
+	}
+	return 100
 }
 
 // mapSendError maps send-specific domain errors to HTTP error responses.

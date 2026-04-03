@@ -8,6 +8,9 @@ import type {
   CreateTemplateVersionRequest,
   MjmlPreviewResponse,
   TestSendRequest,
+  TemplateBulkSendRequest,
+  TemplateBulkSendResponse,
+  TemplateBulkSendConfig,
 } from "@/types/templates";
 
 export function useTemplateVersions(scopedPath: string, templateId: string) {
@@ -138,6 +141,37 @@ export function useTestSend(scopedPath: string, templateId: string) {
           json: data,
         })
         .json<void>(),
+  });
+}
+
+export function useTemplateBulkSendConfig(
+  scopedPath: string,
+  templateId: string,
+  enabled = true
+) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return useQuery({
+    queryKey: ["template-bulk-send-config", scopedPath, templateId],
+    queryFn: () =>
+      api
+        .get(`${scopedPath}/templates/${templateId}/bulk-send-config`)
+        .json<TemplateBulkSendConfig>(),
+    enabled: ready && enabled && !!templateId,
+  });
+}
+
+export function useTemplateBulkSend(scopedPath: string, templateId: string) {
+  const api = useApi();
+
+  return useMutation({
+    mutationFn: (data: TemplateBulkSendRequest) =>
+      api
+        .post(`${scopedPath}/templates/${templateId}/bulk-send`, {
+          json: data,
+        })
+        .json<TemplateBulkSendResponse>(),
   });
 }
 

@@ -43,6 +43,7 @@ To get an API key:
 Available data-plane endpoints for API key clients:
 
 - `POST /api/v1/send`
+- `POST /api/v1/send/batch`
 - `GET /api/v1/emails`
 - `GET /api/v1/emails/:tracking_id`
 - `GET /api/v1/emails/:tracking_id/events`

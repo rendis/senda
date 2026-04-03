@@ -20,6 +20,11 @@ server:
   # Maximum duration to wait for active connections to finish during shutdown
   shutdown_timeout: "15s"
 
+send:
+  # Maximum number of logical messages accepted by POST /api/v1/send/batch
+  # Env: SENDA_SEND_BATCH_MAX_ITEMS
+  batch_max_items: 100
+
 database:
   # PostgreSQL connection URL (required)
   # Env: SENDA_DATABASE_URL

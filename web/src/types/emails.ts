@@ -14,6 +14,9 @@ export interface Email {
   subject: string;
   locale: string;
   adapter_id: string;
+  source_type: string;
+  source_actor_member_id?: string;
+  source_actor_email?: string;
   retry_count: number;
   variables?: Record<string, unknown>;
   created_at: string;

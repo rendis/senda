@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +64,20 @@ func (c *TestClient) SetAPIKey(key string) {
 
 // LoginAs generates a JWT token for the given email and sets it as bearer token.
 func (c *TestClient) LoginAs(email string) {
+	if email == SuperadminEmail {
+		if token := strings.TrimSpace(os.Getenv("SENDA_E2E_SUPERADMIN_TOKEN")); token != "" {
+			c.bearerToken = token
+			return
+		}
+	}
+
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SENDA_E2E_LOGIN_MODE")), "password_grant") {
+		token, err := loginViaPasswordGrant(email)
+		require.NoError(c.t, err, "failed to obtain password-grant token for %s", email)
+		c.bearerToken = token
+		return
+	}
+
 	secret := os.Getenv("SENDA_E2E_JWT_SECRET")
 	if secret == "" {
 		secret = defaultJWTSecret
@@ -71,6 +87,106 @@ func (c *TestClient) LoginAs(email string) {
 	require.NoError(c.t, err, "failed to generate JWT for %s", email)
 
 	c.bearerToken = token
+}
+
+func loginViaPasswordGrant(email string) (string, error) {
+	tokenURL := strings.TrimSpace(os.Getenv("SENDA_E2E_OIDC_TOKEN_URL"))
+	if tokenURL == "" {
+		keycloakBaseURL := strings.TrimSpace(os.Getenv("SENDA_E2E_KEYCLOAK_BASE_URL"))
+		if keycloakBaseURL == "" {
+			keycloakBaseURL = strings.TrimSpace(os.Getenv("KEYCLOAK_BASE_URL"))
+		}
+		if keycloakBaseURL == "" {
+			keycloakBaseURL = "http://localhost:9090"
+		}
+
+		realm := strings.TrimSpace(os.Getenv("SENDA_E2E_KEYCLOAK_REALM"))
+		if realm == "" {
+			realm = "senda"
+		}
+
+		tokenURL = strings.TrimRight(keycloakBaseURL, "/") + "/realms/" + realm + "/protocol/openid-connect/token"
+	}
+
+	clientID := strings.TrimSpace(os.Getenv("SENDA_E2E_OIDC_CLIENT_ID"))
+	if clientID == "" {
+		clientID = "senda-e2e-cli"
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "password")
+	form.Set("scope", "openid email profile")
+	form.Set("client_id", clientID)
+	form.Set("username", email)
+	form.Set("password", passwordGrantPassword(email))
+	if clientSecret := strings.TrimSpace(os.Getenv("SENDA_E2E_OIDC_CLIENT_SECRET")); clientSecret != "" {
+		form.Set("client_secret", clientSecret)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if host := strings.TrimSpace(os.Getenv("SENDA_E2E_OIDC_TOKEN_HOST")); host != "" {
+		req.Host = host
+		req.Header.Set("Host", host)
+	}
+
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("password grant failed: status=%d body=%s", resp.StatusCode, string(body))
+	}
+
+	var payload struct {
+		IDToken     string `json:"id_token"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", err
+	}
+	token := strings.TrimSpace(payload.IDToken)
+	if token == "" {
+		token = strings.TrimSpace(payload.AccessToken)
+	}
+	if token == "" {
+		return "", errors.New("password grant response missing id_token/access_token")
+	}
+
+	return token, nil
+}
+
+func passwordGrantPassword(email string) string {
+	switch email {
+	case SuperadminEmail:
+		return envOrDefault("SENDA_E2E_SUPERADMIN_PASSWORD", "superadmin")
+	case TenantAdminEmail:
+		return envOrDefault("SENDA_E2E_TENANT_ADMIN_PASSWORD", "tenant-admin")
+	case WorkspaceAdminEmail:
+		return envOrDefault("SENDA_E2E_WORKSPACE_ADMIN_PASSWORD", "workspace-admin")
+	case WorkspaceEditorEmail:
+		return envOrDefault("SENDA_E2E_WORKSPACE_EDITOR_PASSWORD", "workspace-editor")
+	case WorkspaceViewerEmail:
+		return envOrDefault("SENDA_E2E_WORKSPACE_VIEWER_PASSWORD", "workspace-viewer")
+	default:
+		return envOrDefault("SENDA_E2E_DEFAULT_LOGIN_PASSWORD", email)
+	}
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // Patch makes a PATCH request with JSON body.

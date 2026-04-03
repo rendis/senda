@@ -27,6 +27,7 @@ func TestRouteSecurity(t *testing.T) {
 	}{
 		{path: "/health", want: nil},
 		{path: "/api/v1/send", want: []string{"WorkspaceAPIKeyBearer"}},
+		{path: "/api/v1/send/batch", want: []string{"WorkspaceAPIKeyBearer"}},
 		{path: "/api/v1/emails/:tracking_id", want: []string{"WorkspaceAPIKeyBearer"}},
 		{path: "/api/v1/onboarding/setup", want: []string{"ManagementBearer"}},
 		{path: "/api/v1/members/me", want: []string{"ManagementBearer"}},
@@ -85,10 +86,12 @@ func TestValidateRouteCoverage(t *testing.T) {
 	}
 	doc.Paths.Set("/health", &openapi3.PathItem{Get: &openapi3.Operation{}})
 	doc.Paths.Set("/api/v1/send", &openapi3.PathItem{Post: &openapi3.Operation{}})
+	doc.Paths.Set("/api/v1/send/batch", &openapi3.PathItem{Post: &openapi3.Operation{}})
 
 	routes := []Route{
 		{Method: "GET", Path: "/health"},
 		{Method: "POST", Path: "/api/v1/send"},
+		{Method: "POST", Path: "/api/v1/send/batch"},
 	}
 
 	if err := ValidateRouteCoverage(doc, routes); err != nil {

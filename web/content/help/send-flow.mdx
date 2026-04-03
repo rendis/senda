@@ -46,6 +46,18 @@ That is why the API key guide and the workspace API Docs page matter together:
 - [API Keys](api-keys)
 - workspace API Docs page in the sidebar
 
+## Bulk send from the template UI
+
+The template editor also exposes a **Bulk Send** action in workspace scope.
+
+- it uses the current **published** template version
+- the uploaded JSON contains only `items[]`
+- the UI validates and previews the payload before enqueuing
+- the backend reuses the same batch send engine as the API-key batch endpoint
+
+Use **Send Test** for a single verification email.
+Use **Bulk Send** when you want to enqueue many real messages from the same template.
+
 ## When a send fails
 
 Failures usually mean one of these:

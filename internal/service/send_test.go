@@ -270,7 +270,7 @@ func (m *mockTemplateStoreSend) GetLatestVersion(_ context.Context, _ uuid.UUID)
 	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStoreSend) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockTemplateStoreSend) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
+func (m *mockTemplateStoreSend) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStoreSend) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	if m.listVersionsFn != nil {
 		return m.listVersionsFn(ctx, templateID)
@@ -1489,7 +1489,7 @@ func (t *testCodeInjector) Resolve() (port.CodeResolveFunc, []string) {
 		return t.fields, nil
 	}, nil
 }
-func (t *testCodeInjector) IsCritical() bool      { return false }
+func (t *testCodeInjector) IsCritical() bool       { return false }
 func (t *testCodeInjector) Timeout() time.Duration { return 0 }
 
 func TestSendService_WithCodeInjectors(t *testing.T) {
@@ -1572,6 +1572,232 @@ func TestSendService_WithHeaders(t *testing.T) {
 	}
 }
 
+func TestSendService_SendBatch_IsolatesPerItemInjectorContext(t *testing.T) {
+	f := newSendFixture()
+
+	var capturedEmails []*domain.Email
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		capturedEmails = append(capturedEmails, email)
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	codeInj := &stubCodeInjectorSend{
+		code: "student",
+		resolveFn: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+			return map[string]any{
+				"name": injCtx.Variables()["name"],
+			}, nil
+		},
+	}
+
+	svc := f.buildServiceWithCodeInjectors([]port.CodeInjector{codeInj}, nil)
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted, got %q", resp.Status)
+	}
+	if len(capturedEmails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(capturedEmails))
+	}
+	if capturedEmails[0].InjectorsSnapshot["student"]["name"] != "Alice" {
+		t.Fatalf("expected first snapshot to use Alice, got %+v", capturedEmails[0].InjectorsSnapshot)
+	}
+	if capturedEmails[1].InjectorsSnapshot["student"]["name"] != "Bob" {
+		t.Fatalf("expected second snapshot to use Bob, got %+v", capturedEmails[1].InjectorsSnapshot)
+	}
+}
+
+func TestSendService_SendBatch_PartialStatus(t *testing.T) {
+	f := newSendFixture()
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
+		if email == "suppressed@user.com" {
+			return true, "workspace", nil
+		}
+		return false, "", nil
+	}
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		if email.RecipientEmail == "failed@user.com" {
+			return errors.New("db down")
+		}
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "accepted@user.com", Variables: map[string]any{"name": "Accepted"}},
+			{To: "suppressed@user.com", Variables: map[string]any{"name": "Suppressed"}},
+			{To: "failed@user.com", Variables: map[string]any{"name": "Failed"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "partial" {
+		t.Fatalf("expected partial, got %q", resp.Status)
+	}
+	if resp.AcceptedCount != 1 || resp.SuppressedCount != 1 || resp.FailedCount != 1 {
+		t.Fatalf("unexpected counters: %+v", resp)
+	}
+}
+
+func TestSendService_SendBatch_AllFailed(t *testing.T) {
+	f := newSendFixture()
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error {
+		return errors.New("db down")
+	}
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "failed-1@user.com", Variables: map[string]any{"name": "One"}},
+			{To: "failed-2@user.com", Variables: map[string]any{"name": "Two"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "failed" {
+		t.Fatalf("expected failed, got %q", resp.Status)
+	}
+	if resp.FailedCount != 2 {
+		t.Fatalf("expected 2 failed items, got %d", resp.FailedCount)
+	}
+}
+
+func TestSendService_SendBatch_PreservesLocaleAndExternalIDPerItem(t *testing.T) {
+	f := newSendFixture()
+
+	var capturedEmails []*domain.Email
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		capturedEmails = append(capturedEmails, email)
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	localeA := "es"
+	localeB := "en"
+	externalA := "msg-a"
+	externalB := "msg-b"
+
+	_, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Locale: &localeA, ExternalID: &externalA, Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Locale: &localeB, ExternalID: &externalB, Variables: map[string]any{"name": "Bob"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(capturedEmails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(capturedEmails))
+	}
+	if capturedEmails[0].ExternalID == nil || *capturedEmails[0].ExternalID != externalA {
+		t.Fatalf("expected first external id %q, got %+v", externalA, capturedEmails[0].ExternalID)
+	}
+	if capturedEmails[1].ExternalID == nil || *capturedEmails[1].ExternalID != externalB {
+		t.Fatalf("expected second external id %q, got %+v", externalB, capturedEmails[1].ExternalID)
+	}
+	if capturedEmails[0].Locale == nil || *capturedEmails[0].Locale != localeA {
+		t.Fatalf("expected first locale %q, got %+v", localeA, capturedEmails[0].Locale)
+	}
+	if capturedEmails[1].Locale == nil || *capturedEmails[1].Locale != localeB {
+		t.Fatalf("expected second locale %q, got %+v", localeB, capturedEmails[1].Locale)
+	}
+}
+
+func TestSendService_Send_DefaultsSourceTypeToAPIKey(t *testing.T) {
+	f := newSendFixture()
+
+	var captured *domain.Email
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		captured = email
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	_, err := svc.Send(context.Background(), f.happyRequest())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if captured == nil {
+		t.Fatal("expected email to be captured")
+	}
+	if captured.SourceType != domain.EmailSourceTypeDataPlaneAPIKey {
+		t.Fatalf("expected source type %q, got %q", domain.EmailSourceTypeDataPlaneAPIKey, captured.SourceType)
+	}
+	if captured.SourceActorMemberID != nil {
+		t.Fatalf("expected nil source actor member ID, got %v", *captured.SourceActorMemberID)
+	}
+	if captured.SourceActorEmail != nil {
+		t.Fatalf("expected nil source actor email, got %q", *captured.SourceActorEmail)
+	}
+}
+
+func TestSendService_SendBatch_PersistsUISourcePerItem(t *testing.T) {
+	f := newSendFixture()
+
+	var capturedEmails []*domain.Email
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		capturedEmails = append(capturedEmails, email)
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	memberID := uuid.Must(uuid.NewV7())
+	memberEmail := "editor@acme.com"
+
+	svc := f.buildService()
+	_, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+		},
+		Source: service.SendSource{
+			Type:          domain.EmailSourceTypeManagementTemplateBulkUpload,
+			ActorMemberID: &memberID,
+			ActorEmail:    &memberEmail,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(capturedEmails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(capturedEmails))
+	}
+
+	for i, email := range capturedEmails {
+		if email.SourceType != domain.EmailSourceTypeManagementTemplateBulkUpload {
+			t.Fatalf("email %d source type = %q, want %q", i, email.SourceType, domain.EmailSourceTypeManagementTemplateBulkUpload)
+		}
+		if email.SourceActorMemberID == nil || *email.SourceActorMemberID != memberID {
+			t.Fatalf("email %d actor member = %+v, want %s", i, email.SourceActorMemberID, memberID)
+		}
+		if email.SourceActorEmail == nil || *email.SourceActorEmail != memberEmail {
+			t.Fatalf("email %d actor email = %+v, want %q", i, email.SourceActorEmail, memberEmail)
+		}
+	}
+}
+
 type stubCodeInjectorSend struct {
 	code      string
 	resolveFn port.CodeResolveFunc
@@ -1581,5 +1807,5 @@ func (s *stubCodeInjectorSend) Code() string { return s.code }
 func (s *stubCodeInjectorSend) Resolve() (port.CodeResolveFunc, []string) {
 	return s.resolveFn, nil
 }
-func (s *stubCodeInjectorSend) IsCritical() bool      { return false }
+func (s *stubCodeInjectorSend) IsCritical() bool       { return false }
 func (s *stubCodeInjectorSend) Timeout() time.Duration { return 0 }

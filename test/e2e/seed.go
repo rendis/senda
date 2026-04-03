@@ -115,6 +115,22 @@ type SendRequest struct {
 	Locale     string                 `json:"locale,omitempty"`
 }
 
+// SendBatchRequest is the request structure for batch sending an email.
+type SendBatchRequest struct {
+	Ref   string                 `json:"ref"`
+	Items []SendBatchItemRequest `json:"items"`
+}
+
+// SendBatchItemRequest is one logical message inside a batch request.
+type SendBatchItemRequest struct {
+	To         string                 `json:"to"`
+	CC         []string               `json:"cc,omitempty"`
+	BCC        []string               `json:"bcc,omitempty"`
+	Variables  map[string]interface{} `json:"variables,omitempty"`
+	ExternalID string                 `json:"external_id,omitempty"`
+	Locale     string                 `json:"locale,omitempty"`
+}
+
 // InjectorRequest is the request structure for creating an injector.
 type InjectorRequest struct {
 	Name        string                 `json:"name"`
@@ -180,10 +196,10 @@ func SampleMJML() string {
     <mj-section>
       <mj-column>
         <mj-text font-size="20px" align="center" color="#1f4788">
-          Welcome {{first_name}}!
+          Welcome {{ event.first_name }}!
         </mj-text>
         <mj-text align="center" color="#626262">
-          Thank you for joining {{company_name}}.
+          Thank you for joining {{ event.company_name }}.
         </mj-text>
       </mj-column>
     </mj-section>

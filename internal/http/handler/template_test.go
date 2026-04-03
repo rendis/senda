@@ -39,7 +39,7 @@ func (m *mockResolvedTemplateInvalidator) InvalidateAllResolvedTemplates(ctx con
 }
 
 func setupTemplateTest(store port.TemplateStore, compiler port.TemplateCompiler, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.TemplateHandler) {
-	return setupTemplateTestWithInvalidator(store, compiler, ts, ws, nil)
+	return setupTemplateTestWithOptions(store, compiler, ts, ws, nil, nil, nil, 100)
 }
 
 func setupTemplateTestWithInvalidator(
@@ -49,13 +49,58 @@ func setupTemplateTestWithInvalidator(
 	ws port.WorkspaceStore,
 	invalidator *mockResolvedTemplateInvalidator,
 ) (*echo.Echo, *handler.TemplateHandler) {
+	return setupTemplateTestWithOptions(store, compiler, ts, ws, nil, invalidator, nil, 100)
+}
+
+type fakeTemplateBatchSender struct {
+	sendBatchFn func(ctx context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error)
+}
+
+func (f *fakeTemplateBatchSender) Send(_ context.Context, _ *service.SendRequest) (*service.SendResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTemplateBatchSender) SendBatch(ctx context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error) {
+	if f.sendBatchFn != nil {
+		return f.sendBatchFn(ctx, req)
+	}
+	return &service.SendBatchResponse{}, nil
+}
+
+type mockAuditLogStoreTemplate struct {
+	appendFn func(ctx context.Context, entry *domain.AuditLog) error
+	entries  []*domain.AuditLog
+}
+
+func (m *mockAuditLogStoreTemplate) Append(ctx context.Context, entry *domain.AuditLog) error {
+	m.entries = append(m.entries, entry)
+	if m.appendFn != nil {
+		return m.appendFn(ctx, entry)
+	}
+	return nil
+}
+
+func (m *mockAuditLogStoreTemplate) Query(_ context.Context, _ port.AuditFilter, _ port.ListOptions) (*port.PageResult[domain.AuditLog], error) {
+	return &port.PageResult[domain.AuditLog]{}, nil
+}
+
+func setupTemplateTestWithOptions(
+	store port.TemplateStore,
+	compiler port.TemplateCompiler,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	batchSender *fakeTemplateBatchSender,
+	invalidator *mockResolvedTemplateInvalidator,
+	auditStore port.AuditLogStore,
+	batchMaxItems int,
+) (*echo.Echo, *handler.TemplateHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
 	svc := service.NewTemplateService(store, compiler)
-	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, invalidator)
+	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, batchSender, auditStore, batchMaxItems, invalidator)
 
 	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
 
@@ -69,6 +114,9 @@ func setupTemplateTestWithInvalidator(
 	e.PUT(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.UpdateLocale)
 	e.DELETE(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.DeleteLocale)
 	e.POST(base+"/templates/:template_id/preview-mjml", h.PreviewMJML)
+	e.POST(base+"/templates/:template_id/test-send", h.TestSend)
+	e.GET(base+"/templates/:template_id/bulk-send-config", h.BulkSendConfig)
+	e.POST(base+"/templates/:template_id/bulk-send", h.BulkSend)
 	e.POST(base+"/templates/:template_id/disable", h.DisableTemplate)
 	e.POST(base+"/templates/:template_id/enable", h.EnableTemplate)
 	e.POST("/api/v1/manage/global/templates/:template_id/disable", h.DisableTemplateGlobal)
@@ -758,5 +806,163 @@ func TestTemplateHandler_SetLocale_InvalidVersionID(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateHandler_BulkSendConfig_ReturnsConfiguredLimit(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	e, _ := setupTemplateTestWithOptions(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore, nil, nil, nil, 77)
+
+	templateID := uuid.Must(uuid.NewV7())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/bulk-send-config", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		MaxItems        int    `json:"max_items"`
+		VersionStrategy string `json:"version_strategy"`
+		RequestShape    string `json:"request_shape"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.MaxItems != 77 {
+		t.Fatalf("expected max_items 77, got %d", body.MaxItems)
+	}
+	if body.VersionStrategy != "published" {
+		t.Fatalf("expected version strategy published, got %q", body.VersionStrategy)
+	}
+	if body.RequestShape != "items_only" {
+		t.Fatalf("expected request shape items_only, got %q", body.RequestShape)
+	}
+}
+
+func TestTemplateHandler_BulkSend_Validation(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	e, _ := setupTemplateTestWithOptions(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore, nil, nil, nil, 2)
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			c.Set("member", &domain.Member{ID: uuid.Must(uuid.NewV7()), Email: "editor@acme.com"})
+			return next(c)
+		}
+	})
+
+	templateID := uuid.Must(uuid.NewV7())
+	body := `{"items":[{},{"to":"one@example.com"},{"to":"two@example.com"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/bulk-send", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateHandler_BulkSend_SendsBatchAndWritesAudit(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	templateID := uuid.Must(uuid.NewV7())
+	templateTypeID := uuid.Must(uuid.NewV7())
+	memberID := uuid.Must(uuid.NewV7())
+	memberEmail := "editor@acme.com"
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("unexpected template id %s", id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: templateTypeID,
+				WorkspaceID:    &ws.ID,
+			}, nil
+		},
+		getTypeByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+			if id != templateTypeID {
+				t.Fatalf("unexpected template type id %s", id)
+			}
+			return &domain.TemplateType{
+				ID:   templateTypeID,
+				Slug: "welcome",
+			}, nil
+		},
+	}
+
+	batchSender := &fakeTemplateBatchSender{
+		sendBatchFn: func(_ context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error) {
+			if req.Ref != tenant.Code+":"+ws.Code+":welcome" {
+				t.Fatalf("unexpected ref %q", req.Ref)
+			}
+			if req.Source.Type != domain.EmailSourceTypeManagementTemplateBulkUpload {
+				t.Fatalf("unexpected source type %q", req.Source.Type)
+			}
+			if req.Source.ActorMemberID == nil || *req.Source.ActorMemberID != memberID {
+				t.Fatalf("unexpected actor member id %+v", req.Source.ActorMemberID)
+			}
+			if req.Source.ActorEmail == nil || *req.Source.ActorEmail != memberEmail {
+				t.Fatalf("unexpected actor email %+v", req.Source.ActorEmail)
+			}
+			if len(req.Items) != 2 {
+				t.Fatalf("expected 2 items, got %d", len(req.Items))
+			}
+			return &service.SendBatchResponse{
+				Status:           "partial",
+				TemplateResolved: req.Ref,
+				AcceptedCount:    1,
+				FailedCount:      1,
+				Items: []service.SendBatchItemResult{
+					{Index: 0, To: "ana@example.com", TrackingID: "trk_1", Status: "accepted"},
+					{Index: 1, To: "beto@example.com", Status: "failed", Error: "db down"},
+				},
+			}, nil
+		},
+	}
+	auditStore := &mockAuditLogStoreTemplate{}
+
+	e, _ := setupTemplateTestWithOptions(store, &mockTemplateCompiler{}, ts, wsStore, batchSender, nil, auditStore, 100)
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			c.Set("member", &domain.Member{ID: memberID, Email: memberEmail})
+			return next(c)
+		}
+	})
+
+	body := `{"items":[{"to":"ana@example.com","variables":{"name":"Ana"}},{"to":"beto@example.com","external_id":"msg-2"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/bulk-send", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	if len(auditStore.entries) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(auditStore.entries))
+	}
+	entry := auditStore.entries[0]
+	if entry.ActorID != memberID {
+		t.Fatalf("expected audit actor id %s, got %s", memberID, entry.ActorID)
+	}
+	if entry.ActorEmail != memberEmail {
+		t.Fatalf("expected audit actor email %q, got %q", memberEmail, entry.ActorEmail)
+	}
+	if entry.Action != domain.AuditBulkSend {
+		t.Fatalf("expected audit action %q, got %q", domain.AuditBulkSend, entry.Action)
+	}
+	if entry.EntityType != "template" || entry.EntityID != templateID {
+		t.Fatalf("unexpected audit entity %+v", entry)
+	}
+	if got := entry.Changes["accepted_count"]; got != 1 {
+		t.Fatalf("expected accepted_count 1, got %#v", got)
+	}
+	if got := entry.Changes["failed_count"]; got != 1 {
+		t.Fatalf("expected failed_count 1, got %#v", got)
 	}
 }

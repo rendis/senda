@@ -31,6 +31,36 @@ type SendRequest struct {
 	AuthWorkspaceID uuid.UUID `json:"-"`
 	// Headers carries HTTP request headers for code injectors. Optional.
 	Headers map[string]string `json:"-"`
+	// Source tracks where this logical send originated from.
+	Source SendSource `json:"-"`
+}
+
+// SendBatchRequest represents a batch email send API request for a single template ref.
+type SendBatchRequest struct {
+	Ref string `json:"ref"`
+
+	Items []SendBatchItemRequest `json:"items"`
+
+	AuthWorkspaceID uuid.UUID         `json:"-"`
+	Headers         map[string]string `json:"-"`
+	Source          SendSource        `json:"-"`
+}
+
+// SendBatchItemRequest represents one logical message in a batch send.
+type SendBatchItemRequest struct {
+	To         string         `json:"to"`
+	CC         []string       `json:"cc,omitempty"`
+	BCC        []string       `json:"bcc,omitempty"`
+	Variables  map[string]any `json:"variables,omitempty"`
+	ExternalID *string        `json:"external_id,omitempty"`
+	Locale     *string        `json:"locale,omitempty"`
+}
+
+// SendSource captures provenance for persisted emails.
+type SendSource struct {
+	Type          domain.EmailSourceType `json:"type"`
+	ActorMemberID *uuid.UUID             `json:"actor_member_id,omitempty"`
+	ActorEmail    *string                `json:"actor_email,omitempty"`
 }
 
 // SendResponse represents the result of a send operation.
@@ -42,12 +72,107 @@ type SendResponse struct {
 	TemplateVersion  int             `json:"template_version"`
 }
 
+// SendBatchResponse represents the result of a batch send operation.
+type SendBatchResponse struct {
+	Status           string                `json:"status"`
+	TemplateResolved string                `json:"template_resolved"`
+	Items            []SendBatchItemResult `json:"items"`
+	AcceptedCount    int                   `json:"accepted_count"`
+	SuppressedCount  int                   `json:"suppressed_count"`
+	FailedCount      int                   `json:"failed_count"`
+}
+
+// SendBatchItemResult contains the outcome of one batch item.
+type SendBatchItemResult struct {
+	Index      int     `json:"index"`
+	To         string  `json:"to"`
+	TrackingID string  `json:"tracking_id,omitempty"`
+	Status     string  `json:"status"`
+	ExternalID *string `json:"external_id,omitempty"`
+	Error      string  `json:"error,omitempty"`
+}
+
 // TrackingEntry maps a recipient to their tracking ID and per-recipient status.
 type TrackingEntry struct {
 	To         string `json:"to"`
 	TrackingID string `json:"tracking_id"`
 	Status     string `json:"status"`          // "accepted", "suppressed", or "failed"
 	Error      string `json:"error,omitempty"` // populated when Status is "failed"
+}
+
+// SendBatch executes one send per batch item, isolating variables, locale,
+// external_id, and injector context for each logical message.
+func (s *SendService) SendBatch(ctx context.Context, req *SendBatchRequest) (*SendBatchResponse, error) {
+	resp := &SendBatchResponse{
+		Status:           "accepted",
+		TemplateResolved: req.Ref,
+		Items:            make([]SendBatchItemResult, 0, len(req.Items)),
+	}
+
+	for i, item := range req.Items {
+		itemReq := &SendRequest{
+			Ref:             req.Ref,
+			To:              []string{item.To},
+			CC:              item.CC,
+			BCC:             item.BCC,
+			Variables:       item.Variables,
+			ExternalID:      item.ExternalID,
+			Locale:          item.Locale,
+			AuthWorkspaceID: req.AuthWorkspaceID,
+			Headers:         req.Headers,
+			Source:          req.Source,
+		}
+
+		result := SendBatchItemResult{
+			Index:      i,
+			To:         item.To,
+			ExternalID: item.ExternalID,
+		}
+
+		sendResp, err := s.Send(ctx, itemReq)
+		if err != nil {
+			result.Status = "failed"
+			result.Error = err.Error()
+			resp.FailedCount++
+			resp.Items = append(resp.Items, result)
+			continue
+		}
+
+		if len(sendResp.TrackingIDs) == 0 {
+			result.Status = "failed"
+			result.Error = "missing tracking entry"
+			resp.FailedCount++
+			resp.Items = append(resp.Items, result)
+			continue
+		}
+
+		entry := sendResp.TrackingIDs[0]
+		result.TrackingID = entry.TrackingID
+		result.Status = entry.Status
+		result.Error = entry.Error
+
+		switch result.Status {
+		case "accepted":
+			resp.AcceptedCount++
+		case "suppressed":
+			resp.SuppressedCount++
+		default:
+			resp.FailedCount++
+		}
+
+		resp.Items = append(resp.Items, result)
+	}
+
+	switch {
+	case resp.FailedCount == len(req.Items):
+		resp.Status = "failed"
+	case resp.FailedCount > 0:
+		resp.Status = "partial"
+	default:
+		resp.Status = "accepted"
+	}
+
+	return resp, nil
 }
 
 // SendService orchestrates the full email send pipeline.
@@ -188,6 +313,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 
 	// 10. Create email records and enqueue jobs
 	now := time.Now().UTC()
+	source := effectiveSendSource(req.Source)
 	response := &SendResponse{
 		Status:           "accepted",
 		TemplateResolved: req.Ref,
@@ -239,6 +365,9 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			AdapterID:           adapter.Adapter.ID,
 			VariablesSnapshot:   req.Variables,
 			InjectorsSnapshot:   injectors,
+			SourceType:          source.Type,
+			SourceActorMemberID: source.ActorMemberID,
+			SourceActorEmail:    source.ActorEmail,
 			BodyMJML:            bodyMJML,
 			OpenTrackingEnabled: ws.OpenTrackingEnabled,
 			MaxRetries:          3,
@@ -301,6 +430,13 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	}
 
 	return response, nil
+}
+
+func effectiveSendSource(source SendSource) SendSource {
+	if source.Type == "" {
+		source.Type = domain.EmailSourceTypeDataPlaneAPIKey
+	}
+	return source
 }
 
 // resolveFromEmail gets the from_email. If senderIdentityID is set, uses that specific identity;

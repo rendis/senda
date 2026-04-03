@@ -39,6 +39,36 @@ Workspace API keys are for the data plane only.
 These requests are scoped automatically to the workspace that owns the key.
 They do not grant access to management endpoints.
 
+## Sending one message vs batch sending
+
+Use `POST /api/v1/send` when one request shares the same runtime context:
+
+- same template ref
+- same variables
+- same injector resolution
+- one or many recipients in `to` (up to 50)
+
+Use `POST /api/v1/send/batch` when each logical message needs its **own** context:
+
+- same template ref for the whole request
+- one primary recipient per item
+- per-item `variables`
+- per-item `locale`
+- per-item `external_id`
+- per-item injector/init resolution
+
+That means batch send is the correct endpoint for bulk operations where every message renders differently even though the template is the same.
+
+## Batch limits
+
+The batch endpoint has a clear cap:
+
+- default: **100 items per request**
+- configurable through `send.batch_max_items`
+- env override: `SENDA_SEND_BATCH_MAX_ITEMS`
+
+If the payload goes over the configured limit, Senda rejects it before processing.
+
 ## What you will see in the table
 
 The list view shows:

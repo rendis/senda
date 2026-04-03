@@ -116,11 +116,12 @@ require workspace context derived from the API key.
 
 ```json
 {
-  "status": "queued",
+  "status": "accepted",
   "tracking_ids": [
     {
       "to": "user@example.com",
-      "tracking_id": "019012ab-7c3d-7def-8abc-1234567890ab"
+      "tracking_id": "trk_019012ab7c3d7def8abc1234567890ab",
+      "status": "accepted"
     }
   ],
   "external_id": "signup-jane-20260226",
@@ -144,6 +145,94 @@ curl -X POST https://senda.example.com/api/v1/send \
     },
     "locale": "en",
     "external_id": "signup-jane-20260226"
+  }'
+```
+
+### POST /api/v1/send/batch
+
+Use this endpoint when every logical message uses the **same template ref** but needs its **own variables/injector context**.
+
+**Limits:**
+
+- `items` must contain at least 1 item
+- default max: **100 items** per request
+- configurable via `send.batch_max_items` or `SENDA_SEND_BATCH_MAX_ITEMS`
+- each item has exactly **one** primary recipient in `to`
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `ref` | string | yes | Shared template ref in `tenant:workspace:template_type_slug` format |
+| `items` | object[] | yes | One logical message per item |
+| `items[].to` | string | yes | Primary recipient email |
+| `items[].variables` | object | no | Variables used for that item's template rendering and injector resolution |
+| `items[].locale` | string | no | Locale override for that item |
+| `items[].cc` | string[] | no | CC recipients for that item |
+| `items[].bcc` | string[] | no | BCC recipients for that item |
+| `items[].external_id` | string | no | Per-item correlation/idempotency ID |
+
+**Response (202):**
+
+```json
+{
+  "status": "partial",
+  "template_resolved": "acme:production:welcome-email",
+  "items": [
+    {
+      "index": 0,
+      "to": "ana@example.com",
+      "tracking_id": "trk_111",
+      "status": "accepted",
+      "external_id": "msg-1"
+    },
+    {
+      "index": 1,
+      "to": "blocked@example.com",
+      "tracking_id": "trk_222",
+      "status": "suppressed",
+      "external_id": "msg-2"
+    },
+    {
+      "index": 2,
+      "to": "broken@example.com",
+      "status": "failed",
+      "external_id": "msg-3",
+      "error": "all recipients failed: create email: db down"
+    }
+  ],
+  "accepted_count": 1,
+  "suppressed_count": 1,
+  "failed_count": 1
+}
+```
+
+**Full curl example:**
+
+```bash
+curl -X POST https://senda.example.com/api/v1/send/batch \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer senda_live_sk_abc123def456" \
+  -d '{
+    "ref": "acme:production:welcome-email",
+    "items": [
+      {
+        "to": "ana@example.com",
+        "variables": {
+          "first_name": "Ana",
+          "activation_url": "https://app.example.com/activate?token=ana"
+        },
+        "external_id": "signup-ana-1",
+        "locale": "es"
+      },
+      {
+        "to": "bob@example.com",
+        "variables": {
+          "first_name": "Bob",
+          "activation_url": "https://app.example.com/activate?token=bob"
+        },
+        "external_id": "signup-bob-2",
+        "locale": "en"
+      }
+    ]
   }'
 ```
 
@@ -296,6 +385,21 @@ Required role varies by operation (typically WorkspaceEditor+ for writes, Worksp
 | ------ | -------------------------- | ----------------------------- |
 | POST   | `/templates/:id/preview`   | Render preview (returns HTML) |
 | POST   | `/templates/:id/test-send` | Send test email               |
+
+#### Template Bulk Send (workspace scope)
+
+| Method | Path                              | Description |
+| ------ | --------------------------------- | ----------- |
+| GET    | `/templates/:id/bulk-send-config` | Return UI bulk-send limits and behavior |
+| POST   | `/templates/:id/bulk-send`        | Queue a bulk send using the current published version |
+
+**Notes**
+
+- Only available on **workspace-scoped** template editors.
+- Uses the **current published version** of the template.
+- Request body contains only `items[]`; the template comes from the current screen.
+- The POST endpoint reuses the same batch send engine as `/api/v1/send/batch`.
+- Every persisted email is tagged with provenance so you can distinguish API-key sends from UI bulk uploads.
 
 #### API Keys
 

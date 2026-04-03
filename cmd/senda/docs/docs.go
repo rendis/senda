@@ -9766,6 +9766,198 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send": {
+            "post": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "template_id path parameter",
+                        "name": "template_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.TemplateBulkSendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SendBatchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config": {
+            "get": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "template_id path parameter",
+                        "name": "template_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.TemplateBulkSendConfigResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable": {
             "post": {
                 "security": [
@@ -12102,6 +12294,87 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/send/batch": {
+            "post": {
+                "security": [
+                    {
+                        "WorkspaceAPIKeyBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "send"
+                ],
+                "summary": "POST /api/v1/send/batch",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SendBatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SendBatchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/webhooks/ses/inbound": {
             "post": {
                 "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
@@ -12819,6 +13092,50 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_rendis_senda_internal_http_request.SendBatchItemRequest": {
+            "type": "object",
+            "properties": {
+                "bcc": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cc": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "external_id": {
+                    "type": "string"
+                },
+                "locale": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_request.SendBatchRequest": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SendBatchItemRequest"
+                    }
+                },
+                "ref": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_rendis_senda_internal_http_request.SendEmailRequest": {
             "type": "object",
             "properties": {
@@ -12889,6 +13206,17 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_rendis_senda_internal_http_request.TemplateBulkSendRequest": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.SendBatchItemRequest"
+                    }
+                }
+            }
+        },
         "github_com_rendis_senda_internal_http_request.UpdateAdapterRequest": {
             "type": "object",
             "properties": {
@@ -12929,6 +13257,9 @@ const docTemplate = `{
         "github_com_rendis_senda_internal_http_request.UpdateTenantRequest": {
             "type": "object",
             "properties": {
+                "is_active": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -13440,6 +13771,15 @@ const docTemplate = `{
                 "retry_count": {
                     "type": "integer"
                 },
+                "source_actor_email": {
+                    "type": "string"
+                },
+                "source_actor_member_id": {
+                    "type": "string"
+                },
+                "source_type": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },
@@ -13557,6 +13897,15 @@ const docTemplate = `{
                 },
                 "retry_count": {
                     "type": "integer"
+                },
+                "source_actor_email": {
+                    "type": "string"
+                },
+                "source_actor_member_id": {
+                    "type": "string"
+                },
+                "source_type": {
+                    "type": "string"
                 },
                 "status": {
                     "type": "string"
@@ -13865,6 +14214,55 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_rendis_senda_internal_http_response.SendBatchItemResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "external_id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                },
+                "tracking_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_response.SendBatchResponse": {
+            "type": "object",
+            "properties": {
+                "accepted_count": {
+                    "type": "integer"
+                },
+                "failed_count": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.SendBatchItemResponse"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "suppressed_count": {
+                    "type": "integer"
+                },
+                "template_resolved": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_rendis_senda_internal_http_response.SendEmailResponse": {
             "type": "object",
             "properties": {
@@ -13924,6 +14322,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_response.TemplateBulkSendConfigResponse": {
+            "type": "object",
+            "properties": {
+                "max_items": {
+                    "type": "integer"
+                },
+                "request_shape": {
+                    "type": "string"
+                },
+                "version_strategy": {
                     "type": "string"
                 }
             }
@@ -14151,8 +14563,14 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "delete_blocked_reason": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

@@ -2062,6 +2062,68 @@
               }
             }
           ]
+        },
+        {
+          "name": "Bulk Send Config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/templates/{{template_id}}/bulk-send-config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "templates",
+                "{{template_id}}",
+                "bulk-send-config"
+              ]
+            },
+            "description": "Return the workspace template bulk-send UI constraints.\n\n**Required role:** workspace_viewer\n\n**Notes:** uses the current published version and the uploaded JSON must contain only `items[]`."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Send",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"ui-batch-ana-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"ui-batch-bob-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/templates/{{template_id}}/bulk-send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "templates",
+                "{{template_id}}",
+                "bulk-send"
+              ]
+            },
+            "description": "Queue a same-template bulk send from the workspace template editor.\n\n**Required role:** workspace_editor\n\n**Notes:** uses the current published version, accepts only `items[]`, and reuses the same batch engine as `/api/v1/send/batch`."
+          },
+          "response": []
         }
       ]
     },
@@ -2127,6 +2189,67 @@
                   "        return;",
                   "    }",
                   "    pm.expect(jsonData).to.have.property(\"error\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send Email Batch",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ref\": \"{{tenant_code}}:{{workspace_code}}:{{template_type_slug}}\",\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"batch-ana-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"batch-bob-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/send/batch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "send",
+                "batch"
+              ]
+            },
+            "description": "Send a same-template batch where each item has its own variables and injector context.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Limits:** default max 100 items (configurable via `send.batch_max_items` / `SENDA_SEND_BATCH_MAX_ITEMS`).\n\n**Response:** 202 Accepted with per-item tracking IDs and statuses."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 202\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(202);",
+                  "});",
+                  "pm.test(\"Batch response shape is valid\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"items\");",
+                  "    pm.expect(jsonData.items).to.be.an(\"array\");",
+                  "    if (jsonData.items.length > 0 && jsonData.items[0].tracking_id) {",
+                  "        pm.collectionVariables.set(\"tracking_id\", jsonData.items[0].tracking_id);",
+                  "    }",
                   "});"
                 ]
               }

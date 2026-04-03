@@ -63,6 +63,7 @@ import { useApi } from "@/hooks/use-api";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { SaveStatusIndicator } from "@/components/templates/save-status-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { BulkSendModal } from "@/components/templates/bulk-send-modal";
 import { TestSendModal } from "@/components/templates/test-send-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1744,6 +1745,7 @@ export function MjmlEditor() {
   const [previewFrameUrl, setPreviewFrameUrl] = useState("");
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showTestSend, setShowTestSend] = useState(false);
+  const [showBulkSend, setShowBulkSend] = useState(false);
   const [activeLocale, setActiveLocale] = useState<string>("default");
   const activeLocaleRef = useRef(activeLocale);
   useEffect(() => { activeLocaleRef.current = activeLocale; }, [activeLocale]);
@@ -1762,6 +1764,7 @@ export function MjmlEditor() {
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(
     null
   );
+  const bulkSendEnabled = scope.level === "workspace";
 
   const [builderDocument, setBuilderDocument] = useState<BuilderDocument | null>(
     null
@@ -3662,6 +3665,32 @@ export function MjmlEditor() {
               <Send className="h-4 w-4 mr-1.5" />
               Send Test
             </Button>
+            <div className="mx-1 h-6 w-px bg-border" />
+            {bulkSendEnabled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkSend(true)}
+              >
+                <List className="h-4 w-4 mr-1.5" />
+                Bulk Send
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button variant="outline" size="sm" disabled>
+                      <List className="h-4 w-4 mr-1.5" />
+                      Bulk Send
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Bulk send is available only in workspace scope because it reuses the workspace
+                  queueing flow.
+                </TooltipContent>
+              </Tooltip>
+            )}
             {isDraft && (
               <Button size="sm" onClick={() => setShowPublishConfirm(true)}>
                 <Rocket className="h-4 w-4 mr-1.5" />
@@ -4801,6 +4830,14 @@ export function MjmlEditor() {
         scopedPath={scopedPath}
         templateId={templateId}
         locale={activeLocale === "default" ? undefined : activeLocale}
+      />
+
+      <BulkSendModal
+        open={showBulkSend}
+        onOpenChange={setShowBulkSend}
+        scopedPath={scopedPath}
+        templateId={templateId}
+        enabled={bulkSendEnabled}
       />
     </div>
   );

@@ -215,6 +215,35 @@ components:
                 tenant_name:
                     type: string
             type: object
+        github_com_rendis_senda_internal_http_request.SendBatchItemRequest:
+            properties:
+                bcc:
+                    items:
+                        type: string
+                    type: array
+                cc:
+                    items:
+                        type: string
+                    type: array
+                external_id:
+                    type: string
+                locale:
+                    type: string
+                to:
+                    type: string
+                variables:
+                    additionalProperties: {}
+                    type: object
+            type: object
+        github_com_rendis_senda_internal_http_request.SendBatchRequest:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SendBatchItemRequest'
+                    type: array
+                ref:
+                    type: string
+            type: object
         github_com_rendis_senda_internal_http_request.SendEmailRequest:
             properties:
                 bcc:
@@ -261,6 +290,13 @@ components:
                 subject:
                     type: string
             type: object
+        github_com_rendis_senda_internal_http_request.TemplateBulkSendRequest:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SendBatchItemRequest'
+                    type: array
+            type: object
         github_com_rendis_senda_internal_http_request.UpdateAdapterRequest:
             properties:
                 config:
@@ -287,6 +323,8 @@ components:
             type: object
         github_com_rendis_senda_internal_http_request.UpdateTenantRequest:
             properties:
+                is_active:
+                    type: boolean
                 name:
                     type: string
             type: object
@@ -621,6 +659,12 @@ components:
                     type: string
                 retry_count:
                     type: integer
+                source_actor_email:
+                    type: string
+                source_actor_member_id:
+                    type: string
+                source_type:
+                    type: string
                 status:
                     type: string
                 subject_rendered:
@@ -699,6 +743,12 @@ components:
                     type: string
                 retry_count:
                     type: integer
+                source_actor_email:
+                    type: string
+                source_actor_member_id:
+                    type: string
+                source_type:
+                    type: string
                 status:
                     type: string
                 subject_rendered:
@@ -898,6 +948,38 @@ components:
                 name:
                     type: string
             type: object
+        github_com_rendis_senda_internal_http_response.SendBatchItemResponse:
+            properties:
+                error:
+                    type: string
+                external_id:
+                    type: string
+                index:
+                    type: integer
+                status:
+                    type: string
+                to:
+                    type: string
+                tracking_id:
+                    type: string
+            type: object
+        github_com_rendis_senda_internal_http_response.SendBatchResponse:
+            properties:
+                accepted_count:
+                    type: integer
+                failed_count:
+                    type: integer
+                items:
+                    items:
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SendBatchItemResponse'
+                    type: array
+                status:
+                    type: string
+                suppressed_count:
+                    type: integer
+                template_resolved:
+                    type: string
+            type: object
         github_com_rendis_senda_internal_http_response.SendEmailResponse:
             properties:
                 external_id:
@@ -937,6 +1019,15 @@ components:
                 source_email_id:
                     type: string
                 workspace_id:
+                    type: string
+            type: object
+        github_com_rendis_senda_internal_http_response.TemplateBulkSendConfigResponse:
+            properties:
+                max_items:
+                    type: integer
+                request_shape:
+                    type: string
+                version_strategy:
                     type: string
             type: object
         github_com_rendis_senda_internal_http_response.TemplateListResponse:
@@ -1085,8 +1176,12 @@ components:
                     type: string
                 created_at:
                     type: string
+                delete_blocked_reason:
+                    type: string
                 id:
                     type: string
+                is_active:
+                    type: boolean
                 name:
                     type: string
                 updated_at:
@@ -9371,6 +9466,166 @@ paths:
             summary: DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}
             tags:
                 - templates
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send:
+        post:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: template_id path parameter
+                  in: path
+                  name: template_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.TemplateBulkSendRequest'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SendBatchResponse'
+                    description: Accepted
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send
+            tags:
+                - templates
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config:
+        get:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: template_id path parameter
+                  in: path
+                  name: template_id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.TemplateBulkSendConfigResponse'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config
+            tags:
+                - templates
     /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable:
         post:
             description: Auto-generated route stub for OpenAPI + MCP discovery.
@@ -11330,6 +11585,71 @@ paths:
             security:
                 - WorkspaceAPIKeyBearer: []
             summary: POST /api/v1/send
+            tags:
+                - send
+    /api/v1/send/batch:
+        post:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.SendBatchRequest'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.SendBatchResponse'
+                    description: Accepted
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - WorkspaceAPIKeyBearer: []
+            summary: POST /api/v1/send/batch
             tags:
                 - send
     /api/v1/webhooks/ses/inbound:

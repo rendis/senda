@@ -43,31 +43,41 @@ func StatusToEventType(s EmailStatus) EmailEventType {
 	return EmailEventType(s)
 }
 
+type EmailSourceType string
+
+const (
+	EmailSourceTypeDataPlaneAPIKey              EmailSourceType = "data_plane_api_key"
+	EmailSourceTypeManagementTemplateBulkUpload EmailSourceType = "management_template_bulk_upload"
+)
+
 type Email struct {
-	ID                uuid.UUID
-	TrackingID        string
-	ExternalID        *string
-	WorkspaceID       uuid.UUID
-	TenantID          uuid.UUID
-	TemplateID        uuid.UUID
-	TemplateVersionID uuid.UUID
-	TemplateTypeSlug  string
-	TemplateRef       string // original "latam:acme:welcome"
-	RecipientEmail    string
-	CC                []string
-	BCC               []string
-	FromEmail         string
-	FromName          string
-	ReplyTo           *string
-	SubjectRendered   string
-	Locale            *string
-	Status            EmailStatus
-	AdapterID         uuid.UUID
-	ProviderMessageID *string
-	VariablesSnapshot map[string]any
-	InjectorsSnapshot map[string]map[string]any
-	BodyMJML          string // MJML source snapshot (rendered with variables before compile)
-	RetryCount        int
+	ID                  uuid.UUID
+	TrackingID          string
+	ExternalID          *string
+	WorkspaceID         uuid.UUID
+	TenantID            uuid.UUID
+	TemplateID          uuid.UUID
+	TemplateVersionID   uuid.UUID
+	TemplateTypeSlug    string
+	TemplateRef         string // original "latam:acme:welcome"
+	RecipientEmail      string
+	CC                  []string
+	BCC                 []string
+	FromEmail           string
+	FromName            string
+	ReplyTo             *string
+	SubjectRendered     string
+	Locale              *string
+	Status              EmailStatus
+	AdapterID           uuid.UUID
+	ProviderMessageID   *string
+	VariablesSnapshot   map[string]any
+	InjectorsSnapshot   map[string]map[string]any
+	SourceType          EmailSourceType
+	SourceActorMemberID *uuid.UUID
+	SourceActorEmail    *string
+	BodyMJML            string // MJML source snapshot (rendered with variables before compile)
+	RetryCount          int
 	OpenTrackingEnabled bool
 	MaxRetries          int
 	NextRetryAt         *time.Time

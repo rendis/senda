@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
+	"github.com/rendis/senda/internal/service"
 )
 
 // --- Helpers ---
@@ -34,8 +36,9 @@ func setupSendTest() (*echo.Echo, *handler.SendHandler) {
 	e.Use(fakeWorkspaceContext(uuid.Must(uuid.NewV7())))
 
 	// nil SendService is safe for validation-only tests (handler validates before calling service).
-	h := handler.NewSendHandler(nil)
+	h := handler.NewSendHandler(nil, 100)
 	e.POST("/api/v1/send", h.Send)
+	e.POST("/api/v1/send/batch", h.SendBatch)
 
 	return e, h
 }
@@ -46,10 +49,38 @@ func setupSendTestNoWorkspace() (*echo.Echo, *handler.SendHandler) {
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 
-	h := handler.NewSendHandler(nil)
+	h := handler.NewSendHandler(nil, 100)
 	e.POST("/api/v1/send", h.Send)
+	e.POST("/api/v1/send/batch", h.SendBatch)
 
 	return e, h
+}
+
+type fakeSendService struct {
+	sendBatchFn func(*service.SendBatchRequest) *service.SendBatchResponse
+}
+
+func (f *fakeSendService) Send(_ context.Context, _ *service.SendRequest) (*service.SendResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeSendService) SendBatch(_ context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error) {
+	if f.sendBatchFn != nil {
+		return f.sendBatchFn(req), nil
+	}
+	return &service.SendBatchResponse{}, nil
+}
+
+func setupSendBatchTest(svc *fakeSendService, maxItems int) *echo.Echo {
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	e.Use(middleware.RequestID())
+	e.Use(fakeWorkspaceContext(uuid.Must(uuid.NewV7())))
+
+	h := handler.NewSendHandler(svc, maxItems)
+	e.POST("/api/v1/send/batch", h.SendBatch)
+
+	return e
 }
 
 // --- Tests ---
@@ -189,5 +220,98 @@ func TestSendHandler_Send_TooManyRecipients(t *testing.T) {
 	}
 	if len(errResp.Error.Details) != 1 || errResp.Error.Details[0].Field != "to" {
 		t.Fatalf("expected field error on 'to', got %+v", errResp.Error.Details)
+	}
+}
+
+func TestSendHandler_SendBatch_MissingRef(t *testing.T) {
+	e := setupSendBatchTest(nil, 100)
+
+	body := `{"items":[{"to":"user@example.com"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendHandler_SendBatch_EmptyItems(t *testing.T) {
+	e := setupSendBatchTest(nil, 100)
+
+	body := `{"ref":"acme:default:welcome","items":[]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendHandler_SendBatch_TooManyItems(t *testing.T) {
+	e := setupSendBatchTest(nil, 2)
+
+	body := `{"ref":"acme:default:welcome","items":[{"to":"one@example.com"},{"to":"two@example.com"},{"to":"three@example.com"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendHandler_SendBatch_ItemMissingTo(t *testing.T) {
+	e := setupSendBatchTest(nil, 100)
+
+	body := `{"ref":"acme:default:welcome","items":[{}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendHandler_SendBatch_ValidRequest(t *testing.T) {
+	svc := &fakeSendService{
+		sendBatchFn: func(req *service.SendBatchRequest) *service.SendBatchResponse {
+			if req.Ref != "acme:default:welcome" {
+				t.Fatalf("unexpected ref %q", req.Ref)
+			}
+			if len(req.Items) != 1 || req.Items[0].To != "user@example.com" {
+				t.Fatalf("unexpected items %+v", req.Items)
+			}
+			return &service.SendBatchResponse{
+				Status:           "accepted",
+				TemplateResolved: req.Ref,
+				AcceptedCount:    1,
+				Items: []service.SendBatchItemResult{
+					{
+						Index:      0,
+						To:         "user@example.com",
+						TrackingID: "trk_batch_1",
+						Status:     "accepted",
+					},
+				},
+			}
+		},
+	}
+	e := setupSendBatchTest(svc, 100)
+
+	body := `{"ref":"acme:default:welcome","items":[{"to":"user@example.com","variables":{"name":"Jane"}}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

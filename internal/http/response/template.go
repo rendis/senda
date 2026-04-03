@@ -223,6 +223,13 @@ type MJMLPreviewResponse struct {
 	HTML string `json:"html"`
 }
 
+// TemplateBulkSendConfigResponse exposes server-side bulk send constraints for the template editor UI.
+type TemplateBulkSendConfigResponse struct {
+	MaxItems        int    `json:"max_items"`
+	VersionStrategy string `json:"version_strategy"`
+	RequestShape    string `json:"request_shape"`
+}
+
 // --- Helpers ---
 
 func formatTime(t time.Time) string {

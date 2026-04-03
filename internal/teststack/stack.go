@@ -54,11 +54,12 @@ type Report struct {
 }
 
 type Services struct {
-	Senda      string `json:"senda,omitempty"`
-	Mailpit    string `json:"mailpit,omitempty"`
-	Keycloak   string `json:"keycloak,omitempty"`
-	AWSSim     string `json:"aws_sim,omitempty"`
-	Frontend   string `json:"frontend,omitempty"`
+	Senda    string `json:"senda,omitempty"`
+	Mailpit  string `json:"mailpit,omitempty"`
+	Keycloak string `json:"keycloak,omitempty"`
+	AWSSim   string `json:"aws_sim,omitempty"`
+	Postgres string `json:"postgres,omitempty"`
+	Frontend string `json:"frontend,omitempty"`
 }
 
 type RuntimeReport struct {
@@ -70,13 +71,13 @@ type RuntimeReport struct {
 }
 
 type resourceNames struct {
-	Network    string
-	Postgres   string
-	Keycloak   string
-	Mailpit    string
-	AWSSim     string
+	Network       string
+	Postgres      string
+	Keycloak      string
+	Mailpit       string
+	AWSSim        string
 	AWSSimBackend string
-	App        string
+	App           string
 }
 
 func Up(ctx context.Context, opts Options) (*Report, error) {
@@ -134,12 +135,12 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 		Runtime: RuntimeReport{
 			Network: names.Network,
 			Containers: map[string]string{
-				"postgres":   names.Postgres,
-				"keycloak":   names.Keycloak,
-				"mailpit":    names.Mailpit,
-				"aws_sim":    names.AWSSim,
+				"postgres":        names.Postgres,
+				"keycloak":        names.Keycloak,
+				"mailpit":         names.Mailpit,
+				"aws_sim":         names.AWSSim,
 				"aws_sim_backend": names.AWSSimBackend,
-				"senda":      names.App,
+				"senda":           names.App,
 			},
 			KeycloakRealm:               DefaultRealm,
 			JWTSecret:                   DefaultJWTSecret,
@@ -161,6 +162,11 @@ func Up(ctx context.Context, opts Options) (*Report, error) {
 	if err != nil {
 		cleanupNamedResources(ctx, names)
 		return nil, fmt.Errorf("resolve aws-sim endpoint: %w", err)
+	}
+	report.Services.Postgres, err = postgresURL(ctx, pg, defaultPostgresPort)
+	if err != nil {
+		cleanupNamedResources(ctx, names)
+		return nil, fmt.Errorf("resolve postgres endpoint: %w", err)
 	}
 
 	app, err := startApp(ctx, opts.ProjectRoot, names, report)
@@ -192,13 +198,13 @@ func Down(ctx context.Context, outPath string) error {
 	var names []resourceNames
 	if report, err := LoadReport(outPath); err == nil && report != nil {
 		names = append(names, resourceNames{
-			Network:    report.Runtime.Network,
-			Postgres:   report.Runtime.Containers["postgres"],
-			Keycloak:   report.Runtime.Containers["keycloak"],
-			Mailpit:    report.Runtime.Containers["mailpit"],
-			AWSSim:     report.Runtime.Containers["aws_sim"],
+			Network:       report.Runtime.Network,
+			Postgres:      report.Runtime.Containers["postgres"],
+			Keycloak:      report.Runtime.Containers["keycloak"],
+			Mailpit:       report.Runtime.Containers["mailpit"],
+			AWSSim:        report.Runtime.Containers["aws_sim"],
 			AWSSimBackend: report.Runtime.Containers["aws_sim_backend"],
-			App:        report.Runtime.Containers["senda"],
+			App:           report.Runtime.Containers["senda"],
 		})
 	}
 	if len(names) == 0 {
@@ -231,13 +237,13 @@ func LoadReport(path string) (*Report, error) {
 func makeResourceNames(mode Mode) resourceNames {
 	prefix := "senda-stack-" + string(mode)
 	return resourceNames{
-		Network:    prefix + "-net",
-		Postgres:   prefix + "-postgres",
-		Keycloak:   prefix + "-keycloak",
-		Mailpit:    prefix + "-mailpit",
-		AWSSim:     prefix + "-aws-sim",
+		Network:       prefix + "-net",
+		Postgres:      prefix + "-postgres",
+		Keycloak:      prefix + "-keycloak",
+		Mailpit:       prefix + "-mailpit",
+		AWSSim:        prefix + "-aws-sim",
 		AWSSimBackend: prefix + "-aws-sim-backend",
-		App:        prefix + "-app",
+		App:           prefix + "-app",
 	}
 }
 
@@ -464,6 +470,18 @@ func httpURL(ctx context.Context, ctr testcontainers.Container, port string) (st
 		return "", err
 	}
 	return fmt.Sprintf("http://%s:%s", host, mapped.Port()), nil
+}
+
+func postgresURL(ctx context.Context, ctr testcontainers.Container, port string) (string, error) {
+	mapped, err := ctr.MappedPort(ctx, nat.Port(port))
+	if err != nil {
+		return "", err
+	}
+	host, err := ctr.Host(ctx)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("postgres://senda:senda@%s:%s/senda?sslmode=disable", host, mapped.Port()), nil
 }
 
 func writeReport(path string, report *Report) error {

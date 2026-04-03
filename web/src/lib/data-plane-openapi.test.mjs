@@ -21,6 +21,7 @@ test("data plane API spec includes every API key endpoint", () => {
     "/api/v1/emails/{tracking_id}",
     "/api/v1/emails/{tracking_id}/events",
     "/api/v1/send",
+    "/api/v1/send/batch",
   ]);
 });
 

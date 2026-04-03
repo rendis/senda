@@ -16,6 +16,7 @@ import (
 // Config is the root configuration for the Senda application.
 type Config struct {
 	Server        ServerConfig   `yaml:"server"`
+	Send          SendConfig     `yaml:"send"`
 	Database      DatabaseConfig `yaml:"database"`
 	OIDC          OIDCConfig     `yaml:"oidc"`
 	Crypto        CryptoConfig   `yaml:"crypto"`
@@ -33,6 +34,10 @@ type SNSConfig struct {
 
 type TrackingConfig struct {
 	BaseURL string `yaml:"base_url" env:"SENDA_TRACKING_BASE_URL"`
+}
+
+type SendConfig struct {
+	BatchMaxItems int `yaml:"batch_max_items" env:"SENDA_SEND_BATCH_MAX_ITEMS" default:"100"`
 }
 
 type ServerConfig struct {
@@ -55,12 +60,12 @@ type DatabaseConfig struct {
 }
 
 type OIDCConfig struct {
-	Mode             string `yaml:"mode" env:"SENDA_OIDC_MODE" default:"oidc"`
-	DiscoveryURL     string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL"`
-	ClientID         string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID"`
-	ClientSecret     string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET"`
-	TestSecret       string `yaml:"test_secret" env:"SENDA_OIDC_TEST_SECRET"`
-	SkipIssuerCheck  bool   `yaml:"skip_issuer_check" env:"SENDA_OIDC_SKIP_ISSUER_CHECK" default:"false"`
+	Mode            string `yaml:"mode" env:"SENDA_OIDC_MODE" default:"oidc"`
+	DiscoveryURL    string `yaml:"discovery_url" env:"SENDA_OIDC_DISCOVERY_URL"`
+	ClientID        string `yaml:"client_id" env:"SENDA_OIDC_CLIENT_ID"`
+	ClientSecret    string `yaml:"client_secret" env:"SENDA_OIDC_CLIENT_SECRET"`
+	TestSecret      string `yaml:"test_secret" env:"SENDA_OIDC_TEST_SECRET"`
+	SkipIssuerCheck bool   `yaml:"skip_issuer_check" env:"SENDA_OIDC_SKIP_ISSUER_CHECK" default:"false"`
 }
 
 type SMTPConfig struct {
