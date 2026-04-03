@@ -13,9 +13,17 @@ import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FormDialog } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -44,6 +52,7 @@ const createTenantSchema = z.object({
 
 const editTenantSchema = z.object({
   name: nameSchema,
+  status: z.enum(["active", "disabled"]),
 });
 
 type CreateTenantFormValues = z.infer<typeof createTenantSchema>;
@@ -144,6 +153,14 @@ export function TenantsContent() {
       ),
     },
     {
+      accessorKey: "is_active",
+      header: "Status",
+      size: 120,
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.is_active ? "active" : "disabled"} />
+      ),
+    },
+    {
       accessorKey: "created_at",
       header: "Created",
       size: 180,
@@ -212,11 +229,23 @@ export function TenantsContent() {
     toast.success(`Tenant \"${created.name}\" created`);
   };
 
-  const handleUpdateTenant = async (tenantCode: string, name: string) => {
+  const handleUpdateTenant = async (
+    tenantCode: string,
+    data: UpdateTenantInput,
+  ) => {
     const updated = await updateTenant.mutateAsync({
       tenantCode,
-      data: { name },
+      data,
     });
+    if (typeof data.is_active === "boolean") {
+      toast.success(
+        data.is_active
+          ? `Tenant \"${updated.name}\" enabled`
+          : `Tenant \"${updated.name}\" disabled`,
+      );
+      return;
+    }
+
     toast.success(`Tenant \"${updated.name}\" updated`);
   };
 
@@ -421,15 +450,22 @@ function EditTenantDialog({
   tenant: Tenant;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdateTenant: (tenantCode: string, name: string) => Promise<void>;
+  onUpdateTenant: (tenantCode: string, data: UpdateTenantInput) => Promise<void>;
 }) {
   const form = useForm<EditTenantFormValues>({
     resolver: zodResolver(editTenantSchema),
-    defaultValues: { name: tenant.name },
+    defaultValues: {
+      name: tenant.name,
+      status: tenant.is_active ? "active" : "disabled",
+    },
   });
+  const watchedStatus = useWatch({ control: form.control, name: "status" });
 
   useEffect(() => {
-    form.reset({ name: tenant.name });
+    form.reset({
+      name: tenant.name,
+      status: tenant.is_active ? "active" : "disabled",
+    });
   }, [form, tenant]);
 
   const handleSubmit = async () => {
@@ -438,7 +474,10 @@ function EditTenantDialog({
     await form.handleSubmit(
       async (values) => {
         try {
-          await onUpdateTenant(tenant.code, values.name);
+          await onUpdateTenant(tenant.code, {
+            name: values.name,
+            is_active: values.status === "active",
+          });
         } catch (error) {
           keepOpen = true;
           await applyEditTenantErrors(error, form.setError);
@@ -456,7 +495,7 @@ function EditTenantDialog({
     <FormDialog
       trigger={<span className="hidden" />}
       title="Edit Tenant"
-      description="Update the tenant display name. The tenant code remains immutable."
+      description="Update the tenant display name and activation status. The tenant code remains immutable."
       submitLabel="Save Changes"
       loadingLabel="Saving..."
       submitIcon={<Pencil className="h-4 w-4" />}
@@ -482,6 +521,31 @@ function EditTenantDialog({
             Code
           </Label>
           <Input id="edit-tenant-code" value={tenant.code} readOnly className="bg-muted/50 font-mono text-[13px] text-muted-foreground" />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[13px] font-medium">Status</Label>
+          <Select
+            value={watchedStatus}
+            onValueChange={(value) =>
+              form.setValue("status", value as EditTenantFormValues["status"], {
+                shouldValidate: true,
+              })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="disabled">Disabled</SelectItem>
+            </SelectContent>
+          </Select>
+          {form.formState.errors.status && (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.status.message}
+            </p>
+          )}
         </div>
       </div>
     </FormDialog>

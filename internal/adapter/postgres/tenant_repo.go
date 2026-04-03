@@ -26,17 +26,18 @@ func NewTenantRepo(pool *pgxpool.Pool) *TenantRepo {
 
 func (r *TenantRepo) Create(ctx context.Context, tenant *domain.Tenant) error {
 	row := r.pool.QueryRow(ctx,
-		`INSERT INTO tenants (id, code, name)
-		 VALUES (@id, @code, @name)
-		 RETURNING created_at, updated_at`,
+		`INSERT INTO tenants (id, code, name, is_active)
+		 VALUES (@id, @code, @name, @is_active)
+		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":   tenant.ID,
-			"code": tenant.Code,
-			"name": tenant.Name,
+			"id":        tenant.ID,
+			"code":      tenant.Code,
+			"name":      tenant.Name,
+			"is_active": tenant.IsActive,
 		},
 	)
 
-	if err := row.Scan(&tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
+	if err := row.Scan(&tenant.IsActive, &tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
 		if appErr := classifyPgError(err); appErr != nil {
 			return appErr
 		}
@@ -48,7 +49,7 @@ func (r *TenantRepo) Create(ctx context.Context, tenant *domain.Tenant) error {
 
 func (r *TenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, code, name, created_at, updated_at, deleted_at
+		`SELECT id, code, name, is_active, created_at, updated_at, deleted_at
 		 FROM tenants
 		 WHERE id = @id AND deleted_at IS NULL`,
 		pgx.NamedArgs{"id": id},
@@ -59,7 +60,7 @@ func (r *TenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant,
 
 func (r *TenantRepo) GetByCode(ctx context.Context, code string) (*domain.Tenant, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, code, name, created_at, updated_at, deleted_at
+		`SELECT id, code, name, is_active, created_at, updated_at, deleted_at
 		 FROM tenants
 		 WHERE code = @code AND deleted_at IS NULL`,
 		pgx.NamedArgs{"code": code},
@@ -78,7 +79,7 @@ func (r *TenantRepo) List(ctx context.Context, opts port.ListOptions) ([]*domain
 	args := pgx.NamedArgs{"limit": fetchLimit}
 
 	var qb strings.Builder
-	qb.WriteString(`SELECT id, code, name, created_at, updated_at, deleted_at FROM tenants WHERE deleted_at IS NULL`)
+	qb.WriteString(`SELECT id, code, name, is_active, created_at, updated_at, deleted_at FROM tenants WHERE deleted_at IS NULL`)
 
 	if afterID != nil {
 		qb.WriteString(` AND id < @after_id`)
@@ -114,16 +115,17 @@ func (r *TenantRepo) List(ctx context.Context, opts port.ListOptions) ([]*domain
 func (r *TenantRepo) Update(ctx context.Context, tenant *domain.Tenant) error {
 	row := r.pool.QueryRow(ctx,
 		`UPDATE tenants
-		 SET name = @name, updated_at = now()
+		 SET name = @name, is_active = @is_active, updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
-		 RETURNING updated_at`,
+		 RETURNING is_active, updated_at`,
 		pgx.NamedArgs{
-			"id":   tenant.ID,
-			"name": tenant.Name,
+			"id":        tenant.ID,
+			"name":      tenant.Name,
+			"is_active": tenant.IsActive,
 		},
 	)
 
-	if err := row.Scan(&tenant.UpdatedAt); err != nil {
+	if err := row.Scan(&tenant.IsActive, &tenant.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperr.NotFound("tenant %s not found", tenant.ID)
 		}
@@ -163,7 +165,7 @@ func (r *TenantRepo) Purge(ctx context.Context, id uuid.UUID) error {
 
 func scanTenant(row pgx.Row) (*domain.Tenant, error) {
 	var t domain.Tenant
-	err := row.Scan(&t.ID, &t.Code, &t.Name, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt)
+	err := row.Scan(&t.ID, &t.Code, &t.Name, &t.IsActive, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperr.NotFound("tenant not found")

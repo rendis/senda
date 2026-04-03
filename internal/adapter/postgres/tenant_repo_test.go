@@ -20,9 +20,10 @@ func TestTenantRepo_Create(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "acme",
-		Name: "Acme Corp",
+		ID:       uuid.New(),
+		Code:     "acme",
+		Name:     "Acme Corp",
+		IsActive: true,
 	}
 
 	if err := repo.Create(ctx, tenant); err != nil {
@@ -35,6 +36,9 @@ func TestTenantRepo_Create(t *testing.T) {
 	if tenant.UpdatedAt.IsZero() {
 		t.Error("expected UpdatedAt to be set")
 	}
+	if !tenant.IsActive {
+		t.Error("expected tenant to be active by default")
+	}
 }
 
 func TestTenantRepo_Create_DuplicateCode(t *testing.T) {
@@ -43,18 +47,20 @@ func TestTenantRepo_Create_DuplicateCode(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "dup-code",
-		Name: "First",
+		ID:       uuid.New(),
+		Code:     "dup-code",
+		Name:     "First",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("first Create() error: %v", err)
 	}
 
 	dup := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "dup-code",
-		Name: "Second",
+		ID:       uuid.New(),
+		Code:     "dup-code",
+		Name:     "Second",
+		IsActive: true,
 	}
 	err := repo.Create(ctx, dup)
 	if err == nil {
@@ -73,9 +79,10 @@ func TestTenantRepo_GetByID(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "byid",
-		Name: "By ID",
+		ID:       uuid.New(),
+		Code:     "byid",
+		Name:     "By ID",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -112,9 +119,10 @@ func TestTenantRepo_GetByCode(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "bycode",
-		Name: "By Code",
+		ID:       uuid.New(),
+		Code:     "bycode",
+		Name:     "By Code",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -151,9 +159,10 @@ func TestTenantRepo_Update(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "upd",
-		Name: "Original",
+		ID:       uuid.New(),
+		Code:     "upd",
+		Name:     "Original",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -175,6 +184,36 @@ func TestTenantRepo_Update(t *testing.T) {
 	}
 	if got.Name != "Updated" {
 		t.Errorf("want name Updated, got %q", got.Name)
+	}
+}
+
+func TestTenantRepo_Update_Status(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTenantRepo(pool)
+
+	tenant := &domain.Tenant{
+		ID:       uuid.New(),
+		Code:     "status-upd",
+		Name:     "Status Original",
+		IsActive: true,
+	}
+	if err := repo.Create(ctx, tenant); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	tenant.IsActive = false
+
+	if err := repo.Update(ctx, tenant); err != nil {
+		t.Fatalf("Update() error: %v", err)
+	}
+
+	got, err := repo.GetByID(ctx, tenant.ID)
+	if err != nil {
+		t.Fatalf("GetByID() error: %v", err)
+	}
+	if got.IsActive {
+		t.Fatal("expected tenant to be inactive after update")
 	}
 }
 
@@ -204,9 +243,10 @@ func TestTenantRepo_SoftDelete(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "softdel",
-		Name: "To Delete",
+		ID:       uuid.New(),
+		Code:     "softdel",
+		Name:     "To Delete",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -254,9 +294,10 @@ func TestTenantRepo_Purge(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "purge",
-		Name: "To Purge",
+		ID:       uuid.New(),
+		Code:     "purge",
+		Name:     "To Purge",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -303,9 +344,10 @@ func TestTenantRepo_List(t *testing.T) {
 		id := uuid.New()
 		ids[i] = id
 		tenant := &domain.Tenant{
-			ID:   id,
-			Code: "list-" + id.String()[:8],
-			Name: "Tenant " + id.String()[:8],
+			ID:       id,
+			Code:     "list-" + id.String()[:8],
+			Name:     "Tenant " + id.String()[:8],
+			IsActive: true,
 		}
 		if err := repo.Create(ctx, tenant); err != nil {
 			t.Fatalf("Create(%d) error: %v", i, err)
@@ -354,9 +396,10 @@ func TestTenantRepo_List_SoftDeletedExcluded(t *testing.T) {
 	repo := pgadapter.NewTenantRepo(pool)
 
 	tenant := &domain.Tenant{
-		ID:   uuid.New(),
-		Code: "list-del",
-		Name: "Deleted Tenant",
+		ID:       uuid.New(),
+		Code:     "list-del",
+		Name:     "Deleted Tenant",
+		IsActive: true,
 	}
 	if err := repo.Create(ctx, tenant); err != nil {
 		t.Fatalf("Create() error: %v", err)

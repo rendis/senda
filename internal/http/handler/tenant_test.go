@@ -178,8 +178,14 @@ func TestTenantHandler_Create_Success(t *testing.T) {
 	if resp.Name != "Acme Corp" {
 		t.Fatalf("expected name 'Acme Corp', got %q", resp.Name)
 	}
+	if !resp.IsActive {
+		t.Fatal("expected is_active=true")
+	}
 	if createdTenant == nil {
 		t.Fatal("expected tenant to be created in store")
+	}
+	if !createdTenant.IsActive {
+		t.Fatal("expected created tenant to be active by default")
 	}
 	if createdWS == nil {
 		t.Fatal("expected _system workspace to be created")
@@ -333,15 +339,17 @@ func TestTenantHandler_GetByCode_NotFound(t *testing.T) {
 
 func TestTenantHandler_Update_Success(t *testing.T) {
 	now := time.Now().UTC()
-	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", CreatedAt: now, UpdatedAt: now}
+	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", IsActive: true, CreatedAt: now, UpdatedAt: now}
 
 	var updatedName string
+	var updatedIsActive bool
 	ts := &mockTenantStore{
 		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
 			return tenant, nil
 		},
 		updateFn: func(_ context.Context, t *domain.Tenant) error {
 			updatedName = t.Name
+			updatedIsActive = t.IsActive
 			return nil
 		},
 	}
@@ -359,6 +367,52 @@ func TestTenantHandler_Update_Success(t *testing.T) {
 	}
 	if updatedName != "Acme Industries" {
 		t.Fatalf("expected updated name 'Acme Industries', got %q", updatedName)
+	}
+	if !updatedIsActive {
+		t.Fatal("expected tenant to remain active")
+	}
+}
+
+func TestTenantHandler_Update_Status_Success(t *testing.T) {
+	now := time.Now().UTC()
+	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", IsActive: true, CreatedAt: now, UpdatedAt: now}
+
+	var updatedTenant *domain.Tenant
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return tenant, nil
+		},
+		updateFn: func(_ context.Context, t *domain.Tenant) error {
+			copy := *t
+			updatedTenant = &copy
+			return nil
+		},
+	}
+
+	e, _ := setupTenantTest(ts, &mockWorkspaceStore{})
+
+	body := `{"is_active":false}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updatedTenant == nil {
+		t.Fatal("expected tenant update to be persisted")
+	}
+	if updatedTenant.IsActive {
+		t.Fatal("expected tenant to be disabled")
+	}
+
+	var resp response.TenantResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.IsActive {
+		t.Fatal("expected response is_active=false")
 	}
 }
 

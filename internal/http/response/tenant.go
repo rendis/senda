@@ -9,6 +9,8 @@ type TenantResponse struct {
 	ID        string `json:"id"`
 	Code      string `json:"code"`
 	Name      string `json:"name"`
+	IsActive  bool   `json:"is_active"`
+	DeleteBlockedReason string `json:"delete_blocked_reason,omitempty"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 }
@@ -26,6 +28,7 @@ func NewTenantResponse(t *domain.Tenant) TenantResponse {
 		ID:        t.ID.String(),
 		Code:      t.Code,
 		Name:      t.Name,
+		IsActive:  t.IsActive,
 		CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: t.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}

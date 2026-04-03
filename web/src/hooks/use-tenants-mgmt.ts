@@ -11,7 +11,8 @@ export interface CreateTenantInput {
 }
 
 export interface UpdateTenantInput {
-  name: string;
+  name?: string;
+  is_active?: boolean;
 }
 
 function invalidateTenantQueries(queryClient: ReturnType<typeof useQueryClient>) {

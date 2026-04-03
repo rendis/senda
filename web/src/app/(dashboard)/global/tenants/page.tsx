@@ -5,7 +5,7 @@ export default function GlobalTenantsPage() {
   return (
     <PageShell
       title="Tenants"
-      description="Create, update, and retire tenant scopes across the platform"
+      description="Create, update, enable, disable, and retire tenant scopes across the platform"
       breadcrumbs={[{ label: "Global" }, { label: "Tenants" }]}
     >
       <TenantsContent />

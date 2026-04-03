@@ -8,5 +8,6 @@ type CreateTenantRequest struct {
 
 // UpdateTenantRequest is the request body for PUT /api/v1/manage/tenants/:tenant_code.
 type UpdateTenantRequest struct {
-	Name *string `json:"name"`
+	Name     *string `json:"name"`
+	IsActive *bool   `json:"is_active,omitempty"`
 }

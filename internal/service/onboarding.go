@@ -143,20 +143,22 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 
 	// 3. Create tenant.
 	tenant := &domain.Tenant{
-		ID:   uuid.Must(uuid.NewV7()),
-		Code: req.TenantCode,
-		Name: req.TenantName,
+		ID:       uuid.Must(uuid.NewV7()),
+		Code:     req.TenantCode,
+		Name:     req.TenantName,
+		IsActive: true,
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO tenants (id, code, name)
-		 VALUES (@id, @code, @name)
-		 RETURNING created_at, updated_at`,
+		`INSERT INTO tenants (id, code, name, is_active)
+		 VALUES (@id, @code, @name, @is_active)
+		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":   tenant.ID,
-			"code": tenant.Code,
-			"name": tenant.Name,
+			"id":        tenant.ID,
+			"code":      tenant.Code,
+			"name":      tenant.Name,
+			"is_active": tenant.IsActive,
 		},
-	).Scan(&tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
+	).Scan(&tenant.IsActive, &tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("create tenant: %w", err)
 	}
 
@@ -196,7 +198,7 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		 VALUES (@id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":                     ws.ID,
+			"id":                    ws.ID,
 			"tenant_id":             ws.TenantID,
 			"code":                  ws.Code,
 			"name":                  ws.Name,

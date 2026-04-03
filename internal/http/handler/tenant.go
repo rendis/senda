@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -19,13 +20,14 @@ import (
 
 // TenantHandler handles CRUD operations for tenants.
 type TenantHandler struct {
-	store   port.TenantStore
-	wsStore port.WorkspaceStore
+	store        port.TenantStore
+	wsStore      port.WorkspaceStore
+	adapterStore port.AdapterStore
 }
 
 // NewTenantHandler creates a new TenantHandler.
-func NewTenantHandler(ts port.TenantStore, ws port.WorkspaceStore) *TenantHandler {
-	return &TenantHandler{store: ts, wsStore: ws}
+func NewTenantHandler(ts port.TenantStore, ws port.WorkspaceStore, as port.AdapterStore) *TenantHandler {
+	return &TenantHandler{store: ts, wsStore: ws, adapterStore: as}
 }
 
 // Create handles POST /api/v1/manage/tenants.
@@ -53,6 +55,7 @@ func (h *TenantHandler) Create(c *echo.Context) error {
 		ID:        uuid.Must(uuid.NewV7()),
 		Code:      req.Code,
 		Name:      req.Name,
+		IsActive:  true,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -90,7 +93,13 @@ func (h *TenantHandler) List(c *echo.Context) error {
 
 	items := make([]response.TenantResponse, len(tenants))
 	for i, t := range tenants {
-		items[i] = response.NewTenantResponse(t)
+		resp := response.NewTenantResponse(t)
+		blockedReason, err := h.deleteBlockedReason(c.Request().Context(), t.ID)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		resp.DeleteBlockedReason = blockedReason
+		items[i] = resp
 	}
 
 	return c.JSON(http.StatusOK, response.TenantListResponse{
@@ -109,7 +118,13 @@ func (h *TenantHandler) GetByCode(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewTenantResponse(tenant))
+	resp := response.NewTenantResponse(tenant)
+	blockedReason, err := h.deleteBlockedReason(c.Request().Context(), tenant.ID)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	resp.DeleteBlockedReason = blockedReason
+	return c.JSON(http.StatusOK, resp)
 }
 
 // Update handles PUT /api/v1/manage/tenants/:tenant_code.
@@ -140,6 +155,9 @@ func (h *TenantHandler) Update(c *echo.Context) error {
 		}
 		tenant.Name = *req.Name
 	}
+	if req.IsActive != nil {
+		tenant.IsActive = *req.IsActive
+	}
 
 	tenant.UpdatedAt = time.Now().UTC()
 	if err := h.store.Update(ctx, tenant); err != nil {
@@ -164,6 +182,60 @@ func (h *TenantHandler) SoftDelete(c *echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+const tenantDeleteBlockedReasonTemplate = "Delete disabled: tenant still has active SES adapter %q in workspace %q. Delete it first."
+
+func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.UUID) (string, error) {
+	if h.adapterStore == nil {
+		return "", nil
+	}
+
+	workspaceCursor := ""
+	for {
+		workspaces, nextCursor, err := h.wsStore.ListByTenant(ctx, tenantID, port.ListOptions{
+			Cursor: workspaceCursor,
+			Limit:  100,
+		})
+		if err != nil {
+			return "", err
+		}
+
+		for _, ws := range workspaces {
+			adapterCursor := ""
+			for {
+				page, err := h.adapterStore.ListByWorkspace(ctx, &ws.ID, port.ListOptions{
+					Cursor: adapterCursor,
+					Limit:  100,
+				})
+				if err != nil {
+					return "", err
+				}
+
+				for _, adapter := range page.Items {
+					if adapter.AdapterType == domain.AdapterTypeSES {
+						return responseMessageDeleteBlocked(adapter.Name, ws.Code), nil
+					}
+				}
+
+				if !page.HasMore || page.NextCursor == "" {
+					break
+				}
+				adapterCursor = page.NextCursor
+			}
+		}
+
+		if nextCursor == "" {
+			break
+		}
+		workspaceCursor = nextCursor
+	}
+
+	return "", nil
+}
+
+func responseMessageDeleteBlocked(adapterName, workspaceCode string) string {
+	return fmt.Sprintf(tenantDeleteBlockedReasonTemplate, adapterName, workspaceCode)
 }
 
 // mapStoreError maps domain errors to HTTP error responses.
