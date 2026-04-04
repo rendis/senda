@@ -274,15 +274,14 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 		step6 := p.verifySubscription(ctx, snsClient, topicARN, webhookURL)
 		result.Steps = append(result.Steps, step6)
 		switch step6.Status {
-		case StepStatusCreated:
+		case StepStatusCreated, StepStatusPendingConfirmation:
+			// Pending confirmation is a transient state — the webhook is live
+			// and will auto-confirm. Persist as completed either way.
 			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
-		case StepStatusPendingConfirmation:
-			// Subscription exists but awaiting SNS confirmation delivery.
-			// The webhook is live and will auto-confirm — persist as completed
-			// so overall status reflects that provisioning is done.
-			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
-			p.logger.InfoContext(ctx, "subscription pending confirmation — will be auto-confirmed by webhook",
-				"adapter_id", adapterID)
+			if step6.Status == StepStatusPendingConfirmation {
+				p.logger.InfoContext(ctx, "subscription pending confirmation — will be auto-confirmed by webhook",
+					"adapter_id", adapterID)
+			}
 		default: // StepStatusFailed
 			p.persistStepFailure(ctx, stepMap, domain.StepVerifySubscription, step6.Detail)
 			p.logger.WarnContext(ctx, "subscription verification failed (non-blocking)",
