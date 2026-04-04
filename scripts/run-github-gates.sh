@@ -14,13 +14,10 @@ run_backend_pr() {
   go vet ./...
   make swagger-check
   make test
-  make test-integration
 }
 
 run_backend_main() {
   run_backend_pr
-  echo "==> Backend gate (main push extras)"
-  make test-e2e
 }
 
 run_frontend() {

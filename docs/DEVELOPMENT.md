@@ -119,11 +119,11 @@ All 27 available targets:
 
 | Target                    | Description                                             |
 | ------------------------- | ------------------------------------------------------- |
-| `make ci-backend-pr`      | Run the GitHub PR backend gate locally                  |
-| `make ci-backend-main`    | Run the GitHub main-push backend gate locally           |
+| `make ci-backend-pr`      | Run the fast Docker-free GitHub PR backend gate locally |
+| `make ci-backend-main`    | Run the fast Docker-free main backend gate locally      |
 | `make ci-frontend`        | Run the GitHub frontend gate locally                    |
 | `make ci-pr`              | Run the combined PR gate (backend + frontend)           |
-| `make ci-main`            | Run the combined main/systemic gate (includes E2E)      |
+| `make ci-main`            | Run the combined main/systemic fast gate (no Docker)    |
 | `make test`               | Run unit tests with race detector                       |
 | `make test-integration`   | Run integration tests (TestContainers)                  |
 | `make test-e2e`           | Start E2E stack, run deterministic gate, stop stack     |
@@ -161,6 +161,8 @@ All 27 available targets:
 | ----------------------- | ------------------------------------------------- |
 | `make lint`             | Run golangci-lint                                 |
 | `make install-githooks` | Configure the versioned pre-push gate enforcement |
+
+`make install-githooks` installs a pre-push hook that runs `make ci-pr` only. Required validation gates are Docker-free; if you want deeper local coverage, run `make test-integration` and/or `make test-e2e` explicitly.
 
 ### Cleanup
 

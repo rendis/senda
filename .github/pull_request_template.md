@@ -16,7 +16,12 @@ Mark everything you actually ran.
 - [ ] `make ci-backend-pr` (if backend, infra, migrations, or tests changed)
 - [ ] `make ci-frontend` (if `web/` changed)
 - [ ] `make ci-pr` (if both backend and frontend changed)
-- [ ] `make ci-main` (required for pushes to `main` and systemic/cross-layer changes)
+- [ ] `make ci-main` (required for pushes to `main` and systemic/cross-layer changes; fast gate, no Docker)
+
+Optional deeper checks when you intentionally want Docker-backed coverage:
+
+- [ ] `make test-integration`
+- [ ] `make test-e2e`
 
 ## Change type
 

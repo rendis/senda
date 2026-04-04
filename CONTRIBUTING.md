@@ -66,6 +66,8 @@ For more detail, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 Run the command that matches the surface you changed. These targets are the same ones GitHub Actions runs, so there is one source of truth for local validation and CI.
 
+The required validation gates are intentionally **Docker-free**. Heavier suites remain available as explicit commands when you want extra coverage, but they are not part of the default validation path.
+
 ### Backend changes
 
 ```bash
@@ -104,10 +106,20 @@ To make the repo run the same validation automatically before every push:
 make install-githooks
 ```
 
-That configures `core.hooksPath=.githooks`, and the versioned `pre-push` hook runs:
+That configures `core.hooksPath=.githooks`, and the versioned `pre-push` hook runs the minimal required push gate:
 
-- `make ci-pr` on normal branches
-- `make ci-main` on `main`
+- `make ci-pr`
+
+`make ci-main` remains available as the fast main-branch validation gate, but the automatic pre-push hook still uses `make ci-pr` so everyday pushes stay predictable and Docker-free.
+
+### Explicit Docker-backed suites
+
+These are still available locally, but they are no longer part of the required validation gate:
+
+```bash
+make test-integration
+make test-e2e
+```
 
 > Do not add a build step just because files changed. In this repository, the required contributor gate is lint + tests + vet, plus E2E when the change is systemic.
 

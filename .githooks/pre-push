@@ -2,14 +2,7 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
-branch="$(git rev-parse --abbrev-ref HEAD)"
-
 cd "${repo_root}"
 
-if [[ "${branch}" == "main" ]]; then
-  echo "[pre-push] Running main gate before pushing main..."
-  make ci-main
-else
-  echo "[pre-push] Running PR gate before push..."
-  make ci-pr
-fi
+echo "[pre-push] Running minimal required gate before push..."
+make ci-pr

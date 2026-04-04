@@ -112,10 +112,10 @@ swagger-check: ## Regenerate OpenAPI docs and fail if generated artifacts were n
 	git diff --exit-code -- cmd/senda/openapi_generated.go $(SWAGGER_V2) $(OPENAPI_V3)
 
 ## GitHub-aligned validation gates
-ci-backend-pr: ## Run the same backend validation used by the PR workflow
+ci-backend-pr: ## Run the fast backend validation used by GitHub/local push gates (no Docker)
 	bash scripts/run-github-gates.sh backend-pr
 
-ci-backend-main: ## Run the same backend validation used by pushes to main
+ci-backend-main: ## Run the fast backend validation used by pushes to main (no Docker)
 	bash scripts/run-github-gates.sh backend-main
 
 ci-frontend: ## Run the same frontend validation used by GitHub
@@ -124,7 +124,7 @@ ci-frontend: ## Run the same frontend validation used by GitHub
 ci-pr: ## Run the same validation expected before opening/updating a PR
 	bash scripts/run-github-gates.sh pr
 
-ci-main: ## Run the same validation expected before pushing main/systemic changes
+ci-main: ## Run the same fast validation expected before pushing main/systemic changes
 	bash scripts/run-github-gates.sh main
 
 install-githooks: ## Enforce the repo pre-push validation hook locally

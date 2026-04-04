@@ -508,6 +508,8 @@ To enforce this automatically before every push:
 make install-githooks
 ```
 
+The versioned pre-push hook runs the minimal required gate (`make ci-pr`) on every branch. Validation gates must stay Docker-free so pushes stay fast. Keep `make test-integration` and `make test-e2e` as explicit deeper suites when you want them, but they must not be part of the default validation path.
+
 ---
 
 ## Fundamental Code Rules
