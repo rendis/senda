@@ -119,6 +119,11 @@ All 27 available targets:
 
 | Target                    | Description                                             |
 | ------------------------- | ------------------------------------------------------- |
+| `make ci-backend-pr`      | Run the GitHub PR backend gate locally                  |
+| `make ci-backend-main`    | Run the GitHub main-push backend gate locally           |
+| `make ci-frontend`        | Run the GitHub frontend gate locally                    |
+| `make ci-pr`              | Run the combined PR gate (backend + frontend)           |
+| `make ci-main`            | Run the combined main/systemic gate (includes E2E)      |
 | `make test`               | Run unit tests with race detector                       |
 | `make test-integration`   | Run integration tests (TestContainers)                  |
 | `make test-e2e`           | Start E2E stack, run deterministic gate, stop stack     |
@@ -152,9 +157,10 @@ All 27 available targets:
 
 ### Quality
 
-| Target      | Description       |
-| ----------- | ----------------- |
-| `make lint` | Run golangci-lint |
+| Target                  | Description                                       |
+| ----------------------- | ------------------------------------------------- |
+| `make lint`             | Run golangci-lint                                 |
+| `make install-githooks` | Configure the versioned pre-push gate enforcement |
 
 ### Cleanup
 

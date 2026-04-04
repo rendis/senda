@@ -464,13 +464,22 @@ go vet ./...              # No issues
 
 ### PR Local Gate (mandatory before opening or updating a PR)
 
-For this repo, the primary validation happens locally before pushing changes. At minimum, run:
+For this repo, the primary validation happens locally before pushing changes. Use the GitHub-aligned gate targets so local validation and CI do not drift:
 
 ```bash
-make lint
-go vet ./...
-make test
-make test-integration
+make ci-backend-pr
+```
+
+If the change also touches `web/`, run:
+
+```bash
+make ci-frontend
+```
+
+If the branch touches both backend and frontend, run:
+
+```bash
+make ci-pr
 ```
 
 Do NOT wait for GitHub Actions to catch basic breakage. If you are pushing a branch that will back a PR, you MUST run the applicable local gate first. A PR must not be opened or updated with unverified changes.
@@ -478,7 +487,7 @@ Do NOT wait for GitHub Actions to catch basic breakage. If you are pushing a bra
 And also run:
 
 ```bash
-make test-e2e
+make ci-main
 ```
 
 when the change touches end-to-end flows or systemic behavior, including:
@@ -492,6 +501,12 @@ when the change touches end-to-end flows or systemic behavior, including:
 - UI/API flows that cross multiple layers
 
 If the change modifies a critical part of the system and you did not run the relevant local battery, the PR is NOT ready.
+
+To enforce this automatically before every push:
+
+```bash
+make install-githooks
+```
 
 ---
 

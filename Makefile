@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check clean help
+.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-backend-main ci-frontend ci-pr ci-main install-githooks clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -110,6 +110,25 @@ swagger: ## Generate swag-based Swagger 2 + OpenAPI 3 docs and validate route co
 swagger-check: ## Regenerate OpenAPI docs and fail if generated artifacts were not committed
 	$(MAKE) swagger
 	git diff --exit-code -- cmd/senda/openapi_generated.go $(SWAGGER_V2) $(OPENAPI_V3)
+
+## GitHub-aligned validation gates
+ci-backend-pr: ## Run the same backend validation used by the PR workflow
+	bash scripts/run-github-gates.sh backend-pr
+
+ci-backend-main: ## Run the same backend validation used by pushes to main
+	bash scripts/run-github-gates.sh backend-main
+
+ci-frontend: ## Run the same frontend validation used by GitHub
+	bash scripts/run-github-gates.sh frontend
+
+ci-pr: ## Run the same validation expected before opening/updating a PR
+	bash scripts/run-github-gates.sh pr
+
+ci-main: ## Run the same validation expected before pushing main/systemic changes
+	bash scripts/run-github-gates.sh main
+
+install-githooks: ## Enforce the repo pre-push validation hook locally
+	git config core.hooksPath .githooks
 
 ## Cleanup
 clean: ## Remove build artifacts

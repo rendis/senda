@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import {
   Dialog,
@@ -43,6 +43,13 @@ interface BulkSendModalProps {
   scopedPath: string;
   templateId: string;
   enabled?: boolean;
+}
+
+interface BulkSendModalBodyProps {
+  scopedPath: string;
+  templateId: string;
+  enabled: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 type ParsedBulkSendState = {
@@ -90,8 +97,28 @@ export function BulkSendModal({
   templateId,
   enabled = true,
 }: BulkSendModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <BulkSendModalBody
+          scopedPath={scopedPath}
+          templateId={templateId}
+          enabled={enabled}
+          onOpenChange={onOpenChange}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function BulkSendModalBody({
+  scopedPath,
+  templateId,
+  enabled,
+  onOpenChange,
+}: BulkSendModalBodyProps) {
   const bulkSend = useTemplateBulkSend(scopedPath, templateId);
-  const configQuery = useTemplateBulkSendConfig(scopedPath, templateId, open && enabled);
+  const configQuery = useTemplateBulkSendConfig(scopedPath, templateId, enabled);
   const maxItems = configQuery.data?.max_items ?? 100;
 
   const [fileName, setFileName] = useState("");
@@ -99,14 +126,6 @@ export function BulkSendModal({
   const [result, setResult] = useState<TemplateBulkSendResponse | null>(null);
 
   const parsed = useMemo(() => parseBulkSendPayload(rawJson, maxItems), [rawJson, maxItems]);
-
-  useEffect(() => {
-    if (!open) {
-      setFileName("");
-      setRawJson("");
-      setResult(null);
-    }
-  }, [open]);
 
   async function handleFileChange(file: File | null) {
     if (!file) {
@@ -151,32 +170,31 @@ export function BulkSendModal({
     parsed.payload?.items.filter((item) => Boolean(item.external_id?.trim())).length ?? 0;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !bulkSend.isPending && onOpenChange(next)}>
-      <DialogContent
-        className="max-h-[90vh] max-w-3xl overflow-hidden"
-        onInteractOutside={(event) => bulkSend.isPending && event.preventDefault()}
-      >
-        <DialogHeader>
-          <DialogTitle>Bulk Send</DialogTitle>
-          <DialogDescription>
-            Uses the current published version. Upload a JSON file containing only{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">items[]</code>, review the
-            preview, and confirm to enqueue the messages.
-          </DialogDescription>
-        </DialogHeader>
+    <DialogContent
+      className="max-h-[90vh] max-w-3xl overflow-hidden"
+      onInteractOutside={(event) => bulkSend.isPending && event.preventDefault()}
+    >
+      <DialogHeader>
+        <DialogTitle>Bulk Send</DialogTitle>
+        <DialogDescription>
+          Uses the current published version. Upload a JSON file containing only{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">items[]</code>, review the
+          preview, and confirm to enqueue the messages.
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="flex flex-col gap-4 overflow-hidden">
-          <Card className="space-y-3 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">Published version</Badge>
-              <Badge variant="outline">Max {maxItems} items</Badge>
-              <Badge variant="outline">items[] only</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              This flow is for real queued sends, not template verification. Use <strong>Send
-              Test</strong> for one-off rendering checks.
-            </p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+      <div className="flex flex-col gap-4 overflow-hidden">
+        <Card className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Published version</Badge>
+            <Badge variant="outline">Max {maxItems} items</Badge>
+            <Badge variant="outline">items[] only</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This flow is for real queued sends, not template verification. Use <strong>Send
+            Test</strong> for one-off rendering checks.
+          </p>
+          <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
 {`{
   "items": [
     {
@@ -187,142 +205,147 @@ export function BulkSendModal({
     }
   ]
 }`}
-            </pre>
-          </Card>
+          </pre>
+        </Card>
 
-          <div className="space-y-2">
-            <Input
-              type="file"
-              accept="application/json,.json"
-              onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
-              disabled={bulkSend.isPending || !enabled}
-            />
-            {fileName ? (
-              <p className="text-xs text-muted-foreground">Loaded file: {fileName}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Upload one JSON file. The server will enforce the same batch limit used by the API.
-              </p>
-            )}
-          </div>
-
-          {configQuery.isLoading && (
-            <p className="text-xs text-muted-foreground">Loading server-side bulk send limits…</p>
-          )}
-
-          {parsed.errors.length > 0 && (
-            <Card className="border-destructive/40 p-4">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-destructive">Fix these issues before continuing:</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                  {parsed.errors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            </Card>
-          )}
-
-          {parsed.payload && parsed.errors.length === 0 && (
-            <Card className="space-y-4 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge>{parsed.payload.items.length} items</Badge>
-                <Badge variant="secondary">{externalIDCount} external IDs</Badge>
-                <Badge variant="outline">
-                  {locales.length > 0 ? `Locales: ${locales.join(", ")}` : "Locales: default"}
-                </Badge>
-              </div>
-              <Separator />
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Preview</p>
-                <ScrollArea className="max-h-56 rounded-md border">
-                  <div className="divide-y">
-                    {previewItems.map((item, index) => (
-                      <div key={`${item.to}-${index}`} className="space-y-1 p-3 text-sm">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{item.to}</span>
-                          {item.locale ? <Badge variant="outline">{item.locale}</Badge> : null}
-                          {item.external_id ? <Badge variant="secondary">{item.external_id}</Badge> : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Variables: {Object.keys(item.variables ?? {}).length}
-                          {item.cc?.length ? ` · CC ${item.cc.length}` : ""}
-                          {item.bcc?.length ? ` · BCC ${item.bcc.length}` : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                {parsed.payload.items.length > previewItems.length && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing {previewItems.length} of {parsed.payload.items.length} items.
-                  </p>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {result && (
-            <Card className="space-y-4 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>{result.status}</Badge>
-                <Badge variant="secondary">{result.accepted_count} accepted</Badge>
-                <Badge variant="outline">{result.suppressed_count} suppressed</Badge>
-                <Badge variant="destructive">{result.failed_count} failed</Badge>
-              </div>
-              <ScrollArea className="max-h-56 rounded-md border">
-                <div className="divide-y">
-                  {result.items.map((item) => (
-                    <div key={`${item.index}-${item.to}`} className="space-y-1 p-3 text-sm">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{item.to}</span>
-                        <Badge variant={item.status === "failed" ? "destructive" : "outline"}>
-                          {item.status}
-                        </Badge>
-                        {item.tracking_id ? (
-                          <code className="rounded bg-muted px-1 py-0.5 text-xs">{item.tracking_id}</code>
-                        ) : null}
-                      </div>
-                      {item.error ? (
-                        <p className="text-xs text-muted-foreground">{item.error}</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </Card>
-          )}
-
-          {!result && parsed.payload && parsed.errors.length === 0 && (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
-              This will queue real emails using the current published version.
+        <div className="space-y-2">
+          <Input
+            type="file"
+            accept="application/json,.json"
+            onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
+            disabled={bulkSend.isPending || !enabled}
+          />
+          {fileName ? (
+            <p className="text-xs text-muted-foreground">Loaded file: {fileName}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Upload one JSON file. The server will enforce the same batch limit used by the API.
             </p>
           )}
         </div>
 
-        <DialogFooter>
+        {configQuery.isLoading && (
+          <p className="text-xs text-muted-foreground">Loading server-side bulk send limits…</p>
+        )}
+
+        {parsed.errors.length > 0 && (
+          <Card className="border-destructive/40 p-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-destructive">
+                Fix these issues before continuing:
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {parsed.errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          </Card>
+        )}
+
+        {parsed.payload && parsed.errors.length === 0 && (
+          <Card className="space-y-4 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge>{parsed.payload.items.length} items</Badge>
+              <Badge variant="secondary">{externalIDCount} external IDs</Badge>
+              <Badge variant="outline">
+                {locales.length > 0 ? `Locales: ${locales.join(", ")}` : "Locales: default"}
+              </Badge>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Preview</p>
+              <ScrollArea className="max-h-56 rounded-md border">
+                <div className="divide-y">
+                  {previewItems.map((item, index) => (
+                    <div key={`${item.to}-${index}`} className="space-y-1 p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{item.to}</span>
+                        {item.locale ? <Badge variant="outline">{item.locale}</Badge> : null}
+                        {item.external_id ? (
+                          <Badge variant="secondary">{item.external_id}</Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Variables: {Object.keys(item.variables ?? {}).length}
+                        {item.cc?.length ? ` · CC ${item.cc.length}` : ""}
+                        {item.bcc?.length ? ` · BCC ${item.bcc.length}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              {parsed.payload.items.length > previewItems.length && (
+                <p className="text-xs text-muted-foreground">
+                  Showing {previewItems.length} of {parsed.payload.items.length} items.
+                </p>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {result && (
+          <Card className="space-y-4 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>{result.status}</Badge>
+              <Badge variant="secondary">{result.accepted_count} accepted</Badge>
+              <Badge variant="outline">{result.suppressed_count} suppressed</Badge>
+              <Badge variant="destructive">{result.failed_count} failed</Badge>
+            </div>
+            <ScrollArea className="max-h-56 rounded-md border">
+              <div className="divide-y">
+                {result.items.map((item) => (
+                  <div key={`${item.index}-${item.to}`} className="space-y-1 p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{item.to}</span>
+                      <Badge variant={item.status === "failed" ? "destructive" : "outline"}>
+                        {item.status}
+                      </Badge>
+                      {item.tracking_id ? (
+                        <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                          {item.tracking_id}
+                        </code>
+                      ) : null}
+                    </div>
+                    {item.error ? (
+                      <p className="text-xs text-muted-foreground">{item.error}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </Card>
+        )}
+
+        {!result && parsed.payload && parsed.errors.length === 0 && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+            This will queue real emails using the current published version.
+          </p>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          disabled={bulkSend.isPending}
+        >
+          {result ? "Close" : "Cancel"}
+        </Button>
+        {!result ? (
           <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={bulkSend.isPending}
+            onClick={() => void handleConfirm()}
+            disabled={
+              bulkSend.isPending ||
+              parsed.payload == null ||
+              parsed.errors.length > 0 ||
+              configQuery.isLoading
+            }
           >
-            {result ? "Close" : "Cancel"}
+            {bulkSend.isPending ? "Queueing..." : "Confirm & Queue"}
           </Button>
-          {!result ? (
-            <Button
-              onClick={handleConfirm}
-              disabled={
-                bulkSend.isPending ||
-                parsed.payload == null ||
-                parsed.errors.length > 0 ||
-                configQuery.isLoading
-              }
-            >
-              {bulkSend.isPending ? "Queueing..." : "Confirm & Queue"}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        ) : null}
+      </DialogFooter>
+    </DialogContent>
   );
 }

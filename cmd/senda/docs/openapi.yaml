@@ -343,6 +343,8 @@ components:
             properties:
                 default_locale:
                     type: string
+                is_active:
+                    type: boolean
                 name:
                     type: string
                 open_tracking_enabled:
@@ -1270,6 +1272,8 @@ components:
                     type: string
                 id:
                     type: string
+                is_active:
+                    type: boolean
                 is_system:
                     type: boolean
                 name:

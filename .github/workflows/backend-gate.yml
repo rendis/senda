@@ -7,6 +7,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'Makefile'
+      - 'scripts/**'
       - 'docker/**'
       - 'migrations/**'
       - 'test/**'
@@ -35,21 +36,10 @@ jobs:
           version: latest
           install-mode: binary
 
-      - name: Lint
-        run: make lint
+      - name: Backend gate (PR)
+        if: github.event_name == 'pull_request'
+        run: make ci-backend-pr
 
-      - name: Vet
-        run: go vet ./...
-
-      - name: OpenAPI / MCP docs up to date
-        run: make swagger-check
-
-      - name: Unit tests
-        run: make test
-
-      - name: Integration tests
-        run: make test-integration
-
-      - name: Deterministic E2E gate (push to main only)
+      - name: Backend gate (push to main)
         if: github.event_name == 'push'
-        run: make test-e2e
+        run: make ci-backend-main

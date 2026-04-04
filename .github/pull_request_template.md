@@ -13,13 +13,10 @@
 
 Mark everything you actually ran.
 
-- [ ] `make lint`
-- [ ] `go vet ./...`
-- [ ] `make test`
-- [ ] `make test-integration`
-- [ ] `make test-e2e` (required for systemic or cross-layer changes)
-- [ ] `npm --prefix web run typecheck`
-- [ ] `npm --prefix web run lint -- --max-warnings=0`
+- [ ] `make ci-backend-pr` (if backend, infra, migrations, or tests changed)
+- [ ] `make ci-frontend` (if `web/` changed)
+- [ ] `make ci-pr` (if both backend and frontend changed)
+- [ ] `make ci-main` (required for pushes to `main` and systemic/cross-layer changes)
 
 ## Change type
 

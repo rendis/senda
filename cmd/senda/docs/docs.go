@@ -13288,6 +13288,9 @@ const docTemplate = `{
                 "default_locale": {
                     "type": "string"
                 },
+                "is_active": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -14706,6 +14709,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
                 },
                 "is_system": {
                     "type": "boolean"

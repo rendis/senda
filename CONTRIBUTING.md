@@ -33,7 +33,7 @@ Please avoid drive-by large refactors without prior discussion. Small, scoped pu
 2. Create a focused branch from `main`.
 3. Make the smallest change that solves one problem.
 4. Add or update tests first when behavior changes. **TDD is mandatory in this repo.**
-5. Run the relevant local validation commands.
+5. Run the relevant local validation commands — ideally through the same gate targets GitHub uses.
 6. Update documentation when behavior, APIs, workflows, or setup change.
 7. Open a pull request with context, validation details, and tradeoffs.
 
@@ -64,22 +64,18 @@ For more detail, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Validation rules
 
-Run the commands that match the surface you changed.
+Run the command that matches the surface you changed. These targets are the same ones GitHub Actions runs, so there is one source of truth for local validation and CI.
 
 ### Backend changes
 
 ```bash
-make lint
-go vet ./...
-make test
-make test-integration
+make ci-backend-pr
 ```
 
 ### Frontend changes
 
 ```bash
-npm --prefix web run typecheck
-npm --prefix web run lint -- --max-warnings=0
+make ci-frontend
 ```
 
 ### Systemic or cross-layer changes
@@ -87,10 +83,31 @@ npm --prefix web run lint -- --max-warnings=0
 Also run:
 
 ```bash
-make test-e2e
+make ci-main
 ```
 
 This includes changes touching infrastructure, Docker, workers, queues, auth, onboarding, adapters/providers, webhooks, or end-to-end API/UI flows.
+
+### Full PR validation
+
+If a branch touches both backend and frontend, run:
+
+```bash
+make ci-pr
+```
+
+### Enforce the gate locally on every push
+
+To make the repo run the same validation automatically before every push:
+
+```bash
+make install-githooks
+```
+
+That configures `core.hooksPath=.githooks`, and the versioned `pre-push` hook runs:
+
+- `make ci-pr` on normal branches
+- `make ci-main` on `main`
 
 > Do not add a build step just because files changed. In this repository, the required contributor gate is lint + tests + vet, plus E2E when the change is systemic.
 

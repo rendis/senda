@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'web/**'
+      - 'Makefile'
+      - 'scripts/**'
       - '.github/workflows/frontend-gate.yml'
   push:
     branches:
@@ -28,11 +30,5 @@ jobs:
       - name: Install dependencies
         run: npm --prefix web ci
 
-      - name: Typecheck
-        run: npm --prefix web run typecheck
-
-      - name: Lint (strict)
-        run: npm --prefix web run lint -- --max-warnings=0
-
-      - name: Build
-        run: npm --prefix web run build
+      - name: Frontend gate
+        run: make ci-frontend
