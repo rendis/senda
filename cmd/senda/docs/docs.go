@@ -13771,6 +13771,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "granted_workspace_count": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
