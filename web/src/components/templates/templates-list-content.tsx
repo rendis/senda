@@ -99,13 +99,11 @@ export function TemplatesListContent() {
     null
   );
 
-  function buildEditPath(tplId: string, versionId: string) {
+  function buildEditPath(tplId: string, versionId: string): string {
     switch (scope.level) {
       case "global":
         return `/global/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
-      case "tenant":
-        return `/t/${scope.tenantCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
-      case "workspace":
+      default:
         return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
     }
   }

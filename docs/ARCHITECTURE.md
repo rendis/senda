@@ -14,6 +14,8 @@ Global -> Tenant -> Workspace
 
 Each level inherits configuration from its parent through a resolution chain. Templates, injectors, and adapters resolve upward until a match is found.
 
+**UI scope model:** The "Tenant" UI scope is the `_system` workspace (`/t/{code}/w/_system`). See `docs/specs/DESIGN_BRIEF.md` §3.2-3.4 for navigation flow and sidebar visibility matrix.
+
 **Stack:** Go 1.25+, PostgreSQL 16 + pg_cron, Echo v5, River (queue), pgx v5, gomjml, golang-migrate.
 
 On the web side, Senda uses Next.js 16 + React 19 with shared semantic theme tokens and a

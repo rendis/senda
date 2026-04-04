@@ -1,4 +1,4 @@
-import { HelpArticle } from "@/components/help/help-article";
+import { redirect } from "next/navigation";
 
 export default async function TenantHelpPage({
   params,
@@ -6,12 +6,6 @@ export default async function TenantHelpPage({
   params: Promise<{ tenantCode: string; slug?: string[] }>;
 }) {
   const { tenantCode, slug } = await params;
-
-  return (
-    <HelpArticle
-      slug={slug}
-      scopeLabel={tenantCode}
-      basePath={`/t/${tenantCode}/help`}
-    />
-  );
+  const helpPath = slug?.length ? `/${slug.join("/")}` : "";
+  redirect(`/t/${tenantCode}/w/_system/help${helpPath}`);
 }

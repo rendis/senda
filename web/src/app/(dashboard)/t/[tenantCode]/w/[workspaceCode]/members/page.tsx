@@ -13,7 +13,7 @@ export default async function WorkspaceMembersPage({
       title="Members"
       description="Manage team members and their roles"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode },
         { label: "Members" },
       ]}

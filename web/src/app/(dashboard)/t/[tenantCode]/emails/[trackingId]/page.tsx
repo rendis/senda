@@ -1,5 +1,4 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { EmailDetailContent } from "@/components/emails/email-detail-content";
+import { redirect } from "next/navigation";
 
 export default async function TenantEmailDetailPage({
   params,
@@ -7,17 +6,5 @@ export default async function TenantEmailDetailPage({
   params: Promise<{ tenantCode: string; trackingId: string }>;
 }) {
   const { tenantCode, trackingId } = await params;
-
-  return (
-    <PageShell
-      title="Email Detail"
-      breadcrumbs={[
-        { label: tenantCode },
-        { label: "Emails", href: `/t/${tenantCode}/emails` },
-        { label: trackingId },
-      ]}
-    >
-      <EmailDetailContent />
-    </PageShell>
-  );
+  redirect(`/t/${tenantCode}/w/_system/emails/${trackingId}`);
 }

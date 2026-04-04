@@ -1,14 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { TemplateTypesContent } from "@/components/templates/template-types-content";
+import { redirect } from "next/navigation";
 
-export default function TenantTemplateTypesPage() {
-  return (
-    <PageShell
-      title="Template Types"
-      description="Manage email template types for this tenant"
-      breadcrumbs={[{ label: "Tenant" }, { label: "Templates" }]}
-    >
-      <TemplateTypesContent />
-    </PageShell>
-  );
+export default async function TenantTemplatesPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string }>;
+}) {
+  const { tenantCode } = await params;
+  redirect(`/t/${tenantCode}/w/_system/templates`);
 }

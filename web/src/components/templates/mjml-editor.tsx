@@ -2496,7 +2496,7 @@ export function MjmlEditor() {
       });
   }
 
-  function buildBackPath() {
+  function buildBackPath(): string {
     const slug =
       typeof window !== "undefined"
         ? window.location.pathname.split("/templates/")[1]?.split("/")[0]
@@ -2504,9 +2504,7 @@ export function MjmlEditor() {
     switch (scope.level) {
       case "global":
         return `/global/templates/${slug}`;
-      case "tenant":
-        return `/t/${scope.tenantCode}/templates/${slug}`;
-      case "workspace":
+      default:
         return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`;
     }
   }

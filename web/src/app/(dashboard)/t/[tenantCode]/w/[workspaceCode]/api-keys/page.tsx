@@ -13,7 +13,7 @@ export default async function WorkspaceApiKeysPage({
       title="API Keys"
       description="Manage API keys for programmatic access"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode },
         { label: "API Keys" },
       ]}

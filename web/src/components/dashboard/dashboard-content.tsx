@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { Mail, Send, CheckCircle, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import { useDashboardStats, type DateRange } from "@/hooks/use-dashboard-stats";
 import { MetricCard, MetricCardSkeleton } from "@/components/shared/metric-card";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
@@ -36,10 +37,10 @@ export function DashboardContent() {
 
   const scopeLabel =
     scope.level === "workspace"
-      ? `Workspace: ${scope.workspaceCode}`
-      : scope.level === "tenant"
+      ? scope.workspaceCode === SYSTEM_WORKSPACE_CODE
         ? `Tenant: ${scope.tenantCode}`
-        : "All tenants and workspaces";
+        : `Workspace: ${scope.workspaceCode}`
+      : "All tenants and workspaces";
 
   const rangeLabel = range === "7d" ? "vs last 7 days" : "vs last 30 days";
 
@@ -47,16 +48,12 @@ export function DashboardContent() {
   const auditHref =
     scope.level === "workspace"
       ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}/audit`
-      : scope.level === "tenant"
-        ? `/t/${scope.tenantCode}/audit`
-        : undefined;
+      : undefined;
 
   const emailsHref =
     scope.level === "workspace"
       ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails`
-      : scope.level === "tenant"
-        ? `/t/${scope.tenantCode}/emails`
-        : undefined;
+      : undefined;
 
   // Loading state
   if (isLoading) {

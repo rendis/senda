@@ -1,14 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { AdaptersContent } from "@/components/adapters/adapters-content";
+import { redirect } from "next/navigation";
 
-export default function TenantAdaptersPage() {
-  return (
-    <PageShell
-      title="Adapters"
-      description="Email sending adapters (SES, Gmail) configured for this scope"
-      breadcrumbs={[{ label: "Tenant" }, { label: "Adapters" }]}
-    >
-      <AdaptersContent />
-    </PageShell>
-  );
+export default async function TenantAdaptersPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string }>;
+}) {
+  const { tenantCode } = await params;
+  redirect(`/t/${tenantCode}/w/_system/adapters`);
 }

@@ -68,28 +68,26 @@ Every screen must respect the active role's permissions. Unauthorized elements a
 
 ### 3.2. Scope Switcher
 
-Central navigation element. It shows the active scope and lets the user switch:
+Central navigation element. Shows the active scope and lets the user switch.
 
-```
-┌─────────────────────────────────────────┐
-│  Scope Switcher                         │
-│  ┌───────────────────────────────────┐  │
-│  │ 🌐 Global                        │  │  ← Superadmin only
-│  ├───────────────────────────────────┤  │
-│  │ 🏢 Tenant: LATAM                 │  │
-│  │   ├── ⚙️ _system                 │  │
-│  │   ├── 📦 acme-corp               │  │
-│  │   └── 📦 brand-x                 │  │
-│  ├───────────────────────────────────┤  │
-│  │ 🏢 Tenant: Europe                │  │
-│  │   └── 📦 uk-team                 │  │
-│  └───────────────────────────────────┘  │
-│  [+ Create Tenant]   (if superadmin)    │
-│  [+ Create Workspace] (if tenant_admin) │
-└─────────────────────────────────────────┘
-```
+**Three UI scopes** (the "tenant" level is merged into the `_system` workspace):
 
-Only scopes where the user has a role are shown. When a scope is selected, the entire UI filters to that context.
+| Scope | URL pattern | Icon | Description |
+|-------|------------|------|-------------|
+| Global | `/global` | Globe | Platform administration (superadmin) |
+| Tenant | `/t/{code}/w/_system` | Building2 | Tenant management via `_system` workspace |
+| Workspace | `/t/{code}/w/{code}` | Layers | Operational workspace |
+
+**Navigation flow:**
+
+- Clicking **Global** navigates to `/global`
+- Clicking a **Tenant** navigates directly to `/t/{code}/w/_system` (no intermediate step)
+- Once inside a tenant, the switcher shows all workspaces for switching
+- "Manage Workspaces" button navigates to `/t/{code}/w/_system/workspaces`
+
+**Scope indicator** shows the tenant name (not "_system") when in the `_system` workspace.
+
+Legacy URLs like `/t/{code}` or `/t/{code}/adapters` redirect to `/t/{code}/w/_system/...`.
 
 ### 3.3. Screen Map
 
@@ -166,6 +164,39 @@ Settings (global scope only)
 ├── OIDC settings
 └── Email defaults (retries, retention, rate limits)
 ```
+
+### 3.4. Sidebar Visibility Matrix
+
+The sidebar shows different panels depending on the current scope. This is the source of truth for what appears at each level.
+
+| Panel | Global | Tenant (`_system`) | Workspace |
+|-------|--------|-------------------|-----------|
+| Dashboard | Yes | Yes | Yes |
+| Tenants | Yes | - | - |
+| Workspaces | - | Yes | - |
+| Emails | Yes | Yes (aggregated) | Yes |
+| Templates | - | - | Yes |
+| Injectors | - | - | Yes |
+| Adapters | - | Yes | Yes |
+| Webhooks | - | - | Yes |
+| Members | Yes | Yes | Yes |
+| API Keys | - | - | Yes |
+| Audit Log | Yes | Yes | Yes |
+| Settings | Yes | Yes | Yes |
+
+**Panel categories:**
+
+- **Observation** (Dashboard, Emails, Audit Log): aggregate by scope -- show wherever there is data to observe
+- **Configuration** (Adapters, Templates, Injectors, Webhooks, API Keys): live at operational scope only, require sharing mechanisms to span levels
+- **Management** (Tenants, Workspaces, Members, Settings): appear where organizationally relevant
+
+**Per-scope summary:**
+
+- **Global** (6 panels): Dashboard, Tenants, Emails, Members, Audit Log, Settings -- pure platform administration
+- **Tenant** (7 panels): Dashboard, Workspaces, Emails, Adapters, Members, Audit Log, Settings -- organizational management + shared infrastructure
+- **Workspace** (10 panels): everything except Tenants and Workspaces -- full operational scope
+
+**Implementation:** The sidebar computes `effectiveLevel` as `"system"` when `workspaceCode === "_system"`, `"workspace"` for regular workspaces, or `"global"`. Each nav item carries a `vis` object with boolean flags per level.
 
 ---
 

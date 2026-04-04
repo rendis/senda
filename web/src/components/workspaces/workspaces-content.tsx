@@ -308,12 +308,12 @@ export function WorkspacesContent() {
     },
   ];
 
-  if (scope.level !== "tenant" || !tenantCode) {
+  if (scope.workspaceCode !== SYSTEM_WORKSPACE_CODE || !tenantCode) {
     return (
       <EmptyState
         icon={Layers}
-        title="Select a tenant"
-        description="Workspace management is available from tenant scope."
+        title="Not available"
+        description="Workspace management is only available from the _system workspace."
       />
     );
   }

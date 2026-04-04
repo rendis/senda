@@ -14,7 +14,7 @@ export default async function WorkspaceApiDocsPage({
       title="API Docs"
       description="Reference for services using workspace API Keys"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode, href: `/t/${tenantCode}/w/${workspaceCode}` },
         { label: "API Docs" },
       ]}

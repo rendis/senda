@@ -21,9 +21,6 @@ function buildDetailPath(
   if (scope.level === "workspace") {
     return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails/${trackingId}`;
   }
-  if (scope.level === "tenant") {
-    return `/t/${scope.tenantCode}/emails/${trackingId}`;
-  }
   return `/global/emails/${trackingId}`;
 }
 
@@ -80,7 +77,7 @@ const columns: ColumnDef<Email, unknown>[] = [
 export function EmailsContent() {
   const scope = useScope();
 
-  if (scope.level !== "workspace") {
+  if (scope.level !== "workspace" && scope.level !== "global") {
     return (
       <EmptyState
         icon={Mail}

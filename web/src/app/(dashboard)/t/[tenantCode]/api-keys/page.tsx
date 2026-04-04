@@ -1,5 +1,4 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { ApiKeysContent } from "@/components/api-keys/api-keys-content";
+import { redirect } from "next/navigation";
 
 export default async function TenantApiKeysPage({
   params,
@@ -7,14 +6,5 @@ export default async function TenantApiKeysPage({
   params: Promise<{ tenantCode: string }>;
 }) {
   const { tenantCode } = await params;
-
-  return (
-    <PageShell
-      title="API Keys"
-      description="Manage API keys for programmatic access"
-      breadcrumbs={[{ label: tenantCode }, { label: "API Keys" }]}
-    >
-      <ApiKeysContent />
-    </PageShell>
-  );
+  redirect(`/t/${tenantCode}/w/_system/api-keys`);
 }

@@ -1,17 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { TemplatesListContent } from "@/components/templates/templates-list-content";
+import { redirect } from "next/navigation";
 
-export default function TenantTemplatesListPage() {
-  return (
-    <PageShell
-      title="Templates"
-      breadcrumbs={[
-        { label: "Tenant" },
-        { label: "Template Types", href: "../templates" },
-        { label: "Versions" },
-      ]}
-    >
-      <TemplatesListContent />
-    </PageShell>
-  );
+export default async function TenantTemplatesListPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string; slug: string }>;
+}) {
+  const { tenantCode, slug } = await params;
+  redirect(`/t/${tenantCode}/w/_system/templates/${slug}`);
 }

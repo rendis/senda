@@ -30,18 +30,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { InjectorDefinition, CreateInjectorRequest } from "@/types/injectors";
 
 export function InjectorsContent() {
-  const scope = useScope();
-
-  if (scope.level === "tenant") {
-    return (
-      <EmptyState
-        icon={Database}
-        title="Select a workspace"
-        description="Injectors are workspace-scoped. Select a workspace from the sidebar to manage injectors."
-      />
-    );
-  }
-
   return <InjectorsTable />;
 }
 

@@ -76,26 +76,29 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   }
 
   // Trigger label/icon/color
+  const isSystemWorkspace =
+    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
+
   const scopeLabel =
     level === "global"
       ? tScope("globalScope")
-      : level === "workspace"
-        ? workspaceCode ?? "Workspace"
-        : tenantCode ?? "Tenant";
+      : isSystemWorkspace
+        ? tenantCode ?? "Tenant"
+        : workspaceCode ?? "Workspace";
 
   const ScopeIcon =
     level === "global"
       ? Globe
-      : level === "workspace"
-        ? Layers
-        : Building2;
+      : isSystemWorkspace
+        ? Building2
+        : Layers;
 
   const scopeIconColor =
     level === "global"
       ? "text-scope-global"
-      : level === "workspace"
-        ? "text-scope-workspace"
-        : "text-scope-system";
+      : isSystemWorkspace
+        ? "text-scope-system"
+        : "text-scope-workspace";
 
   function navigateTo(path: string) {
     if (WORKSPACE_PATH_RE.test(path)) {
@@ -106,10 +109,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   }
 
   function handleTenantClick(tenant: Tenant) {
-    setSelectedTenant({ code: tenant.code, name: tenant.name });
-    setView("workspaces");
-    setSearchInput("");
-    setDebouncedSearch("");
+    navigateTo(`/t/${tenant.code}/w/${SYSTEM_WORKSPACE_CODE}`);
   }
 
   function handleBack() {
@@ -208,7 +208,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
                       )
                     }
                     onManageWorkspaces={() =>
-                      navigateTo(`/t/${selectedTenant.code}/workspaces`)
+                      navigateTo(`/t/${selectedTenant.code}/w/${SYSTEM_WORKSPACE_CODE}/workspaces`)
                     }
                     currentWorkspaceCode={workspaceCode}
                   />

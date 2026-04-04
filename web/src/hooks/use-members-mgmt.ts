@@ -15,8 +15,6 @@ function useMembersPath(): string {
   const { level, tenantCode, workspaceCode } = useScope();
 
   switch (level) {
-    case "tenant":
-      return `manage/tenants/${tenantCode}/members`;
     case "workspace":
       return `manage/tenants/${tenantCode}/workspaces/${workspaceCode}/members`;
     default:

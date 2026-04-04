@@ -44,18 +44,6 @@ import { TrackingStatus } from "./tracking-status";
 import { DefaultSender } from "./default-sender";
 
 export function AdaptersContent() {
-  const { level } = useScope();
-
-  if (level === "tenant") {
-    return (
-      <EmptyState
-        icon={Plug}
-        title="Select a workspace"
-        description="Adapters are workspace-scoped. Select a workspace from the sidebar to manage adapters."
-      />
-    );
-  }
-
   return <AdaptersTable />;
 }
 

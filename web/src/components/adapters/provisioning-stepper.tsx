@@ -126,9 +126,7 @@ export function ProvisioningStepper({
   const navBase =
     scope.level === "workspace"
       ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}`
-      : scope.level === "tenant"
-        ? `/t/${scope.tenantCode}`
-        : "/global";
+      : "/global";
 
   const { data: statusData, isLoading } = useProvisioningStatus(
     scopedPath,

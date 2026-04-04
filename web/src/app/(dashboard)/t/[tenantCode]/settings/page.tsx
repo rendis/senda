@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 
-export default function TenantSettingsPage() {
-  redirect("/global/settings");
+export default async function TenantSettingsPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string }>;
+}) {
+  const { tenantCode } = await params;
+  redirect(`/t/${tenantCode}/w/_system/settings`);
 }

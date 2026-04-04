@@ -53,18 +53,6 @@ const SLUG_WARNING_LINES = [
 ] as const;
 
 export function TemplateTypesContent() {
-  const scope = useScope();
-
-  if (scope.level === "tenant") {
-    return (
-      <EmptyState
-        icon={FileType}
-        title="Select a workspace"
-        description="Template types are workspace-scoped. Select a workspace from the sidebar to manage template types."
-      />
-    );
-  }
-
   return <TemplateTypesTable />;
 }
 
@@ -107,13 +95,11 @@ function TemplateTypesTable() {
     );
   }, [allItems, search]);
 
-  function buildTypePath(slug: string) {
+  function buildTypePath(slug: string): string {
     switch (scope.level) {
       case "global":
         return `/global/templates/${slug}`;
-      case "tenant":
-        return `/t/${scope.tenantCode}/templates/${slug}`;
-      case "workspace":
+      default:
         return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`;
     }
   }

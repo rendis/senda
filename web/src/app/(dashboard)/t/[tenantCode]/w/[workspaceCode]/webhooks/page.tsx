@@ -13,7 +13,7 @@ export default async function WorkspaceWebhooksPage({
       title="Webhooks"
       description="Manage webhook endpoints for event notifications"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode },
         { label: "Webhooks" },
       ]}

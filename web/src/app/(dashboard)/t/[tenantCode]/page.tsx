@@ -1,20 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { DashboardContent } from "@/components/dashboard/dashboard-content";
+import { redirect } from "next/navigation";
 
-export default async function TenantDashboardPage({
+export default async function TenantRootPage({
   params,
 }: {
   params: Promise<{ tenantCode: string }>;
 }) {
   const { tenantCode } = await params;
-
-  return (
-    <PageShell
-      title="Dashboard"
-      description={`Tenant: ${tenantCode}`}
-      breadcrumbs={[{ label: tenantCode }, { label: "Dashboard" }]}
-    >
-      <DashboardContent />
-    </PageShell>
-  );
+  redirect(`/t/${tenantCode}/w/_system`);
 }

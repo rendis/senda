@@ -1,5 +1,4 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { MembersContent } from "@/components/members/members-content";
+import { redirect } from "next/navigation";
 
 export default async function TenantMembersPage({
   params,
@@ -7,14 +6,5 @@ export default async function TenantMembersPage({
   params: Promise<{ tenantCode: string }>;
 }) {
   const { tenantCode } = await params;
-
-  return (
-    <PageShell
-      title="Members"
-      description="Manage team members and their roles"
-      breadcrumbs={[{ label: tenantCode }, { label: "Members" }]}
-    >
-      <MembersContent />
-    </PageShell>
-  );
+  redirect(`/t/${tenantCode}/w/_system/members`);
 }

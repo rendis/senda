@@ -16,7 +16,7 @@ export default async function WorkspaceEmailDetailPage({
     <PageShell
       title="Email Detail"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode },
         {
           label: "Emails",

@@ -13,7 +13,7 @@ export default async function WorkspaceEmailsPage({
       title="Emails"
       description={`Workspace: ${workspaceCode}`}
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}` },
+        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
         { label: workspaceCode },
         { label: "Emails" },
       ]}

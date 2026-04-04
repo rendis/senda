@@ -14,6 +14,7 @@ services:
       SENDA_MASTER_KEY: ${MASTER_KEY:-dev-master-key-change-in-production}
       SENDA_OIDC_MODE: ${OIDC_MODE:-oidc}
       SENDA_OIDC_TEST_SECRET: ${OIDC_TEST_SECRET:-}
+      SENDA_OIDC_SKIP_ISSUER_CHECK: ${OIDC_SKIP_ISSUER_CHECK:-false}
       SENDA_SMTP_HOST: mailpit
       SENDA_SMTP_PORT: "1025"
     depends_on:

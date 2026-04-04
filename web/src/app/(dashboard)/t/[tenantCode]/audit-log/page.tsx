@@ -1,13 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { AuditLogContent } from "@/components/audit-log/audit-log-content";
+import { redirect } from "next/navigation";
 
-export default function TenantAuditLogPage() {
-  return (
-    <PageShell
-      title="Audit Log"
-      breadcrumbs={[{ label: "Tenant" }, { label: "Audit Log" }]}
-    >
-      <AuditLogContent />
-    </PageShell>
-  );
+export default async function TenantAuditLogPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string }>;
+}) {
+  const { tenantCode } = await params;
+  redirect(`/t/${tenantCode}/w/_system/audit-log`);
 }

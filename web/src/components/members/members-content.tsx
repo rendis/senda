@@ -32,19 +32,16 @@ import type { Role, ScopeLevel } from "@/types/api";
 function canManageMembers(roles: MemberRoleDetail[], scopeLevel: ScopeLevel): boolean {
   if (roles.some((r) => r.role === "superadmin")) return true;
   switch (scopeLevel) {
-    case "global":
-      return false;
-    case "tenant":
-      return roles.some((r) => r.role === "tenant_admin");
     case "workspace":
       return roles.some((r) => r.role === "tenant_admin" || r.role === "workspace_admin");
+    case "global":
+    default:
+      return false;
   }
 }
 
 function allowedRolesForScope(scopeLevel: ScopeLevel): Role[] {
   switch (scopeLevel) {
-    case "tenant":
-      return ["tenant_admin"];
     case "workspace":
       return ["workspace_viewer", "workspace_editor", "workspace_admin"];
     case "global":
@@ -55,8 +52,6 @@ function allowedRolesForScope(scopeLevel: ScopeLevel): Role[] {
 
 function scopeLabel(scopeLevel: ScopeLevel, tenantCode?: string, workspaceCode?: string): string {
   switch (scopeLevel) {
-    case "tenant":
-      return tenantCode ? `tenant "${tenantCode}"` : "this tenant";
     case "workspace":
       return workspaceCode ? `workspace "${workspaceCode}"` : "this workspace";
     case "global":

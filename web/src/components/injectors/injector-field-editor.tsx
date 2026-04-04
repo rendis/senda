@@ -126,7 +126,7 @@ export function InjectorFieldEditor({
 
       {/* Resolution chain */}
       <div className="flex flex-col gap-2">
-        {chainLevels.slice(0, currentScope === "global" ? 1 : currentScope === "tenant" ? 2 : 3).map((level) => (
+        {chainLevels.slice(0, currentScope === "global" ? 1 : 3).map((level) => (
           <div key={level.scope} className="flex items-center gap-2">
             <ResolutionChainViewer levels={[level]} />
             {level.scope === "workspace" && isEditable && (

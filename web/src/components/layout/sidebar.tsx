@@ -78,28 +78,36 @@ export function AppSidebar({
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
 
+  // Visibility matrix — source of truth. Rationale: docs/specs/DESIGN_BRIEF.md §3.4
   const navItems = [
-    { label: t("dashboard"), icon: LayoutDashboard, href: "" },
-    { label: t("tenants"), icon: Building2, href: "/tenants" },
-    { label: t("workspaces"), icon: Layers, href: "/workspaces" },
-    { label: t("emails"), icon: Mail, href: "/emails" },
-    { label: t("templates"), icon: FileText, href: "/templates" },
-    { label: t("injectors"), icon: Database, href: "/injectors" },
-    { label: t("adapters"), icon: Plug, href: "/adapters" },
-    { label: t("webhooks"), icon: Webhook, href: "/webhooks" },
-    { label: t("members"), icon: Users, href: "/members" },
-    { label: t("apiKeys"), icon: Key, href: "/api-keys" },
-    { label: t("auditLog"), icon: ScrollText, href: "/audit-log" },
-    { label: t("settings"), icon: Settings, href: "/settings" },
+    { label: t("dashboard"), icon: LayoutDashboard, href: "", vis: { global: true, system: true, workspace: true } },
+    { label: t("tenants"), icon: Building2, href: "/tenants", vis: { global: true, system: false, workspace: false } },
+    { label: t("workspaces"), icon: Layers, href: "/workspaces", vis: { global: false, system: true, workspace: false } },
+    { label: t("emails"), icon: Mail, href: "/emails", vis: { global: true, system: true, workspace: true } },
+    { label: t("templates"), icon: FileText, href: "/templates", vis: { global: false, system: false, workspace: true } },
+    { label: t("injectors"), icon: Database, href: "/injectors", vis: { global: false, system: false, workspace: true } },
+    { label: t("adapters"), icon: Plug, href: "/adapters", vis: { global: false, system: true, workspace: true } },
+    { label: t("webhooks"), icon: Webhook, href: "/webhooks", vis: { global: false, system: false, workspace: true } },
+    { label: t("members"), icon: Users, href: "/members", vis: { global: true, system: true, workspace: true } },
+    { label: t("apiKeys"), icon: Key, href: "/api-keys", vis: { global: false, system: false, workspace: true } },
+    { label: t("auditLog"), icon: ScrollText, href: "/audit-log", vis: { global: true, system: true, workspace: true } },
+    { label: t("settings"), icon: Settings, href: "/settings", vis: { global: true, system: true, workspace: true } },
   ];
 
+  const isSystemWorkspace =
+    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
+
+  const effectiveLevel: "global" | "system" | "workspace" = isSystemWorkspace
+    ? "system"
+    : level === "workspace"
+      ? "workspace"
+      : "global";
+
   // Build base path for current scope
-  let basePath = "/global";
-  if (level === "tenant" && tenantCode) {
-    basePath = `/t/${tenantCode}`;
-  } else if (level === "workspace" && tenantCode && workspaceCode) {
-    basePath = `/t/${tenantCode}/w/${workspaceCode}`;
-  }
+  const basePath =
+    level === "workspace" && tenantCode && workspaceCode
+      ? `/t/${tenantCode}/w/${workspaceCode}`
+      : "/global";
 
   useEffect(() => {
     if (level === "workspace" && tenantCode && workspaceCode) {
@@ -111,26 +119,9 @@ export function AppSidebar({
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
   const helpHref = getContextualHelpHref(pathname);
 
-  const isSystemWorkspace =
-    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
-
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.href === "/settings" || item.href === "/tenants") {
-      return level === "global";
-    }
-    if (item.href === "/workspaces") {
-      return level === "tenant" || isSystemWorkspace;
-    }
-    return true;
-  });
+  const visibleNavItems = navItems.filter((item) => item.vis[effectiveLevel]);
 
   function hrefForItem(href: string) {
-    if (href === "/settings") {
-      return "/global/settings";
-    }
-    if (href === "/workspaces" && isSystemWorkspace) {
-      return `/t/${tenantCode}/workspaces`;
-    }
     return `${basePath}${href}`;
   }
 

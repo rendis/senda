@@ -1,14 +1,10 @@
-import { PageShell } from "@/components/shared/page-shell";
-import { InjectorsContent } from "@/components/injectors/injectors-content";
+import { redirect } from "next/navigation";
 
-export default function TenantInjectorsPage() {
-  return (
-    <PageShell
-      title="Injectors"
-      description="Template variable definitions and their resolved values across scopes"
-      breadcrumbs={[{ label: "Tenant" }, { label: "Injectors" }]}
-    >
-      <InjectorsContent />
-    </PageShell>
-  );
+export default async function TenantInjectorsPage({
+  params,
+}: {
+  params: Promise<{ tenantCode: string }>;
+}) {
+  const { tenantCode } = await params;
+  redirect(`/t/${tenantCode}/w/_system/injectors`);
 }
