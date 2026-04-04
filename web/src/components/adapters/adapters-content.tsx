@@ -152,6 +152,7 @@ function AdaptersTable() {
           <TrackingStatus
             adapterId={row.original.id}
             scopedPath={scopedPath}
+            isShared={row.original.is_shared}
             onClick={() => setProvisionTarget(row.original)}
           />
         ) : (
@@ -345,7 +346,7 @@ function AdapterActions({
       {isSystemWorkspace && adapter.adapter_type === "gmail" &&
         actionButton("Workspace access", <Share2 className="h-4 w-4" />, () => onShare(adapter))}
       {actionButton("Edit", <Pencil className="h-4 w-4" />, () => onEdit(adapter), !adapter.is_editable)}
-      {actionButton("Test Send", <Zap className="h-4 w-4" />, () => onTest(adapter), !adapter.is_editable)}
+      {actionButton("Test Send", <Zap className="h-4 w-4" />, () => onTest(adapter))}
       {actionButton("Delete", <Trash2 className="h-4 w-4" />, () => onDelete(adapter), !adapter.is_editable, true)}
     </div>
   );

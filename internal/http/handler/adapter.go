@@ -450,7 +450,7 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) 
 	}
 
 	ctx := c.Request().Context()
-	adapter, err := h.loadEditableAdapter(ctx, workspace, adapterID)
+	adapter, err := h.loadAccessibleAdapter(ctx, workspace, adapterID)
 	if err != nil {
 		return mapAdapterAccessHandlerError(c, err)
 	}
@@ -577,6 +577,35 @@ func (h *AdapterHandler) UpdateWorkspaceAccess(c *echo.Context) error {
 		))
 	}
 	return c.JSON(http.StatusOK, response.NewWorkspaceAccessListResponse(grants))
+}
+
+// loadAccessibleAdapter loads an adapter that the workspace can read (shared or owned).
+// Unlike loadEditableAdapter it does NOT require write access.
+func (h *AdapterHandler) loadAccessibleAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) (*domain.Adapter, error) {
+	adapter, err := h.store.GetByID(ctx, adapterID)
+	if err != nil {
+		return nil, err
+	}
+
+	if workspace == nil {
+		if !sameScope(adapter.WorkspaceID, nil) {
+			return nil, domain.ErrNotFound
+		}
+		return adapter, nil
+	}
+
+	if h.accessSvc == nil {
+		if !sameScope(adapter.WorkspaceID, &workspace.ID) {
+			return nil, domain.ErrNotFound
+		}
+		return adapter, nil
+	}
+
+	access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapterID)
+	if err != nil {
+		return nil, err
+	}
+	return access.Adapter, nil
 }
 
 func (h *AdapterHandler) loadEditableAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) (*domain.Adapter, error) {

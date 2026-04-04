@@ -26,6 +26,7 @@ import {
 } from "@/hooks/use-scope-data";
 import { cn } from "@/lib/utils";
 import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
+import { useOnScopeSwitcherOpen } from "@/lib/scope-switcher-events";
 import { SYSTEM_WORKSPACE_CODE, type Tenant, type Workspace } from "@/types/api";
 
 const WORKSPACE_PATH_RE = /^\/t\/[^/]+\/w\/[^/]+/;
@@ -109,7 +110,10 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   }
 
   function handleTenantClick(tenant: Tenant) {
-    navigateTo(`/t/${tenant.code}/w/${SYSTEM_WORKSPACE_CODE}`);
+    setSelectedTenant({ code: tenant.code, name: tenant.name });
+    setView("workspaces");
+    setSearchInput("");
+    setDebouncedSearch("");
   }
 
   function handleBack() {
@@ -118,6 +122,23 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
     setSearchInput("");
     setDebouncedSearch("");
   }
+
+  // Listen for external "open scope switcher" events (e.g. from breadcrumbs)
+  useOnScopeSwitcherOpen((payload) => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    if (payload.view === "workspaces" && payload.tenantCode) {
+      setSelectedTenant({
+        code: payload.tenantCode,
+        name: payload.tenantName ?? payload.tenantCode,
+      });
+      setView("workspaces");
+    } else {
+      setSelectedTenant(null);
+      setView("tenants");
+    }
+    setOpen(true);
+  });
 
   return (
     <>

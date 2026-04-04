@@ -132,6 +132,18 @@ function EmailRow({
             Default
           </Badge>
         )}
+        {isSystemWorkspace && identity.granted_workspace_count > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-scope-system-bg text-[10px] font-medium text-scope-system px-1 shrink-0">
+                {identity.granted_workspace_count}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Shared with {identity.granted_workspace_count} workspace{identity.granted_workspace_count !== 1 ? "s" : ""}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {identity.display_name && (

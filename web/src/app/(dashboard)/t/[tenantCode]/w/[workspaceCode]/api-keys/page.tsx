@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { ApiKeysContent } from "@/components/api-keys/api-keys-content";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 
 export default async function WorkspaceApiKeysPage({
   params,
@@ -7,6 +8,7 @@ export default async function WorkspaceApiKeysPage({
   params: Promise<{ tenantCode: string; workspaceCode: string }>;
 }) {
   const { tenantCode, workspaceCode } = await params;
+  const isSystem = workspaceCode === SYSTEM_WORKSPACE_CODE;
 
   return (
     <PageShell
@@ -14,7 +16,7 @@ export default async function WorkspaceApiKeysPage({
       description="Manage API keys for programmatic access"
       breadcrumbs={[
         { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        { label: workspaceCode },
+        ...(isSystem ? [] : [{ label: workspaceCode }]),
         { label: "API Keys" },
       ]}
     >

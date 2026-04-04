@@ -138,19 +138,19 @@ export function TenantsContent() {
 
   const columns: ColumnDef<Tenant>[] = [
     {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <span className="text-[13px]">{row.original.name}</span>
+      ),
+    },
+    {
       accessorKey: "code",
       header: "Code",
       cell: ({ row }) => (
         <span className="font-mono text-[13px] font-medium">
           {row.original.code}
         </span>
-      ),
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => (
-        <span className="text-[13px]">{row.original.name}</span>
       ),
     },
     {

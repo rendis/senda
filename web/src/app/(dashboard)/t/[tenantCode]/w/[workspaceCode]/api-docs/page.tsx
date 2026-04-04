@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 
 export default async function WorkspaceApiDocsPage({
   params,
@@ -7,6 +8,7 @@ export default async function WorkspaceApiDocsPage({
   params: Promise<{ tenantCode: string; workspaceCode: string }>;
 }) {
   const { tenantCode, workspaceCode } = await params;
+  const isSystem = workspaceCode === SYSTEM_WORKSPACE_CODE;
   const referenceHref = `/t/${tenantCode}/w/${workspaceCode}/api-docs/reference`;
 
   return (
@@ -15,7 +17,7 @@ export default async function WorkspaceApiDocsPage({
       description="Reference for services using workspace API Keys"
       breadcrumbs={[
         { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        { label: workspaceCode, href: `/t/${tenantCode}/w/${workspaceCode}` },
+        ...(isSystem ? [] : [{ label: workspaceCode, href: `/t/${tenantCode}/w/${workspaceCode}` }]),
         { label: "API Docs" },
       ]}
     >

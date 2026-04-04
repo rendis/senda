@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 
 export default async function WorkspaceDashboardPage({
   params,
@@ -7,6 +8,7 @@ export default async function WorkspaceDashboardPage({
   params: Promise<{ tenantCode: string; workspaceCode: string }>;
 }) {
   const { tenantCode, workspaceCode } = await params;
+  const isSystem = workspaceCode === SYSTEM_WORKSPACE_CODE;
 
   return (
     <PageShell
@@ -14,7 +16,7 @@ export default async function WorkspaceDashboardPage({
       description={`Workspace: ${workspaceCode}`}
       breadcrumbs={[
         { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        { label: workspaceCode },
+        ...(isSystem ? [] : [{ label: workspaceCode }]),
         { label: "Dashboard" },
       ]}
     >

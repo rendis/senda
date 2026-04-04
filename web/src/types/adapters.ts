@@ -60,6 +60,7 @@ export interface AdapterIdentity {
   display_name?: string;
   source: "provider" | "manual";
   last_synced_at?: string;
+  granted_workspace_count: number;
   created_at: string;
   updated_at: string;
 }

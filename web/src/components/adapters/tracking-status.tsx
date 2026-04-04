@@ -49,13 +49,16 @@ function StatusLabel({ status, steps }: { status: string; steps: ProvisioningSte
 export function TrackingStatus({
   adapterId,
   scopedPath,
+  isShared,
   onClick,
 }: {
   adapterId: string;
   scopedPath: string;
+  isShared?: boolean;
   onClick: () => void;
 }) {
-  const { data } = useProvisioningStatus(scopedPath, adapterId, true);
+  // Shared adapters are provisioned in _system — skip fetching from child workspace scope.
+  const { data } = useProvisioningStatus(scopedPath, adapterId, !isShared);
   const status = data?.status ?? "not_started";
   const steps = data?.steps ?? [];
 

@@ -147,13 +147,11 @@ export function WorkspacesContent() {
 
   const columns: ColumnDef<Workspace>[] = [
     {
-      accessorKey: "code",
-      header: "Code",
+      accessorKey: "name",
+      header: "Name",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[13px] font-medium">
-            {row.original.code}
-          </span>
+          <span className="text-[13px]">{row.original.name}</span>
           <ScopeIndicator
             scope={row.original.is_system ? "system" : "workspace"}
             label={row.original.is_system ? SYSTEM_WORKSPACE_CODE : "workspace"}
@@ -162,9 +160,13 @@ export function WorkspacesContent() {
       ),
     },
     {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => <span className="text-[13px]">{row.original.name}</span>,
+      accessorKey: "code",
+      header: "Code",
+      cell: ({ row }) => (
+        <span className="font-mono text-[13px] font-medium">
+          {row.original.code}
+        </span>
+      ),
     },
     {
       accessorKey: "is_active",
