@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -123,8 +123,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
     setDebouncedSearch("");
   }
 
-  // Listen for external "open scope switcher" events (e.g. from breadcrumbs)
-  useOnScopeSwitcherOpen((payload) => {
+  const handleScopeSwitcherOpen = useCallback((payload: { view: "tenants" | "workspaces"; tenantCode?: string; tenantName?: string }) => {
     setSearchInput("");
     setDebouncedSearch("");
     if (payload.view === "workspaces" && payload.tenantCode) {
@@ -138,7 +137,9 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
       setView("tenants");
     }
     setOpen(true);
-  });
+  }, []);
+
+  useOnScopeSwitcherOpen(handleScopeSwitcherOpen);
 
   return (
     <>

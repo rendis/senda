@@ -108,10 +108,12 @@ func (r *AdapterIdentityRepo) ListByAdapter(ctx context.Context, adapterID uuid.
 	rows, err := r.pool.Query(ctx,
 		`SELECT ai.id, ai.adapter_id, ai.identity, ai.identity_type, ai.status, ai.sending_enabled, ai.is_default,
 		        ai.display_name, ai.source, ai.last_synced_at,
-		        COALESCE((SELECT COUNT(*) FROM adapter_identity_workspace_grants WHERE adapter_identity_id = ai.id), 0)::int AS granted_workspace_count,
+		        COALESCE(COUNT(aiwg.workspace_id), 0)::int AS granted_workspace_count,
 		        ai.created_at, ai.updated_at
 		 FROM adapter_identities ai
+		 LEFT JOIN adapter_identity_workspace_grants aiwg ON aiwg.adapter_identity_id = ai.id
 		 WHERE ai.adapter_id = @adapter_id
+		 GROUP BY ai.id
 		 ORDER BY ai.is_default DESC, ai.identity_type ASC, ai.identity ASC`,
 		pgx.NamedArgs{"adapter_id": adapterID},
 	)

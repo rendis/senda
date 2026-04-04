@@ -579,36 +579,15 @@ func (h *AdapterHandler) UpdateWorkspaceAccess(c *echo.Context) error {
 	return c.JSON(http.StatusOK, response.NewWorkspaceAccessListResponse(grants))
 }
 
-// loadAccessibleAdapter loads an adapter that the workspace can read (shared or owned).
-// Unlike loadEditableAdapter it does NOT require write access.
 func (h *AdapterHandler) loadAccessibleAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) (*domain.Adapter, error) {
-	adapter, err := h.store.GetByID(ctx, adapterID)
-	if err != nil {
-		return nil, err
-	}
-
-	if workspace == nil {
-		if !sameScope(adapter.WorkspaceID, nil) {
-			return nil, domain.ErrNotFound
-		}
-		return adapter, nil
-	}
-
-	if h.accessSvc == nil {
-		if !sameScope(adapter.WorkspaceID, &workspace.ID) {
-			return nil, domain.ErrNotFound
-		}
-		return adapter, nil
-	}
-
-	access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapterID)
-	if err != nil {
-		return nil, err
-	}
-	return access.Adapter, nil
+	return h.loadAdapter(ctx, workspace, adapterID, false)
 }
 
 func (h *AdapterHandler) loadEditableAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) (*domain.Adapter, error) {
+	return h.loadAdapter(ctx, workspace, adapterID, true)
+}
+
+func (h *AdapterHandler) loadAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID, requireEditable bool) (*domain.Adapter, error) {
 	adapter, err := h.store.GetByID(ctx, adapterID)
 	if err != nil {
 		return nil, err
@@ -632,7 +611,7 @@ func (h *AdapterHandler) loadEditableAdapter(ctx context.Context, workspace *dom
 	if err != nil {
 		return nil, err
 	}
-	if !access.Editable {
+	if requireEditable && !access.Editable {
 		return nil, domain.ErrSharedResourceReadOnly
 	}
 	return access.Adapter, nil

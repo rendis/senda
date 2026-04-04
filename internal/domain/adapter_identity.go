@@ -37,9 +37,9 @@ type AdapterIdentity struct {
 	SendingEnabled bool
 	IsDefault      bool           // only email-type can be default
 	DisplayName    *string        // optional friendly name for From header
-	Source                IdentitySource // "provider" or "manual"
-	LastSyncedAt          *time.Time
-	GrantedWorkspaceCount int // number of workspaces this identity is shared with (populated by ListByAdapter)
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	Source         IdentitySource // "provider" or "manual"
+	LastSyncedAt   *time.Time
+	GrantedWorkspaceCount int // populated by ListByAdapter only
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
