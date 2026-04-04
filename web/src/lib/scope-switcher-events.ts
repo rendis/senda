@@ -15,7 +15,7 @@ export function emitOpenScopeSwitcher(payload: OpenPayload) {
 export function useOnScopeSwitcherOpen(
   callback: (payload: OpenPayload) => void
 ) {
-  const stableCallback = useCallback(callback, [callback]);
+  const stableCallback = useCallback((p: OpenPayload) => callback(p), [callback]);
 
   useEffect(() => {
     const handler = (e: Event) =>
