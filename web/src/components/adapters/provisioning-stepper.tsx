@@ -12,7 +12,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { useScopedPath } from "@/hooks/use-scope";
+import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useProvisioningStatus,
   useAutoProvision,
@@ -119,7 +119,16 @@ export function ProvisioningStepper({
   onOpenChange: (open: boolean) => void;
 }) {
   const scopedPath = useScopedPath();
+  const scope = useScope();
   const autoStarted = useRef(false);
+
+  // Build frontend navigation path for help links.
+  const navBase =
+    scope.level === "workspace"
+      ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}`
+      : scope.level === "tenant"
+        ? `/t/${scope.tenantCode}`
+        : "/global";
 
   const { data: statusData, isLoading } = useProvisioningStatus(
     scopedPath,
@@ -202,7 +211,7 @@ export function ProvisioningStepper({
                         If email events don&apos;t appear shortly, the webhook will auto-confirm — no action needed.
                       </p>
                       <Link
-                        href={`${scopedPath}/help/ses-tracking`}
+                        href={`${navBase}/help/ses-tracking`}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                       >
                         Learn more about SES provisioning
