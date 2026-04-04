@@ -14520,7 +14520,13 @@ const docTemplate = `{
                 "scope_type": {
                     "type": "string"
                 },
+                "tenant_code": {
+                    "type": "string"
+                },
                 "tenant_id": {
+                    "type": "string"
+                },
+                "workspace_code": {
                     "type": "string"
                 },
                 "workspace_id": {
