@@ -42,6 +42,7 @@ type mockWorkspaceStoreSend struct {
 	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
 	getByIDFn            func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
 	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
+	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error)
 }
 
 func (m *mockWorkspaceStoreSend) Create(_ context.Context, _ *domain.Workspace) error { return nil }
@@ -63,7 +64,10 @@ func (m *mockWorkspaceStoreSend) GetSystemWorkspace(ctx context.Context, tenantI
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockWorkspaceStoreSend) ListByTenant(_ context.Context, _ uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStoreSend) ListByTenant(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error) {
+	if m.listByTenantFn != nil {
+		return m.listByTenantFn(ctx, tenantID, opts)
+	}
 	return nil, "", nil
 }
 func (m *mockWorkspaceStoreSend) Update(_ context.Context, _ *domain.Workspace) error { return nil }
@@ -359,6 +363,7 @@ func (m *mockInjectorStoreSend) GetAllValuesByDefinitions(_ context.Context, _ [
 }
 
 type mockAdapterIdentityStoreSend struct {
+	getByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error)
 	getDefaultFn    func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
 	listByAdapterFn func(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error)
 }
@@ -366,8 +371,11 @@ type mockAdapterIdentityStoreSend struct {
 func (m *mockAdapterIdentityStoreSend) Create(_ context.Context, _ *domain.AdapterIdentity) error {
 	return nil
 }
-func (m *mockAdapterIdentityStoreSend) GetByID(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
-	return nil, nil
+func (m *mockAdapterIdentityStoreSend) GetByID(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, domain.ErrIdentityNotFound
 }
 func (m *mockAdapterIdentityStoreSend) Update(_ context.Context, _ *domain.AdapterIdentity) error {
 	return nil
@@ -1473,6 +1481,82 @@ func TestSendService_SystemWorkspaceBlocked(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrSystemWorkspaceBlocked) {
 		t.Fatalf("expected ErrSystemWorkspaceBlocked, got %v", err)
+	}
+}
+
+func TestSendService_SharedSESAccessRevokedAtRuntime(t *testing.T) {
+	f := newSendFixture()
+	senderIdentityID := uuid.Must(uuid.NewV7())
+
+	f.templateStore.getTypeBySlugFn = func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+		if slug == "welcome" {
+			return &domain.TemplateType{
+				ID:               f.typeID,
+				WorkspaceID:      &f.workspaceID,
+				Slug:             "welcome",
+				Name:             "Welcome Email",
+				AdapterID:        &f.adapterID,
+				SenderIdentityID: &senderIdentityID,
+			}, nil
+		}
+		return nil, domain.ErrTemplateTypeNotFound
+	}
+
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		switch id {
+		case f.workspaceID:
+			return &domain.Workspace{ID: f.workspaceID, TenantID: f.tenantID, Code: "acme", Name: "Acme"}, nil
+		case f.sysWSID:
+			return &domain.Workspace{ID: f.sysWSID, TenantID: f.tenantID, Code: "_system", Name: "System", IsSystem: true}, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
+
+	f.adapterStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+		if id == f.adapterID {
+			return &domain.Adapter{
+				ID:          f.adapterID,
+				WorkspaceID: &f.sysWSID,
+				Name:        "SES Shared",
+				AdapterType: domain.AdapterTypeSES,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	f.identityStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+		if id == senderIdentityID {
+			return &domain.AdapterIdentity{
+				ID:           senderIdentityID,
+				AdapterID:    f.adapterID,
+				Identity:     "a@example.dev",
+				IdentityType: domain.IdentityTypeEmail,
+				Status:       domain.IdentityStatusVerified,
+			}, nil
+		}
+		return nil, domain.ErrIdentityNotFound
+	}
+
+	accessSvc := service.NewAdapterAccessService(
+		f.adapterStore,
+		f.identityStore,
+		f.wsStore,
+		&mockAdapterGrantStore{},
+		&mockIdentityGrantStore{
+			hasIdentityWorkspaceGrantFn: func(_ context.Context, identityID, workspaceID uuid.UUID) (bool, error) {
+				return false, nil
+			},
+		},
+		&mockTemplateTypeUsageStore{},
+	)
+
+	svc := f.buildService()
+	svc.SetAdapterAccessService(accessSvc)
+
+	_, err := svc.Send(context.Background(), f.happyRequest())
+	if !errors.Is(err, domain.ErrSenderIdentityAccessDenied) {
+		t.Fatalf("expected ErrSenderIdentityAccessDenied, got %v", err)
 	}
 }
 

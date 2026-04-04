@@ -176,7 +176,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		OccurredAt: now,
 		CreatedAt:  now,
 	}); err != nil {
-		slog.Error("send_worker: failed to add processing event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
+		slog.Error("send_worker: failed to add processing event", append(emailLogAttrs(email), "error", err)...)
 	}
 
 	// 4. Render MJML body with variables.
@@ -253,8 +253,13 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		Metadata:   map[string]any{"provider_message_id": providerMsgID},
 		CreatedAt:  sentAt,
 	}); err != nil {
-		slog.Error("send_worker: failed to add sent event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
+		slog.Error("send_worker: failed to add sent event", append(emailLogAttrs(email), "provider_message_id", providerMsgID, "error", err)...)
 	}
+
+	slog.Info("send_worker: email sent", append(emailLogAttrs(email),
+		"provider", sender.Name(),
+		"provider_message_id", providerMsgID,
+	)...)
 
 	return nil
 }
@@ -286,7 +291,7 @@ func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, s
 	// Retries remaining: let River retry with exponential backoff.
 	retryAt := time.Now().Add(sendBackoff(attempt))
 	if err := w.emailStore.UpdateRetry(ctx, email.ID, attempt, &retryAt); err != nil {
-		slog.Error("send_worker: failed to update retry", "email_id", email.ID, "tracking_id", email.TrackingID, "attempt", attempt, "error", err)
+		slog.Error("send_worker: failed to update retry", append(emailLogAttrs(email), "attempt", attempt, "error", err)...)
 	}
 	return sendErr
 }
@@ -295,7 +300,7 @@ func (w *SendWorker) handleSendError(ctx context.Context, email *domain.Email, s
 func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, reason error) error {
 	metrics.EmailsFailed.Inc()
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusFailed, email.Status); err != nil {
-		slog.Error("send_worker: failed to update status to failed", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
+		slog.Error("send_worker: failed to update status to failed", append(emailLogAttrs(email), "error", err)...)
 	}
 	now := time.Now().UTC()
 	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
@@ -306,9 +311,24 @@ func (w *SendWorker) failPermanently(ctx context.Context, email *domain.Email, r
 		Metadata:   map[string]any{"error": reason.Error()},
 		CreatedAt:  now,
 	}); err != nil {
-		slog.Error("send_worker: failed to add failure event", "email_id", email.ID, "tracking_id", email.TrackingID, "error", err)
+		slog.Error("send_worker: failed to add failure event", append(emailLogAttrs(email), "error", err)...)
 	}
 	return goriver.JobCancel(reason)
+}
+
+func emailLogAttrs(email *domain.Email) []any {
+	attrs := []any{
+		"email_id", email.ID,
+		"tracking_id", email.TrackingID,
+		"tenant_id", email.TenantID,
+		"workspace_id", email.WorkspaceID,
+		"adapter_id", email.AdapterID,
+		"from_email", email.FromEmail,
+	}
+	if email.SenderIdentityID != nil {
+		attrs = append(attrs, "sender_identity_id", *email.SenderIdentityID)
+	}
+	return attrs
 }
 
 func (w *SendWorker) resolveSender(ctx context.Context, adapterID uuid.UUID) (port.EmailSender, error) {

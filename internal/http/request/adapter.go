@@ -32,3 +32,8 @@ type CreateManualIdentityRequest struct {
 	Identity    string  `json:"identity"`
 	DisplayName *string `json:"display_name,omitempty"`
 }
+
+// UpdateWorkspaceAccessRequest replaces the set of tenant workspaces allowed to use a shared resource.
+type UpdateWorkspaceAccessRequest struct {
+	WorkspaceIDs []string `json:"workspace_ids"`
+}

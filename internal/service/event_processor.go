@@ -120,11 +120,11 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 	// 3. Validate status transition is forward-only.
 	if !isValidTransition(email.Status, status) {
 		p.logger.WarnContext(ctx, "skipping invalid status transition",
-			"email_id", email.ID,
-			"tracking_id", email.TrackingID,
-			"current_status", email.Status,
-			"target_status", status,
-			"event_type", event.Type,
+			append(eventEmailLogAttrs(email),
+				"current_status", email.Status,
+				"target_status", status,
+				"event_type", event.Type,
+			)...,
 		)
 		return nil
 	}
@@ -162,12 +162,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 
 	// 6. Suppression side-effects.
 	if err := p.handleSuppression(ctx, event, email); err != nil {
-		p.logger.ErrorContext(ctx, "failed to add suppression entry",
-			"email_id", email.ID,
-			"tracking_id", email.TrackingID,
-			"event_type", event.Type,
-			"error", err,
-		)
+		p.logger.ErrorContext(ctx, "failed to add suppression entry", append(eventEmailLogAttrs(email), "event_type", event.Type, "error", err)...)
 		// Don't return error — suppression failure should not block event processing.
 	}
 
@@ -182,12 +177,7 @@ func (p *EventProcessor) Process(ctx context.Context, event *domain.ProviderEven
 			"timestamp":           event.Timestamp.Format(time.RFC3339),
 		}
 		if err := p.webhookService.Dispatch(ctx, email.WorkspaceID, "email."+string(event.Type), webhookPayload); err != nil {
-			p.logger.ErrorContext(ctx, "failed to dispatch webhook",
-				"email_id", email.ID,
-				"tracking_id", email.TrackingID,
-				"event_type", event.Type,
-				"error", err,
-			)
+			p.logger.ErrorContext(ctx, "failed to dispatch webhook", append(eventEmailLogAttrs(email), "event_type", event.Type, "error", err)...)
 			// Don't return error — webhook failure should not block event processing.
 		}
 	}
@@ -337,4 +327,19 @@ func buildEventMetadata(event *domain.ProviderEvent) map[string]any {
 		meta["recipients"] = event.ComplaintDetail.Recipients
 	}
 	return meta
+}
+
+func eventEmailLogAttrs(email *domain.Email) []any {
+	attrs := []any{
+		"email_id", email.ID,
+		"tracking_id", email.TrackingID,
+		"tenant_id", email.TenantID,
+		"workspace_id", email.WorkspaceID,
+		"adapter_id", email.AdapterID,
+		"from_email", email.FromEmail,
+	}
+	if email.SenderIdentityID != nil {
+		attrs = append(attrs, "sender_identity_id", *email.SenderIdentityID)
+	}
+	return attrs
 }

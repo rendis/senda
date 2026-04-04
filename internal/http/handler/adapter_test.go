@@ -16,6 +16,7 @@ import (
 	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/service"
 )
 
 // --- Mock AdapterStore ---
@@ -89,18 +90,45 @@ func (m *mockCrypto) Decrypt(ciphertext []byte) ([]byte, error) {
 // --- Mock AdapterIdentityStore ---
 
 type mockAdapterIdentityStore struct {
-	getDefaultFn func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
+	createFn        func(ctx context.Context, identity *domain.AdapterIdentity) error
+	getByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error)
+	updateFn        func(ctx context.Context, identity *domain.AdapterIdentity) error
+	deleteFn        func(ctx context.Context, id uuid.UUID) error
+	listByAdapterFn func(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error)
+	getDefaultFn    func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
+	setDefaultFn    func(ctx context.Context, adapterID, identityID uuid.UUID) error
+	upsertBatchFn   func(ctx context.Context, adapterID uuid.UUID, identities []*domain.AdapterIdentity) error
+	deleteStaleFn   func(ctx context.Context, adapterID uuid.UUID, keepIdentities []string) error
 }
 
-func (m *mockAdapterIdentityStore) Create(_ context.Context, _ *domain.AdapterIdentity) error { return nil }
-func (m *mockAdapterIdentityStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
-	return nil, nil
-}
-func (m *mockAdapterIdentityStore) Update(_ context.Context, _ *domain.AdapterIdentity) error {
+func (m *mockAdapterIdentityStore) Create(ctx context.Context, identity *domain.AdapterIdentity) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, identity)
+	}
 	return nil
 }
-func (m *mockAdapterIdentityStore) Delete(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockAdapterIdentityStore) ListByAdapter(_ context.Context, _ uuid.UUID) ([]*domain.AdapterIdentity, error) {
+func (m *mockAdapterIdentityStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+func (m *mockAdapterIdentityStore) Update(ctx context.Context, identity *domain.AdapterIdentity) error {
+	if m.updateFn != nil {
+		return m.updateFn(ctx, identity)
+	}
+	return nil
+}
+func (m *mockAdapterIdentityStore) Delete(ctx context.Context, id uuid.UUID) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockAdapterIdentityStore) ListByAdapter(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error) {
+	if m.listByAdapterFn != nil {
+		return m.listByAdapterFn(ctx, adapterID)
+	}
 	return nil, nil
 }
 func (m *mockAdapterIdentityStore) GetDefault(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
@@ -109,13 +137,22 @@ func (m *mockAdapterIdentityStore) GetDefault(ctx context.Context, adapterID uui
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockAdapterIdentityStore) SetDefault(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+func (m *mockAdapterIdentityStore) SetDefault(ctx context.Context, adapterID uuid.UUID, identityID uuid.UUID) error {
+	if m.setDefaultFn != nil {
+		return m.setDefaultFn(ctx, adapterID, identityID)
+	}
 	return nil
 }
-func (m *mockAdapterIdentityStore) UpsertBatch(_ context.Context, _ uuid.UUID, _ []*domain.AdapterIdentity) error {
+func (m *mockAdapterIdentityStore) UpsertBatch(ctx context.Context, adapterID uuid.UUID, identities []*domain.AdapterIdentity) error {
+	if m.upsertBatchFn != nil {
+		return m.upsertBatchFn(ctx, adapterID, identities)
+	}
 	return nil
 }
-func (m *mockAdapterIdentityStore) DeleteStale(_ context.Context, _ uuid.UUID, _ []string) error {
+func (m *mockAdapterIdentityStore) DeleteStale(ctx context.Context, adapterID uuid.UUID, keepIdentities []string) error {
+	if m.deleteStaleFn != nil {
+		return m.deleteStaleFn(ctx, adapterID, keepIdentities)
+	}
 	return nil
 }
 
@@ -178,6 +215,8 @@ func setupAdapterTestFull(
 	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id", h.Update)
 	e.DELETE("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id", h.SoftDelete)
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id/test", h.TestConnection)
+	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id/workspace-access", h.GetWorkspaceAccess)
+	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/adapters/:id/workspace-access", h.UpdateWorkspaceAccess)
 
 	// Global routes.
 	e.POST("/api/v1/manage/global/adapters", h.CreateGlobal)
@@ -224,6 +263,270 @@ func TestAdapterHandler_Create_EncryptsConfig(t *testing.T) {
 	// Verify config was encrypted (mock prefixes with "enc:")
 	if len(created.ConfigEncrypted) == 0 || string(created.ConfigEncrypted[:4]) != "enc:" {
 		t.Fatalf("expected encrypted config, got %q", string(created.ConfigEncrypted))
+	}
+}
+
+func TestAdapterHandler_Update_SharedAdapterIsReadOnly(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	systemWSID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		switch id {
+		case systemWSID:
+			return &domain.Workspace{
+				ID:       systemWSID,
+				TenantID: tenant.ID,
+				Code:     "_system",
+				Name:     "System",
+				IsSystem: true,
+			}, nil
+		case ws.ID:
+			return ws, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
+
+	var updated bool
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWSID,
+				Name:        "Shared Gmail",
+				AdapterType: domain.AdapterTypeGmail,
+				CreatedAt:   time.Now().UTC(),
+				UpdatedAt:   time.Now().UTC(),
+			}, nil
+		},
+		updateFn: func(_ context.Context, _ *domain.Adapter) error {
+			updated = true
+			return nil
+		},
+	}
+
+	e, h := setupAdapterTest(as, &mockCrypto{}, ts, wsStore)
+
+	accessSvc := service.NewAdapterAccessService(
+		as,
+		&mockAdapterIdentityStore{},
+		wsStore,
+		&mockAdapterGrantStoreHandler{
+			hasAdapterWorkspaceGrantFn: func(_ context.Context, id uuid.UUID, workspaceID uuid.UUID) (bool, error) {
+				return id == adapterID && workspaceID == ws.ID, nil
+			},
+		},
+		&mockIdentityGrantStoreHandler{},
+		&mockTemplateTypeUsageStoreHandler{},
+	)
+	h.SetAdapterAccessService(accessSvc)
+
+	body := `{"name":"Attempted Rename"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated {
+		t.Fatal("shared adapter update should not reach store.Update")
+	}
+}
+
+func TestAdapterHandler_GetWorkspaceAccess_SystemScope(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWSID := uuid.Must(uuid.NewV7())
+	workspaceAID := uuid.Must(uuid.NewV7())
+	workspaceBID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+		if tenantID == tenant.ID && code == "_system" {
+			return &domain.Workspace{
+				ID:       systemWSID,
+				TenantID: tenant.ID,
+				Code:     "_system",
+				Name:     "System",
+				IsSystem: true,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		if tenantID != tenant.ID {
+			return nil, "", domain.ErrNotFound
+		}
+		return []*domain.Workspace{
+			{ID: systemWSID, TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true},
+			{ID: workspaceAID, TenantID: tenant.ID, Code: "alpha", Name: "Alpha"},
+			{ID: workspaceBID, TenantID: tenant.ID, Code: "beta", Name: "Beta"},
+		}, "", nil
+	}
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWSID,
+				Name:        "Shared Gmail",
+				AdapterType: domain.AdapterTypeGmail,
+				CreatedAt:   time.Now().UTC(),
+				UpdatedAt:   time.Now().UTC(),
+			}, nil
+		},
+	}
+
+	e, h := setupAdapterTest(as, &mockCrypto{}, ts, wsStore)
+	accessSvc := service.NewAdapterAccessService(
+		as,
+		&mockAdapterIdentityStore{},
+		wsStore,
+		&mockAdapterGrantStoreHandler{
+			listAdapterWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+				if id != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return []uuid.UUID{workspaceBID}, nil
+			},
+		},
+		&mockIdentityGrantStoreHandler{},
+		&mockTemplateTypeUsageStoreHandler{},
+	)
+	h.SetAdapterAccessService(accessSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/_system/adapters/"+adapterID.String()+"/workspace-access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"code":"alpha"`) || !strings.Contains(rec.Body.String(), `"code":"beta"`) {
+		t.Fatalf("expected workspace access payload to include tenant workspaces, got %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"is_granted":true`) {
+		t.Fatalf("expected one granted workspace in payload, got %s", rec.Body.String())
+	}
+}
+
+func TestAdapterHandler_UpdateWorkspaceAccess_WritesAudit(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWSID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	workspaceAID := uuid.Must(uuid.NewV7())
+	memberID := uuid.Must(uuid.NewV7())
+
+	systemWS := &domain.Workspace{ID: systemWSID, TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
+	workspaceA := &domain.Workspace{ID: workspaceAID, TenantID: tenant.ID, Code: "alpha", Name: "Alpha"}
+
+	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			return nil, domain.ErrNotFound
+		}
+		switch code {
+		case "_system":
+			return systemWS, nil
+		case "alpha":
+			return workspaceA, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
+	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		if tenantID != tenant.ID {
+			return nil, "", domain.ErrNotFound
+		}
+		return []*domain.Workspace{systemWS, workspaceA}, "", nil
+	}
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWSID,
+				Name:        "Shared Gmail",
+				AdapterType: domain.AdapterTypeGmail,
+				CreatedAt:   time.Now().UTC(),
+				UpdatedAt:   time.Now().UTC(),
+			}, nil
+		},
+	}
+
+	e, h := setupAdapterTest(as, &mockCrypto{}, ts, wsStore)
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			c.Set(middleware.ContextKeyMember, &domain.Member{ID: memberID, Email: "tenant-admin@example.com"})
+			return next(c)
+		}
+	})
+
+	currentGrants := []uuid.UUID{}
+	accessSvc := service.NewAdapterAccessService(
+		as,
+		&mockAdapterIdentityStore{},
+		wsStore,
+		&mockAdapterGrantStoreHandler{
+			listAdapterWorkspaceGrantsFn: func(_ context.Context, gotAdapterID uuid.UUID) ([]uuid.UUID, error) {
+				if gotAdapterID != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return append([]uuid.UUID(nil), currentGrants...), nil
+			},
+			replaceAdapterWorkspaceGrantsFn: func(_ context.Context, gotAdapterID uuid.UUID, workspaceIDs []uuid.UUID) error {
+				if gotAdapterID != adapterID {
+					return domain.ErrNotFound
+				}
+				currentGrants = append([]uuid.UUID(nil), workspaceIDs...)
+				return nil
+			},
+		},
+		&mockIdentityGrantStoreHandler{},
+		&mockTemplateTypeUsageStoreHandler{},
+	)
+	h.SetAdapterAccessService(accessSvc)
+
+	auditStore := &mockAuditLogStoreHandler{}
+	h.SetAuditStore(auditStore)
+
+	body := `{"workspace_ids":["` + workspaceAID.String() + `"]}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/_system/adapters/"+adapterID.String()+"/workspace-access", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(auditStore.entries) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(auditStore.entries))
+	}
+	entry := auditStore.entries[0]
+	if entry.Action != domain.AuditUpdate {
+		t.Fatalf("expected audit update, got %s", entry.Action)
+	}
+	if entry.EntityType != "adapter" || entry.EntityID != adapterID {
+		t.Fatalf("unexpected audit entity: %s %s", entry.EntityType, entry.EntityID)
+	}
+	if got := entry.ActorEmail; got != "tenant-admin@example.com" {
+		t.Fatalf("expected actor email tenant-admin@example.com, got %s", got)
+	}
+	if after, ok := entry.Changes["after_workspace_ids"].([]string); !ok || len(after) != 1 || after[0] != workspaceAID.String() {
+		t.Fatalf("unexpected after_workspace_ids: %#v", entry.Changes["after_workspace_ids"])
+	}
+	if granted, ok := entry.Changes["granted_workspace_ids"].([]string); !ok || len(granted) != 1 || granted[0] != workspaceAID.String() {
+		t.Fatalf("unexpected granted_workspace_ids: %#v", entry.Changes["granted_workspace_ids"])
 	}
 }
 

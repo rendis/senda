@@ -136,7 +136,7 @@ export function EmailDetailContent() {
           className="text-xl font-semibold font-[Sora]"
           style={{ letterSpacing: "-1px" }}
         >
-          {email.subject}
+          {email.subject_rendered}
         </h2>
 
         {/* Info card */}

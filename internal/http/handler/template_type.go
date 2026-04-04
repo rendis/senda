@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
+	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
@@ -23,6 +25,7 @@ type templateTypeResolvedTemplateInvalidator interface {
 // TemplateTypeHandler handles CRUD operations for template types.
 type TemplateTypeHandler struct {
 	svc                 *service.TemplateTypeService
+	accessSvc           *service.AdapterAccessService
 	tsStore             port.TenantStore
 	wsStore             port.WorkspaceStore
 	templateInvalidator templateTypeResolvedTemplateInvalidator
@@ -33,6 +36,11 @@ func NewTemplateTypeHandler(svc *service.TemplateTypeService, ts port.TenantStor
 	return &TemplateTypeHandler{svc: svc, tsStore: ts, wsStore: ws, templateInvalidator: invalidator}
 }
 
+// SetAdapterAccessService wires workspace adapter sharing validation without changing every constructor call site.
+func (h *TemplateTypeHandler) SetAdapterAccessService(accessSvc *service.AdapterAccessService) {
+	h.accessSvc = accessSvc
+}
+
 // Create handles POST /tenants/:tenant_code/workspaces/:workspace_code/template-types.
 func (h *TemplateTypeHandler) Create(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
@@ -40,7 +48,7 @@ func (h *TemplateTypeHandler) Create(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.create(c, &ws.ID)
+	return h.create(c, ws)
 }
 
 // CreateGlobal handles POST /global/template-types.
@@ -48,7 +56,7 @@ func (h *TemplateTypeHandler) CreateGlobal(c *echo.Context) error {
 	return h.create(c, nil)
 }
 
-func (h *TemplateTypeHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *TemplateTypeHandler) create(c *echo.Context, workspace *domain.Workspace) error {
 	var req request.CreateTemplateTypeRequest
 	if err := c.Bind(&req); err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -87,6 +95,17 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspaceID *uuid.UUID) er
 			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
 				response.FieldError{Field: "variable_schema", Message: "must be valid JSON"},
 			)
+		}
+	}
+
+	var workspaceID *uuid.UUID
+	if workspace != nil {
+		workspaceID = &workspace.ID
+	}
+
+	if h.accessSvc != nil {
+		if err := h.accessSvc.ValidateTemplateTypeSelection(c.Request().Context(), workspace, adapterID, senderIdentityID); err != nil {
+			return mapTemplateTypeAccessError(c, err)
 		}
 	}
 
@@ -137,7 +156,7 @@ func (h *TemplateTypeHandler) Update(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.update(c, &ws.ID)
+	return h.update(c, ws)
 }
 
 // UpdateGlobal handles PUT /global/template-types/:slug.
@@ -145,7 +164,11 @@ func (h *TemplateTypeHandler) UpdateGlobal(c *echo.Context) error {
 	return h.update(c, nil)
 }
 
-func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspace) error {
+	var workspaceID *uuid.UUID
+	if workspace != nil {
+		workspaceID = &workspace.ID
+	}
 	slugParam := c.Param("slug")
 
 	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
@@ -209,12 +232,37 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspaceID *uuid.UUID) er
 		}
 	}
 
+	if h.accessSvc != nil {
+		if err := h.accessSvc.ValidateTemplateTypeSelection(c.Request().Context(), workspace, tt.AdapterID, tt.SenderIdentityID); err != nil {
+			return mapTemplateTypeAccessError(c, err)
+		}
+	}
+
 	if err := h.svc.Update(c.Request().Context(), tt, previousSlug); err != nil {
 		return mapStoreError(c, err)
 	}
 	h.invalidateResolvedTemplates(c.Request().Context(), workspaceID)
 
 	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+}
+
+func mapTemplateTypeAccessError(c *echo.Context, err error) error {
+	switch {
+	case errors.Is(err, domain.ErrAdapterAccessDenied):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+			response.FieldError{Field: "adapter_id", Message: "is not accessible from this workspace"},
+		)
+	case errors.Is(err, domain.ErrSenderIdentityRequired):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+			response.FieldError{Field: "sender_identity_id", Message: "is required for shared SES adapters"},
+		)
+	case errors.Is(err, domain.ErrSenderIdentityAccessDenied), errors.Is(err, domain.ErrIdentityNotFound):
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+			response.FieldError{Field: "sender_identity_id", Message: "is not accessible from this workspace"},
+		)
+	default:
+		return mapStoreError(c, err)
+	}
 }
 
 func (h *TemplateTypeHandler) invalidateResolvedTemplates(ctx context.Context, wsID *uuid.UUID) {

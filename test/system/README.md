@@ -41,6 +41,7 @@ The orchestrator now expects a unified stack lifecycle command from `cmd/systemt
 - `subagents/security-chaos-tester.sh`
 - `subagents/ui-flow-tester.sh`
 - `subagents/ui-workspace-management-tester.sh`
+- `subagents/ui-adapter-sharing-tester.sh`
 - `subagents/ui-visual-tester.sh`
 - `subagents/ui-a11y-tester.sh`
 
@@ -90,6 +91,7 @@ Key outputs:
 - `security-chaos-report.md`
 - `ui-flow-report.md`
 - `ui-workspace-management-report.md`
+- `ui-adapter-sharing-report.md`
 - `visual-diff-report.html`
 - `a11y-report.md`
 - `coverage-matrix.csv`

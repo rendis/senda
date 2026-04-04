@@ -9,14 +9,18 @@ import {
   Mail,
   Globe,
   Loader2,
+  Share2,
+  Lock,
 } from "lucide-react";
-import { useScopedPath } from "@/hooks/use-scope";
+import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useIdentityList,
   useSyncIdentities,
   useCreateIdentity,
   useDeleteIdentity,
   useSetDefaultIdentity,
+  useIdentityWorkspaceAccess,
+  useUpdateIdentityWorkspaceAccess,
 } from "@/hooks/use-identities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +28,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -35,6 +40,7 @@ import {
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { Adapter, AdapterIdentity } from "@/types/adapters";
+import { useWorkspacesManagement } from "@/hooks/use-workspaces-mgmt";
 
 const STATUS_STYLES: Record<string, { className: string; label: string }> = {
   verified: { className: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30", label: "Verified" },
@@ -101,12 +107,18 @@ function EmailRow({
   identity,
   onSetDefault,
   onDelete,
+  onManageAccess,
   isSettingDefault,
+  canEdit,
+  isSystemWorkspace,
 }: {
   identity: AdapterIdentity;
   onSetDefault: () => void;
   onDelete: () => void;
+  onManageAccess?: () => void;
   isSettingDefault: boolean;
+  canEdit: boolean;
+  isSystemWorkspace: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 py-1.5 pl-8 pr-2 rounded-md hover:bg-muted/50 group">
@@ -128,7 +140,22 @@ function EmailRow({
       )}
 
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {identity.status === "verified" && !identity.is_default && (
+        {isSystemWorkspace && onManageAccess && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={onManageAccess}
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Workspace access</TooltipContent>
+          </Tooltip>
+        )}
+        {canEdit && identity.status === "verified" && !identity.is_default && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -144,7 +171,17 @@ function EmailRow({
             <TooltipContent>Set as default sender</TooltipContent>
           </Tooltip>
         )}
-        {identity.source === "manual" && (
+        {!canEdit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center text-muted-foreground">
+                <Lock className="h-3 w-3" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Shared adapter — read only in this workspace</TooltipContent>
+          </Tooltip>
+        )}
+        {canEdit && identity.source === "manual" && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -168,10 +205,12 @@ function DomainAddInput({
   domain,
   adapterId,
   scopedPath,
+  disabled,
 }: {
   domain: string;
   adapterId: string;
   scopedPath: string;
+  disabled?: boolean;
 }) {
   const [localPart, setLocalPart] = useState("");
   const create = useCreateIdentity(scopedPath, adapterId);
@@ -204,7 +243,7 @@ function DomainAddInput({
           size="sm"
           variant="ghost"
           className="shrink-0 h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-          disabled={!localPart.trim()}
+          disabled={disabled || !localPart.trim()}
         >
           {create.isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -225,6 +264,9 @@ function DomainTree({
   onSetDefault,
   onDelete,
   isSettingDefault,
+  canEdit,
+  isSystemWorkspace,
+  onManageAccess,
 }: {
   domainIdentity: AdapterIdentity;
   childEmails: AdapterIdentity[];
@@ -233,6 +275,9 @@ function DomainTree({
   onSetDefault: (id: string) => void;
   onDelete: (identity: AdapterIdentity) => void;
   isSettingDefault: boolean;
+  canEdit: boolean;
+  isSystemWorkspace: boolean;
+  onManageAccess: (identity: AdapterIdentity) => void;
 }) {
   return (
     <div className="py-1">
@@ -241,6 +286,11 @@ function DomainTree({
         <Globe className="h-4 w-4 text-primary shrink-0" />
         <span className="text-sm font-mono font-medium">{domainIdentity.identity}</span>
         <StatusBadge status={domainIdentity.status} />
+        {isSystemWorkspace && (
+          <span className="text-[10px] text-muted-foreground">
+            Share specific emails, not the domain
+          </span>
+        )}
       </div>
 
       {/* Child emails */}
@@ -252,19 +302,23 @@ function DomainTree({
               identity={email}
               onSetDefault={() => onSetDefault(email.id)}
               onDelete={() => onDelete(email)}
+              onManageAccess={() => onManageAccess(email)}
               isSettingDefault={isSettingDefault}
+              canEdit={canEdit}
+              isSystemWorkspace={isSystemWorkspace}
             />
           ))}
         </div>
       )}
 
       {/* Add email under this domain */}
-      {domainIdentity.status === "verified" && (
+      {canEdit && domainIdentity.status === "verified" && (
         <div className="border-l border-border/50 ml-4">
           <DomainAddInput
             domain={domainIdentity.identity}
             adapterId={adapterId}
             scopedPath={scopedPath}
+            disabled={!canEdit}
           />
         </div>
       )}
@@ -282,7 +336,11 @@ export function IdentityPanel({
   onOpenChange: (open: boolean) => void;
 }) {
   const scopedPath = useScopedPath();
+  const scope = useScope();
+  const isSystemWorkspace = scope.workspaceCode === "_system";
+  const isReadOnly = !adapter.is_editable;
   const [deleteTarget, setDeleteTarget] = useState<AdapterIdentity | null>(null);
+  const [shareTarget, setShareTarget] = useState<AdapterIdentity | null>(null);
 
   const { data: identities, isLoading } = useIdentityList(scopedPath, adapter.id);
   const sync = useSyncIdentities(scopedPath, adapter.id);
@@ -317,16 +375,23 @@ export function IdentityPanel({
               Verified domains and sender addresses. Add emails under each domain.
             </DialogDescription>
             <div className="pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => sync.mutate()}
-                disabled={sync.isPending}
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-                Sync from provider
-              </Button>
+              {adapter.is_editable ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => sync.mutate()}
+                  disabled={sync.isPending}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
+                  Sync from provider
+                </Button>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-md bg-scope-system-bg px-2.5 py-1 text-xs text-scope-system">
+                  <Lock className="h-3.5 w-3.5" />
+                  Shared from _system — read only
+                </div>
+              )}
             </div>
           </DialogHeader>
 
@@ -357,6 +422,9 @@ export function IdentityPanel({
                     onSetDefault={(id) => setDefault.mutate(id)}
                     onDelete={setDeleteTarget}
                     isSettingDefault={setDefault.isPending}
+                    canEdit={!isReadOnly}
+                    isSystemWorkspace={isSystemWorkspace}
+                    onManageAccess={setShareTarget}
                   />
                 ))}
                 {orphanEmails.map((email) => (
@@ -365,7 +433,10 @@ export function IdentityPanel({
                     identity={email}
                     onSetDefault={() => setDefault.mutate(email.id)}
                     onDelete={() => setDeleteTarget(email)}
+                    onManageAccess={() => setShareTarget(email)}
                     isSettingDefault={setDefault.isPending}
+                    canEdit={!isReadOnly}
+                    isSystemWorkspace={isSystemWorkspace}
                   />
                 ))}
               </div>
@@ -388,6 +459,115 @@ export function IdentityPanel({
         }}
         loading={remove.isPending}
       />
+
+      {shareTarget && isSystemWorkspace && (
+        <IdentityWorkspaceAccessDialog
+          adapter={adapter}
+          identity={shareTarget}
+          open={!!shareTarget}
+          onOpenChange={(next) => !next && setShareTarget(null)}
+        />
+      )}
     </>
+  );
+}
+
+function IdentityWorkspaceAccessDialog({
+  adapter,
+  identity,
+  open,
+  onOpenChange,
+}: {
+  adapter: Adapter;
+  identity: AdapterIdentity;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const scope = useScope();
+  const scopedPath = useScopedPath();
+  const tenantCode = scope.tenantCode ?? "";
+  const { data: access, isLoading } = useIdentityWorkspaceAccess(scopedPath, adapter.id, identity.id);
+  const updateAccess = useUpdateIdentityWorkspaceAccess(scopedPath, adapter.id, identity.id);
+  const { data: workspacePages } = useWorkspacesManagement(tenantCode, "");
+  const [selected, setSelected] = useState<string[] | null>(null);
+
+  const allWorkspaces = workspacePages?.pages.flatMap((page) => page.items).filter((workspace) => !workspace.is_system) ?? [];
+  const effectiveSelection = selected
+    ? selected
+    : access?.items.filter((item) => item.is_granted).map((item) => item.workspace_id) ?? [];
+  const items = access?.items.length
+    ? access.items
+    : allWorkspaces.map((workspace) => ({
+        workspace_id: workspace.id,
+        code: workspace.code,
+        name: workspace.name,
+        is_granted: false,
+      }));
+
+  function toggle(workspaceId: string) {
+    setSelected((current) =>
+      (current ?? effectiveSelection).includes(workspaceId)
+        ? (current ?? effectiveSelection).filter((id) => id !== workspaceId)
+        : [...(current ?? effectiveSelection), workspaceId]
+    );
+  }
+
+  async function handleSave() {
+    await updateAccess.mutateAsync(effectiveSelection);
+    setSelected(null);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !updateAccess.isPending && onOpenChange(next)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Workspace access — {identity.identity}</DialogTitle>
+          <DialogDescription>
+            Choose which workspaces can use this SES sender identity.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto py-2">
+          {identity.identity_type === "domain" ? (
+            <p className="text-sm text-muted-foreground">
+              Domain identities are not shareable. Share specific email senders instead.
+            </p>
+          ) : isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading workspaces...</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No child workspaces available.</p>
+          ) : (
+            items.map((item) => {
+              const checked = effectiveSelection.includes(item.workspace_id);
+              return (
+                <label key={item.workspace_id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="text-xs text-muted-foreground">{item.code}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(item.workspace_id)}
+                    className="h-4 w-4"
+                  />
+                </label>
+              );
+            })
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateAccess.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={updateAccess.isPending || identity.identity_type === "domain"}
+          >
+            Save access
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

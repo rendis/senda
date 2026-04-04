@@ -18,7 +18,7 @@ func TestConnect(t *testing.T) {
 	cfg := config.DatabaseConfig{
 		URL:             connStr,
 		MaxOpenConns:    5,
-		MinConns:    2,
+		MinConns:        2,
 		ConnMaxLifetime: "5m",
 		MigrateOnStart:  false,
 	}
@@ -67,6 +67,8 @@ func TestMigrations(t *testing.T) {
 		"injector_fields",
 		"injector_values",
 		"adapters",
+		"adapter_workspace_grants",
+		"adapter_identity_workspace_grants",
 		"template_types",
 		"templates",
 		"members",

@@ -450,6 +450,8 @@ func (s *Server) registerRoutes() {
 				ws.PUT("/adapters/:id", s.adapterHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/adapters/:id", s.adapterHandler.SoftDelete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/test", s.adapterHandler.TestConnection, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.GET("/adapters/:id/workspace-access", s.adapterHandler.GetWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.PUT("/adapters/:id/workspace-access", s.adapterHandler.UpdateWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				if s.adapterSetupHandler != nil {
 					ws.GET("/adapters/:id/setup-guide", s.adapterSetupHandler.SetupGuide, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 					ws.POST("/adapters/:id/auto-provision-tracking", s.adapterSetupHandler.AutoProvision, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
@@ -462,6 +464,8 @@ func (s *Server) registerRoutes() {
 				ws.POST("/adapters/:id/identities/sync", s.identityHandler.Sync, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.DELETE("/adapters/:id/identities/:identity_id", s.identityHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities/:identity_id/set-default", s.identityHandler.SetDefault, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.GET("/adapters/:id/identities/:identity_id/workspace-access", s.identityHandler.GetWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.PUT("/adapters/:id/identities/:identity_id/workspace-access", s.identityHandler.UpdateWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 			// Template types (HT-21).
 			if s.templateTypeHandler != nil {

@@ -77,7 +77,7 @@ export function EmailDetailPanel({ email }: EmailDetailPanelProps) {
             copiable
           />
         )}
-        <InfoRow label="Locale" value={email.locale} />
+        <InfoRow label="Locale" value={email.locale || "\u2014"} />
         <InfoRow label="Sent at" value={formatDate(email.created_at)} />
       </div>
     </div>

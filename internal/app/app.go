@@ -98,6 +98,9 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	dashboardRepo := postgres.NewDashboardRepo(pool)
 	configRepo := postgres.NewGlobalConfigRepo(pool)
 	adapterIdentityRepo := postgres.NewAdapterIdentityRepo(pool)
+	adapterGrantRepo := postgres.NewAdapterGrantRepo(pool)
+	adapterIdentityGrantRepo := postgres.NewAdapterIdentityGrantRepo(pool)
+	templateTypeUsageRepo := postgres.NewTemplateTypeUsageRepo(pool)
 
 	// 6. Resolution engine.
 	chainResolver := resolution.NewChainResolver(wsRepo, cache)
@@ -142,6 +145,14 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	// 9. Services.
 	webhookSvc := service.NewWebhookService(webhookRepo, riverClient)
 	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, DefaultIdentityProviderFactory)
+	adapterAccessSvc := service.NewAdapterAccessService(
+		adapterRepo,
+		adapterIdentityRepo,
+		wsRepo,
+		adapterGrantRepo,
+		adapterIdentityGrantRepo,
+		templateTypeUsageRepo,
+	)
 	sendSvc := service.NewSendService(
 		templateResolver, injectorMerger, adapterResolver,
 		identitySvc,
@@ -215,6 +226,12 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner, provisioningStepRepo)
 	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
 	dashboardH := handler.NewDashboardHandler(dashboardRepo, auditRepo, tenantRepo, wsRepo)
+	adapterH.SetAdapterAccessService(adapterAccessSvc)
+	adapterH.SetAuditStore(auditRepo)
+	templateTypeH.SetAdapterAccessService(adapterAccessSvc)
+	identityH.SetAdapterAccessService(adapterAccessSvc)
+	identityH.SetAuditStore(auditRepo)
+	sendSvc.SetAdapterAccessService(adapterAccessSvc)
 
 	// 12. Event processor (shared by SES webhook + open-tracking pixel).
 	eventProcessor := service.NewEventProcessor(emailRepo, emailRepo, suppressionRepo, webhookSvc, logger)

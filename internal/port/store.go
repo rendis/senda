@@ -185,6 +185,28 @@ type AdapterIdentityStore interface {
 	DeleteStale(ctx context.Context, adapterID uuid.UUID, keepIdentities []string) error
 }
 
+// AdapterGrantStore manages workspace visibility for system-owned adapters.
+type AdapterGrantStore interface {
+	ListAdapterWorkspaceGrants(ctx context.Context, adapterID uuid.UUID) ([]uuid.UUID, error)
+	ReplaceAdapterWorkspaceGrants(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) error
+	HasAdapterWorkspaceGrant(ctx context.Context, adapterID, workspaceID uuid.UUID) (bool, error)
+	ListVisibleAdaptersForWorkspace(ctx context.Context, workspaceID uuid.UUID, opts ListOptions) (*PageResult[domain.Adapter], error)
+}
+
+// AdapterIdentityGrantStore manages workspace visibility for shared SES email identities.
+type AdapterIdentityGrantStore interface {
+	ListIdentityWorkspaceGrants(ctx context.Context, identityID uuid.UUID) ([]uuid.UUID, error)
+	ReplaceIdentityWorkspaceGrants(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) error
+	HasIdentityWorkspaceGrant(ctx context.Context, identityID, workspaceID uuid.UUID) (bool, error)
+	ListGrantedIdentitiesForWorkspace(ctx context.Context, adapterID, workspaceID uuid.UUID) ([]*domain.AdapterIdentity, error)
+}
+
+// TemplateTypeUsageStore provides lightweight usage checks for shared access revocation.
+type TemplateTypeUsageStore interface {
+	CountTypesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error)
+	CountTypesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error)
+}
+
 // WebhookStore manages webhook endpoint persistence.
 type WebhookStore interface {
 	Create(ctx context.Context, wh *domain.Webhook) error

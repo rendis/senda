@@ -70,6 +70,7 @@ type Email struct {
 	Locale              *string
 	Status              EmailStatus
 	AdapterID           uuid.UUID
+	SenderIdentityID    *uuid.UUID
 	ProviderMessageID   *string
 	VariablesSnapshot   map[string]any
 	InjectorsSnapshot   map[string]map[string]any

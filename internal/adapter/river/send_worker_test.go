@@ -1,9 +1,12 @@
 package river
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,6 +311,54 @@ func TestSendWorker_SuccessfulSend(t *testing.T) {
 	}
 	if emailStore.addEventCalls[1].Event.EventType != domain.EventTypeSent {
 		t.Errorf("second event = %q, want %q", emailStore.addEventCalls[1].Event.EventType, domain.EventTypeSent)
+	}
+}
+
+func TestSendWorker_SuccessfulSend_LogsTrackingAndSenderIdentity(t *testing.T) {
+	email := newTestEmail()
+	senderIdentityID := uuid.Must(uuid.NewV7())
+	email.SenderIdentityID = &senderIdentityID
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	sender := &mockSender{}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
+
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(prev)
+	})
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "send_worker: email sent") {
+		t.Fatalf("expected success log, got %q", logOutput)
+	}
+	if !strings.Contains(logOutput, email.TrackingID) {
+		t.Fatalf("expected tracking_id in log, got %q", logOutput)
+	}
+	if !strings.Contains(logOutput, email.FromEmail) {
+		t.Fatalf("expected from_email in log, got %q", logOutput)
+	}
+	if !strings.Contains(logOutput, senderIdentityID.String()) {
+		t.Fatalf("expected sender_identity_id in log, got %q", logOutput)
 	}
 }
 

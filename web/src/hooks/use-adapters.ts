@@ -9,6 +9,7 @@ import type {
   CreateAdapterRequest,
   UpdateAdapterRequest,
   ProvisioningStatusResponse,
+  WorkspaceAccessListResponse,
 } from "@/types/adapters";
 import { toast } from "sonner";
 
@@ -185,5 +186,41 @@ export function useValidateSES(scopedPath: string) {
       api
         .post(`${scopedPath}/adapters/validate-ses`, { json: data })
         .json<SESValidationResult>(),
+  });
+}
+
+export function useAdapterWorkspaceAccess(scopedPath: string, adapterId: string) {
+  const api = useApi();
+  const ready = useApiReady();
+
+  return useQuery({
+    queryKey: ["adapter-workspace-access", scopedPath, adapterId],
+    queryFn: () =>
+      api
+        .get(`${scopedPath}/adapters/${adapterId}/workspace-access`)
+        .json<WorkspaceAccessListResponse>(),
+    enabled: ready && !!adapterId,
+  });
+}
+
+export function useUpdateAdapterWorkspaceAccess(scopedPath: string, adapterId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (workspaceIds: string[]) =>
+      api
+        .put(`${scopedPath}/adapters/${adapterId}/workspace-access`, {
+          json: { workspace_ids: workspaceIds },
+        })
+        .json<WorkspaceAccessListResponse>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adapter-workspace-access", scopedPath, adapterId] });
+      queryClient.invalidateQueries({ queryKey: ["adapters", scopedPath] });
+      toast.success("Workspace access updated");
+    },
+    onError: () => {
+      toast.error("Failed to update workspace access");
+    },
   });
 }

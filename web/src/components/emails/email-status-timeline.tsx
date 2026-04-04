@@ -36,7 +36,7 @@ interface EmailStatusTimelineProps {
 export function EmailStatusTimeline({ events }: EmailStatusTimelineProps) {
   // Sort events newest first
   const sorted = [...(events ?? [])].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
   );
 
   return (
@@ -59,7 +59,7 @@ export function EmailStatusTimeline({ events }: EmailStatusTimelineProps) {
               {eventLabel[event.event_type] ?? event.event_type}
             </span>
             <span className="text-[11px] font-mono text-muted-foreground">
-              {formatDate(event.timestamp)}
+              {formatDate(event.occurred_at)}
             </span>
           </div>
         </div>

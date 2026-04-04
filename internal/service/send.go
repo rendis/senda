@@ -180,6 +180,7 @@ type SendService struct {
 	templateResolver *resolution.TemplateResolver
 	injectorMerger   *resolution.InjectorMerger
 	adapterResolver  *resolution.AdapterResolver
+	accessService    *AdapterAccessService
 	identitySvc      *IdentityService
 	emailStore       port.EmailStore
 	suppression      port.SuppressionStore
@@ -188,6 +189,11 @@ type SendService struct {
 	tenantStore      port.TenantStore
 	wsStore          port.WorkspaceStore
 	pool             *pgxpool.Pool
+}
+
+// SetAdapterAccessService wires runtime adapter access validation without widening constructor churn.
+func (s *SendService) SetAdapterAccessService(accessService *AdapterAccessService) {
+	s.accessService = accessService
 }
 
 // NewSendService creates a new SendService with the given dependencies.
@@ -289,6 +295,12 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
+	if s.accessService != nil {
+		if err := s.accessService.ValidateTemplateTypeSelection(ctx, ws, resolved.TemplateType.AdapterID, resolved.TemplateType.SenderIdentityID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 6. Resolve from_email — use template type's sender identity if set, else adapter default.
 	fromEmail, err := s.resolveFromEmail(ctx, adapter.Adapter, resolved.TemplateType.SenderIdentityID)
 	if err != nil {
@@ -363,6 +375,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			SubjectRendered:     renderedSubject,
 			Locale:              req.Locale,
 			AdapterID:           adapter.Adapter.ID,
+			SenderIdentityID:    resolved.TemplateType.SenderIdentityID,
 			VariablesSnapshot:   req.Variables,
 			InjectorsSnapshot:   injectors,
 			SourceType:          source.Type,
@@ -446,6 +459,9 @@ func (s *SendService) resolveFromEmail(ctx context.Context, adapter *domain.Adap
 		identity, err := s.identitySvc.GetByID(ctx, *senderIdentityID)
 		if err != nil {
 			return "", fmt.Errorf("sender identity %s not found: %w", *senderIdentityID, err)
+		}
+		if identity.IdentityType != domain.IdentityTypeEmail {
+			return "", fmt.Errorf("%w: sender identity %s is not an email", domain.ErrSenderIdentityAccessDenied, *senderIdentityID)
 		}
 		return identity.Identity, nil
 	}

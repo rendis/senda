@@ -7,20 +7,22 @@ import (
 
 // DashboardStatsResponse is the JSON response for the dashboard stats endpoint.
 type DashboardStatsResponse struct {
-	Totals         DashboardTotalsResp         `json:"totals"`
-	Rates          DashboardRatesResp          `json:"rates"`
-	TimeSeries     []DashboardTimePointResp    `json:"time_series"`
-	RecentEmails   []DashboardRecentEmailResp  `json:"recent_emails"`
-	RecentActivity []DashboardActivityResp     `json:"recent_activity"`
+	Totals         DashboardTotalsResp          `json:"totals"`
+	Rates          DashboardRatesResp           `json:"rates"`
+	TimeSeries     []DashboardTimePointResp     `json:"time_series"`
+	RecentEmails   []DashboardRecentEmailResp   `json:"recent_emails"`
+	RecentActivity []DashboardActivityResp      `json:"recent_activity"`
 	ByAdapter      []DashboardAdapterTotalsResp `json:"by_adapter"`
 }
 
 // DashboardAdapterTotalsResp holds per-adapter email totals.
 type DashboardAdapterTotalsResp struct {
-	AdapterID   string              `json:"adapter_id"`
-	AdapterName string              `json:"adapter_name"`
-	AdapterType string              `json:"adapter_type"`
-	Totals      DashboardTotalsResp `json:"totals"`
+	AdapterID        string              `json:"adapter_id"`
+	AdapterName      string              `json:"adapter_name"`
+	AdapterType      string              `json:"adapter_type"`
+	SenderIdentityID *string             `json:"sender_identity_id,omitempty"`
+	FromEmail        string              `json:"from_email"`
+	Totals           DashboardTotalsResp `json:"totals"`
 }
 
 // DashboardTotalsResp holds aggregated email counts.
@@ -127,6 +129,7 @@ func NewDashboardStatsResponse(
 			AdapterID:   at.AdapterID.String(),
 			AdapterName: at.AdapterName,
 			AdapterType: at.AdapterType,
+			FromEmail:   at.FromEmail,
 			Totals: DashboardTotalsResp{
 				Sent:       at.Totals.Sent,
 				Delivered:  at.Totals.Delivered,
@@ -134,6 +137,10 @@ func NewDashboardStatsResponse(
 				Complained: at.Totals.Complained,
 				Failed:     at.Totals.Failed,
 			},
+		}
+		if at.SenderIdentityID != nil {
+			id := at.SenderIdentityID.String()
+			adapterResp[i].SenderIdentityID = &id
 		}
 	}
 

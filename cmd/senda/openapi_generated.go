@@ -1572,6 +1572,50 @@ func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adap
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/set-default [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_set_default() {}
 
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Param        body  body  request.UpdateAdapterRequest  true  "Request body"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access() {}
+
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_sync auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/sync
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -1651,6 +1695,48 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapter
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/test [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_test() {}
+
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        body  body  request.UpdateAdapterRequest  true  "Request body"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_adapters_validate_ses auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses

@@ -141,6 +141,8 @@ func (r *DashboardRepo) GetTotalsByAdapter(ctx context.Context, p port.Dashboard
 		`SELECT e.adapter_id,
 		        COALESCE(a.name, 'unknown') AS adapter_name,
 		        COALESCE(a.adapter_type::text, 'unknown') AS adapter_type,
+		        e.sender_identity_id,
+		        COALESCE(e.from_email, '') AS from_email,
 		        count(*) FILTER (WHERE e.status IN ('sent','delivered','opened')) AS sent,
 		        count(*) FILTER (WHERE e.status IN ('delivered','opened')) AS delivered,
 		        count(*) FILTER (WHERE e.status = 'bounced') AS bounced,
@@ -149,7 +151,7 @@ func (r *DashboardRepo) GetTotalsByAdapter(ctx context.Context, p port.Dashboard
 		 FROM emails e
 		 LEFT JOIN adapters a ON a.id = e.adapter_id
 		 WHERE %s
-		 GROUP BY e.adapter_id, a.name, a.adapter_type
+		 GROUP BY e.adapter_id, a.name, a.adapter_type, e.sender_identity_id, e.from_email
 		 ORDER BY sent DESC`, where,
 	)
 
@@ -161,7 +163,7 @@ func (r *DashboardRepo) GetTotalsByAdapter(ctx context.Context, p port.Dashboard
 	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (port.DashboardAdapterTotals, error) {
 		var at port.DashboardAdapterTotals
 		scanErr := row.Scan(
-			&at.AdapterID, &at.AdapterName, &at.AdapterType,
+			&at.AdapterID, &at.AdapterName, &at.AdapterType, &at.SenderIdentityID, &at.FromEmail,
 			&at.Totals.Sent, &at.Totals.Delivered, &at.Totals.Bounced,
 			&at.Totals.Complained, &at.Totals.Failed,
 		)

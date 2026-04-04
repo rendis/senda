@@ -4,9 +4,14 @@ export type AdapterType = "ses" | "gmail";
 /** Adapter record */
 export interface Adapter {
   id: string;
+  workspace_id?: string;
+  source_scope?: "workspace" | "system";
+  source_workspace_id?: string;
   name: string;
   adapter_type: AdapterType;
   is_default: boolean;
+  is_editable: boolean;
+  is_shared: boolean;
   rate_limit_per_second?: number;
   config_meta?: Record<string, string>;
   created_at: string;
@@ -57,6 +62,17 @@ export interface AdapterIdentity {
   last_synced_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkspaceAccessItem {
+  workspace_id: string;
+  code: string;
+  name: string;
+  is_granted: boolean;
+}
+
+export interface WorkspaceAccessListResponse {
+  items: WorkspaceAccessItem[];
 }
 
 /** Provisioning step status */

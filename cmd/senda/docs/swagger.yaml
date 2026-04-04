@@ -445,10 +445,18 @@ definitions:
         type: string
       is_default:
         type: boolean
+      is_editable:
+        type: boolean
+      is_shared:
+        type: boolean
       name:
         type: string
       rate_limit_per_second:
         type: integer
+      source_scope:
+        type: string
+      source_workspace_id:
+        type: string
       updated_at:
         type: string
       workspace_id:
@@ -532,6 +540,10 @@ definitions:
       adapter_name:
         type: string
       adapter_type:
+        type: string
+      from_email:
+        type: string
+      sender_identity_id:
         type: string
       totals:
         $ref: '#/definitions/github_com_rendis_senda_internal_http_response.DashboardTotalsResp'
@@ -5581,6 +5593,141 @@ paths:
       summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/set-default
       tags:
       - adapter-identities
+  /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access:
+    get:
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: id path parameter
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: identity_id path parameter
+        in: path
+        name: identity_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+      tags:
+      - adapter-identities
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: id path parameter
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: identity_id path parameter
+        in: path
+        name: identity_id
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+      tags:
+      - adapter-identities
   /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/sync:
     post:
       description: Auto-generated route stub for OpenAPI + MCP discovery.
@@ -5815,6 +5962,131 @@ paths:
       security:
       - ManagementBearer: []
       summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/test
+      tags:
+      - adapters
+  /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access:
+    get:
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: id path parameter
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
+      tags:
+      - adapters
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: id path parameter
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.UpdateAdapterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.AdapterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
       tags:
       - adapters
   /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses:

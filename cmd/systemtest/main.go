@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
@@ -23,6 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/rendis/senda/internal/adapter/testauth"
 )
 
@@ -139,6 +144,8 @@ func main() {
 		err = cmdKeycloakSeed(os.Args[2:])
 	case "seed-rbac":
 		err = cmdSeedRBAC(os.Args[2:])
+	case "aws-sim-create-identity":
+		err = cmdAWSSimCreateIdentity(os.Args[2:])
 	case "visual-diff":
 		err = cmdVisualDiff(os.Args[2:])
 	case "junit":
@@ -167,10 +174,59 @@ func usage() {
 	fmt.Println("  resolve-context")
 	fmt.Println("  keycloak-seed")
 	fmt.Println("  seed-rbac")
+	fmt.Println("  aws-sim-create-identity")
 	fmt.Println("  visual-diff")
 	fmt.Println("  junit")
 	fmt.Println("  run-result")
 	fmt.Println("  stack <up|down>")
+}
+
+func cmdAWSSimCreateIdentity(args []string) error {
+	fs := flag.NewFlagSet("aws-sim-create-identity", flag.ContinueOnError)
+	endpoint := fs.String("endpoint", "", "aws-sim / MiniStack base endpoint")
+	identity := fs.String("identity", "", "email or domain identity to create")
+	region := fs.String("region", "us-east-1", "AWS region")
+	accessKeyID := fs.String("access-key-id", "test", "AWS access key ID")
+	secretAccessKey := fs.String("secret-access-key", "test", "AWS secret access key")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*endpoint) == "" {
+		return errors.New("--endpoint is required")
+	}
+	if strings.TrimSpace(*identity) == "" {
+		return errors.New("--identity is required")
+	}
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(*region),
+		awsconfig.WithBaseEndpoint(*endpoint),
+		awsconfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(*accessKeyID, *secretAccessKey, ""),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("load aws config: %w", err)
+	}
+
+	client := sesv2.NewFromConfig(cfg, func(o *sesv2.Options) {
+		o.BaseEndpoint = aws.String(*endpoint)
+	})
+
+	created := true
+	if _, err := client.CreateEmailIdentity(context.Background(), &sesv2.CreateEmailIdentityInput{
+		EmailIdentity: aws.String(*identity),
+	}); err != nil {
+		if !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+			return fmt.Errorf("create aws-sim identity %q: %w", *identity, err)
+		}
+		created = false
+	}
+
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+		"identity": *identity,
+		"created":  created,
+	})
 }
 
 func cmdInventory(args []string) error {

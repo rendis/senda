@@ -92,10 +92,12 @@ func TestEmailRepo_GetByTrackingID(t *testing.T) {
 	deps := setupEmailTestDeps(ctx, t)
 
 	email := newTestEmail(deps.tenantID, deps.wsID)
+	senderIdentityID := uuid.New()
 	email.CC = []string{"cc@test.com"}
 	email.BCC = []string{"bcc1@test.com", "bcc2@test.com"}
 	extID := "ext-123"
 	email.ExternalID = &extID
+	email.SenderIdentityID = &senderIdentityID
 
 	if err := deps.repo.Create(ctx, email); err != nil {
 		t.Fatalf("Create() error: %v", err)
@@ -116,6 +118,9 @@ func TestEmailRepo_GetByTrackingID(t *testing.T) {
 	}
 	if got.ExternalID == nil || *got.ExternalID != "ext-123" {
 		t.Errorf("expected ExternalID ext-123, got %v", got.ExternalID)
+	}
+	if got.SenderIdentityID == nil || *got.SenderIdentityID != senderIdentityID {
+		t.Errorf("expected SenderIdentityID %s, got %v", senderIdentityID, got.SenderIdentityID)
 	}
 }
 

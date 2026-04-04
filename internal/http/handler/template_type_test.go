@@ -254,6 +254,76 @@ func TestTemplateTypeHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestTemplateTypeHandler_Create_SharedSESRequiresSenderIdentity(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	systemWSID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		switch id {
+		case systemWSID:
+			return &domain.Workspace{
+				ID:       systemWSID,
+				TenantID: tenant.ID,
+				Code:     "_system",
+				Name:     "System",
+				IsSystem: true,
+			}, nil
+		case ws.ID:
+			return ws, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
+
+	store := &mockTemplateStore{
+		findTypeBySlugInScopeFn: func(_ context.Context, _ string, _ *uuid.UUID) (*domain.TemplateType, error) {
+			return nil, domain.ErrNotFound
+		},
+		createTypeFn: func(_ context.Context, _ *domain.TemplateType) error {
+			t.Fatal("template type should not be persisted when sender identity is missing")
+			return nil
+		},
+	}
+
+	e, h := setupTemplateTypeTest(store, ts, wsStore)
+
+	accessSvc := service.NewAdapterAccessService(
+		&mockAdapterStore{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+				if id != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return &domain.Adapter{
+					ID:          adapterID,
+					WorkspaceID: &systemWSID,
+					Name:        "SES Shared",
+					AdapterType: domain.AdapterTypeSES,
+				}, nil
+			},
+		},
+		&mockAdapterIdentityStore{},
+		wsStore,
+		&mockAdapterGrantStoreHandler{},
+		&mockIdentityGrantStoreHandler{},
+		&mockTemplateTypeUsageStoreHandler{},
+	)
+	h.SetAdapterAccessService(accessSvc)
+
+	body := `{"slug":"welcome-email","name":"Welcome Email","adapter_id":"` + adapterID.String() + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/template-types", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "sender_identity_id") {
+		t.Fatalf("expected sender_identity_id validation error, got %s", rec.Body.String())
+	}
+}
+
 func TestTemplateTypeHandler_CreateGlobal_Success(t *testing.T) {
 	var created *domain.TemplateType
 	store := &mockTemplateStore{

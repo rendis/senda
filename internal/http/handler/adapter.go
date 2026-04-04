@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,15 +14,18 @@ import (
 	sesadapter "github.com/rendis/senda/internal/adapter/ses"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
-	"github.com/rendis/senda/internal/resolution"
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
+	"github.com/rendis/senda/internal/service"
 )
 
 // AdapterHandler handles CRUD operations for email adapters.
 type AdapterHandler struct {
 	store         port.AdapterStore
+	accessSvc     *service.AdapterAccessService
+	auditStore    port.AuditLogStore
 	crypto        port.Crypto
 	tsStore       port.TenantStore
 	wsStore       port.WorkspaceStore
@@ -29,6 +33,16 @@ type AdapterHandler struct {
 	identityStore port.AdapterIdentityStore
 	deprovisioner port.Deprovisioner // nil if tracking not configured
 	logger        *slog.Logger
+}
+
+// SetAdapterAccessService wires adapter sharing rules without widening constructor churn.
+func (h *AdapterHandler) SetAdapterAccessService(accessSvc *service.AdapterAccessService) {
+	h.accessSvc = accessSvc
+}
+
+// SetAuditStore wires audit logging for shared-access mutations.
+func (h *AdapterHandler) SetAuditStore(auditStore port.AuditLogStore) {
+	h.auditStore = auditStore
 }
 
 // NewAdapterHandler creates a new AdapterHandler.
@@ -128,7 +142,7 @@ func (h *AdapterHandler) List(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.list(c, &ws.ID)
+	return h.list(c, ws)
 }
 
 // ListGlobal handles GET /global/adapters.
@@ -136,15 +150,38 @@ func (h *AdapterHandler) ListGlobal(c *echo.Context) error {
 	return h.list(c, nil)
 }
 
-func (h *AdapterHandler) list(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *AdapterHandler) list(c *echo.Context, workspace *domain.Workspace) error {
 	opts := pagination.ParseListOptions(c)
 
-	page, err := h.store.ListByWorkspace(c.Request().Context(), workspaceID, opts)
+	var (
+		page *port.PageResult[domain.Adapter]
+		err  error
+	)
+	if h.accessSvc != nil {
+		page, err = h.accessSvc.ListAdaptersForWorkspace(c.Request().Context(), workspace, opts)
+	} else {
+		var workspaceID *uuid.UUID
+		if workspace != nil {
+			workspaceID = &workspace.ID
+		}
+		page, err = h.store.ListByWorkspace(c.Request().Context(), workspaceID, opts)
+	}
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewAdapterListResponse(page))
+	if workspace == nil {
+		return c.JSON(http.StatusOK, response.NewAdapterListResponse(page))
+	}
+	items := make([]response.AdapterResponse, len(page.Items))
+	for i, adapter := range page.Items {
+		items[i] = response.NewAdapterResponseForWorkspace(adapter, workspace)
+	}
+	return c.JSON(http.StatusOK, response.AdapterListResponse{
+		Items:      items,
+		NextCursor: page.NextCursor,
+		HasMore:    page.HasMore,
+	})
 }
 
 // Get handles GET /tenants/:tenant_code/workspaces/:workspace_code/adapters/:id.
@@ -154,7 +191,7 @@ func (h *AdapterHandler) Get(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.get(c, &ws.ID)
+	return h.get(c, ws)
 }
 
 // GetGlobal handles GET /global/adapters/:id.
@@ -162,20 +199,33 @@ func (h *AdapterHandler) GetGlobal(c *echo.Context) error {
 	return h.get(c, nil)
 }
 
-func (h *AdapterHandler) get(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *AdapterHandler) get(c *echo.Context, workspace *domain.Workspace) error {
 	adapterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
 	}
 
-	adapter, err := h.store.GetByID(c.Request().Context(), adapterID)
+	ctx := c.Request().Context()
+	adapter, err := h.store.GetByID(ctx, adapterID)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	// Verify workspace ownership.
-	if !sameScope(adapter.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	if workspace != nil {
+		if h.accessSvc != nil {
+			access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapterID)
+			if err != nil {
+				if errors.Is(err, domain.ErrAdapterAccessDenied) {
+					return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+				}
+				return mapStoreError(c, err)
+			}
+			return c.JSON(http.StatusOK, response.NewAdapterResponseForWorkspace(access.Adapter, workspace))
+		}
+		if !sameScope(adapter.WorkspaceID, &workspace.ID) {
+			return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+		}
+		return c.JSON(http.StatusOK, response.NewAdapterResponseForWorkspace(adapter, workspace))
 	}
 
 	return c.JSON(http.StatusOK, response.NewAdapterResponse(adapter))
@@ -188,7 +238,7 @@ func (h *AdapterHandler) Update(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.update(c, &ws.ID)
+	return h.update(c, ws)
 }
 
 // UpdateGlobal handles PUT /global/adapters/:id.
@@ -196,20 +246,16 @@ func (h *AdapterHandler) UpdateGlobal(c *echo.Context) error {
 	return h.update(c, nil)
 }
 
-func (h *AdapterHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) error {
 	adapterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
 	}
 
 	ctx := c.Request().Context()
-	adapter, err := h.store.GetByID(ctx, adapterID)
+	adapter, err := h.loadEditableAdapter(ctx, workspace, adapterID)
 	if err != nil {
-		return mapStoreError(c, err)
-	}
-
-	if !sameScope(adapter.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+		return mapAdapterAccessHandlerError(c, err)
 	}
 
 	var req request.UpdateAdapterRequest
@@ -268,7 +314,10 @@ func (h *AdapterHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
 		return mapStoreError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, response.NewAdapterResponse(adapter))
+	if workspace == nil {
+		return c.JSON(http.StatusOK, response.NewAdapterResponse(adapter))
+	}
+	return c.JSON(http.StatusOK, response.NewAdapterResponseForWorkspace(adapter, workspace))
 }
 
 // SoftDelete handles DELETE /tenants/:tenant_code/workspaces/:workspace_code/adapters/:id.
@@ -278,7 +327,7 @@ func (h *AdapterHandler) SoftDelete(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.softDelete(c, &ws.ID)
+	return h.softDelete(c, ws)
 }
 
 // SoftDeleteGlobal handles DELETE /global/adapters/:id.
@@ -286,20 +335,16 @@ func (h *AdapterHandler) SoftDeleteGlobal(c *echo.Context) error {
 	return h.softDelete(c, nil)
 }
 
-func (h *AdapterHandler) softDelete(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *AdapterHandler) softDelete(c *echo.Context, workspace *domain.Workspace) error {
 	adapterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
 	}
 
 	ctx := c.Request().Context()
-	adapter, err := h.store.GetByID(ctx, adapterID)
+	adapter, err := h.loadEditableAdapter(ctx, workspace, adapterID)
 	if err != nil {
-		return mapStoreError(c, err)
-	}
-
-	if !sameScope(adapter.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+		return mapAdapterAccessHandlerError(c, err)
 	}
 
 	// Best-effort deprovision of AWS resources for SES adapters.
@@ -331,10 +376,10 @@ func (h *AdapterHandler) safeDeprovision(ctx context.Context, adapterID uuid.UUI
 // Tests AWS credentials and checks permissions without creating any resources.
 func (h *AdapterHandler) ValidateSES(c *echo.Context) error {
 	var req struct {
-		Region         string `json:"region"`
-		AccessKeyID    string `json:"access_key_id"`
+		Region          string `json:"region"`
+		AccessKeyID     string `json:"access_key_id"`
 		SecretAccessKey string `json:"secret_access_key"`
-		EndpointURL    string `json:"endpoint_url,omitempty"`
+		EndpointURL     string `json:"endpoint_url,omitempty"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -344,10 +389,10 @@ func (h *AdapterHandler) ValidateSES(c *echo.Context) error {
 	}
 
 	cfg := sesadapter.Config{
-		Region:         req.Region,
-		AccessKeyID:    req.AccessKeyID,
+		Region:          req.Region,
+		AccessKeyID:     req.AccessKeyID,
 		SecretAccessKey: req.SecretAccessKey,
-		EndpointURL:    req.EndpointURL,
+		EndpointURL:     req.EndpointURL,
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 15*time.Second)
@@ -368,7 +413,7 @@ func (h *AdapterHandler) TestConnection(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.testSend(c, &ws.ID)
+	return h.testSend(c, ws)
 }
 
 // TestConnectionGlobal handles POST /global/adapters/:id/test.
@@ -379,7 +424,7 @@ func (h *AdapterHandler) TestConnectionGlobal(c *echo.Context) error {
 // testSendTimeout is the maximum duration for a synchronous test send.
 const testSendTimeout = 30 * time.Second
 
-func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) error {
 	adapterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
@@ -405,13 +450,9 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 	}
 
 	ctx := c.Request().Context()
-	adapter, err := h.store.GetByID(ctx, adapterID)
+	adapter, err := h.loadEditableAdapter(ctx, workspace, adapterID)
 	if err != nil {
-		return mapStoreError(c, err)
-	}
-
-	if !sameScope(adapter.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+		return mapAdapterAccessHandlerError(c, err)
 	}
 
 	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
@@ -430,7 +471,7 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 	}
 
 	msg := &port.OutgoingEmail{
-		From: from,
+		From:     from,
 		To:       port.EmailAddress{Address: req.To},
 		Subject:  req.Subject,
 		BodyHTML: req.Body,
@@ -450,6 +491,137 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspaceID *uuid.UUID) error
 		"provider_message_id": providerMsgID,
 		"from":                from.Address,
 	})
+}
+
+// GetWorkspaceAccess handles GET .../adapters/:id/workspace-access (workspace scope).
+// Only tenant _system may manage shared access.
+func (h *AdapterHandler) GetWorkspaceAccess(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	if h.accessSvc == nil {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	adapterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
+	}
+
+	grants, err := h.accessSvc.ListAdapterWorkspaceAccess(c.Request().Context(), ws, adapterID)
+	if err != nil {
+		return mapAdapterAccessHandlerError(c, err)
+	}
+	return c.JSON(http.StatusOK, response.NewWorkspaceAccessListResponse(grants))
+}
+
+// UpdateWorkspaceAccess handles PUT .../adapters/:id/workspace-access (workspace scope).
+// Only tenant _system may manage shared access.
+func (h *AdapterHandler) UpdateWorkspaceAccess(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	if h.accessSvc == nil {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	}
+
+	adapterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")
+	}
+
+	var req request.UpdateWorkspaceAccessRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	workspaceIDs := make([]uuid.UUID, 0, len(req.WorkspaceIDs))
+	for _, raw := range req.WorkspaceIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
+				response.FieldError{Field: "workspace_ids", Message: "must contain valid UUIDs"},
+			)
+		}
+		workspaceIDs = append(workspaceIDs, id)
+	}
+
+	before, err := h.accessSvc.ListAdapterWorkspaceAccess(c.Request().Context(), ws, adapterID)
+	if err != nil {
+		return mapAdapterAccessHandlerError(c, err)
+	}
+
+	if err := h.accessSvc.ReplaceAdapterWorkspaceAccess(c.Request().Context(), ws, adapterID, workspaceIDs); err != nil {
+		return mapAdapterAccessHandlerError(c, err)
+	}
+
+	grants, err := h.accessSvc.ListAdapterWorkspaceAccess(c.Request().Context(), ws, adapterID)
+	if err != nil {
+		return mapAdapterAccessHandlerError(c, err)
+	}
+
+	adapter, err := h.store.GetByID(c.Request().Context(), adapterID)
+	if err == nil {
+		appendAuditLog(c, h.auditStore, newAuditEntry(
+			"adapter",
+			adapterID,
+			ws.TenantID,
+			ws.ID,
+			newWorkspaceAccessAuditChanges(before, grants),
+			map[string]any{
+				"adapter_name": adapter.Name,
+				"adapter_type": adapter.AdapterType,
+			},
+		))
+	}
+	return c.JSON(http.StatusOK, response.NewWorkspaceAccessListResponse(grants))
+}
+
+func (h *AdapterHandler) loadEditableAdapter(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) (*domain.Adapter, error) {
+	adapter, err := h.store.GetByID(ctx, adapterID)
+	if err != nil {
+		return nil, err
+	}
+
+	if workspace == nil {
+		if !sameScope(adapter.WorkspaceID, nil) {
+			return nil, domain.ErrNotFound
+		}
+		return adapter, nil
+	}
+
+	if h.accessSvc == nil {
+		if !sameScope(adapter.WorkspaceID, &workspace.ID) {
+			return nil, domain.ErrNotFound
+		}
+		return adapter, nil
+	}
+
+	access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapterID)
+	if err != nil {
+		return nil, err
+	}
+	if !access.Editable {
+		return nil, domain.ErrSharedResourceReadOnly
+	}
+	return access.Adapter, nil
+}
+
+func mapAdapterAccessHandlerError(c *echo.Context, err error) error {
+	switch {
+	case errors.Is(err, domain.ErrSharedResourceReadOnly):
+		return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", "shared resource is read-only")
+	case errors.Is(err, domain.ErrSharedGrantInUse):
+		return response.WriteError(c, http.StatusConflict, "CONFLICT", "shared grant is in use")
+	case errors.Is(err, domain.ErrAdapterAccessDenied):
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	case errors.Is(err, domain.ErrForbidden):
+		return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", err.Error())
+	default:
+		return mapStoreError(c, err)
+	}
 }
 
 // decryptConfigMap decrypts the adapter config and unmarshals it into a map.

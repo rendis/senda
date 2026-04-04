@@ -41,6 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { TemplateType } from "@/types/templates";
+import type { Adapter } from "@/types/adapters";
 import { toast } from "sonner";
 
 const SENDER_DEFAULT = "__default__";
@@ -219,6 +220,11 @@ function TemplateTypesTable() {
   async function handleCreateType() {
     if (!newSlug.trim() || !newName.trim()) return;
     try {
+      const selectedAdapter = adapters.find((adapter) => adapter.id === newAdapterId);
+      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !newSenderIdentityId) {
+        toast.error("Shared SES adapters require an explicit sender identity");
+        return;
+      }
       const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
       await createMutation.mutateAsync({
         slug: newSlug.trim(),
@@ -362,7 +368,7 @@ function EditTemplateTypeDialog({
   onOpenChange,
 }: {
   templateType: TemplateType;
-  adapters: { id: string; name: string; adapter_type: string }[];
+  adapters: Adapter[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -399,6 +405,11 @@ function EditTemplateTypeDialog({
     }
 
     try {
+      const selectedAdapter = adapters.find((adapter) => adapter.id === adapterId);
+      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !senderIdentityId) {
+        toast.error("Shared SES adapters require an explicit sender identity");
+        return true;
+      }
       const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
       await updateMutation.mutateAsync({
         name: name.trim(),
@@ -528,7 +539,7 @@ function AdapterSelect({
   senderIdentityId,
   onSenderIdentityChange,
 }: {
-  adapters: { id: string; name: string; adapter_type: string }[];
+  adapters: Adapter[];
   value: string;
   onChange: (value: string) => void;
   senderIdentityId?: string;
@@ -537,6 +548,7 @@ function AdapterSelect({
   const scopedPath = useScopedPath();
   const selectedAdapter = adapters.find((a) => a.id === value);
   const showIdentitySelect = !!selectedAdapter && selectedAdapter.adapter_type === "ses";
+  const requireExplicitSender = !!selectedAdapter && selectedAdapter.adapter_type === "ses" && selectedAdapter.is_shared;
 
   return (
     <div className="flex flex-col gap-3">
@@ -555,7 +567,7 @@ function AdapterSelect({
           <SelectContent>
             {adapters.map((a) => (
               <SelectItem key={a.id} value={a.id}>
-                {a.name} ({a.adapter_type})
+                {a.name} ({a.adapter_type}{a.is_shared ? ", shared" : ""})
               </SelectItem>
             ))}
           </SelectContent>
@@ -568,6 +580,7 @@ function AdapterSelect({
           adapterId={value}
           value={senderIdentityId ?? ""}
           onChange={onSenderIdentityChange}
+          requireExplicitSender={requireExplicitSender}
         />
       )}
     </div>
@@ -579,11 +592,13 @@ function SenderIdentitySelect({
   adapterId,
   value,
   onChange,
+  requireExplicitSender,
 }: {
   scopedPath: string;
   adapterId: string;
   value: string;
   onChange: (value: string) => void;
+  requireExplicitSender?: boolean;
 }) {
   const { data: identities, isLoading } = useIdentityList(scopedPath, adapterId);
   const emailIdentities = (identities ?? []).filter(
@@ -595,12 +610,14 @@ function SenderIdentitySelect({
       <Label>Sender Identity</Label>
       <Select value={value} onValueChange={onChange} disabled={isLoading}>
         <SelectTrigger className="w-full font-mono text-sm">
-          <SelectValue placeholder={isLoading ? "Loading..." : "Use adapter default"} />
+          <SelectValue placeholder={isLoading ? "Loading..." : requireExplicitSender ? "Select shared sender..." : "Use adapter default"} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={SENDER_DEFAULT}>
-            Use adapter default
-          </SelectItem>
+          {!requireExplicitSender && (
+            <SelectItem value={SENDER_DEFAULT}>
+              Use adapter default
+            </SelectItem>
+          )}
           {emailIdentities.map((i) => (
             <SelectItem key={i.id} value={i.id} className="font-mono">
               {i.identity}
@@ -615,7 +632,9 @@ function SenderIdentitySelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Choose which email address to send from. Add senders in the adapter&apos;s identity panel.
+        {requireExplicitSender
+          ? "Shared SES adapters require an explicit granted sender identity."
+          : "Choose which email address to send from. Add senders in the adapter&apos;s identity panel."}
       </p>
     </div>
   );

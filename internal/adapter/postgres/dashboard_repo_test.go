@@ -259,3 +259,70 @@ func TestDashboardRepo_ScopeFiltering_WorkspaceVsGlobal(t *testing.T) {
 		t.Errorf("tenant scope: expected Sent=3, got %d", totals.Sent)
 	}
 }
+
+func TestDashboardRepo_GetTotalsByAdapter_SplitsSharedSESBySenderIdentityAndFromEmail(t *testing.T) {
+	ctx := context.Background()
+	deps := setupDashboardTestDeps(ctx, t)
+
+	sharedAdapterID := uuid.New()
+	senderA := uuid.New()
+	senderB := uuid.New()
+
+	emailA := newDashboardTestEmail(deps.tenantID, deps.wsID, domain.StatusDelivered)
+	emailA.AdapterID = sharedAdapterID
+	emailA.FromEmail = "a@shared-mail.test"
+	emailA.SenderIdentityID = &senderA
+	if err := deps.emailRepo.Create(ctx, emailA); err != nil {
+		t.Fatalf("Create(emailA) error: %v", err)
+	}
+
+	emailB := newDashboardTestEmail(deps.tenantID, deps.wsID, domain.StatusSent)
+	emailB.AdapterID = sharedAdapterID
+	emailB.FromEmail = "b@shared-mail.test"
+	emailB.SenderIdentityID = &senderB
+	if err := deps.emailRepo.Create(ctx, emailB); err != nil {
+		t.Fatalf("Create(emailB) error: %v", err)
+	}
+
+	params := port.DashboardStatsParams{
+		WorkspaceID: &deps.wsID,
+		Since:       time.Now().Add(-1 * time.Hour),
+		Until:       time.Now().Add(1 * time.Hour),
+	}
+
+	rows, err := deps.dashRepo.GetTotalsByAdapter(ctx, params)
+	if err != nil {
+		t.Fatalf("GetTotalsByAdapter() error: %v", err)
+	}
+
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+
+	got := map[string]port.DashboardAdapterTotals{}
+	for _, row := range rows {
+		got[row.FromEmail] = row
+	}
+
+	rowA, ok := got["a@shared-mail.test"]
+	if !ok {
+		t.Fatalf("missing row for sender a")
+	}
+	if rowA.SenderIdentityID == nil || *rowA.SenderIdentityID != senderA {
+		t.Fatalf("expected sender identity %s for rowA, got %v", senderA, rowA.SenderIdentityID)
+	}
+	if rowA.Totals.Delivered != 1 || rowA.Totals.Sent != 1 {
+		t.Fatalf("expected rowA delivered=1 sent=1, got delivered=%d sent=%d", rowA.Totals.Delivered, rowA.Totals.Sent)
+	}
+
+	rowB, ok := got["b@shared-mail.test"]
+	if !ok {
+		t.Fatalf("missing row for sender b")
+	}
+	if rowB.SenderIdentityID == nil || *rowB.SenderIdentityID != senderB {
+		t.Fatalf("expected sender identity %s for rowB, got %v", senderB, rowB.SenderIdentityID)
+	}
+	if rowB.Totals.Delivered != 0 || rowB.Totals.Sent != 1 {
+		t.Fatalf("expected rowB delivered=0 sent=1, got delivered=%d sent=%d", rowB.Totals.Delivered, rowB.Totals.Sent)
+	}
+}

@@ -30,7 +30,7 @@ export function ProviderBreakdown({ adapters }: ProviderBreakdownProps) {
           const hasTracking = TRACKING_TYPES.has(a.adapter_type);
           return (
             <div
-              key={a.adapter_id}
+              key={`${a.adapter_id}:${a.sender_identity_id ?? a.from_email}`}
               className="rounded-lg border bg-card p-4 flex flex-col gap-2"
             >
               <div className="flex items-center gap-2">
@@ -40,6 +40,11 @@ export function ProviderBreakdown({ adapters }: ProviderBreakdownProps) {
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono uppercase text-foreground/70">
                   {a.adapter_type}
                 </span>
+                {a.from_email && (
+                  <span className="rounded bg-scope-system-bg px-1.5 py-0.5 text-[10px] font-mono text-scope-system">
+                    {a.from_email}
+                  </span>
+                )}
                 {hasTracking ? (
                   <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-mono text-emerald-700">
                     tracking

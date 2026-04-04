@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Plug, Plus, Trash2, Zap, Pencil, Mail } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Plug, Plus, Trash2, Zap, Pencil, Mail, Share2, Lock } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useAdapterList,
+  useAdapterWorkspaceAccess,
   useCreateAdapter,
   useDeleteAdapter,
   useUpdateAdapter,
+  useUpdateAdapterWorkspaceAccess,
   useTestAdapterSend,
 } from "@/hooks/use-adapters";
 import { DataTable } from "@/components/shared/data-table";
@@ -21,6 +23,7 @@ import { IdentityPanel } from "./identity-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useWorkspacesManagement } from "@/hooks/use-workspaces-mgmt";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +59,7 @@ export function AdaptersContent() {
 }
 
 function AdaptersTable() {
+  const scope = useScope();
   const scopedPath = useScopedPath();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Adapter | null>(null);
@@ -63,6 +67,7 @@ function AdaptersTable() {
   const [testTarget, setTestTarget] = useState<Adapter | null>(null);
   const [provisionTarget, setProvisionTarget] = useState<Adapter | null>(null);
   const [identityTarget, setIdentityTarget] = useState<Adapter | null>(null);
+  const [shareTarget, setShareTarget] = useState<Adapter | null>(null);
 
   const {
     data: listData,
@@ -95,9 +100,22 @@ function AdaptersTable() {
       accessorKey: "name",
       header: "NAME",
       cell: ({ row }) => (
-        <span className="font-medium text-[13px] text-foreground">
-          {row.original.name}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-[13px] text-foreground">
+            {row.original.name}
+          </span>
+          {row.original.is_shared && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1 rounded-full bg-scope-system-bg px-2 py-0.5 text-[10px] font-medium text-scope-system">
+                  <Lock className="h-3 w-3" />
+                  Shared
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Shared from _system — read only in this workspace</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       ),
     },
     {
@@ -115,7 +133,16 @@ function AdaptersTable() {
     {
       id: "scope",
       header: "SCOPE",
-      cell: () => <ScopeIndicator scope="workspace" />,
+      cell: ({ row }) => (
+        <ScopeIndicator
+          scope={
+            row.original.source_scope === "system" ||
+            scope.workspaceCode === "_system"
+              ? "system"
+              : "workspace"
+          }
+        />
+      ),
     },
     {
       accessorKey: "rate_limit_per_second",
@@ -151,10 +178,12 @@ function AdaptersTable() {
       cell: ({ row }) => (
         <AdapterActions
           adapter={row.original}
+          isSystemWorkspace={scope.workspaceCode === "_system"}
           onDelete={setDeleteTarget}
           onEdit={setEditTarget}
           onTest={setTestTarget}
           onIdentities={setIdentityTarget}
+          onShare={setShareTarget}
         />
       ),
     },
@@ -261,59 +290,74 @@ function AdaptersTable() {
           onOpenChange={(open) => !open && setIdentityTarget(null)}
         />
       )}
+
+      {shareTarget && (
+        <AdapterWorkspaceAccessDialog
+          adapter={shareTarget}
+          open={!!shareTarget}
+          onOpenChange={(open) => !open && setShareTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
 function AdapterActions({
   adapter,
+  isSystemWorkspace,
   onDelete,
   onEdit,
   onTest,
   onIdentities,
+  onShare,
 }: {
   adapter: Adapter;
+  isSystemWorkspace: boolean;
   onDelete: (a: Adapter) => void;
   onEdit: (a: Adapter) => void;
   onTest: (a: Adapter) => void;
   onIdentities: (a: Adapter) => void;
+  onShare: (a: Adapter) => void;
 }) {
+  const readOnlyReason = adapter.is_shared
+    ? "Shared from _system — read only in this workspace"
+    : "This adapter is read only";
+
+  const actionButton = (
+    label: string,
+    icon: ReactNode,
+    onClick: () => void,
+    disabled = false,
+    destructive = false,
+  ) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 ${destructive ? "text-destructive" : ""}`}
+            onClick={onClick}
+            disabled={disabled}
+          >
+            {icon}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{disabled ? readOnlyReason : label}</TooltipContent>
+    </Tooltip>
+  );
+
   return (
     <div className="flex items-center justify-end gap-1">
       {adapter.adapter_type === "ses" && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onIdentities(adapter)}>
-              <Mail className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Senders</TooltipContent>
-        </Tooltip>
+        actionButton("Senders", <Mail className="h-4 w-4" />, () => onIdentities(adapter))
       )}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(adapter)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Edit</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onTest(adapter)}>
-            <Zap className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Test Send</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(adapter)}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Delete</TooltipContent>
-      </Tooltip>
+      {isSystemWorkspace && adapter.adapter_type === "gmail" &&
+        actionButton("Workspace access", <Share2 className="h-4 w-4" />, () => onShare(adapter))}
+      {actionButton("Edit", <Pencil className="h-4 w-4" />, () => onEdit(adapter), !adapter.is_editable)}
+      {actionButton("Test Send", <Zap className="h-4 w-4" />, () => onTest(adapter), !adapter.is_editable)}
+      {actionButton("Delete", <Trash2 className="h-4 w-4" />, () => onDelete(adapter), !adapter.is_editable, true)}
     </div>
   );
 }
@@ -341,6 +385,104 @@ function EditAdapterDialog({
         await updateAdapter.mutateAsync(data);
       }}
     />
+  );
+}
+
+function AdapterWorkspaceAccessDialog({
+  adapter,
+  open,
+  onOpenChange,
+}: {
+  adapter: Adapter;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const scope = useScope();
+  const scopedPath = useScopedPath();
+  const tenantCode = scope.tenantCode ?? "";
+  const { data: access, isLoading } = useAdapterWorkspaceAccess(scopedPath, adapter.id);
+  const updateAccess = useUpdateAdapterWorkspaceAccess(scopedPath, adapter.id);
+  const { data: workspacePages } = useWorkspacesManagement(tenantCode, "");
+
+  const allWorkspaces = useMemo(
+    () =>
+      workspacePages?.pages
+        .flatMap((page) => page.items)
+        .filter((workspace) => !workspace.is_system) ?? [],
+    [workspacePages]
+  );
+  const [selected, setSelected] = useState<string[] | null>(null);
+
+  const effectiveSelection = selected
+    ? selected
+    : access?.items.filter((item) => item.is_granted).map((item) => item.workspace_id) ?? [];
+  const items = access?.items.length
+    ? access.items
+    : allWorkspaces.map((workspace) => ({
+        workspace_id: workspace.id,
+        code: workspace.code,
+        name: workspace.name,
+        is_granted: false,
+      }));
+
+  function toggle(workspaceId: string) {
+    setSelected((current) =>
+      (current ?? effectiveSelection).includes(workspaceId)
+        ? (current ?? effectiveSelection).filter((id) => id !== workspaceId)
+        : [...(current ?? effectiveSelection), workspaceId]
+    );
+  }
+
+  async function handleSave() {
+    await updateAccess.mutateAsync(effectiveSelection);
+    setSelected(null);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !updateAccess.isPending && onOpenChange(next)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Workspace access — {adapter.name}</DialogTitle>
+          <DialogDescription>
+            Choose which workspaces can use this Gmail adapter from _system.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto py-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading workspaces...</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No child workspaces available.</p>
+          ) : (
+            items.map((item) => {
+              const checked = effectiveSelection.includes(item.workspace_id);
+              return (
+                <label key={item.workspace_id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="text-xs text-muted-foreground">{item.code}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(item.workspace_id)}
+                    className="h-4 w-4"
+                  />
+                </label>
+              );
+            })
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateAccess.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updateAccess.isPending}>
+            Save access
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

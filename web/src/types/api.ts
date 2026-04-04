@@ -124,6 +124,8 @@ export interface DashboardAdapterTotals {
   adapter_id: string;
   adapter_name: string;
   adapter_type: string;
+  sender_identity_id?: string;
+  from_email: string;
   totals: DashboardTotals;
 }
 

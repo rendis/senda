@@ -46,10 +46,12 @@ type DashboardRecentEmail struct {
 
 // DashboardAdapterTotals holds aggregated email counts for a single adapter.
 type DashboardAdapterTotals struct {
-	AdapterID   uuid.UUID
-	AdapterName string
-	AdapterType string
-	Totals      DashboardTotals
+	AdapterID        uuid.UUID
+	AdapterName      string
+	AdapterType      string
+	SenderIdentityID *uuid.UUID
+	FromEmail        string
+	Totals           DashboardTotals
 }
 
 // DashboardStore provides read-only access to email metrics for dashboard views.

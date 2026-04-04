@@ -259,6 +259,8 @@ func mapStoreError(c *echo.Context, err error) error {
 		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
 	case errors.Is(err, domain.ErrConflict):
 		return response.WriteError(c, http.StatusConflict, "CONFLICT", "resource already exists")
+	case errors.Is(err, domain.ErrForbidden):
+		return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", err.Error())
 	case errors.Is(err, domain.ErrValidation):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	case errors.Is(err, domain.ErrInvalidCursor):

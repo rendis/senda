@@ -26,9 +26,14 @@ var (
 	ErrDomainNotFound = errors.New("domain not found")
 
 	// Adapter identity errors
-	ErrNoDefaultIdentity   = errors.New("adapter has no default identity")
-	ErrIdentityNotFound    = errors.New("adapter identity not found")
-	ErrIdentityNotInDomain = errors.New("email not within adapter's verified domains")
+	ErrNoDefaultIdentity          = errors.New("adapter has no default identity")
+	ErrIdentityNotFound           = errors.New("adapter identity not found")
+	ErrIdentityNotInDomain        = errors.New("email not within adapter's verified domains")
+	ErrAdapterAccessDenied        = errors.New("adapter not accessible in workspace")
+	ErrSenderIdentityRequired     = errors.New("sender identity is required for shared ses adapter")
+	ErrSenderIdentityAccessDenied = errors.New("sender identity not accessible in workspace")
+	ErrSharedResourceReadOnly     = errors.New("shared resource is read-only")
+	ErrSharedGrantInUse           = errors.New("shared grant is in use")
 
 	// Delete errors
 	ErrHasPublishedVersion = errors.New("template has a published version and cannot be deleted")
