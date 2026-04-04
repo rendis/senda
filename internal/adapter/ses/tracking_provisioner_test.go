@@ -615,6 +615,28 @@ func TestVerifySubscription_APIError(t *testing.T) {
 	}
 }
 
+func TestVerifySubscription_AccessDenied_TreatedAsPending(t *testing.T) {
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+
+	snsMock := &mockProvisionSNS{
+		listSubsOutput: func(_ int) (*sns.ListSubscriptionsByTopicOutput, error) {
+			return nil, &smithy.GenericAPIError{
+				Code:    "AccessDeniedException",
+				Message: "not authorized to perform SNS:ListSubscriptionsByTopic",
+				Fault:   smithy.FaultClient,
+			}
+		},
+	}
+
+	p := &TrackingProvisioner{}
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
+
+	if step.Status != StepStatusPendingConfirmation {
+		t.Errorf("status = %q, want %q", step.Status, StepStatusPendingConfirmation)
+	}
+}
+
 // --- Deprovision Tests ---
 
 func newNotFoundErr() error {

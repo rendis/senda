@@ -465,6 +465,16 @@ func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNS
 		TopicArn: aws.String(topicARN),
 	})
 	if err != nil {
+		// If the adapter credentials lack sns:ListSubscriptionsByTopic permission,
+		// we can't verify — but the subscription itself still works (subscribe +
+		// webhook confirmation don't require this permission). Treat as pending.
+		if IsAccessDenied(err) {
+			return ProvisionStep{
+				Name:   domain.StepVerifySubscription,
+				Status: StepStatusPendingConfirmation,
+				Detail: "cannot verify (insufficient permissions) — subscription will be auto-confirmed by webhook",
+			}
+		}
 		return ProvisionStep{
 			Name:   domain.StepVerifySubscription,
 			Status: StepStatusFailed,
