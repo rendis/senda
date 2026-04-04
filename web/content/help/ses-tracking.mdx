@@ -40,6 +40,30 @@ The provisioning identity is derived from the adapter, not from the AWS account.
 
 This keeps adapter setups isolated and makes the behavior easier to reason about.
 
+## Subscription confirmation
+
+After provisioning, AWS SNS sends a confirmation request to the Senda webhook endpoint.
+Senda auto-confirms this request — no manual action is needed.
+
+In rare cases, confirmation may take a few seconds after provisioning completes.
+If the verify step shows as pending, it will resolve on its own once SNS delivers the confirmation.
+
+### When confirmation might be delayed
+
+- **AWS propagation delay**: SNS may take a moment to register the subscription as confirmed.
+- **Cold start**: if the Senda server was scaled to zero, the first request may take longer.
+- **Network**: transient connectivity between AWS and the hosting environment.
+
+In all these cases, the confirmation will eventually succeed because the webhook endpoint is active and will auto-confirm.
+
+### When to worry
+
+If tracking events do not appear after several minutes:
+
+1. Check that the adapter's AWS credentials still have SNS permissions.
+2. Verify the webhook endpoint is reachable from the internet.
+3. Try re-provisioning — Senda will skip already-completed steps and re-verify.
+
 ## What this means for you
 
 If you are trying to reuse an existing SES setup:

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
@@ -43,10 +42,11 @@ type ProvisionResult struct {
 
 // Step response status constants (distinct from domain.ProvisioningStepStatus which tracks DB state).
 const (
-	StepStatusCreated          = "created"
-	StepStatusAlreadyExists    = "already_exists"
-	StepStatusAlreadyCompleted = "already_completed"
-	StepStatusFailed           = "failed"
+	StepStatusCreated              = "created"
+	StepStatusAlreadyExists        = "already_exists"
+	StepStatusAlreadyCompleted     = "already_completed"
+	StepStatusFailed               = "failed"
+	StepStatusPendingConfirmation  = "pending_confirmation"
 )
 
 // ProvisionStep describes the outcome of a single provisioning step.
@@ -72,11 +72,6 @@ func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI
 		})
 }
 
-// Default verify subscription polling parameters.
-const (
-	defaultVerifyTimeout  = 30 * time.Second
-	defaultVerifyInterval = 2 * time.Second
-)
 
 // TrackingProvisioner auto-provisions SES tracking resources (Configuration Set, SNS Topic,
 // Event Destination, HTTPS Subscription) using the adapter's own AWS credentials.
@@ -88,9 +83,6 @@ type TrackingProvisioner struct {
 	stepStore      port.ProvisioningStepStore // nil = stateless fallback
 	logger         *slog.Logger
 
-	// Verify subscription polling (configurable for testing).
-	verifyTimeout  time.Duration
-	verifyInterval time.Duration
 }
 
 // NewTrackingProvisioner creates a new TrackingProvisioner.
@@ -112,8 +104,6 @@ func NewTrackingProvisioner(
 		clientFactory:  DefaultAWSClientFactory,
 		stepStore:      stepStore,
 		logger:         logger,
-		verifyTimeout:  defaultVerifyTimeout,
-		verifyInterval: defaultVerifyInterval,
 	}
 }
 
@@ -283,13 +273,20 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 	} else {
 		step6 := p.verifySubscription(ctx, snsClient, topicARN, webhookURL)
 		result.Steps = append(result.Steps, step6)
-		if step6.Status == StepStatusFailed {
+		switch step6.Status {
+		case StepStatusCreated:
+			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
+		case StepStatusPendingConfirmation:
+			// Subscription exists but awaiting SNS confirmation delivery.
+			// The webhook is live and will auto-confirm — persist as completed
+			// so overall status reflects that provisioning is done.
+			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
+			p.logger.InfoContext(ctx, "subscription pending confirmation — will be auto-confirmed by webhook",
+				"adapter_id", adapterID)
+		default: // StepStatusFailed
 			p.persistStepFailure(ctx, stepMap, domain.StepVerifySubscription, step6.Detail)
-			// Non-blocking: log but don't return error — resources are already created.
 			p.logger.WarnContext(ctx, "subscription verification failed (non-blocking)",
 				"adapter_id", adapterID, "detail", step6.Detail)
-		} else {
-			p.persistStepSuccess(ctx, stepMap, domain.StepVerifySubscription, nil, &subscriptionARN)
 		}
 	}
 
@@ -460,62 +457,43 @@ func isNotFound(err error) bool {
 	return false
 }
 
-// verifySubscription polls SNS to confirm the subscription is active.
-// Uses ListSubscriptionsByTopic to find the subscription by endpoint match,
-// which is more reliable than GetSubscriptionAttributes for recently confirmed
-// subscriptions (avoids propagation delay issues with the ARN-based lookup).
+// verifySubscription performs a single check to see if the SNS subscription is confirmed.
+// No polling loop — the webhook endpoint is live and will auto-confirm the subscription
+// when SNS delivers the SubscriptionConfirmation message. If not yet confirmed, returns
+// StepStatusPendingConfirmation so the caller and frontend can handle it gracefully.
 func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNSAPI, topicARN, endpoint string) ProvisionStep {
-	timeout := p.verifyTimeout
-	if timeout == 0 {
-		timeout = defaultVerifyTimeout
-	}
-	interval := p.verifyInterval
-	if interval == 0 {
-		interval = defaultVerifyInterval
-	}
-
-	// findConfirmed checks ListSubscriptionsByTopic for an endpoint match with a real ARN.
-	findConfirmed := func() (string, bool) {
-		out, err := client.ListSubscriptionsByTopic(ctx, &sns.ListSubscriptionsByTopicInput{
-			TopicArn: aws.String(topicARN),
-		})
-		if err != nil {
-			return "", false
+	out, err := client.ListSubscriptionsByTopic(ctx, &sns.ListSubscriptionsByTopicInput{
+		TopicArn: aws.String(topicARN),
+	})
+	if err != nil {
+		return ProvisionStep{
+			Name:   domain.StepVerifySubscription,
+			Status: StepStatusFailed,
+			Detail: fmt.Sprintf("list subscriptions: %s", err),
 		}
-		for _, sub := range out.Subscriptions {
-			if aws.ToString(sub.Endpoint) == endpoint {
-				arn := aws.ToString(sub.SubscriptionArn)
-				if arn != "" && arn != "PendingConfirmation" {
-					return arn, true
-				}
-			}
-		}
-		return "", false
 	}
 
-	// Immediate check — covers retry when subscription is already confirmed.
-	if arn, ok := findConfirmed(); ok {
-		return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
-	}
-
-	// Poll with fixed interval.
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusFailed, Detail: ctx.Err().Error()}
-		case <-time.After(interval):
+	for _, sub := range out.Subscriptions {
+		if aws.ToString(sub.Endpoint) != endpoint {
+			continue
 		}
-
-		if arn, ok := findConfirmed(); ok {
+		arn := aws.ToString(sub.SubscriptionArn)
+		if arn != "" && arn != "PendingConfirmation" {
 			return ProvisionStep{Name: domain.StepVerifySubscription, Status: StepStatusCreated, Detail: arn}
+		}
+		// Subscription exists but awaiting confirmation — normal transient state.
+		// The webhook endpoint will auto-confirm it when SNS delivers the request.
+		return ProvisionStep{
+			Name:   domain.StepVerifySubscription,
+			Status: StepStatusPendingConfirmation,
+			Detail: "awaiting SNS confirmation — will be auto-confirmed by webhook",
 		}
 	}
 
 	return ProvisionStep{
 		Name:   domain.StepVerifySubscription,
 		Status: StepStatusFailed,
-		Detail: fmt.Sprintf("subscription not confirmed after %s", timeout),
+		Detail: "subscription not found in topic",
 	}
 }
 

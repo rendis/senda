@@ -8,7 +8,10 @@ import {
   Loader2,
   Copy,
   RotateCcw,
+  Info,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { useScopedPath } from "@/hooks/use-scope";
 import {
   useProvisioningStatus,
@@ -188,7 +191,27 @@ export function ProvisioningStepper({
                 </div>
               ))}
 
-              {status === "completed" && <ResourcePanel steps={steps} />}
+              {status === "completed" && (
+                <>
+                  <ResourcePanel steps={steps} />
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30 p-3 flex gap-2.5">
+                    <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        SNS subscription confirmation may take a few seconds after provisioning.
+                        If email events don&apos;t appear shortly, the webhook will auto-confirm — no action needed.
+                      </p>
+                      <Link
+                        href={`${scopedPath}/help/ses-tracking`}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        Learn more about SES provisioning
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

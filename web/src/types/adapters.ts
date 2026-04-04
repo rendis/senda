@@ -111,4 +111,5 @@ export const PROVISIONING_STEPS: Record<string, { label: string; short: string }
   create_event_destination: { label: "Configure Event Destination", short: "Event Dest" },
   subscribe_webhook:        { label: "Subscribe Webhook",        short: "Webhook" },
   save_configuration:       { label: "Save Configuration",       short: "Save Config" },
+  verify_subscription:      { label: "Verify Subscription",      short: "Verify" },
 };

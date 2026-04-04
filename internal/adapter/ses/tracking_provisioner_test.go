@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
@@ -532,48 +532,21 @@ func TestVerifySubscription_AlreadyConfirmed(t *testing.T) {
 		subscribeARN: confirmedARN,
 	}
 
-	p := &TrackingProvisioner{verifyTimeout: 100 * time.Millisecond, verifyInterval: 10 * time.Millisecond}
+	p := &TrackingProvisioner{}
 	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
 
 	if step.Status != StepStatusCreated {
 		t.Errorf("status = %q, want %q", step.Status, StepStatusCreated)
+	}
+	if step.Detail != confirmedARN {
+		t.Errorf("detail = %q, want %q", step.Detail, confirmedARN)
 	}
 	if snsMock.listSubsCalls != 1 {
 		t.Errorf("ListSubscriptionsByTopic called %d times, want 1", snsMock.listSubsCalls)
 	}
 }
 
-func TestVerifySubscription_PendingThenConfirmed(t *testing.T) {
-	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
-	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
-	confirmedARN := topicARN + ":sub-confirmed"
-
-	snsMock := &mockProvisionSNS{
-		listSubsOutput: func(call int) (*sns.ListSubscriptionsByTopicOutput, error) {
-			arn := "PendingConfirmation"
-			if call > 2 {
-				arn = confirmedARN
-			}
-			return &sns.ListSubscriptionsByTopicOutput{
-				Subscriptions: []snstypes.Subscription{
-					{SubscriptionArn: aws.String(arn), Endpoint: aws.String(endpoint), Protocol: aws.String("https"), TopicArn: aws.String(topicARN)},
-				},
-			}, nil
-		},
-	}
-
-	p := &TrackingProvisioner{verifyTimeout: 1 * time.Second, verifyInterval: 10 * time.Millisecond}
-	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
-
-	if step.Status != StepStatusCreated {
-		t.Errorf("status = %q, want %q", step.Status, StepStatusCreated)
-	}
-	if snsMock.listSubsCalls < 3 {
-		t.Errorf("ListSubscriptionsByTopic called %d times, want >= 3", snsMock.listSubsCalls)
-	}
-}
-
-func TestVerifySubscription_Timeout(t *testing.T) {
+func TestVerifySubscription_PendingConfirmation(t *testing.T) {
 	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
 	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
 
@@ -587,14 +560,58 @@ func TestVerifySubscription_Timeout(t *testing.T) {
 		},
 	}
 
-	p := &TrackingProvisioner{verifyTimeout: 50 * time.Millisecond, verifyInterval: 10 * time.Millisecond}
+	p := &TrackingProvisioner{}
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
+
+	if step.Status != StepStatusPendingConfirmation {
+		t.Errorf("status = %q, want %q", step.Status, StepStatusPendingConfirmation)
+	}
+	if snsMock.listSubsCalls != 1 {
+		t.Errorf("ListSubscriptionsByTopic called %d times, want 1 (no polling)", snsMock.listSubsCalls)
+	}
+}
+
+func TestVerifySubscription_NotFound(t *testing.T) {
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+
+	snsMock := &mockProvisionSNS{
+		listSubsOutput: func(_ int) (*sns.ListSubscriptionsByTopicOutput, error) {
+			return &sns.ListSubscriptionsByTopicOutput{
+				Subscriptions: []snstypes.Subscription{},
+			}, nil
+		},
+	}
+
+	p := &TrackingProvisioner{}
+	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
+
+	if step.Status != StepStatusFailed {
+		t.Errorf("status = %q, want %q", step.Status, StepStatusFailed)
+	}
+	if step.Detail != "subscription not found in topic" {
+		t.Errorf("detail = %q, want %q", step.Detail, "subscription not found in topic")
+	}
+}
+
+func TestVerifySubscription_APIError(t *testing.T) {
+	topicARN := "arn:aws:sns:us-east-1:123456789:my-topic"
+	endpoint := "https://senda.example.com/api/v1/webhooks/ses/inbound"
+
+	snsMock := &mockProvisionSNS{
+		listSubsOutput: func(_ int) (*sns.ListSubscriptionsByTopicOutput, error) {
+			return nil, fmt.Errorf("access denied")
+		},
+	}
+
+	p := &TrackingProvisioner{}
 	step := p.verifySubscription(context.Background(), snsMock, topicARN, endpoint)
 
 	if step.Status != StepStatusFailed {
 		t.Errorf("status = %q, want %q", step.Status, StepStatusFailed)
 	}
 	if step.Detail == "" {
-		t.Error("expected non-empty error detail on timeout")
+		t.Error("expected non-empty error detail on API error")
 	}
 }
 
