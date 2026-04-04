@@ -10,6 +10,7 @@ type CreateWorkspaceRequest struct {
 // UpdateWorkspaceRequest is the request body for PUT /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code.
 type UpdateWorkspaceRequest struct {
 	Name                *string `json:"name"`
+	IsActive            *bool   `json:"is_active,omitempty"`
 	OpenTrackingEnabled *bool   `json:"open_tracking_enabled"`
 	DefaultLocale       *string `json:"default_locale"`
 }

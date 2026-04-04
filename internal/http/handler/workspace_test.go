@@ -77,6 +77,12 @@ func TestWorkspaceHandler_Create_Success(t *testing.T) {
 	if createdWS.TenantID != tenantID {
 		t.Fatalf("expected tenant ID %s, got %s", tenantID, createdWS.TenantID)
 	}
+	if !createdWS.IsActive {
+		t.Fatal("expected created workspace to be active by default")
+	}
+	if !resp.IsActive {
+		t.Fatal("expected response is_active=true")
+	}
 }
 
 func TestWorkspaceHandler_Create_InvalidSlug(t *testing.T) {
@@ -123,8 +129,8 @@ func TestWorkspaceHandler_List_Success(t *testing.T) {
 	tenantID := uuid.New()
 	now := time.Now().UTC()
 	workspaces := []*domain.Workspace{
-		{ID: uuid.New(), TenantID: tenantID, Code: "main", Name: "Main", CreatedAt: now, UpdatedAt: now},
-		{ID: uuid.New(), TenantID: tenantID, Code: "staging", Name: "Staging", CreatedAt: now, UpdatedAt: now},
+		{ID: uuid.New(), TenantID: tenantID, Code: "_system", Name: "System", IsSystem: true, IsActive: true, CreatedAt: now, UpdatedAt: now},
+		{ID: uuid.New(), TenantID: tenantID, Code: "main", Name: "Main", IsActive: false, CreatedAt: now, UpdatedAt: now},
 	}
 
 	ts := &mockTenantStore{
@@ -158,6 +164,12 @@ func TestWorkspaceHandler_List_Success(t *testing.T) {
 	if len(resp.Items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(resp.Items))
 	}
+	if !resp.Items[0].IsActive {
+		t.Fatal("expected first workspace to be active")
+	}
+	if resp.Items[1].IsActive {
+		t.Fatal("expected second workspace to be inactive")
+	}
 	if resp.HasMore {
 		t.Fatal("expected has_more=false when next_cursor is empty")
 	}
@@ -176,7 +188,7 @@ func TestWorkspaceHandler_Get_Success(t *testing.T) {
 	ws := &mockWorkspaceStore{
 		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
 			return &domain.Workspace{
-				ID: wsID, TenantID: tid, Code: code, Name: "Main",
+				ID: wsID, TenantID: tid, Code: code, Name: "Main", IsActive: true,
 				CreatedAt: now, UpdatedAt: now,
 			}, nil
 		},
@@ -199,6 +211,9 @@ func TestWorkspaceHandler_Get_Success(t *testing.T) {
 	if resp.Code != "main" {
 		t.Fatalf("expected code 'main', got %q", resp.Code)
 	}
+	if !resp.IsActive {
+		t.Fatal("expected is_active=true")
+	}
 }
 
 func TestWorkspaceHandler_Update_Success(t *testing.T) {
@@ -207,6 +222,7 @@ func TestWorkspaceHandler_Update_Success(t *testing.T) {
 	now := time.Now().UTC()
 
 	var updatedName string
+	var updatedActive bool
 	ts := &mockTenantStore{
 		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
 			return &domain.Tenant{ID: tenantID, Code: "acme"}, nil
@@ -215,19 +231,20 @@ func TestWorkspaceHandler_Update_Success(t *testing.T) {
 	ws := &mockWorkspaceStore{
 		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
 			return &domain.Workspace{
-				ID: wsID, TenantID: tenantID, Code: "main", Name: "Main",
+				ID: wsID, TenantID: tenantID, Code: "main", Name: "Main", IsActive: true,
 				CreatedAt: now, UpdatedAt: now,
 			}, nil
 		},
 		updateFn: func(_ context.Context, w *domain.Workspace) error {
 			updatedName = w.Name
+			updatedActive = w.IsActive
 			return nil
 		},
 	}
 
 	e := setupWorkspaceTest(ts, ws)
 
-	body := `{"name":"Production"}`
+	body := `{"name":"Production","is_active":false}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/main", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -238,6 +255,48 @@ func TestWorkspaceHandler_Update_Success(t *testing.T) {
 	}
 	if updatedName != "Production" {
 		t.Fatalf("expected updated name 'Production', got %q", updatedName)
+	}
+	if updatedActive {
+		t.Fatal("expected workspace to be disabled")
+	}
+}
+
+func TestWorkspaceHandler_Update_SystemWorkspaceBlocked(t *testing.T) {
+	tenantID := uuid.New()
+	now := time.Now().UTC()
+	var updateCalled bool
+
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: "acme"}, nil
+		},
+	}
+	ws := &mockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+			return &domain.Workspace{
+				ID: uuid.New(), TenantID: tenantID, Code: "_system", Name: "System", IsSystem: true, IsActive: true,
+				CreatedAt: now, UpdatedAt: now,
+			}, nil
+		},
+		updateFn: func(_ context.Context, _ *domain.Workspace) error {
+			updateCalled = true
+			return nil
+		},
+	}
+
+	e := setupWorkspaceTest(ts, ws)
+
+	body := `{"name":"Renamed System","is_active":false}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/_system", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updateCalled {
+		t.Fatal("expected protected system workspace to skip update")
 	}
 }
 
@@ -276,5 +335,42 @@ func TestWorkspaceHandler_SoftDelete_Success(t *testing.T) {
 	}
 	if deletedID != wsID {
 		t.Fatalf("expected deleted ID %s, got %s", wsID, deletedID)
+	}
+}
+
+func TestWorkspaceHandler_SoftDelete_SystemWorkspaceBlocked(t *testing.T) {
+	tenantID := uuid.New()
+	now := time.Now().UTC()
+	var softDeleteCalled bool
+
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: "acme"}, nil
+		},
+	}
+	ws := &mockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+			return &domain.Workspace{
+				ID: uuid.New(), TenantID: tenantID, Code: "_system", Name: "System", IsSystem: true, IsActive: true,
+				CreatedAt: now, UpdatedAt: now,
+			}, nil
+		},
+		softDeleteFn: func(_ context.Context, _ uuid.UUID) error {
+			softDeleteCalled = true
+			return nil
+		},
+	}
+
+	e := setupWorkspaceTest(ts, ws)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/workspaces/_system", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if softDeleteCalled {
+		t.Fatal("expected protected system workspace to skip delete")
 	}
 }

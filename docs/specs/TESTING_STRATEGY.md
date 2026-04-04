@@ -157,6 +157,23 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 | 6 | Suppression | Add suppression → POST /send → verify 422 |
 | 7 | Resolution chain | Global template + workspace override → send → verify workspace version used |
 
+### 3.4. System UI DoD for new management features
+
+New management-plane functionality is not done with API coverage alone.
+Every new UI feature must include a browser-based system flow that:
+
+- boots the required environment with Docker/Testcontainers
+- exercises the real UI with `agent-browser`
+- captures screenshot evidence for the key happy-path and protected/error states
+- writes a report under `artifacts/system/<timestamp>/`
+
+At minimum, the system UI flow must prove:
+
+- the feature is discoverable from the intended navigation entrypoint
+- the main CRUD or state-transition path works end-to-end
+- protected or destructive cases show the expected UI/behavior
+- the resulting scope/route navigation matches the product flow
+
 ---
 
 ## 4. Test Data & Fixtures

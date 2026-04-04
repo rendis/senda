@@ -55,6 +55,9 @@ func TestWorkspaceRepo_Create(t *testing.T) {
 	if ws.UpdatedAt.IsZero() {
 		t.Error("expected UpdatedAt to be set")
 	}
+	if !ws.IsActive {
+		t.Error("expected IsActive to default to true after create")
+	}
 }
 
 func TestWorkspaceRepo_Create_DuplicateTenantCode(t *testing.T) {
@@ -125,6 +128,9 @@ func TestWorkspaceRepo_GetByID(t *testing.T) {
 	}
 	if got.DefaultLocale == nil || *got.DefaultLocale != "en" {
 		t.Error("expected DefaultLocale to be 'en'")
+	}
+	if !got.IsActive {
+		t.Error("expected IsActive to be true")
 	}
 }
 
@@ -252,6 +258,7 @@ func TestWorkspaceRepo_Update(t *testing.T) {
 	originalUpdatedAt := ws.UpdatedAt
 	locale := "es"
 	ws.Name = "Updated"
+	ws.IsActive = false
 	ws.OpenTrackingEnabled = true
 	ws.DefaultLocale = &locale
 
@@ -274,6 +281,9 @@ func TestWorkspaceRepo_Update(t *testing.T) {
 	}
 	if got.DefaultLocale == nil || *got.DefaultLocale != "es" {
 		t.Errorf("expected DefaultLocale 'es', got %v", got.DefaultLocale)
+	}
+	if got.IsActive {
+		t.Error("expected IsActive to be false")
 	}
 }
 

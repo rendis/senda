@@ -28,19 +28,19 @@ func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error 
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale)
 		 VALUES (@id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale)
-		 RETURNING created_at, updated_at`,
+		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":                    ws.ID,
-			"tenant_id":            ws.TenantID,
-			"code":                 ws.Code,
-			"name":                 ws.Name,
-			"is_system":            ws.IsSystem,
+			"tenant_id":             ws.TenantID,
+			"code":                  ws.Code,
+			"name":                  ws.Name,
+			"is_system":             ws.IsSystem,
 			"open_tracking_enabled": ws.OpenTrackingEnabled,
-			"default_locale":       ws.DefaultLocale,
+			"default_locale":        ws.DefaultLocale,
 		},
 	)
 
-	if err := row.Scan(&ws.CreatedAt, &ws.UpdatedAt); err != nil {
+	if err := row.Scan(&ws.IsActive, &ws.CreatedAt, &ws.UpdatedAt); err != nil {
 		if appErr := classifyPgError(err); appErr != nil {
 			return appErr
 		}
@@ -52,7 +52,7 @@ func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error 
 
 func (r *WorkspaceRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
+		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE id = @id AND deleted_at IS NULL`,
@@ -64,7 +64,7 @@ func (r *WorkspaceRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Work
 
 func (r *WorkspaceRepo) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
+		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE tenant_id = @tenant_id AND code = @code AND deleted_at IS NULL`,
@@ -76,7 +76,7 @@ func (r *WorkspaceRepo) GetByTenantAndCode(ctx context.Context, tenantID uuid.UU
 
 func (r *WorkspaceRepo) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
+		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE tenant_id = @tenant_id AND is_system = true AND deleted_at IS NULL`,
@@ -96,7 +96,7 @@ func (r *WorkspaceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, op
 	args := pgx.NamedArgs{"tenant_id": tenantID, "limit": fetchLimit}
 
 	var qb strings.Builder
-	qb.WriteString(`SELECT id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale, created_at, updated_at, deleted_at FROM workspaces WHERE tenant_id = @tenant_id AND deleted_at IS NULL`)
+	qb.WriteString(`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale, created_at, updated_at, deleted_at FROM workspaces WHERE tenant_id = @tenant_id AND deleted_at IS NULL`)
 
 	if afterID != nil {
 		qb.WriteString(` AND id < @after_id`)
@@ -133,6 +133,7 @@ func (r *WorkspaceRepo) Update(ctx context.Context, ws *domain.Workspace) error 
 	row := r.pool.QueryRow(ctx,
 		`UPDATE workspaces
 		 SET name = @name,
+		     is_active = @is_active,
 		     open_tracking_enabled = @open_tracking_enabled,
 		     default_locale = @default_locale,
 		     updated_at = now()
@@ -140,9 +141,10 @@ func (r *WorkspaceRepo) Update(ctx context.Context, ws *domain.Workspace) error 
 		 RETURNING updated_at`,
 		pgx.NamedArgs{
 			"id":                    ws.ID,
-			"name":                 ws.Name,
+			"name":                  ws.Name,
+			"is_active":             ws.IsActive,
 			"open_tracking_enabled": ws.OpenTrackingEnabled,
-			"default_locale":       ws.DefaultLocale,
+			"default_locale":        ws.DefaultLocale,
 		},
 	)
 
@@ -173,7 +175,7 @@ func (r *WorkspaceRepo) SoftDelete(ctx context.Context, id uuid.UUID) error {
 func scanWorkspace(row pgx.Row) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	err := row.Scan(
-		&ws.ID, &ws.TenantID, &ws.Code, &ws.Name, &ws.IsSystem,
+		&ws.ID, &ws.TenantID, &ws.Code, &ws.Name, &ws.IsSystem, &ws.IsActive,
 		&ws.OpenTrackingEnabled, &ws.DefaultLocale,
 		&ws.CreatedAt, &ws.UpdatedAt, &ws.DeletedAt,
 	)

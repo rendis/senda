@@ -22,6 +22,7 @@ export function AppHeader({
     "/members": t("members"),
     "/api-keys": t("apiKeys"),
     "/tenants": t("tenants"),
+    "/workspaces": t("workspaces"),
     "/api-docs": t("apiDocs"),
     "/audit-log": t("auditLog"),
     "/settings": t("settings"),

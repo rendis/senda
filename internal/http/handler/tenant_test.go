@@ -196,6 +196,9 @@ func TestTenantHandler_Create_Success(t *testing.T) {
 	if createdWS.Code != "_system" {
 		t.Fatalf("expected workspace code '_system', got %q", createdWS.Code)
 	}
+	if !createdWS.IsActive {
+		t.Fatal("expected _system workspace to be active by default")
+	}
 }
 
 func TestTenantHandler_Create_InvalidSlug(t *testing.T) {

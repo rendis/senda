@@ -54,15 +54,20 @@ load_env_report() {
 
   require_cmd jq
 
+  local current_database_url="${SENDA_DATABASE_URL:-}"
+  local current_frontend_url="${FRONTEND_BASE_URL:-}"
+
   eval "$(
-    jq -r '
+    jq -r \
+      --arg current_database_url "$current_database_url" \
+      --arg current_frontend_url "$current_frontend_url" '
       .services as $s
       | [
           "export SENDA_BASE_URL=" + (($s.senda // "") | @sh),
-          "export SENDA_DATABASE_URL=" + (($s.postgres // env.SENDA_DATABASE_URL // "") | @sh),
+          "export SENDA_DATABASE_URL=" + (($s.postgres // $current_database_url // "") | @sh),
           "export MAILPIT_BASE_URL=" + (($s.mailpit // "") | @sh),
           "export KEYCLOAK_BASE_URL=" + (($s.keycloak // "") | @sh),
-          "export FRONTEND_BASE_URL=" + (($s.frontend // env.FRONTEND_BASE_URL // "") | @sh)
+          "export FRONTEND_BASE_URL=" + (($s.frontend // $current_frontend_url // "") | @sh)
         ]
       | .[]
     ' "$report"

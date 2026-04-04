@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -319,6 +320,9 @@ func startKeycloak(ctx context.Context, root string, names resourceNames) (testc
 			"KEYCLOAK_ADMIN":          "admin",
 			"KEYCLOAK_ADMIN_PASSWORD": "admin",
 		},
+		Tmpfs: map[string]string{
+			"/tmp": "rw",
+		},
 		Networks: []string{names.Network},
 		NetworkAliases: map[string][]string{
 			names.Network: []string{"keycloak"},
@@ -423,12 +427,18 @@ func resolveAWSSimImage() string {
 }
 
 func startApp(ctx context.Context, root string, names resourceNames, report *Report) (testcontainers.Container, error) {
+	keycloakDiscoveryURL := "http://keycloak:8080/realms/" + DefaultRealm + "/.well-known/openid-configuration"
+	if external := containerReachableURL(report.Services.Keycloak); external != "" {
+		keycloakDiscoveryURL = external + "/realms/" + DefaultRealm + "/.well-known/openid-configuration"
+	}
+
 	env := map[string]string{
 		"SENDA_DATABASE_URL":                    "postgres://senda:senda@postgres:5432/senda?sslmode=disable",
 		"SENDA_MIGRATIONS_PATH":                 "/migrations",
 		"SENDA_OIDC_MODE":                       "dual",
-		"SENDA_OIDC_DISCOVERY_URL":              "http://keycloak:8080/realms/" + DefaultRealm + "/.well-known/openid-configuration",
+		"SENDA_OIDC_DISCOVERY_URL":              keycloakDiscoveryURL,
 		"SENDA_OIDC_CLIENT_ID":                  "senda-web",
+		"SENDA_OIDC_SKIP_ISSUER_CHECK":          "true",
 		"SENDA_OIDC_TEST_SECRET":                DefaultJWTSecret,
 		"SENDA_MASTER_KEY":                      DefaultMasterKey,
 		"SENDA_SMTP_HOST":                       "mailpit",
@@ -493,4 +503,32 @@ func writeReport(path string, report *Report) error {
 		return fmt.Errorf("write report: %w", err)
 	}
 	return nil
+}
+
+func containerReachableURL(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	if host == "localhost" || host == "127.0.0.1" {
+		host = "host.docker.internal"
+	}
+
+	if port := parsed.Port(); port != "" {
+		parsed.Host = host + ":" + port
+	} else {
+		parsed.Host = host
+	}
+
+	return strings.TrimRight(parsed.String(), "/")
 }

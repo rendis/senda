@@ -90,6 +90,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "tenants": "Tenants",
+    "workspaces": "Workspaces",
     "emails": "Emails",
     "templates": "Plantillas",
     "injectors": "Injectors",
@@ -191,6 +192,7 @@
     "noTenantsFound": "No se encontraron tenants",
     "noTenantsAvailable": "No hay tenants disponibles",
     "noWorkspacesFound": "No se encontraron workspaces",
-    "noWorkspacesAvailable": "No hay workspaces disponibles"
+    "noWorkspacesAvailable": "No hay workspaces disponibles",
+    "manageWorkspaces": "Gestionar workspaces"
   }
 }

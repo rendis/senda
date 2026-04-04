@@ -111,18 +111,12 @@ start_frontend_dev() {
   log "ui-template-type-slug-edit: frontend dev ready"
 }
 
-issue_oidc_token() {
+issue_test_token() {
   local email="$1"
-  local password="$2"
-  curl -fsS -X POST "$KEYCLOAK_BASE_URL/realms/senda/protocol/openid-connect/token" \
-    -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "client_id=${SENDA_E2E_OIDC_CLIENT_ID:-senda-web}" \
-    --data-urlencode "client_secret=${SENDA_E2E_OIDC_CLIENT_SECRET:-senda-dev-secret}" \
-    --data-urlencode 'grant_type=password' \
-    --data-urlencode 'scope=openid email profile' \
-    --data-urlencode "username=${email}" \
-    --data-urlencode "password=${password}" \
-    | jq -r '.id_token // .access_token // empty'
+  go run "$ROOT_DIR/cmd/systemtest" token \
+    --email "$email" \
+    --secret "$SENDA_E2E_JWT_SECRET" \
+    | tail -n1
 }
 
 management_api_request() {
@@ -132,9 +126,9 @@ management_api_request() {
   local token="${WORKSPACE_ADMIN_TOKEN:-}"
 
   if [[ -z "$token" ]]; then
-    token="$(issue_oidc_token "$WORKSPACE_ADMIN_EMAIL" "$WORKSPACE_ADMIN_PASSWORD")"
+    token="$(issue_test_token "$WORKSPACE_ADMIN_EMAIL")"
     if [[ -z "$token" || "$token" == "null" ]]; then
-      echo "failed to obtain workspace-admin token for management API calls" >&2
+      echo "failed to obtain workspace-admin test token for management API calls" >&2
       return 1
     fi
     WORKSPACE_ADMIN_TOKEN="$token"

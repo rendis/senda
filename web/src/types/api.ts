@@ -80,8 +80,9 @@ export interface Workspace {
   code: string;
   name: string;
   is_system: boolean;
+  is_active: boolean;
   open_tracking_enabled: boolean;
-  default_locale: string;
+  default_locale: string | null;
   created_at: string;
   updated_at: string;
 }

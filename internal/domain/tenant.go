@@ -22,6 +22,7 @@ type Workspace struct {
 	Code                string
 	Name                string
 	IsSystem            bool
+	IsActive            bool
 	OpenTrackingEnabled bool
 	DefaultLocale       *string
 	CreatedAt           time.Time

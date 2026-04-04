@@ -150,6 +150,81 @@ func TestCRUD_Workspace_Update(t *testing.T) {
 	})
 }
 
+func TestCRUD_Workspace_StatusAndSystemProtection(t *testing.T) {
+	c := ensureClient(t)
+	code := fmt.Sprintf("toggle-ws-%d", time.Now().UnixNano()%100000)
+
+	createResp := c.Post(tenantPath()+"/workspaces", map[string]string{
+		"code": code,
+		"name": "Toggle Workspace",
+	})
+	defer createResp.Body.Close()
+	RequireStatus(t, createResp, http.StatusCreated)
+
+	var created struct {
+		Code     string `json:"code"`
+		IsActive bool   `json:"is_active"`
+	}
+	ParseJSONResponse(t, createResp, &created)
+	require.Equal(t, code, created.Code)
+	require.True(t, created.IsActive)
+
+	t.Run("deactivate_and_reactivate", func(t *testing.T) {
+		resp := c.Put(tenantPath()+"/workspaces/"+code, map[string]any{
+			"name":      "Toggle Workspace Disabled",
+			"is_active": false,
+		})
+		defer resp.Body.Close()
+		RequireStatus(t, resp, http.StatusOK)
+
+		var updated struct {
+			Name     string `json:"name"`
+			IsActive bool   `json:"is_active"`
+		}
+		ParseJSONResponse(t, resp, &updated)
+		require.Equal(t, "Toggle Workspace Disabled", updated.Name)
+		require.False(t, updated.IsActive)
+
+		getResp := c.Get(tenantPath() + "/workspaces/" + code)
+		defer getResp.Body.Close()
+		RequireStatus(t, getResp, http.StatusOK)
+
+		var fetched struct {
+			IsActive bool `json:"is_active"`
+		}
+		ParseJSONResponse(t, getResp, &fetched)
+		require.False(t, fetched.IsActive)
+
+		reactivateResp := c.Put(tenantPath()+"/workspaces/"+code, map[string]any{
+			"name":      "Toggle Workspace Active",
+			"is_active": true,
+		})
+		defer reactivateResp.Body.Close()
+		RequireStatus(t, reactivateResp, http.StatusOK)
+
+		var reactivated struct {
+			IsActive bool `json:"is_active"`
+		}
+		ParseJSONResponse(t, reactivateResp, &reactivated)
+		require.True(t, reactivated.IsActive)
+	})
+
+	t.Run("system_workspace_is_protected", func(t *testing.T) {
+		resp := c.Put(tenantPath()+"/workspaces/_system", map[string]any{
+			"name":      "Should Fail",
+			"is_active": false,
+		})
+		defer resp.Body.Close()
+		RequireStatus(t, resp, http.StatusConflict)
+		AssertError(t, resp, "SYSTEM_WORKSPACE_PROTECTED")
+
+		deleteResp := c.Delete(tenantPath() + "/workspaces/_system")
+		defer deleteResp.Body.Close()
+		RequireStatus(t, deleteResp, http.StatusConflict)
+		AssertError(t, deleteResp, "SYSTEM_WORKSPACE_PROTECTED")
+	})
+}
+
 func TestCRUD_Workspace_Delete(t *testing.T) {
 	c := ensureClient(t)
 

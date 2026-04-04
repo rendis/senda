@@ -101,6 +101,10 @@ run_ui_template_type_slug_edit_stage() {
   run_stage "ui-template-type-slug-edit" "$ROOT_DIR/test/system/subagents/ui-template-type-slug-edit-tester.sh"
 }
 
+run_ui_workspace_management_stage() {
+  run_stage "ui-workspace-management" "$ROOT_DIR/test/system/subagents/ui-workspace-management-tester.sh"
+}
+
 cleanup() {
   local log_path="$STAGES_DIR/infra-down.log"
   log "system-runner: stage=infra-down start"
@@ -155,11 +159,13 @@ if [[ "$MODE" == "nightly" ]]; then
   run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
   run_ui_flow_stage
   run_ui_template_type_slug_edit_stage
+  run_ui_workspace_management_stage
   run_visual_stage
   run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
 else
   run_ui_flow_stage
   run_ui_template_type_slug_edit_stage
+  run_ui_workspace_management_stage
   run_visual_stage
   skip_stage "ui-a11y" "nightly-only"
   run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"

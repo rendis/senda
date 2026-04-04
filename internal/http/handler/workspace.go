@@ -20,6 +20,8 @@ type WorkspaceHandler struct {
 	wsStore     port.WorkspaceStore
 }
 
+const systemWorkspaceProtectedMessage = "system workspace is protected and cannot be modified from workspace management"
+
 // NewWorkspaceHandler creates a new WorkspaceHandler.
 func NewWorkspaceHandler(ts port.TenantStore, ws port.WorkspaceStore) *WorkspaceHandler {
 	return &WorkspaceHandler{tenantStore: ts, wsStore: ws}
@@ -66,6 +68,7 @@ func (h *WorkspaceHandler) Create(c *echo.Context) error {
 		TenantID:      tenant.ID,
 		Code:          req.Code,
 		Name:          req.Name,
+		IsActive:      true,
 		DefaultLocale: req.DefaultLocale,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -133,6 +136,9 @@ func (h *WorkspaceHandler) Update(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
+	if ws.IsSystem {
+		return response.WriteError(c, http.StatusConflict, "SYSTEM_WORKSPACE_PROTECTED", systemWorkspaceProtectedMessage)
+	}
 
 	var req request.UpdateWorkspaceRequest
 	if err := c.Bind(&req); err != nil {
@@ -151,6 +157,9 @@ func (h *WorkspaceHandler) Update(c *echo.Context) error {
 			)
 		}
 		ws.Name = *req.Name
+	}
+	if req.IsActive != nil {
+		ws.IsActive = *req.IsActive
 	}
 	if req.OpenTrackingEnabled != nil {
 		ws.OpenTrackingEnabled = *req.OpenTrackingEnabled
@@ -179,6 +188,9 @@ func (h *WorkspaceHandler) SoftDelete(c *echo.Context) error {
 	ws, err := h.wsStore.GetByTenantAndCode(ctx, tenant.ID, wsCode)
 	if err != nil {
 		return mapStoreError(c, err)
+	}
+	if ws.IsSystem {
+		return response.WriteError(c, http.StatusConflict, "SYSTEM_WORKSPACE_PROTECTED", systemWorkspaceProtectedMessage)
 	}
 
 	if err := h.wsStore.SoftDelete(ctx, ws.ID); err != nil {

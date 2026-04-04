@@ -863,6 +863,44 @@
       "critical": false
     },
     {
+      "route": "/t/[tenantCode]/workspaces",
+      "scope": [
+        "tenant"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "baseline data seeded"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify sidebar and header visible"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "scope navigation remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__workspaces",
+      "critical": false
+    },
+    {
       "route": "/t/[tenantCode]",
       "scope": [
         "tenant"

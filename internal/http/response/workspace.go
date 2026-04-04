@@ -11,6 +11,7 @@ type WorkspaceResponse struct {
 	Code                string  `json:"code"`
 	Name                string  `json:"name"`
 	IsSystem            bool    `json:"is_system"`
+	IsActive            bool    `json:"is_active"`
 	OpenTrackingEnabled bool    `json:"open_tracking_enabled"`
 	DefaultLocale       *string `json:"default_locale"`
 	CreatedAt           string  `json:"created_at"`
@@ -32,6 +33,7 @@ func NewWorkspaceResponse(ws *domain.Workspace) WorkspaceResponse {
 		Code:                ws.Code,
 		Name:                ws.Name,
 		IsSystem:            ws.IsSystem,
+		IsActive:            ws.IsActive,
 		OpenTrackingEnabled: ws.OpenTrackingEnabled,
 		DefaultLocale:       ws.DefaultLocale,
 		CreatedAt:           ws.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),

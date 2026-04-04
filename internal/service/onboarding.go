@@ -192,21 +192,23 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		Code:     "_system",
 		Name:     "System",
 		IsSystem: true,
+		IsActive: true,
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale)
-		 VALUES (@id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale)
-		 RETURNING created_at, updated_at`,
+		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale)
+		 VALUES (@id, @tenant_id, @code, @name, @is_system, @is_active, @open_tracking_enabled, @default_locale)
+		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
 			"id":                    ws.ID,
 			"tenant_id":             ws.TenantID,
 			"code":                  ws.Code,
 			"name":                  ws.Name,
 			"is_system":             ws.IsSystem,
+			"is_active":             ws.IsActive,
 			"open_tracking_enabled": false,
 			"default_locale":        ws.DefaultLocale,
 		},
-	).Scan(&ws.CreatedAt, &ws.UpdatedAt); err != nil {
+	).Scan(&ws.IsActive, &ws.CreatedAt, &ws.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("create system workspace: %w", err)
 	}
 

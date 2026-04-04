@@ -40,6 +40,7 @@ The orchestrator now expects a unified stack lifecycle command from `cmd/systemt
 - `subagents/api-contract-tester.sh`
 - `subagents/security-chaos-tester.sh`
 - `subagents/ui-flow-tester.sh`
+- `subagents/ui-workspace-management-tester.sh`
 - `subagents/ui-visual-tester.sh`
 - `subagents/ui-a11y-tester.sh`
 
@@ -88,6 +89,7 @@ Key outputs:
 - `api-contract-report.md`
 - `security-chaos-report.md`
 - `ui-flow-report.md`
+- `ui-workspace-management-report.md`
 - `visual-diff-report.html`
 - `a11y-report.md`
 - `coverage-matrix.csv`

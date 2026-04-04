@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   ChevronDown,
   Globe,
@@ -16,6 +17,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useScope } from "@/hooks/use-scope";
 import {
@@ -38,6 +40,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { level, tenantCode, workspaceCode } = useScope();
+  const tScope = useTranslations("scopeSwitcher");
 
   // View state
   const [view, setView] = useState<ViewMode>("tenants");
@@ -75,7 +78,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   // Trigger label/icon/color
   const scopeLabel =
     level === "global"
-      ? "Global"
+      ? tScope("globalScope")
       : level === "workspace"
         ? workspaceCode ?? "Workspace"
         : tenantCode ?? "Tenant";
@@ -168,8 +171,8 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={
                   view === "tenants"
-                    ? "Search tenants..."
-                    : "Search workspaces..."
+                    ? tScope("searchTenants")
+                    : tScope("searchWorkspaces")
                 }
                 className="pl-8 h-9 text-sm"
               />
@@ -198,10 +201,14 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
                   <WorkspacesView
                     tenantCode={selectedTenant.code}
                     search={debouncedSearch}
+                    currentLevel={level}
                     onSelectWorkspace={(w) =>
                       navigateTo(
                         `/t/${selectedTenant.code}/w/${w.code}`
                       )
+                    }
+                    onManageWorkspaces={() =>
+                      navigateTo(`/t/${selectedTenant.code}/workspaces`)
                     }
                     currentWorkspaceCode={workspaceCode}
                   />
@@ -228,6 +235,7 @@ function TenantsView({
   onSelectTenant: (t: Tenant) => void;
   currentLevel: string;
 }) {
+  const tScope = useTranslations("scopeSwitcher");
   const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } =
     usePaginatedTenants(search);
 
@@ -254,7 +262,7 @@ function TenantsView({
           )}
         >
           <Globe className="h-4 w-4 text-scope-global shrink-0" />
-          <span className="font-medium">Global</span>
+          <span className="font-medium">{tScope("globalScope")}</span>
         </button>
       )}
 
@@ -270,7 +278,7 @@ function TenantsView({
         </div>
       ) : tenants.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">
-          {search ? "No tenants found" : "No tenants available"}
+          {search ? tScope("noTenantsFound") : tScope("noTenantsAvailable")}
         </p>
       ) : (
         tenants.map((t) => (
@@ -306,14 +314,19 @@ function TenantsView({
 function WorkspacesView({
   tenantCode,
   search,
+  currentLevel,
   onSelectWorkspace,
+  onManageWorkspaces,
   currentWorkspaceCode,
 }: {
   tenantCode: string;
   search: string;
+  currentLevel: string;
   onSelectWorkspace: (w: Workspace) => void;
+  onManageWorkspaces: () => void;
   currentWorkspaceCode?: string;
 }) {
+  const tScope = useTranslations("scopeSwitcher");
   const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } =
     usePaginatedWorkspaces(tenantCode, search);
 
@@ -339,13 +352,24 @@ function WorkspacesView({
   if (workspaces.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        {search ? "No workspaces found" : "No workspaces available"}
+        {search ? tScope("noWorkspacesFound") : tScope("noWorkspacesAvailable")}
       </p>
     );
   }
 
   return (
     <div className="flex flex-col">
+      {currentLevel !== "workspace" && (
+        <div className="border-b px-4 py-3">
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={onManageWorkspaces}
+          >
+            {tScope("manageWorkspaces")}
+          </Button>
+        </div>
+      )}
       {workspaces.map((w) => (
         <button
           key={w.id}

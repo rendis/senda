@@ -73,6 +73,7 @@ func (h *TenantHandler) Create(c *echo.Context) error {
 		Code:      "_system",
 		Name:      "System",
 		IsSystem:  true,
+		IsActive:  true,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
