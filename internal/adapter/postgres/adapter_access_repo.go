@@ -247,7 +247,9 @@ func (r *AdapterIdentityGrantRepo) HasIdentityWorkspaceGrant(ctx context.Context
 func (r *AdapterIdentityGrantRepo) ListGrantedIdentitiesForWorkspace(ctx context.Context, adapterID, workspaceID uuid.UUID) ([]*domain.AdapterIdentity, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT ai.id, ai.adapter_id, ai.identity, ai.identity_type, ai.status, ai.sending_enabled, ai.is_default,
-		        ai.display_name, ai.source, ai.last_synced_at, ai.created_at, ai.updated_at
+		        ai.display_name, ai.source, ai.last_synced_at,
+		        0 AS granted_workspace_count,
+		        ai.created_at, ai.updated_at
 		   FROM adapter_identities ai
 		   JOIN adapter_identity_workspace_grants aiwg
 		     ON aiwg.adapter_identity_id = ai.id
