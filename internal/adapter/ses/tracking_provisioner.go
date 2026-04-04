@@ -434,7 +434,7 @@ func IsAccessDenied(err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
 		switch apiErr.ErrorCode() {
-		case "AccessDeniedException", "AccessDenied", "UnauthorizedAccess":
+		case "AccessDeniedException", "AccessDenied", "UnauthorizedAccess", "AuthorizationError":
 			return true
 		}
 	}
