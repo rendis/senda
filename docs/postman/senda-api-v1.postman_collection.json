@@ -80,6 +80,14 @@
       "key": "api_key_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "system_workspace_code",
+      "value": "_system"
+    },
+    {
+      "key": "identity_id",
+      "value": ""
     }
   ],
   "auth": {
@@ -1417,6 +1425,406 @@
                 "exec": [
                   "pm.test(\"Status is 204 or 404\", function () {",
                   "    pm.expect([204, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Adapter Identities",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities"
+              ]
+            },
+            "description": "List identities for an adapter. In a regular workspace, shared SES adapters return only the granted email identities; shared Gmail adapters return their identities as usual.\n\n**Required role:** workspace_viewer+"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Store first identity_id when available', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "        pm.collectionVariables.set('identity_id', jsonData[0].id);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Manual Identity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"identity\": \"shared-sender@example.dev\",\n    \"display_name\": \"Shared Sender\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities"
+              ]
+            },
+            "description": "Create a manual adapter identity. Use the tenant `_system` workspace when creating SES email identities meant to be shared later.\n\n**Required role:** workspace_admin"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Store identity_id', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.collectionVariables.set('identity_id', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sync Adapter Identities",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/sync",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities",
+                "sync"
+              ]
+            },
+            "description": "Sync provider identities for the selected adapter. Shared adapters remain read-only from child workspaces, so run this from the owner scope.\n\n**Required role:** workspace_admin"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Adapter Identity",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities",
+                "{{identity_id}}"
+              ]
+            },
+            "description": "Delete an adapter identity. Shared resources stay read-only from child workspaces.\n\n**Required role:** workspace_admin"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set Default Adapter Identity",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/set-default",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities",
+                "{{identity_id}}",
+                "set-default"
+              ]
+            },
+            "description": "Mark an adapter identity as the default sender identity for its adapter.\n\n**Required role:** workspace_admin"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Adapter Workspace Access",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/workspace-access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{system_workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "workspace-access"
+              ]
+            },
+            "description": "List workspace grants for a Gmail adapter owned by the tenant `_system` workspace.\n\n**Rules:** Gmail sharing is adapter-level. Only `_system` can manage it."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Adapter Workspace Access",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"workspace_ids\": [\n        \"00000000-0000-7000-8000-000000000001\",\n        \"00000000-0000-7000-8000-000000000002\"\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/workspace-access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{system_workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "workspace-access"
+              ]
+            },
+            "description": "Replace the set of tenant workspaces allowed to use a Gmail adapter shared from `_system`.\n\n**Rules:** only non-system workspaces from the same tenant are valid targets."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Identity Workspace Access",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/workspace-access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{system_workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities",
+                "{{identity_id}}",
+                "workspace-access"
+              ]
+            },
+            "description": "List workspace grants for a SES **email identity** owned by the tenant `_system` workspace. Domain identities are not shareable."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Identity Workspace Access",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"workspace_ids\": [\n        \"00000000-0000-7000-8000-000000000001\"\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/workspace-access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{system_workspace_code}}",
+                "adapters",
+                "{{adapter_id}}",
+                "identities",
+                "{{identity_id}}",
+                "workspace-access"
+              ]
+            },
+            "description": "Replace the set of tenant workspaces allowed to use a SES **email identity** shared from `_system`.\n\n**Rules:** only identities of type `email` can be shared; revoking an in-use grant returns `409`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
                   "});"
                 ]
               }

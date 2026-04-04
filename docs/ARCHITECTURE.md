@@ -190,6 +190,14 @@ Collects injector definitions from all scopes in the chain. Merges at field leve
 
 Resolves which adapter handles the send. Adapters are assigned per **template type**, not per workspace or template. Cached for 10 minutes.
 
+Regular workspaces can use:
+
+- adapters they own directly;
+- Gmail adapters granted from the tenant `_system` workspace;
+- SES adapters granted from the tenant `_system` workspace **only** through explicitly shared email identities.
+
+When a workspace uses a shared SES adapter, the resolved template type must carry a `sender_identity_id` that was granted to that workspace. That keeps send attribution, logs, and dashboard breakdown tied to the effective workspace + sender identity, even when the underlying adapter is shared.
+
 ---
 
 ## 7. Send Pipeline

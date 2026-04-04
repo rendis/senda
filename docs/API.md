@@ -331,6 +331,8 @@ Required role varies by operation (typically WorkspaceEditor+ for writes, Worksp
 | POST   | `/adapters/:id/test`                    | Test connectivity              |
 | GET    | `/adapters/:id/setup-guide`             | Provider setup instructions    |
 | POST   | `/adapters/:id/auto-provision-tracking` | Auto-provision tracking domain |
+| GET    | `/adapters/:id/workspace-access`        | List workspace grants (Gmail, `_system` only) |
+| PUT    | `/adapters/:id/workspace-access`        | Replace workspace grants (Gmail, `_system` only) |
 
 #### Adapter Identities
 
@@ -341,6 +343,20 @@ Required role varies by operation (typically WorkspaceEditor+ for writes, Worksp
 | POST   | `/adapters/:id/identities/sync`             | Sync from provider |
 | DELETE | `/adapters/:id/identities/:iid`             | Delete identity    |
 | POST   | `/adapters/:id/identities/:iid/set-default` | Set as default     |
+| GET    | `/adapters/:id/identities/:iid/workspace-access` | List workspace grants (SES email identities, `_system` only) |
+| PUT    | `/adapters/:id/identities/:iid/workspace-access` | Replace workspace grants (SES email identities, `_system` only) |
+
+**Sharing rules**
+
+- Sharing is managed only from the tenant's **`_system`** workspace.
+- **Gmail** sharing happens at the **adapter** level.
+- **SES** sharing happens at the **email identity** level; identities of type `domain` are **not** shareable.
+- `GET /adapters` in a regular workspace returns both workspace-owned adapters and visible `_system` shared adapters.
+- Shared adapters are **read-only** from child workspaces: update/delete/test/sync/set-default/manual identity mutations return `403`.
+- `GET /adapters/:id/identities` in a regular workspace returns:
+  - all identities for owned adapters;
+  - all identities for shared Gmail adapters;
+  - only the **granted email identities** for shared SES adapters.
 
 #### Template Types
 
@@ -349,6 +365,15 @@ Required role varies by operation (typically WorkspaceEditor+ for writes, Worksp
 | POST   | `/template-types`     | Create template type |
 | GET    | `/template-types`     | List template types  |
 | GET    | `/template-types/:id` | Get template type    |
+
+**Template type rules with shared adapters**
+
+- Workspace template types can reference:
+  - a workspace-owned adapter;
+  - a Gmail adapter shared from tenant `_system`;
+  - a SES adapter shared from tenant `_system` **only when** the selected `sender_identity_id` is a granted SES email identity for that workspace.
+- For shared SES adapters, `sender_identity_id` is **required**.
+- Revoking a shared adapter grant or SES identity grant returns **`409 CONFLICT`** when a workspace template type still depends on it.
 
 #### Templates
 

@@ -22,6 +22,7 @@ Most email services are either too simple (no multi-tenancy) or too complex (Kaf
 
 - **Zero external dependencies** — PostgreSQL handles queue ([River](https://riverqueue.com)), cache (UNLOGGED tables), and rate limiting (PL/pgSQL token bucket). No Redis. No Kafka.
 - **3-level hierarchy** — Configure templates, injectors, and adapters at Global scope. Override at Tenant or Workspace level. Inheritance chain resolves automatically.
+- **Selective system sharing** — Tenant `_system` can share Gmail adapters to specific workspaces and SES **email identities** (not whole domains) to the exact workspaces allowed to send from them.
 - **MJML-native** — Write responsive email templates in MJML. Compiled to battle-tested HTML at send time with variable injection and locale fallback.
 - **Dual auth model** — OIDC/JWT for humans on the management plane. Workspace-scoped API keys for machines on the data plane. 5-tier RBAC.
 - **Full-stack** — Go backend + Next.js 16 dashboard with dark mode, scope switcher, template editor (Monaco), and real-time metrics.
@@ -33,6 +34,7 @@ Most email services are either too simple (no multi-tenancy) or too complex (Kaf
 |               | Feature             | Description                                                                                                    |
 | ------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
 | **Hierarchy** | Multi-tenant scopes | Global > Tenant > Workspace with inheritance chain resolution                                                  |
+| **Sharing**   | System-owned adapters | Tenant `_system` can grant Gmail adapters per workspace and SES sender emails per workspace, with read-only inherited rows in child workspaces |
 | **Templates** | Versioned + i18n    | Draft > Published > Archived lifecycle. Locale fallback (exact > prefix > workspace default > version default) |
 | **Providers** | Adapter system      | SES, Gmail, SMTP built-in. Add any provider by implementing one interface                                      |
 | **Rendering** | MJML compiler       | Responsive HTML from MJML templates. Variable injection via injector merge                                     |
@@ -44,6 +46,15 @@ Most email services are either too simple (no multi-tenancy) or too complex (Kaf
 | **Dashboard** | Full-stack UI       | Next.js 16 + shadcn/ui. Templates, adapters, members, metrics, settings                                        |
 
 ---
+
+## Shared Adapters from Tenant `_system`
+
+Senda supports **selective adapter inheritance** from a tenant's `_system` workspace down to its child workspaces:
+
+- **Gmail** is shared at the **adapter** level. `_system` decides exactly which workspaces can see and use the adapter.
+- **SES** is shared at the **email identity** level. `_system` can grant `a@example.dev` to one workspace and `b@example.dev` to another. Domain identities stay in `_system`; they are **not** shareable.
+- In child workspaces, inherited adapters appear in the adapters UI as **read-only shared rows**. Workspace-owned adapters remain editable.
+- For a workspace using a shared SES adapter, `sender_identity_id` is mandatory on the template type so each send is attributed to the correct workspace + sender identity combination.
 
 ## Quick Start
 

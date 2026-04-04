@@ -68,7 +68,7 @@ The collection is organized into folders matching the API structure:
 | **Members**        | 4         | OIDC (superadmin)        | Member and role management                 |
 | **Config**         | 2         | OIDC (superadmin)        | Global configuration                       |
 | **Injectors**      | 4         | OIDC (workspace roles)   | Injector definitions and values            |
-| **Adapters**       | 5         | OIDC (workspace roles)   | Email adapter CRUD                         |
+| **Adapters**       | 14        | OIDC (workspace roles)   | Email adapter CRUD, identities, and `_system` sharing controls |
 | **Domains**        | 5         | OIDC (workspace roles)   | Domain registration and DKIM verification  |
 | **Template Types** | 3         | OIDC (workspace roles)   | Template type CRUD                         |
 | **Templates**      | 9         | OIDC (workspace roles)   | Templates, versions, locales, MJML preview |
@@ -92,9 +92,11 @@ The collection uses these variables (auto-populated by test scripts):
 | `api_key`          | Auto (Create API Key)       | Workspace API key (`senda_live_*`) |
 | `tenant_code`      | Auto (Create Tenant)        | Current tenant code           |
 | `workspace_code`   | Auto (Create Workspace)     | Current workspace code        |
+| `system_workspace_code` | Default (`_system`)    | Tenant system workspace code  |
 | `member_id`        | Auto (Create Member)        | Last created member ID        |
 | `role_id`          | Auto (Add Role)             | Last created role ID          |
 | `adapter_id`       | Auto (Create Adapter)       | Last created adapter ID       |
+| `identity_id`      | Auto (List/Create Identity) | Last created or discovered adapter identity ID |
 | `domain_id`        | Auto (Register Domain)      | Last created domain ID        |
 | `template_type_id` | Auto (Create Template Type) | Last created template type ID |
 | `template_id`      | Auto (Create Template)      | Last created template ID      |
@@ -112,16 +114,26 @@ For a full end-to-end flow, run requests in this order:
 3. Onboarding > Run Onboarding Setup
 4. Workspaces > Create Workspace
 5. Adapters > Create Adapter
-6. Domains > Register Domain
-7. Template Types > Create Template Type
-8. Templates > Create Template
-9. Templates > Create Version
-10. Templates > Publish Version
-11. API Keys > Create API Key
-12. Send > Send Email
-13. Emails > List Emails
-14. Emails > Get Email by Tracking ID
-15. Emails > Export Emails (optional)
+6. Adapters > List Adapter Identities
+7. Adapters > Update Adapter Workspace Access (when managing Gmail sharing from `_system`)
+8. Adapters > Update Identity Workspace Access (when managing SES email sharing from `_system`)
+9. Domains > Register Domain
+10. Template Types > Create Template Type
+11. Templates > Create Template
+12. Templates > Create Version
+13. Templates > Publish Version
+14. API Keys > Create API Key
+15. Send > Send Email
+16. Emails > List Emails
+17. Emails > Get Email by Tracking ID
+18. Emails > Export Emails (optional)
+
+## Shared Adapter Notes
+
+- The workspace-access endpoints must be called against the tenant `_system` workspace. The collection exposes this through the `system_workspace_code` variable, which defaults to `_system`.
+- Gmail sharing is configured on the adapter itself.
+- SES sharing is configured on an **email identity**, not on the whole domain.
+- For a child workspace using a shared SES adapter, remember to send `sender_identity_id` on the template type payload.
 
 ## Pagination
 

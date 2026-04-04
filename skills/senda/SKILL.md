@@ -105,10 +105,12 @@ Tool naming: `senda_{method}_{path}`. Use `senda_list_endpoints` to discover all
 3. senda_get_api_v1_manage_tenants          → list tenants
 4. senda_post_api_v1_manage_tenants_tc_workspaces  → create workspace
 5. senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters  → add email provider
-6. senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates → create template
-7. senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys  → create API key
-8. senda_post_api_v1_send                   → send email with API key
-9. senda_get_api_v1_emails                  → check delivery status
+6. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_workspace_access  → grant a Gmail adapter from tenant `_system` to selected workspaces (optional)
+7. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_identities_identity_id_workspace_access → grant an SES email identity from tenant `_system` to selected workspaces (optional)
+8. senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates → create template
+9. senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys  → create API key
+10. senda_post_api_v1_send                   → send email with API key
+11. senda_get_api_v1_emails                  → check delivery status
 ```
 
 ## API Groups
@@ -173,6 +175,21 @@ All routes under `/api/v1/manage/` require OIDC JWT + role-based access.
 | Suppression | POST | GET /{email} | — | — | DELETE /{email} | — |
 | Audit Log | — | GET | — | — | — | — |
 | Dashboard Stats | — | GET | — | — | — | — |
+
+#### Shared adapters from tenant `_system`
+
+- `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/workspace-access`
+  - only valid when `{wc}` resolves to the tenant `_system` workspace
+  - manages **Gmail adapter** visibility by workspace
+- `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/identities/{identity_id}/workspace-access`
+  - only valid when `{wc}` resolves to the tenant `_system` workspace
+  - manages **SES email identity** visibility by workspace
+  - SES identities of type `domain` are **not** shareable
+- Regular workspaces list both owned adapters and visible shared adapters; shared entries are **read-only**
+- For template types in a child workspace:
+  - shared Gmail adapters can be selected directly
+  - shared SES adapters require `sender_identity_id`
+  - that `sender_identity_id` must be an **email identity granted to that workspace**
 
 #### Global Scope (Superadmin, under `/api/v1/manage/global/`)
 Same resources as workspace-scoped but for system-wide configuration.
