@@ -29,6 +29,8 @@ export interface FieldError {
 /** Scope levels for the hierarchy */
 export type ScopeLevel = "global" | "tenant" | "workspace";
 
+export const SYSTEM_WORKSPACE_CODE = "_system";
+
 /** Current scope context */
 export interface ScopeContext {
   level: ScopeLevel;

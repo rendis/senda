@@ -5,29 +5,50 @@ import { useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { MemberWithRoles, MemberRoleDetail } from "@/types/members-ext";
-import type { OnboardingStatus } from "@/types/api";
+import type { OnboardingStatus, ScopeLevel } from "@/types/api";
 
-function requiredScopeForPath(pathname: string): "global" | "tenant" | "workspace" | null {
-  if (pathname === "/global" || pathname.startsWith("/global/")) return "global";
-  if (/^\/t\/[^/]+\/w\/[^/]+(?:\/|$)/.test(pathname)) return "workspace";
-  if (/^\/t\/[^/]+(?:\/|$)/.test(pathname)) return "tenant";
-  return null;
+interface ParsedScope {
+  level: ScopeLevel | null;
+  tenantCode?: string;
+  workspaceCode?: string;
+}
+
+function parseScopePath(pathname: string): ParsedScope {
+  const wsMatch = pathname.match(/^\/t\/([^/]+)\/w\/([^/]+)/);
+  if (wsMatch) return { level: "workspace", tenantCode: wsMatch[1], workspaceCode: wsMatch[2] };
+
+  const tenantMatch = pathname.match(/^\/t\/([^/]+)/);
+  if (tenantMatch) return { level: "tenant", tenantCode: tenantMatch[1] };
+
+  if (pathname === "/global" || pathname.startsWith("/global/")) return { level: "global" };
+
+  return { level: null };
 }
 
 function hasScopeAccess(roles: MemberRoleDetail[], pathname: string): boolean {
-  const scope = requiredScopeForPath(pathname);
-  if (!scope) return true;
-  if (roles.some((r) => r.role === "superadmin")) return true;
-  switch (scope) {
-    case "global": return false;
-    case "tenant": return roles.some((r) => r.role === "tenant_admin");
-    case "workspace":
-      return roles.some((r) =>
-        r.role === "tenant_admin" || r.role === "workspace_admin" ||
-        r.role === "workspace_editor" || r.role === "workspace_viewer"
-      );
-    default: return true;
+  const { level, tenantCode, workspaceCode } = parseScopePath(pathname);
+  if (!level) return true;
+
+  // Only superadmin can access global scope
+  if (level === "global") {
+    return roles.some((r) => r.role === "superadmin" && r.scope_type === "global");
   }
+
+  for (const r of roles) {
+    if (r.role === "superadmin" && r.scope_type === "global") return true;
+
+    // Tenant-scoped role covers tenant + all its workspaces
+    if (r.scope_type === "tenant" && tenantCode && r.tenant_code === tenantCode) {
+      return true;
+    }
+
+    // Workspace-scoped role must match exact workspace
+    if (r.scope_type === "workspace" && workspaceCode && r.workspace_code === workspaceCode) {
+      if (level === "workspace") return true;
+    }
+  }
+
+  return false;
 }
 
 /**

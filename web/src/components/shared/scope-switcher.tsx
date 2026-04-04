@@ -26,7 +26,7 @@ import {
 } from "@/hooks/use-scope-data";
 import { cn } from "@/lib/utils";
 import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
-import type { Tenant, Workspace } from "@/types/api";
+import { SYSTEM_WORKSPACE_CODE, type Tenant, type Workspace } from "@/types/api";
 
 const WORKSPACE_PATH_RE = /^\/t\/[^/]+\/w\/[^/]+/;
 
@@ -359,7 +359,8 @@ function WorkspacesView({
 
   return (
     <div className="flex flex-col">
-      {currentLevel !== "workspace" && (
+      {(currentLevel !== "workspace" ||
+        currentWorkspaceCode === SYSTEM_WORKSPACE_CODE) && (
         <div className="border-b px-4 py-3">
           <Button
             variant="outline"

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ResolutionChainViewer } from "./resolution-chain-viewer";
 import type { InjectorField, InjectorFieldResolution } from "@/types/injectors";
-import type { ScopeLevel } from "@/types/api";
+import { SYSTEM_WORKSPACE_CODE, type ScopeLevel } from "@/types/api";
 
 interface InjectorFieldEditorProps {
   field: InjectorField;
@@ -64,7 +64,7 @@ export function InjectorFieldEditor({
     resolution.workspace_level != null
       ? "Workspace"
       : resolution.tenant_level != null
-        ? "_system"
+        ? SYSTEM_WORKSPACE_CODE
         : "Global";
 
   function renderWorkspaceInput() {

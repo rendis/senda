@@ -13,6 +13,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import {
   useIdentityList,
   useSyncIdentities,
@@ -337,7 +338,7 @@ export function IdentityPanel({
 }) {
   const scopedPath = useScopedPath();
   const scope = useScope();
-  const isSystemWorkspace = scope.workspaceCode === "_system";
+  const isSystemWorkspace = scope.workspaceCode === SYSTEM_WORKSPACE_CODE;
   const isReadOnly = !adapter.is_editable;
   const [deleteTarget, setDeleteTarget] = useState<AdapterIdentity | null>(null);
   const [shareTarget, setShareTarget] = useState<AdapterIdentity | null>(null);

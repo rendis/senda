@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Plug, Plus, Trash2, Zap, Pencil, Mail, Share2, Lock } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import {
   useAdapterList,
   useAdapterWorkspaceAccess,
@@ -137,7 +138,7 @@ function AdaptersTable() {
         <ScopeIndicator
           scope={
             row.original.source_scope === "system" ||
-            scope.workspaceCode === "_system"
+            scope.workspaceCode === SYSTEM_WORKSPACE_CODE
               ? "system"
               : "workspace"
           }
@@ -178,7 +179,7 @@ function AdaptersTable() {
       cell: ({ row }) => (
         <AdapterActions
           adapter={row.original}
-          isSystemWorkspace={scope.workspaceCode === "_system"}
+          isSystemWorkspace={scope.workspaceCode === SYSTEM_WORKSPACE_CODE}
           onDelete={setDeleteTarget}
           onEdit={setEditTarget}
           onTest={setTestTarget}

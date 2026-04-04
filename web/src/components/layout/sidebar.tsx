@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
@@ -110,12 +111,15 @@ export function AppSidebar({
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
   const helpHref = getContextualHelpHref(pathname);
 
+  const isSystemWorkspace =
+    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
+
   const visibleNavItems = navItems.filter((item) => {
     if (item.href === "/settings" || item.href === "/tenants") {
       return level === "global";
     }
     if (item.href === "/workspaces") {
-      return level === "tenant";
+      return level === "tenant" || isSystemWorkspace;
     }
     return true;
   });
@@ -123,6 +127,9 @@ export function AppSidebar({
   function hrefForItem(href: string) {
     if (href === "/settings") {
       return "/global/settings";
+    }
+    if (href === "/workspaces" && isSystemWorkspace) {
+      return `/t/${tenantCode}/workspaces`;
     }
     return `${basePath}${href}`;
   }

@@ -18,6 +18,8 @@ export interface MemberRoleDetail {
   scope_type: ScopeLevel;
   tenant_id?: string;
   workspace_id?: string;
+  tenant_code?: string;
+  workspace_code?: string;
   created_at: string;
 }
 

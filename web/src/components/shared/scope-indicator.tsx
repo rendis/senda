@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Globe, Settings, Box } from "lucide-react";
-import type { ScopeLevel } from "@/types/api";
+import { SYSTEM_WORKSPACE_CODE, type ScopeLevel } from "@/types/api";
 
 const scopeConfig: Record<
   ScopeLevel | "system",
@@ -13,7 +13,7 @@ const scopeConfig: Record<
     bgColor: "bg-scope-global-bg",
   },
   system: {
-    label: "_system",
+    label: SYSTEM_WORKSPACE_CODE,
     icon: Settings,
     color: "text-scope-system",
     bgColor: "bg-scope-system-bg",

@@ -15,13 +15,15 @@ type MemberResponse struct {
 
 // MemberRoleResponse is the JSON response for a single member role assignment.
 type MemberRoleResponse struct {
-	ID          string  `json:"id"`
-	MemberID    string  `json:"member_id"`
-	Role        string  `json:"role"`
-	ScopeType   string  `json:"scope_type"`
-	TenantID    *string `json:"tenant_id,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	CreatedAt   string  `json:"created_at"`
+	ID            string  `json:"id"`
+	MemberID      string  `json:"member_id"`
+	Role          string  `json:"role"`
+	ScopeType     string  `json:"scope_type"`
+	TenantID      *string `json:"tenant_id,omitempty"`
+	WorkspaceID   *string `json:"workspace_id,omitempty"`
+	TenantCode    *string `json:"tenant_code,omitempty"`
+	WorkspaceCode *string `json:"workspace_code,omitempty"`
+	CreatedAt     string  `json:"created_at"`
 }
 
 // MemberWithRolesResponse returns a member with their role assignments.

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"time"
@@ -344,10 +345,53 @@ func (h *MemberHandler) Me(c *echo.Context) error {
 		roleResponses[i] = response.NewMemberRoleResponse(r)
 	}
 
+	h.enrichRoleCodes(c.Request().Context(), roleResponses, roles)
+
 	return c.JSON(http.StatusOK, response.MemberWithRolesResponse{
 		MemberResponse: response.NewMemberResponse(member),
 		Roles:          roleResponses,
 	})
+}
+
+// enrichRoleCodes resolves tenant/workspace IDs to their codes so the frontend
+// can match roles against URL path segments without extra API calls.
+func (h *MemberHandler) enrichRoleCodes(ctx context.Context, responses []response.MemberRoleResponse, roles []*domain.MemberRole) {
+	tenantCodes := make(map[uuid.UUID]string)
+	workspaceCodes := make(map[uuid.UUID]string)
+
+	for _, r := range roles {
+		if r.TenantID != nil {
+			if _, ok := tenantCodes[*r.TenantID]; !ok {
+				if t, err := h.tenantStore.GetByID(ctx, *r.TenantID); err == nil {
+					tenantCodes[*r.TenantID] = t.Code
+				} else {
+					slog.Warn("enrichRoleCodes: failed to resolve tenant", slog.String("tenant_id", r.TenantID.String()), slog.String("error", err.Error()))
+				}
+			}
+		}
+		if r.WorkspaceID != nil {
+			if _, ok := workspaceCodes[*r.WorkspaceID]; !ok {
+				if ws, err := h.wsStore.GetByID(ctx, *r.WorkspaceID); err == nil {
+					workspaceCodes[*r.WorkspaceID] = ws.Code
+				} else {
+					slog.Warn("enrichRoleCodes: failed to resolve workspace", slog.String("workspace_id", r.WorkspaceID.String()), slog.String("error", err.Error()))
+				}
+			}
+		}
+	}
+
+	for i, r := range roles {
+		if r.TenantID != nil {
+			if code, ok := tenantCodes[*r.TenantID]; ok {
+				responses[i].TenantCode = &code
+			}
+		}
+		if r.WorkspaceID != nil {
+			if code, ok := workspaceCodes[*r.WorkspaceID]; ok {
+				responses[i].WorkspaceCode = &code
+			}
+		}
+	}
 }
 
 // AddRole handles POST /api/v1/manage/members/:member_id/roles.

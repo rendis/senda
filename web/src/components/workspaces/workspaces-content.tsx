@@ -46,7 +46,7 @@ import {
   nameSchema,
   slugSchema,
 } from "@/lib/validations/slug";
-import type { Workspace } from "@/types/api";
+import { SYSTEM_WORKSPACE_CODE, type Workspace } from "@/types/api";
 
 const createWorkspaceSchema = z.object({
   name: nameSchema,
@@ -156,7 +156,7 @@ export function WorkspacesContent() {
           </span>
           <ScopeIndicator
             scope={row.original.is_system ? "system" : "workspace"}
-            label={row.original.is_system ? "_system" : "workspace"}
+            label={row.original.is_system ? SYSTEM_WORKSPACE_CODE : "workspace"}
           />
         </div>
       ),
