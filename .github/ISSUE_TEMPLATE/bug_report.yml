@@ -1,0 +1,81 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Senda
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        Before submitting, please confirm you checked the docs, searched existing issues, and reduced the problem to one reproducible report.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the bug.
+      placeholder: API key creation fails for workspace admins after onboarding
+    validations:
+      required: true
+  - type: textarea
+    id: current_behavior
+    attributes:
+      label: Current behavior
+      description: What happened?
+      placeholder: Describe the incorrect behavior you observed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest set of steps needed to reproduce the issue.
+      placeholder: |
+        1. Start the stack with `make dev`
+        2. Sign in as workspace-admin@senda.dev
+        3. Open Settings > API Keys
+        4. Click Create
+        5. Observe the error
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation attempted
+      description: Tell us what you already verified locally.
+      placeholder: make test, make test-integration, make test-e2e, npm --prefix web run typecheck, etc.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Relevant versions, OS, browser, commit SHA, or setup details.
+      placeholder: macOS 15, Docker 27, Go 1.25.1, Node 22, commit abc123
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Blocks normal usage
+        - Significant regression
+        - Minor regression
+        - Cosmetic / low impact
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched for existing issues and did not find a duplicate.
+          required: true
+        - label: I can reproduce this on a current branch or recent commit.
+          required: true
+        - label: This is not a confidential security report.
+          required: true

@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose a focused improvement for Senda
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement.
+
+        For large changes, please start with the problem and expected outcome instead of jumping straight to implementation.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the requested improvement.
+      placeholder: Add per-workspace webhook retry backoff controls
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve?
+      placeholder: Today the fixed retry policy is too rigid for tenants with strict provider windows.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest solution that would solve the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What alternatives or tradeoffs did you consider?
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected surface
+      description: Tell us which areas this touches.
+      placeholder: API, workers, docs, frontend settings, migrations, etc.
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, prior art, or constraints.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched for existing issues and did not find a duplicate.
+          required: true
+        - label: I understand maintainers may ask to narrow scope before implementation.
+          required: true

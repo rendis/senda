@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contributor guide
+    url: https://github.com/rendis/senda/blob/main/CONTRIBUTING.md
+    about: Read the contribution workflow, validation rules, and PR expectations before opening an issue.
+  - name: Development guide
+    url: https://github.com/rendis/senda/blob/main/docs/DEVELOPMENT.md
+    about: Check local setup, services, Make targets, and troubleshooting.
+  - name: Security policy
+    url: https://github.com/rendis/senda/blob/main/SECURITY.md
+    about: Report vulnerabilities privately instead of opening a public issue.

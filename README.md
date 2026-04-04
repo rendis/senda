@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/TetherEducation/senda/actions/workflows/backend-gate.yml/badge.svg)](https://github.com/TetherEducation/senda/actions)
+[![CI](https://github.com/rendis/senda/actions/workflows/backend-gate.yml/badge.svg)](https://github.com/rendis/senda/actions)
 
 [Documentation](docs/) &middot; [API Reference](docs/API.md) &middot; [Quick Start](#quick-start) &middot; [Contributing](#contributing)
 
@@ -517,15 +517,13 @@ senda/
 
 ## Contributing
 
-We welcome contributions! Whether it's bug reports, feature requests, or pull requests.
+We welcome focused, well-validated contributions.
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feat/amazing-feature`)
-3. Write tests first (TDD mandatory)
-4. Run quality gates: `make test && make lint`
-5. Open a PR
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, validation rules, commit conventions, and PR expectations. Please also read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md) before opening issues or pull requests.
 
-See [AGENTS.md](AGENTS.md) for the full development workflow, story system, and team structure.
+The short version: fork the repo, create a focused branch, write or update tests first when behavior changes, run the relevant local gates (`make lint`, `go vet ./...`, `make test`, `make test-integration`, and `make test-e2e` for systemic changes), then open a small PR with clear context.
+
+For larger changes, open an issue before implementation so maintainers can align on scope and fit. Repository-specific development and planning details remain documented in [AGENTS.md](AGENTS.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ---
 
