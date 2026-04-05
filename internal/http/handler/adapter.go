@@ -465,7 +465,34 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) 
 		return response.WriteError(c, http.StatusUnprocessableEntity, "ADAPTER_ERROR", fmt.Sprintf("failed to create sender: %v", err))
 	}
 
-	from := resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
+	var from port.EmailAddress
+	if req.From != "" {
+		var identities []*domain.AdapterIdentity
+		if workspace != nil && h.accessSvc != nil {
+			identities, err = h.accessSvc.ListIdentitiesForWorkspace(ctx, workspace, adapterID)
+		} else {
+			identities, err = h.identityStore.ListByAdapter(ctx, adapter.ID)
+		}
+		if err != nil {
+			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+		}
+		var matched *domain.AdapterIdentity
+		for _, id := range identities {
+			if id.Identity == req.From && id.IdentityType == domain.IdentityTypeEmail {
+				matched = id
+				break
+			}
+		}
+		if matched == nil {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "INVALID_FROM", "from address is not an accessible identity for this adapter")
+		}
+		from.Address = matched.Identity
+		if matched.DisplayName != nil {
+			from.Name = *matched.DisplayName
+		}
+	} else {
+		from = resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
+	}
 	if from.Address == "" {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
 	}

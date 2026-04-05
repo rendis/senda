@@ -25,6 +25,7 @@ type TestAdapterRequest struct {
 	To      string `json:"to"`
 	Subject string `json:"subject"`
 	Body    string `json:"body"`
+	From    string `json:"from,omitempty"`
 }
 
 // CreateManualIdentityRequest is the request body for POST adapters/:id/identities.

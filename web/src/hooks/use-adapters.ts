@@ -98,6 +98,7 @@ export interface TestAdapterRequest {
   to: string;
   subject: string;
   body: string;
+  from?: string;
 }
 
 export interface TestAdapterResponse {

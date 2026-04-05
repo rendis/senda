@@ -39,9 +39,20 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Adapter, CreateAdapterRequest } from "@/types/adapters";
+import type { Adapter, AdapterIdentity, CreateAdapterRequest } from "@/types/adapters";
+import { useIdentityList } from "@/hooks/use-identities";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TrackingStatus } from "./tracking-status";
 import { DefaultSender } from "./default-sender";
+
+const isVerifiedEmail = (i: AdapterIdentity) =>
+  i.identity_type === "email" && i.status === "verified";
 
 export function AdaptersContent() {
   return <AdaptersTable />;
@@ -168,6 +179,7 @@ function AdaptersTable() {
       cell: ({ row }) => (
         <AdapterActions
           adapter={row.original}
+          scopedPath={scopedPath}
           isSystemWorkspace={scope.workspaceCode === SYSTEM_WORKSPACE_CODE}
           onDelete={setDeleteTarget}
           onEdit={setEditTarget}
@@ -258,6 +270,7 @@ function AdaptersTable() {
       {testTarget && (
         <TestSendDialog
           adapter={testTarget}
+          scopedPath={scopedPath}
           open={!!testTarget}
           onOpenChange={(open) => !open && setTestTarget(null)}
         />
@@ -294,6 +307,7 @@ function AdaptersTable() {
 
 function AdapterActions({
   adapter,
+  scopedPath,
   isSystemWorkspace,
   onDelete,
   onEdit,
@@ -302,6 +316,7 @@ function AdapterActions({
   onShare,
 }: {
   adapter: Adapter;
+  scopedPath: string;
   isSystemWorkspace: boolean;
   onDelete: (a: Adapter) => void;
   onEdit: (a: Adapter) => void;
@@ -309,6 +324,15 @@ function AdapterActions({
   onIdentities: (a: Adapter) => void;
   onShare: (a: Adapter) => void;
 }) {
+  const { data: identities } = useIdentityList(
+    scopedPath,
+    adapter.adapter_type === "ses" ? adapter.id : "",
+  );
+
+  const hasVerifiedSender =
+    adapter.adapter_type !== "ses" ||
+    (identities ?? []).some(isVerifiedEmail);
+
   const readOnlyReason = adapter.is_shared
     ? "Shared from _system — read only in this workspace"
     : "This adapter is read only";
@@ -319,6 +343,7 @@ function AdapterActions({
     onClick: () => void,
     disabled = false,
     destructive = false,
+    disabledReason?: string,
   ) => (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -334,7 +359,7 @@ function AdapterActions({
           </Button>
         </span>
       </TooltipTrigger>
-      <TooltipContent>{disabled ? readOnlyReason : label}</TooltipContent>
+      <TooltipContent>{disabled ? (disabledReason ?? readOnlyReason) : label}</TooltipContent>
     </Tooltip>
   );
 
@@ -346,7 +371,14 @@ function AdapterActions({
       {isSystemWorkspace && adapter.adapter_type === "gmail" &&
         actionButton("Workspace access", <Share2 className="h-4 w-4" />, () => onShare(adapter))}
       {actionButton("Edit", <Pencil className="h-4 w-4" />, () => onEdit(adapter), !adapter.is_editable)}
-      {actionButton("Test Send", <Zap className="h-4 w-4" />, () => onTest(adapter))}
+      {actionButton(
+        "Test Send",
+        <Zap className="h-4 w-4" />,
+        () => onTest(adapter),
+        !hasVerifiedSender,
+        false,
+        "No verified sender emails — add and verify an email identity first",
+      )}
       {actionButton("Delete", <Trash2 className="h-4 w-4" />, () => onDelete(adapter), !adapter.is_editable, true)}
     </div>
   );
@@ -478,26 +510,45 @@ function AdapterWorkspaceAccessDialog({
 
 function TestSendDialog({
   adapter,
+  scopedPath,
   open,
   onOpenChange,
 }: {
   adapter: Adapter;
+  scopedPath: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const scopedPath = useScopedPath();
   const testSend = useTestAdapterSend(scopedPath, adapter.id);
   const [to, setTo] = useState("");
+  const [selectedFrom, setSelectedFrom] = useState<string | undefined>();
   const [subject, setSubject] = useState("Test email from Senda");
   const [body, setBody] = useState(
     "<h1>Test Email</h1><p>This is a test email sent from Senda to verify the adapter configuration.</p>"
   );
 
+  const { data: identities } = useIdentityList(scopedPath, adapter.id);
+  const verifiedEmails = useMemo(
+    () => (identities ?? []).filter(isVerifiedEmail),
+    [identities],
+  );
+
+  const defaultFrom =
+    verifiedEmails.find((i) => i.is_default)?.identity ??
+    verifiedEmails[0]?.identity ??
+    "";
+  const from = selectedFrom ?? defaultFrom;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     testSend.mutate(
-      { to, subject, body },
-      { onSuccess: () => onOpenChange(false) }
+      {
+        to,
+        subject,
+        body,
+        ...(adapter.adapter_type === "ses" && from ? { from } : {}),
+      },
+      { onSuccess: () => onOpenChange(false) },
     );
   }
 
@@ -523,6 +574,26 @@ function TestSendDialog({
                 required
               />
             </div>
+            {adapter.adapter_type === "ses" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="test-from">Send From</Label>
+                <Select value={from} onValueChange={setSelectedFrom} required>
+                  <SelectTrigger id="test-from" className="w-full">
+                    <SelectValue placeholder="Select sender email..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {verifiedEmails.map((identity) => (
+                      <SelectItem key={identity.id} value={identity.identity}>
+                        {identity.display_name
+                          ? `${identity.display_name} <${identity.identity}>`
+                          : identity.identity}
+                        {identity.is_default ? " (default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="test-subject">Subject</Label>
               <Input
