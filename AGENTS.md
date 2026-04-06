@@ -452,6 +452,35 @@ grep "dependencies:" stories/backlog/HT-XX.md
 7. **Update the story** with implementation notes and progress log
 8. **Run all tests** before marking done
 
+### Task Completion Gate (mandatory)
+
+**Before declaring ANY task complete**, run the fast local validation gate. Do NOT wait for the pre-push hook — catch errors immediately after finishing the code.
+
+**Always run (every task, ALL packages — never skip to "just what I touched"):**
+
+```bash
+make lint                 # golangci-lint on ALL packages (./...)
+go vet ./...              # Go vet on ALL packages
+make test                 # go test ./... with race detector — validates nothing existing broke
+```
+
+If the task touches frontend (`web/`), also run:
+
+```bash
+npm --prefix web run typecheck   # tsc --noEmit (full project)
+npm --prefix web run lint        # ESLint with sonarjs (--max-warnings=0, full project)
+```
+
+**On-demand only (not part of the standard gate):**
+
+```bash
+make test-integration     # Integration tests (requires Docker/TestContainers)
+make test-e2e             # E2E deterministic gate (requires Docker/TestContainers)
+make test-e2e-ses         # SES lifecycle E2E (requires MiniStack)
+```
+
+Run these heavier suites when the change touches infrastructure, adapters, or cross-layer flows — but do NOT block every task on them.
+
 ### Code Quality Gates
 
 ```bash
