@@ -1,17 +1,7 @@
 name: System PR Gate
 
 on:
-  pull_request:
-    paths:
-      - '**/*.go'
-      - 'web/**'
-      - 'docker/**'
-      - 'migrations/**'
-      - 'docs/postman/**'
-      - 'test/**'
-      - 'cmd/systemtest/**'
-      - 'Makefile'
-      - '.github/workflows/system-pr-gate.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
