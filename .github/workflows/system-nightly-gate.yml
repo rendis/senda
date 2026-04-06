@@ -2,8 +2,6 @@ name: System Nightly Gate
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 5 * * *'
 
 permissions:
   contents: read
