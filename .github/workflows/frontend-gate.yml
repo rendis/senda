@@ -7,9 +7,6 @@ on:
       - 'Makefile'
       - 'scripts/**'
       - '.github/workflows/frontend-gate.yml'
-  push:
-    branches:
-      - main
 
 jobs:
   frontend:

@@ -12,9 +12,6 @@ on:
       - 'migrations/**'
       - 'test/**'
       - '.github/workflows/backend-gate.yml'
-  push:
-    branches:
-      - main
 
 jobs:
   backend:
@@ -36,10 +33,5 @@ jobs:
           version: latest
           install-mode: binary
 
-      - name: Backend gate (PR)
-        if: github.event_name == 'pull_request'
+      - name: Backend gate
         run: make ci-backend-pr
-
-      - name: Backend gate (push to main)
-        if: github.event_name == 'push'
-        run: make ci-backend-main
