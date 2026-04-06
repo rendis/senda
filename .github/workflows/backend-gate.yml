@@ -2,17 +2,6 @@ name: Backend Gate
 
 on:
   pull_request:
-    paths:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Makefile'
-      - 'scripts/**'
-      - 'docker/**'
-      - 'migrations/**'
-      - 'test/**'
-      - '.github/workflows/backend-gate.yml'
-      - '.golangci.yml'
 
 permissions:
   contents: read
