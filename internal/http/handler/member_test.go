@@ -400,6 +400,71 @@ func TestMemberHandler_Create_InvalidEmail(t *testing.T) {
 	}
 }
 
+func TestMemberHandler_Create_ExistingEmail_ReusesIdentity(t *testing.T) {
+	existingMemberID := uuid.New()
+	tenantID := uuid.New()
+	workspaceID := uuid.New()
+	now := time.Now().UTC()
+	displayName := "Existing User"
+
+	createCalled := false
+	var addedRole *domain.MemberRole
+
+	ms := &mockMemberStore{
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			return &domain.Member{
+				ID:          existingMemberID,
+				Email:       email,
+				DisplayName: &displayName,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		createFn: func(_ context.Context, _ *domain.Member) error {
+			createCalled = true
+			return nil
+		},
+		addRoleFn: func(_ context.Context, r *domain.MemberRole) error {
+			addedRole = r
+			return nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+	ws := &memberMockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, ws)
+
+	body := `{"email":"existing@example.com","display_name":"Existing User","role":"workspace_admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/main/members", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if createCalled {
+		t.Fatal("expected Create NOT to be called for existing member")
+	}
+	if addedRole == nil {
+		t.Fatal("expected role to be added")
+	}
+	if addedRole.MemberID != existingMemberID {
+		t.Fatalf("expected role linked to existing member %s, got %s", existingMemberID, addedRole.MemberID)
+	}
+	if addedRole.Role != domain.RoleWorkspaceAdmin {
+		t.Fatalf("expected workspace_admin role, got %s", addedRole.Role)
+	}
+}
+
 func TestMemberHandler_Get_Success(t *testing.T) {
 	memberID := uuid.New()
 	now := time.Now().UTC()
