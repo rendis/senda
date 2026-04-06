@@ -13,6 +13,9 @@ on:
       - 'Makefile'
       - '.github/workflows/system-pr-gate.yml'
 
+permissions:
+  contents: read
+
 jobs:
   system-pr:
     runs-on: ubuntu-latest
@@ -30,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '25'
           cache: npm
           cache-dependency-path: web/package-lock.json
 
