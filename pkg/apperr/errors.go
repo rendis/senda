@@ -1,6 +1,7 @@
 package apperr
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -70,6 +71,12 @@ func Internal(msg string, args ...any) *AppError {
 		Code:    http.StatusInternalServerError,
 		Message: fmt.Sprintf(msg, args...),
 	}
+}
+
+// IsNotFound reports whether err is an AppError with a 404 status code.
+func IsNotFound(err error) bool {
+	var appErr *AppError
+	return errors.As(err, &appErr) && appErr.Code == http.StatusNotFound
 }
 
 // Wrap sets the wrapped error and returns the receiver for chaining.

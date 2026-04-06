@@ -15,6 +15,7 @@ import (
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 type memberScope struct {
@@ -231,17 +232,28 @@ func (h *MemberHandler) Create(c *echo.Context) error {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 	}
 
-	now := time.Now().UTC()
-	member := &domain.Member{
-		ID:          uuid.Must(uuid.NewV7()),
-		Email:       req.Email,
-		DisplayName: req.DisplayName,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	ctx := c.Request().Context()
+
+	member, err := h.store.GetByEmail(ctx, req.Email)
+	if err != nil {
+		if !apperr.IsNotFound(err) {
+			return mapStoreError(c, err)
+		}
+		member = nil
 	}
 
-	if err := h.store.Create(c.Request().Context(), member); err != nil {
-		return mapStoreError(c, err)
+	if member == nil {
+		now := time.Now().UTC()
+		member = &domain.Member{
+			ID:          uuid.Must(uuid.NewV7()),
+			Email:       req.Email,
+			DisplayName: req.DisplayName,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := h.store.Create(ctx, member); err != nil {
+			return mapStoreError(c, err)
+		}
 	}
 
 	roles := make([]*domain.MemberRole, 0, 1)
@@ -261,7 +273,7 @@ func (h *MemberHandler) Create(c *echo.Context) error {
 			workspaceID := *scope.workspaceID
 			memberRole.WorkspaceID = &workspaceID
 		}
-		if err := h.store.AddRole(c.Request().Context(), memberRole); err != nil {
+		if err := h.store.AddRole(ctx, memberRole); err != nil {
 			return mapStoreError(c, err)
 		}
 		roles = append(roles, memberRole)

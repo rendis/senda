@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,6 +95,5 @@ func isNotFoundErr(err error) bool {
 	if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrTemplateTypeNotFound) {
 		return true
 	}
-	var appErr *apperr.AppError
-	return errors.As(err, &appErr) && appErr.Code == http.StatusNotFound
+	return apperr.IsNotFound(err)
 }
