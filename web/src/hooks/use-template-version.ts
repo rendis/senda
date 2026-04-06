@@ -13,12 +13,14 @@ import type {
   TemplateBulkSendConfig,
 } from "@/types/templates";
 
+const QK_TEMPLATE_VERSIONS = "template-versions";
+
 export function useTemplateVersions(scopedPath: string, templateId: string) {
   const api = useApi();
   const ready = useApiReady();
 
   return useQuery({
-    queryKey: ["template-versions", scopedPath, templateId],
+    queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],
     queryFn: () =>
       api
         .get(`${scopedPath}/templates/${templateId}/versions`)
@@ -60,7 +62,7 @@ export function useCreateTemplateVersion(
         .json<TemplateVersion>(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["template-versions", scopedPath, templateId],
+        queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],
       });
     },
   });
@@ -86,7 +88,7 @@ export function useSaveTemplateVersion(
         queryKey: ["template-version", scopedPath, templateId, versionId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["template-versions", scopedPath, templateId],
+        queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],
       });
     },
   });
@@ -109,7 +111,7 @@ export function usePublishVersion(
         .json<TemplateVersion>(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["template-versions", scopedPath, templateId],
+        queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],
       });
       queryClient.invalidateQueries({
         queryKey: ["template-version", scopedPath, templateId, versionId],
@@ -183,7 +185,7 @@ export function useDeleteVersion(scopedPath: string, templateId: string) {
     mutationFn: (versionId: string) =>
       api.delete(`${scopedPath}/templates/${templateId}/versions/${versionId}`).then(() => {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["template-versions", scopedPath, templateId] });
+      queryClient.invalidateQueries({ queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId] });
     },
   });
 }

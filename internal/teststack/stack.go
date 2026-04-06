@@ -81,7 +81,7 @@ type resourceNames struct {
 	App           string
 }
 
-func Up(ctx context.Context, opts Options) (*Report, error) {
+func Up(ctx context.Context, opts Options) (*Report, error) { //nolint:funlen // test infrastructure orchestration
 	if opts.ProjectRoot == "" {
 		return nil, fmt.Errorf("project root is required")
 	}

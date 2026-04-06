@@ -26,7 +26,7 @@ func NewTemplateRepo(pool *pgxpool.Pool) *TemplateRepo {
 
 // --- Template Types ---
 
-func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) error {
+func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) error { //nolint:dupl // structurally similar to AdapterRepo.Create
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO template_types (id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema)
 		 VALUES (@id, @slug, @name, @description, @workspace_id, @adapter_id, @sender_identity_id, @variable_schema)

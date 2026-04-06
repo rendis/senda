@@ -112,9 +112,7 @@ func (r *AuditRepo) Query(ctx context.Context, filter port.AuditFilter, opts por
 		return nil, fmt.Errorf("querying audit logs: %w", err)
 	}
 
-	logs, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.AuditLog, error) {
-		return scanAuditRow(row)
-	})
+	logs, err := pgx.CollectRows(rows, scanAuditRow)
 	if err != nil {
 		return nil, fmt.Errorf("collecting audit logs: %w", err)
 	}

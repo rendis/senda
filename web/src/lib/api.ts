@@ -14,31 +14,30 @@ export const api = ky.create({
         if (
           response.status === 401 &&
           typeof window !== "undefined" &&
-          request.headers.has("Authorization")
+          request.headers.has("Authorization") &&
+          state.retryCount === 0
         ) {
           // First 401 — attempt silent token refresh via next-auth session.
-          if (state.retryCount === 0) {
-            const { getSession } = await import("next-auth/react");
-            const session = await getSession();
+          const { getSession } = await import("next-auth/react");
+          const session = await getSession();
 
-            if (session?.idToken && !session.error) {
-              const headers = new Headers(request.headers);
-              headers.set("Authorization", `Bearer ${session.idToken}`);
-              return ky.retry({
-                request: new Request(request, { headers }),
-                code: "TOKEN_REFRESHED",
-              });
-            }
+          if (session?.idToken && !session.error) {
+            const headers = new Headers(request.headers);
+            headers.set("Authorization", `Bearer ${session.idToken}`);
+            return ky.retry({
+              request: new Request(request, { headers }),
+              code: "TOKEN_REFRESHED",
+            });
           }
-
-          // Retry also returned 401 — DON'T trigger federated logout.
-          // The token may have expired between refresh and retry (race condition).
-          // Let the SessionProvider refetch handle token renewal; individual
-          // components should handle 401 as a transient error, not a logout signal.
-          // Only trigger logout if the session itself reports RefreshTokenError
-          // (handled by SessionGuard, not here).
-          // 401 after retry — let error propagate. SessionGuard handles real auth failures.
         }
+
+        // Retry also returned 401 — DON'T trigger federated logout.
+        // The token may have expired between refresh and retry (race condition).
+        // Let the SessionProvider refetch handle token renewal; individual
+        // components should handle 401 as a transient error, not a logout signal.
+        // Only trigger logout if the session itself reports RefreshTokenError
+        // (handled by SessionGuard, not here).
+        // 401 after retry — let error propagate. SessionGuard handles real auth failures.
       },
     ],
   },

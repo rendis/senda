@@ -16,6 +16,8 @@ import (
 	"github.com/rendis/senda/internal/port"
 )
 
+const kindSendEmail = "send_email"
+
 // SendJobArgs are the args for the send email worker.
 type SendJobArgs struct {
 	EmailID    uuid.UUID `json:"email_id"`
@@ -24,7 +26,7 @@ type SendJobArgs struct {
 	Priority   int       `json:"priority"`
 }
 
-func (SendJobArgs) Kind() string { return "send_email" }
+func (SendJobArgs) Kind() string { return kindSendEmail }
 
 func (a SendJobArgs) InsertOpts() goriver.InsertOpts {
 	return goriver.InsertOpts{
@@ -168,7 +170,7 @@ func (h *errorHandler) HandleError(_ context.Context, job *rivertype.JobRow, err
 			"error", err,
 		}
 		// Try to extract email-specific identifiers from the job args.
-		if job.Kind == "send_email" {
+		if job.Kind == kindSendEmail {
 			var args struct {
 				EmailID    string `json:"email_id"`
 				TrackingID string `json:"tracking_id"`
@@ -194,7 +196,7 @@ func (h *errorHandler) HandlePanic(_ context.Context, job *rivertype.JobRow, pan
 			"max_attempts", job.MaxAttempts,
 			"panic", panicVal,
 		}
-		if job.Kind == "send_email" {
+		if job.Kind == kindSendEmail {
 			var args struct {
 				EmailID    string `json:"email_id"`
 				TrackingID string `json:"tracking_id"`

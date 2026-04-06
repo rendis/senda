@@ -23,7 +23,7 @@ func NewAdapterRepo(pool *pgxpool.Pool) *AdapterRepo {
 	return &AdapterRepo{pool: pool}
 }
 
-func (r *AdapterRepo) Create(ctx context.Context, adapter *domain.Adapter) error {
+func (r *AdapterRepo) Create(ctx context.Context, adapter *domain.Adapter) error { //nolint:dupl // structurally similar to TemplateRepo.CreateType
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO adapters (id, name, workspace_id, adapter_type, config_encrypted, is_default, rate_limit_per_second, config_meta)
 		 VALUES (@id, @name, @workspace_id, @adapter_type, @config_encrypted, @is_default, @rate_limit_per_second, @config_meta)

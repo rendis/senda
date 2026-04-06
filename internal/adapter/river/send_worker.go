@@ -26,19 +26,19 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 	case domain.AdapterTypeSES:
 		var cfg sesadapter.Config
 		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
-			return nil, fmt.Errorf("%w: unmarshal SES config: %v", domain.ErrValidation, err)
+			return nil, fmt.Errorf("%w: unmarshal SES config: %w", domain.ErrValidation, err)
 		}
 		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
+			return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
 		}
 		return sesadapter.NewAdapterFromConfig(ctx, cfg)
 	case domain.AdapterTypeGmail:
 		var cfg gmailadapter.GmailConfig
 		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
-			return nil, fmt.Errorf("%w: unmarshal Gmail config: %v", domain.ErrValidation, err)
+			return nil, fmt.Errorf("%w: unmarshal Gmail config: %w", domain.ErrValidation, err)
 		}
 		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
+			return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
 		}
 		return gmailadapter.NewAdapterFromConfig(ctx, cfg)
 	default:
@@ -121,7 +121,7 @@ func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, send
 }
 
 // Work processes a single email send job.
-func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) error {
+func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) error { //nolint:gocognit,gocyclo,funlen // multi-step email send pipeline
 	args := job.Args
 
 	// 1. Fetch email by tracking ID.
@@ -362,7 +362,7 @@ func (w *SendWorker) resolveSender(ctx context.Context, adapterID uuid.UUID) (po
 	}
 	decryptedConfig, err := w.crypto.Decrypt(adapter.ConfigEncrypted)
 	if err != nil {
-		return nil, fmt.Errorf("%w: decrypt adapter config: %v", domain.ErrValidation, err)
+		return nil, fmt.Errorf("%w: decrypt adapter config: %w", domain.ErrValidation, err)
 	}
 	sender, err := factory(ctx, adapter, decryptedConfig)
 	if err != nil {

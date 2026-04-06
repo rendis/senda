@@ -229,7 +229,7 @@ func NewSendService(
 // 1. Parse ref → 2. Resolve tenant/workspace → 3. Resolve template →
 // 4. Merge injectors → 5. Resolve adapter → 6. Resolve from_email →
 // 7. Render fields → 8. Create emails → 9. Enqueue jobs
-func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse, error) {
+func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse, error) { //nolint:gocognit,funlen // multi-step email send orchestration pipeline
 	// 1. Parse addressing ref (tenant:workspace:templateType)
 	ref, err := domain.ParseRef(req.Ref)
 	if err != nil {

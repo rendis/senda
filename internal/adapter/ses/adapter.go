@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/smithy-go"
 
+	"github.com/rendis/senda/internal/domain"
 	sendamime "github.com/rendis/senda/internal/mime"
 	"github.com/rendis/senda/internal/port"
 )
@@ -422,19 +423,19 @@ var _ port.IdentityProvider = (*Adapter)(nil)
 func normalizeVerificationStatus(ident types.IdentityInfo) string {
 	switch ident.VerificationStatus {
 	case types.VerificationStatusSuccess:
-		return "verified"
+		return string(domain.IdentityStatusVerified)
 	case types.VerificationStatusPending, types.VerificationStatusTemporaryFailure:
-		return "pending"
+		return string(domain.IdentityStatusPending)
 	case types.VerificationStatusNotStarted:
 		if ident.SendingEnabled {
-			return "verified"
+			return string(domain.IdentityStatusVerified)
 		}
-		return "pending"
+		return string(domain.IdentityStatusPending)
 	default:
 		if ident.SendingEnabled {
-			return "verified"
+			return string(domain.IdentityStatusVerified)
 		}
-		return "failed"
+		return string(domain.IdentityStatusFailed)
 	}
 }
 

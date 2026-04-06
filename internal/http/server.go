@@ -325,7 +325,7 @@ func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *S
 	return s
 }
 
-func (s *Server) registerRoutes() {
+func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route registration is inherently complex
 	healthH := handler.NewHealthHandler(s.pinger)
 
 	s.echo.GET("/health", func(c *echo.Context) error {
@@ -396,7 +396,7 @@ func (s *Server) registerRoutes() {
 		mgmt.DELETE("/tenants/:tenant_code", s.tenantHandler.SoftDelete, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 
 		// Workspaces (tenant_admin+).
-		if s.workspaceHandler != nil {
+		if s.workspaceHandler != nil { //nolint:dupl // repeated route group pattern
 			mgmt.POST("/tenants/:tenant_code/workspaces", s.workspaceHandler.Create, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 			mgmt.GET("/tenants/:tenant_code/workspaces", s.workspaceHandler.List, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 			mgmt.GET("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -435,7 +435,7 @@ func (s *Server) registerRoutes() {
 		{
 			ws := mgmt.Group("/tenants/:tenant_code/workspaces/:workspace_code")
 
-			if s.injectorHandler != nil {
+			if s.injectorHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.POST("/injectors", s.injectorHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/injectors/:name", s.injectorHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -468,7 +468,7 @@ func (s *Server) registerRoutes() {
 				ws.PUT("/adapters/:id/identities/:identity_id/workspace-access", s.identityHandler.UpdateWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
 			// Template types (HT-21).
-			if s.templateTypeHandler != nil {
+			if s.templateTypeHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.POST("/template-types", s.templateTypeHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/template-types", s.templateTypeHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/template-types/:slug", s.templateTypeHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -524,7 +524,7 @@ func (s *Server) registerRoutes() {
 				ws.GET("/emails/:tracking_id/events", s.emailHandler.GetEvents, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			}
 
-			if s.memberHandler != nil {
+			if s.memberHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.GET("/members", s.memberHandler.ListWorkspace, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/members", s.memberHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/members/:member_id", s.memberHandler.GetWorkspace, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))

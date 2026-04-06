@@ -24,7 +24,7 @@ func NewEmailRepo(pool *pgxpool.Pool) *EmailRepo {
 	return &EmailRepo{pool: pool}
 }
 
-func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error {
+func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error { //nolint:dupl // structurally similar to CreateTx
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO emails (
 			id, tracking_id, external_id, workspace_id, tenant_id,
@@ -43,7 +43,7 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error {
 			@source_type, @source_actor_member_id, @source_actor_email,
 			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
 		) RETURNING created_at, updated_at`,
-		pgx.NamedArgs{
+		pgx.NamedArgs{ //nolint:dupl // same fields for insert and upsert
 			"id":                     email.ID,
 			"tracking_id":            email.TrackingID,
 			"external_id":            email.ExternalID,
@@ -85,7 +85,7 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error {
 	return nil
 }
 
-func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error {
+func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error { //nolint:dupl // structurally similar to Create
 	row := tx.QueryRow(ctx,
 		`INSERT INTO emails (
 			id, tracking_id, external_id, workspace_id, tenant_id,
@@ -104,7 +104,7 @@ func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email
 			@source_type, @source_actor_member_id, @source_actor_email,
 			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
 		) RETURNING created_at, updated_at`,
-		pgx.NamedArgs{
+		pgx.NamedArgs{ //nolint:dupl // same fields for insert and upsert
 			"id":                     email.ID,
 			"tracking_id":            email.TrackingID,
 			"external_id":            email.ExternalID,
@@ -354,7 +354,7 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 	if cursor != "" {
 		cursorTime, cursorID, err := DecodeTimeCursor(cursor)
 		if err != nil {
-			return nil, "", fmt.Errorf("%w: %v", domain.ErrInvalidCursor, err)
+			return nil, "", fmt.Errorf("%w: %w", domain.ErrInvalidCursor, err)
 		}
 		where += ` AND (created_at, id) < (@cursor_time, @cursor_id)`
 		args["cursor_time"] = cursorTime
@@ -383,9 +383,7 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 		return nil, "", fmt.Errorf("querying emails: %w", err)
 	}
 
-	emails, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Email, error) {
-		return collectEmail(row)
-	})
+	emails, err := pgx.CollectRows(rows, collectEmail)
 	if err != nil {
 		return nil, "", fmt.Errorf("collecting emails: %w", err)
 	}
@@ -402,7 +400,7 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 
 func scanEmail(row pgx.Row) (*domain.Email, error) {
 	var e domain.Email
-	err := row.Scan(
+	err := row.Scan( //nolint:dupl // same fields as collectEmail
 		&e.ID, &e.TrackingID, &e.ExternalID, &e.WorkspaceID, &e.TenantID,
 		&e.TemplateID, &e.TemplateVersionID, &e.TemplateTypeSlug, &e.TemplateRef,
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,
@@ -423,7 +421,7 @@ func scanEmail(row pgx.Row) (*domain.Email, error) {
 
 func collectEmail(row pgx.CollectableRow) (*domain.Email, error) {
 	var e domain.Email
-	err := row.Scan(
+	err := row.Scan( //nolint:dupl // same fields as scanEmail
 		&e.ID, &e.TrackingID, &e.ExternalID, &e.WorkspaceID, &e.TenantID,
 		&e.TemplateID, &e.TemplateVersionID, &e.TemplateTypeSlug, &e.TemplateRef,
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,

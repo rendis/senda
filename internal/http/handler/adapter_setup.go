@@ -116,7 +116,7 @@ func (h *AdapterSetupHandler) buildSESGuide(adapter *domain.Adapter) map[string]
 				"step":        5,
 				"title":       "Register Configuration Set in Senda",
 				"description": "Update the adapter with the Configuration Set name so Senda includes it when sending emails.",
-				"api_call":    fmt.Sprintf("PATCH /adapters/%s with body: {\"configuration_set_name\": \"%s\"}", adapter.ID.String(), configSetName),
+				"api_call":    fmt.Sprintf("PATCH /adapters/%s with body: {\"configuration_set_name\": %q}", adapter.ID.String(), configSetName),
 			},
 		},
 		"iam_policy": map[string]any{

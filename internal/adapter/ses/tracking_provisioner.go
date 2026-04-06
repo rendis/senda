@@ -134,7 +134,7 @@ func (p *TrackingProvisioner) loadAdapterClients(ctx context.Context, adapterID 
 
 // Provision auto-provisions all SES tracking resources for the given adapter.
 // When a stepStore is configured, completed steps are skipped on retry.
-func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID) (*ProvisionResult, error) {
+func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID) (*ProvisionResult, error) { //nolint:gocognit,funlen // multi-step AWS resource provisioning
 	adapter, _, sesClient, snsClient, err := p.loadAdapterClients(ctx, adapterID)
 	if err != nil {
 		return nil, err
@@ -509,7 +509,7 @@ func (p *TrackingProvisioner) verifySubscription(ctx context.Context, client SNS
 // Deprovision cleans up AWS resources (Configuration Set, SNS Topic, Event Destination,
 // SNS Subscription) for the given SES adapter. Each step is idempotent — NotFoundException
 // is treated as success.
-func (p *TrackingProvisioner) Deprovision(ctx context.Context, adapterID uuid.UUID) error {
+func (p *TrackingProvisioner) Deprovision(ctx context.Context, adapterID uuid.UUID) error { //nolint:gocognit // multi-step AWS resource cleanup
 	adapter, _, sesClient, snsClient, err := p.loadAdapterClients(ctx, adapterID)
 	if err != nil {
 		return err

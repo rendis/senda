@@ -54,7 +54,8 @@ func BuildRawMessage(msg *port.OutgoingEmail) ([]byte, error) {
 	hasHTML := msg.BodyHTML != ""
 	hasText := msg.BodyText != ""
 
-	if hasHTML && hasText {
+	switch {
+	case hasHTML && hasText:
 		// multipart/alternative
 		boundary := "senda-boundary-" + msg.TrackingID
 		headers.Set("Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", boundary))
@@ -71,12 +72,12 @@ func BuildRawMessage(msg *port.OutgoingEmail) ([]byte, error) {
 		buf.WriteString(msg.BodyHTML)
 
 		fmt.Fprintf(&buf, "\r\n--%s--\r\n", boundary)
-	} else if hasHTML {
+	case hasHTML:
 		headers.Set("Content-Type", "text/html; charset=UTF-8")
 		WriteHeaders(&buf, headers)
 		buf.WriteString("\r\n")
 		buf.WriteString(msg.BodyHTML)
-	} else {
+	default:
 		headers.Set("Content-Type", "text/plain; charset=UTF-8")
 		WriteHeaders(&buf, headers)
 		buf.WriteString("\r\n")

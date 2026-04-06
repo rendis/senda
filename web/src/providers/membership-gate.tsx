@@ -43,8 +43,8 @@ function hasScopeAccess(roles: MemberRoleDetail[], pathname: string): boolean {
     }
 
     // Workspace-scoped role must match exact workspace
-    if (r.scope_type === "workspace" && workspaceCode && r.workspace_code === workspaceCode) {
-      if (level === "workspace") return true;
+    if (r.scope_type === "workspace" && workspaceCode && r.workspace_code === workspaceCode && level === "workspace") {
+      return true;
     }
   }
 

@@ -30,7 +30,7 @@ func newSESIdentityProvider(ctx context.Context, decryptedConfig []byte) (port.I
 		return nil, fmt.Errorf("unmarshal SES config: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
 	}
 
 	provider, err := sesadapter.NewAdapterFromConfig(ctx, cfg)
@@ -46,7 +46,7 @@ func newGmailIdentityProvider(ctx context.Context, decryptedConfig []byte) (port
 		return nil, fmt.Errorf("unmarshal Gmail config: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrValidation, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
 	}
 
 	provider, err := gmailadapter.NewAdapterFromConfig(ctx, cfg)

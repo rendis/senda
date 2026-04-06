@@ -276,7 +276,7 @@ func (r *MemberRepo) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domai
 	return roles, nil
 }
 
-func (r *MemberRepo) GetRolesByMembers(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) {
+func (r *MemberRepo) GetRolesByMembers(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error) { //nolint:dupl // structurally similar to InjectorRepo.GetAllFieldsByDefinitions
 	if len(memberIDs) == 0 {
 		return make(map[uuid.UUID][]*domain.MemberRole), nil
 	}

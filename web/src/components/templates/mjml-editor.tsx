@@ -238,6 +238,11 @@ const TOKEN_SEGMENT_KIND = "token";
 const TOKEN_CHIP_CLASSNAME =
   "inline-flex items-center rounded border border-dashed border-input bg-muted px-1.5 py-0.5 text-xs align-middle select-none";
 const MIN_PREVIEW_SCALE = 0.01;
+const BANNER_MODE_FIXED = "fixed-height";
+const BANNER_MODE_FLUID = "fluid-height";
+const MIME_TEXT_PLAIN = "text/plain";
+const LOCALE_INACTIVE_CLASS = "text-muted-foreground hover:text-foreground hover:bg-muted";
+const LOCALE_ACTIVE_CLASS = "bg-primary text-primary-foreground";
 
 function nowId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -407,14 +412,13 @@ function segmentsMeaningfullyEqual(a: BuilderSegment[], b: BuilderSegment[]) {
     if (left.kind === "text" && right.kind === "text" && left.text !== right.text) {
       return false;
     }
-    if (left.kind === "token" && right.kind === "token") {
-      if (
-        left.token !== right.token ||
+    if (
+      left.kind === "token" && right.kind === "token" &&
+      (left.token !== right.token ||
         left.label !== right.label ||
-        left.category !== right.category
-      ) {
-        return false;
-      }
+        left.category !== right.category)
+    ) {
+      return false;
     }
   }
   return true;
@@ -936,6 +940,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
   }
 
   const blocks = blocksRaw
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     .map((item): BuilderBlock | null => {
       if (!isRecord(item)) return null;
       const id =
@@ -1100,7 +1105,7 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
           type: "banner",
           backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
           backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#333333",
-          mode: raw.mode === "fixed-height" ? "fixed-height" : "fluid-height",
+          mode: raw.mode === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
           height: normalizeSpacerHeight(raw.height, 400),
           segments: Array.isArray(raw.segments)
             ? ensureUniqueSegmentIds(
@@ -1465,7 +1470,7 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
     type: "banner",
     backgroundUrl: element.getAttribute("background-url") || "",
     backgroundColor: element.getAttribute("background-color") || "#333333",
-    mode: element.getAttribute("mode") === "fixed-height" ? "fixed-height" : "fluid-height",
+    mode: element.getAttribute("mode") === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
     height: normalizeSpacerHeight(element.getAttribute("height"), 400),
     segments,
     buttonText,
@@ -1621,7 +1626,7 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
 
 function renderBannerToMjml(block: BuilderBannerBlock): string {
   const modeAttr = ` mode="${block.mode}"`;
-  const heightAttr = block.mode === "fixed-height" ? ` height="${block.height}px"` : "";
+  const heightAttr = block.mode === BANNER_MODE_FIXED ? ` height="${block.height}px"` : "";
   const bgUrl = block.backgroundUrl ? ` background-url="${block.backgroundUrl}"` : "";
   const bgColor = ` background-color="${block.backgroundColor}"`;
   const vAlign = ` vertical-align="${block.verticalAlign}"`;
@@ -1681,6 +1686,7 @@ function makeVariableToken(name: string, category: "event" | "injector") {
   return cleanName;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function MjmlEditor() {
   const t = useTranslations("editor");
 
@@ -2579,7 +2585,7 @@ export function MjmlEditor() {
         type: "banner",
         backgroundUrl: "",
         backgroundColor: "#333333",
-        mode: "fluid-height",
+        mode: BANNER_MODE_FLUID,
         height: 400,
         segments: [createTextSegment("Your headline here")],
         buttonText: "",
@@ -2913,7 +2919,7 @@ export function MjmlEditor() {
     const plain = renderSegmentsToText(copiedSegments);
 
     event.preventDefault();
-    event.clipboardData.setData("text/plain", plain);
+    event.clipboardData.setData(MIME_TEXT_PLAIN, plain);
     event.clipboardData.setData(
       CLIPBOARD_SEGMENTS_MIME,
       JSON.stringify({
@@ -2956,7 +2962,7 @@ export function MjmlEditor() {
     const clipboardSegments = parseClipboardSegments(
       event.clipboardData.getData(CLIPBOARD_SEGMENTS_MIME)
     );
-    const fallbackText = event.clipboardData.getData("text/plain");
+    const fallbackText = event.clipboardData.getData(MIME_TEXT_PLAIN);
     const textPayload =
       clipboardSegments && clipboardSegments.length > 0
         ? renderSegmentsToText(clipboardSegments)
@@ -3034,7 +3040,7 @@ export function MjmlEditor() {
     if (Array.from(dataTransfer.types).includes(BLOCK_DND_MIME)) {
       return true;
     }
-    const plain = dataTransfer.getData("text/plain");
+    const plain = dataTransfer.getData(MIME_TEXT_PLAIN);
     return plain.startsWith("block:");
   }
 
@@ -3044,7 +3050,7 @@ export function MjmlEditor() {
     return (
       types.includes(VARIABLE_DND_MIME) ||
       types.includes("application/json") ||
-      types.includes("text/plain")
+      types.includes(MIME_TEXT_PLAIN)
     );
   }
 
@@ -3090,7 +3096,7 @@ export function MjmlEditor() {
       }
     }
 
-    const token = normalizeVariableToken(event.dataTransfer.getData("text/plain"));
+    const token = normalizeVariableToken(event.dataTransfer.getData(MIME_TEXT_PLAIN));
     if (!token || !token.includes(".")) return null;
 
     return {
@@ -3422,7 +3428,7 @@ export function MjmlEditor() {
     };
     event.dataTransfer.setData(VARIABLE_DND_MIME, JSON.stringify(payload));
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
-    event.dataTransfer.setData("text/plain", safeToken);
+    event.dataTransfer.setData(MIME_TEXT_PLAIN, safeToken);
     event.dataTransfer.effectAllowed = "copy";
   }
 
@@ -3432,7 +3438,7 @@ export function MjmlEditor() {
   ) {
     if (!isDraft) return;
     event.dataTransfer.setData(BLOCK_DND_MIME, blockId);
-    event.dataTransfer.setData("text/plain", `block:${blockId}`);
+    event.dataTransfer.setData(MIME_TEXT_PLAIN, `block:${blockId}`);
     event.dataTransfer.effectAllowed = "move";
     draggedBlockIdRef.current = blockId;
     setDraggedBlockId(blockId);
@@ -3553,8 +3559,8 @@ export function MjmlEditor() {
                 type="button"
                 className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
                   activeLocale === "default"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? LOCALE_ACTIVE_CLASS
+                    : LOCALE_INACTIVE_CLASS
                 }`}
                 onClick={() => handleSwitchLocale("default")}
               >
@@ -3567,8 +3573,8 @@ export function MjmlEditor() {
                     type="button"
                     className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
                       activeLocale === loc.locale
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? LOCALE_ACTIVE_CLASS
+                        : LOCALE_INACTIVE_CLASS
                     }`}
                     onClick={() => handleSwitchLocale(loc.locale)}
                   >
@@ -3595,7 +3601,7 @@ export function MjmlEditor() {
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="h-6 w-6 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className={`h-6 w-6 flex items-center justify-center rounded-sm ${LOCALE_INACTIVE_CLASS} transition-colors`}
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -3615,7 +3621,7 @@ export function MjmlEditor() {
               <button
                 className={`h-8 px-2.5 text-xs ${
                   editorMode === "visual"
-                    ? "bg-primary text-primary-foreground"
+                    ? LOCALE_ACTIVE_CLASS
                     : "text-muted-foreground hover:text-foreground"
                 }`}
                 onClick={() => setEditorMode("visual")}
@@ -3626,7 +3632,7 @@ export function MjmlEditor() {
               <button
                 className={`h-8 px-2.5 text-xs ${
                   editorMode === "code"
-                    ? "bg-primary text-primary-foreground"
+                    ? LOCALE_ACTIVE_CLASS
                     : "text-muted-foreground hover:text-foreground"
                 }`}
                 onClick={() => setEditorMode("code")}
@@ -4286,7 +4292,7 @@ export function MjmlEditor() {
                                     </select>
                                   </div>
                                 </div>
-                                {block.mode === "fixed-height" && (
+                                {block.mode === BANNER_MODE_FIXED && (
                                   <div>
                                     <Label className="text-xs">Height (px)</Label>
                                     <Input

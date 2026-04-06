@@ -215,7 +215,7 @@ func (r *InjectorRepo) GetValues(ctx context.Context, defID uuid.UUID, chain []u
 	return vals, nil
 }
 
-func (r *InjectorRepo) GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
+func (r *InjectorRepo) GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) { //nolint:dupl // structurally similar to MemberRepo.GetRolesByMembers
 	if len(defIDs) == 0 {
 		return make(map[uuid.UUID][]*domain.InjectorField), nil
 	}

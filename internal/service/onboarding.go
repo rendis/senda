@@ -74,7 +74,7 @@ func (s *OnboardingService) Status(ctx context.Context) (bool, error) {
 // within a transaction to serialize all concurrent Setup calls. This eliminates
 // the TOCTOU race between CountAll and Create. The lock is automatically released
 // when the transaction commits or rolls back.
-func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, req *OnboardingRequest) (*OnboardingResult, error) {
+func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, req *OnboardingRequest) (*OnboardingResult, error) { //nolint:funlen // transactional onboarding with multiple entity creation
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)

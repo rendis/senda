@@ -246,7 +246,7 @@ func (h *AdapterHandler) UpdateGlobal(c *echo.Context) error {
 	return h.update(c, nil)
 }
 
-func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) error {
+func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) error { //nolint:gocognit // multi-field adapter update validation
 	adapterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid adapter ID")

@@ -41,7 +41,7 @@ type App struct {
 
 // Bootstrap wires all dependencies and returns a ready-to-start App.
 // ext may be nil when running without SDK extensions.
-func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext *Extensions) (*App, error) {
+func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext *Extensions) (*App, error) { //nolint:funlen // full dependency wiring
 	// 1. Database connection.
 	pool, err := postgres.Connect(ctx, cfg.Database)
 	if err != nil {

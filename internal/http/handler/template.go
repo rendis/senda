@@ -603,7 +603,7 @@ func (h *TemplateHandler) PublishVersion(c *echo.Context) error {
 }
 
 // SetLocale handles POST .../templates/:template_id/versions/:version_id/locales.
-func (h *TemplateHandler) SetLocale(c *echo.Context) error {
+func (h *TemplateHandler) SetLocale(c *echo.Context) error { //nolint:dupl // structurally similar to UpdateLocale
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -639,7 +639,7 @@ func (h *TemplateHandler) SetLocale(c *echo.Context) error {
 }
 
 // UpdateLocale handles PUT .../templates/:template_id/versions/:version_id/locales/:locale.
-func (h *TemplateHandler) UpdateLocale(c *echo.Context) error {
+func (h *TemplateHandler) UpdateLocale(c *echo.Context) error { //nolint:dupl // structurally similar to SetLocale
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")

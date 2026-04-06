@@ -1,0 +1,97 @@
+version: "2"
+
+linters:
+  enable:
+    # --- Code quality ---
+    - goconst      # repeated strings → constants
+    - gocyclo      # cyclomatic complexity
+    - gocognit     # cognitive complexity
+    - dupl         # duplicate code blocks
+    - gocritic     # code patterns & best practices
+    - funlen       # long functions
+    # --- Error handling ---
+    - errorlint    # Go 1.13+ error wrapping patterns
+    # --- Security ---
+    - gosec        # security vulnerabilities
+    # --- Context ---
+    - noctx        # HTTP requests without context
+
+  settings:
+    goconst:
+      min-len: 3
+      min-occurrences: 4
+    gocyclo:
+      min-complexity: 30
+    gocognit:
+      min-complexity: 30
+    dupl:
+      threshold: 120
+    funlen:
+      lines: 100
+      statements: 60
+    gocritic:
+      enabled-tags:
+        - diagnostic
+      disabled-checks:
+        - evalOrder
+        - commentedOutCode
+    gosec:
+      excludes:
+        - G104  # unhandled errors (covered by errcheck)
+        - G101  # hardcoded credentials (false positives on const names)
+        - G115  # integer overflow (false positives on bounded values)
+        - G117  # exported secret fields (domain models, not secrets)
+        - G301  # directory permissions
+        - G304  # file inclusion via variable
+        - G306  # WriteFile permissions
+        - G114  # http serve without timeouts
+        - G704  # SSRF via taint (validated input)
+        - G705  # XSS via taint analysis
+        - G706  # log injection (structured logging)
+
+  exclusions:
+    paths:
+      - cmd/senda/docs/
+      - cmd/openapi/
+      - cmd/systemtest/
+      - cmd/aws-sim-bridge/
+    rules:
+      # Generated files
+      - path: cmd/senda/openapi_generated\.go
+        linters: [goconst, gocyclo, gocognit, funlen, dupl, gocritic]
+      # Main entrypoint: route registration
+      - path: cmd/senda/main\.go
+        linters: [gocyclo, gocognit, funlen]
+      # OpenAPI doc generator: high complexity from route introspection
+      - path: internal/openapi/
+        linters: [gocyclo, gocognit, funlen, goconst]
+      # Tests
+      - path: '(.+)_test\.go'
+        linters: [dupl, funlen, goconst, gosec, errorlint]
+      # E2E test helpers
+      - path: test/
+        linters: [dupl, funlen, goconst, gosec, noctx, errorlint]
+      # Teststack (Docker bootstrap)
+      - path: internal/teststack/
+        linters: [gosec, noctx]
+      # SNS verifier: intentional fmt.Errorf for external errors
+      - path: internal/adapter/sns/
+        linters: [errorlint, noctx]
+      # SMTP adapter: net.DialTimeout has no context variant
+      - path: internal/adapter/smtp/
+        linters: [noctx]
+      # SSRF utility: net.LookupHost standalone
+      - path: pkg/netutil/
+        linters: [noctx]
+      # pgcache: intentional == for specific sentinel
+      - path: internal/adapter/pgcache/
+        linters: [errorlint]
+      # DB layer: intentional error comparisons for pgx types
+      - path: internal/adapter/postgres/db\.go
+        linters: [errorlint]
+      # SES interfaces: similar shape is structural, not duplication
+      - path: internal/adapter/ses/
+        linters: [dupl]
+      # Media handler: net.LookupHost validated by SSRF guard
+      - path: internal/http/handler/media\.go
+        linters: [noctx]

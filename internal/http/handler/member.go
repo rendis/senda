@@ -355,7 +355,7 @@ func (h *MemberHandler) Me(c *echo.Context) error {
 
 // enrichRoleCodes resolves tenant/workspace IDs to their codes so the frontend
 // can match roles against URL path segments without extra API calls.
-func (h *MemberHandler) enrichRoleCodes(ctx context.Context, responses []response.MemberRoleResponse, roles []*domain.MemberRole) {
+func (h *MemberHandler) enrichRoleCodes(ctx context.Context, responses []response.MemberRoleResponse, roles []*domain.MemberRole) { //nolint:gocognit // resolves tenant/workspace codes for role responses
 	tenantCodes := make(map[uuid.UUID]string)
 	workspaceCodes := make(map[uuid.UUID]string)
 
@@ -417,7 +417,7 @@ func (h *MemberHandler) AddRoleWorkspace(c *echo.Context) error {
 	return h.addRole(c, scope)
 }
 
-func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error {
+func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
 	memberID, err := uuid.Parse(c.Param("member_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid member ID")

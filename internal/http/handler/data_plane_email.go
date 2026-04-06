@@ -111,7 +111,7 @@ func (h *DataPlaneEmailHandler) GetEvents(c *echo.Context) error {
 }
 
 // Export handles GET /api/v1/emails/export as CSV stream.
-func (h *DataPlaneEmailHandler) Export(c *echo.Context) error {
+func (h *DataPlaneEmailHandler) Export(c *echo.Context) error { //nolint:gocognit // CSV export with streaming and multiple format decisions
 	wsID, err := workspaceIDFromContext(c)
 	if err != nil {
 		return err

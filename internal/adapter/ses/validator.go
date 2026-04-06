@@ -11,6 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const validationStatusDenied = "denied"
+
 // ValidationCheck represents a single permission validation result.
 type ValidationCheck struct {
 	Name        string `json:"name"`
@@ -28,7 +30,7 @@ type ValidationResult struct {
 
 // ValidateCredentials tests SES/SNS permissions without creating any resources.
 // All checks run concurrently for lower latency.
-func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, error) {
+func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, error) { //nolint:funlen // concurrent validation of 8 AWS permissions
 	awsCfg, err := LoadAWSConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid AWS credentials: %w", err)
@@ -69,7 +71,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "List verified sender identities", Required: true, Status: "ok",
 		}
 		if _, err := sesClient.ListEmailIdentities(gCtx, &sesv2.ListEmailIdentitiesInput{PageSize: aws.Int32(1)}); err != nil {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(0, c)
 		return nil
@@ -82,7 +84,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "Read SES account status (sandbox/production)", Required: true, Status: "ok",
 		}
 		if _, err := sesClient.GetAccount(gCtx, &sesv2.GetAccountInput{}); err != nil {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(1, c)
 		return nil
@@ -95,7 +97,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "List configuration sets (validates tracking access)", Required: false, Status: "ok",
 		}
 		if _, err := sesClient.ListConfigurationSets(gCtx, &sesv2.ListConfigurationSetsInput{}); err != nil {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(2, c)
 		return nil
@@ -108,7 +110,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "List SNS topics (validates tracking access)", Required: false, Status: "ok",
 		}
 		if _, err := snsClient.ListTopics(gCtx, &sns.ListTopicsInput{}); err != nil {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(3, c)
 		return nil
@@ -124,7 +126,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			ConfigurationSetName: aws.String("senda-validate-perm-check"),
 		})
 		if err != nil && IsAccessDenied(err) {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(4, c)
 		return nil
@@ -141,7 +143,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			EventDestinationName: aws.String("senda-validate-perm-check"),
 		})
 		if err != nil && IsAccessDenied(err) {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(5, c)
 		return nil
@@ -158,7 +160,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			SubscriptionArn: aws.String(fakeARN),
 		})
 		if err != nil && IsAccessDenied(err) {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(6, c)
 		return nil
@@ -175,7 +177,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			TopicArn: aws.String(fakeARN),
 		})
 		if err != nil && IsAccessDenied(err) {
-			c.Status = "denied"
+			c.Status = validationStatusDenied
 		}
 		setCheck(7, c)
 		return nil

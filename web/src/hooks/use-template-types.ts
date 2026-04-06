@@ -6,12 +6,14 @@ import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import type { TemplateType } from "@/types/templates";
 import type { PaginatedResponse } from "@/types/api";
 
+const QK_TEMPLATE_TYPES = "template-types";
+
 export function useTemplateTypes(scopedPath: string) {
   const api = useApi();
   const ready = useApiReady();
 
   return usePaginatedQuery<TemplateType>({
-    queryKey: ["template-types", scopedPath],
+    queryKey: [QK_TEMPLATE_TYPES, scopedPath],
     fetcher: (cursor) =>
       api
         .get(`${scopedPath}/template-types`, {
@@ -45,7 +47,7 @@ export function useUpdateTemplateType(scopedPath: string, slug: string) {
         .json<TemplateType>(),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({
-        queryKey: ["template-types", scopedPath],
+        queryKey: [QK_TEMPLATE_TYPES, scopedPath],
       });
       queryClient.invalidateQueries({
         queryKey: ["template-type", scopedPath, slug],
@@ -68,7 +70,7 @@ export function useDeleteTemplateType(scopedPath: string) {
       api.delete(`${scopedPath}/template-types/${slug}`).then(() => {}),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["template-types", scopedPath],
+        queryKey: [QK_TEMPLATE_TYPES, scopedPath],
       });
     },
   });
@@ -85,7 +87,7 @@ export function useCreateTemplateType(scopedPath: string) {
         .json<TemplateType>(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["template-types", scopedPath],
+        queryKey: [QK_TEMPLATE_TYPES, scopedPath],
       });
     },
   });

@@ -11,6 +11,8 @@ import (
 	"github.com/rendis/senda/internal/port"
 )
 
+const whereWorkspaceID = ` AND workspace_id = @workspace_id`
+
 // AdapterGrantRepo implements adapter-level workspace sharing persistence.
 type AdapterGrantRepo struct {
 	pool *pgxpool.Pool
@@ -38,7 +40,7 @@ func (r *AdapterGrantRepo) ListAdapterWorkspaceGrants(ctx context.Context, adapt
 	})
 }
 
-func (r *AdapterGrantRepo) ReplaceAdapterWorkspaceGrants(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) error {
+func (r *AdapterGrantRepo) ReplaceAdapterWorkspaceGrants(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) error { //nolint:dupl // structurally similar to ReplaceIdentityWorkspaceGrants
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning tx: %w", err)
@@ -198,7 +200,7 @@ func (r *AdapterIdentityGrantRepo) ListIdentityWorkspaceGrants(ctx context.Conte
 	})
 }
 
-func (r *AdapterIdentityGrantRepo) ReplaceIdentityWorkspaceGrants(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) error {
+func (r *AdapterIdentityGrantRepo) ReplaceIdentityWorkspaceGrants(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) error { //nolint:dupl // structurally similar to ReplaceAdapterWorkspaceGrants
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning tx: %w", err)
@@ -288,7 +290,7 @@ SELECT count(*)
    AND deleted_at IS NULL`
 	args := pgx.NamedArgs{"adapter_id": adapterID}
 	if workspaceID != nil {
-		query += ` AND workspace_id = @workspace_id`
+		query += whereWorkspaceID
 		args["workspace_id"] = *workspaceID
 	}
 	var count int
@@ -306,7 +308,7 @@ SELECT count(*)
    AND deleted_at IS NULL`
 	args := pgx.NamedArgs{"identity_id": identityID}
 	if workspaceID != nil {
-		query += ` AND workspace_id = @workspace_id`
+		query += whereWorkspaceID
 		args["workspace_id"] = *workspaceID
 	}
 	var count int
