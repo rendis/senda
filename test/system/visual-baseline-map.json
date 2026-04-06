@@ -117,6 +117,11 @@
       "critical": false
     },
     {
+      "route": "/t/[tenantCode]/w/[workspaceCode]/workspaces",
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__workspaces",
+      "critical": false
+    },
+    {
       "route": "/t/[tenantCode]",
       "pencilFrameId": "frame:t__tenantCode",
       "critical": true
