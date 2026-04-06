@@ -652,8 +652,14 @@ func AssignAdapterToTemplateType(t *testing.T, templateTypeID, adapterID string)
 }
 
 // EnsureDefaultAdapterIdentity seeds a verified default sender identity for an adapter.
-// E2E uses provider-managed auth model; this simulates a provider-verified identity.
 func EnsureDefaultAdapterIdentity(t *testing.T, adapterID, email string) {
+	t.Helper()
+	EnsureAdapterIdentity(t, adapterID, email, true)
+}
+
+// EnsureAdapterIdentity seeds a verified email identity for an adapter.
+// When isDefault is true, clears other defaults first.
+func EnsureAdapterIdentity(t *testing.T, adapterID, email string, isDefault bool) {
 	t.Helper()
 
 	conn := dbConn(t)
@@ -665,14 +671,16 @@ func EnsureDefaultAdapterIdentity(t *testing.T, adapterID, email string) {
 		_ = tx.Rollback(ctx)
 	}()
 
-	_, err = tx.Exec(ctx,
-		`UPDATE adapter_identities
-		   SET is_default = false, updated_at = NOW()
-		 WHERE adapter_id = $1::uuid
-		   AND identity <> $2`,
-		adapterID, email,
-	)
-	require.NoError(t, err, "failed to clear previous default identities")
+	if isDefault {
+		_, err = tx.Exec(ctx,
+			`UPDATE adapter_identities
+			   SET is_default = false, updated_at = NOW()
+			 WHERE adapter_id = $1::uuid
+			   AND identity <> $2`,
+			adapterID, email,
+		)
+		require.NoError(t, err, "failed to clear previous default identities")
+	}
 
 	_, err = tx.Exec(ctx,
 		`INSERT INTO adapter_identities (
@@ -681,18 +689,18 @@ func EnsureDefaultAdapterIdentity(t *testing.T, adapterID, email string) {
 		 )
 		 VALUES (
 		     gen_random_uuid(), $1::uuid, $2, 'email', 'verified',
-		     true, true, 'provider', NOW(), NOW(), NOW()
+		     true, $3, 'provider', NOW(), NOW(), NOW()
 		 )
 		 ON CONFLICT (adapter_id, identity) DO UPDATE
 		     SET status = 'verified',
 		         sending_enabled = true,
-		         is_default = true,
+		         is_default = $3,
 		         source = 'provider',
 		         last_synced_at = NOW(),
 		         updated_at = NOW()`,
-		adapterID, email,
+		adapterID, email, isDefault,
 	)
-	require.NoError(t, err, "failed to upsert default adapter identity")
+	require.NoError(t, err, "failed to upsert adapter identity %s", email)
 
 	require.NoError(t, tx.Commit(ctx), "failed to commit adapter identity transaction")
 }

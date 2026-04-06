@@ -11,14 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// apiError matches the standard Senda error envelope: {"error":{"code":"...","message":"..."}}.
-type apiError struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 // TestF06_AdapterTestSend verifies the adapter test-send flow with
 // optional from-address selection and disabled-state when no identities exist.
 func TestF06_AdapterTestSend(t *testing.T) {
@@ -59,8 +51,7 @@ func TestF06_AdapterTestSend(t *testing.T) {
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusUnprocessableEntity)
 
-		var errResp apiError
-		ParseJSONResponse(t, resp, &errResp)
+		errResp := ParseError(t, resp)
 		require.Equal(t, "NO_DEFAULT_IDENTITY", errResp.Error.Code)
 	})
 
@@ -82,8 +73,8 @@ func TestF06_AdapterTestSend(t *testing.T) {
 	// ── Seed verified email identities via DB ──
 	fromEmail1 := "sender1@mail.test.example.com"
 	fromEmail2 := "sender2@mail.test.example.com"
-	EnsureDefaultAdapterIdentity(t, adapterID, fromEmail1)
-	ensureAdapterIdentity(t, adapterID, fromEmail2, false)
+	EnsureAdapterIdentity(t, adapterID, fromEmail1, true)
+	EnsureAdapterIdentity(t, adapterID, fromEmail2, false)
 
 	t.Run("list identities returns seeded emails", func(t *testing.T) {
 		resp := client.Get(wp + "/adapters/" + adapterID + "/identities")
@@ -128,10 +119,8 @@ func TestF06_AdapterTestSend(t *testing.T) {
 			ParseJSONResponse(t, resp, &body)
 			require.Equal(t, fromEmail2, body.From)
 		} else {
-			// SES delivery failed but identity resolution passed — verify error is SEND_FAILED not INVALID_FROM.
 			RequireStatus(t, resp, http.StatusUnprocessableEntity)
-			var errResp apiError
-			ParseJSONResponse(t, resp, &errResp)
+			errResp := ParseError(t, resp)
 			require.Equal(t, "SEND_FAILED", errResp.Error.Code,
 				"expected SEND_FAILED (identity resolved, delivery failed), got %s: %s",
 				errResp.Error.Code, errResp.Error.Message)
@@ -154,8 +143,7 @@ func TestF06_AdapterTestSend(t *testing.T) {
 			require.Equal(t, fromEmail1, body.From, "should use default identity")
 		} else {
 			RequireStatus(t, resp, http.StatusUnprocessableEntity)
-			var errResp apiError
-			ParseJSONResponse(t, resp, &errResp)
+			errResp := ParseError(t, resp)
 			require.Equal(t, "SEND_FAILED", errResp.Error.Code,
 				"expected SEND_FAILED (default identity resolved, delivery failed), got %s: %s",
 				errResp.Error.Code, errResp.Error.Message)
@@ -172,8 +160,7 @@ func TestF06_AdapterTestSend(t *testing.T) {
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusUnprocessableEntity)
 
-		var errResp apiError
-		ParseJSONResponse(t, resp, &errResp)
+		errResp := ParseError(t, resp)
 		require.Equal(t, "INVALID_FROM", errResp.Error.Code)
 	})
 
@@ -187,34 +174,7 @@ func TestF06_AdapterTestSend(t *testing.T) {
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusUnprocessableEntity)
 
-		var errResp apiError
-		ParseJSONResponse(t, resp, &errResp)
+		errResp := ParseError(t, resp)
 		require.Equal(t, "INVALID_FROM", errResp.Error.Code)
 	})
-}
-
-// ensureAdapterIdentity seeds a verified email identity for an adapter.
-func ensureAdapterIdentity(t *testing.T, adapterID, email string, isDefault bool) {
-	t.Helper()
-	conn := dbConn(t)
-
-	_, err := conn.Exec(t.Context(),
-		`INSERT INTO adapter_identities (
-		     id, adapter_id, identity, identity_type, status,
-		     sending_enabled, is_default, source, last_synced_at, created_at, updated_at
-		 )
-		 VALUES (
-		     gen_random_uuid(), $1::uuid, $2, 'email', 'verified',
-		     true, $3, 'provider', NOW(), NOW(), NOW()
-		 )
-		 ON CONFLICT (adapter_id, identity) DO UPDATE
-		     SET status = 'verified',
-		         sending_enabled = true,
-		         is_default = $3,
-		         source = 'provider',
-		         last_synced_at = NOW(),
-		         updated_at = NOW()`,
-		adapterID, email, isDefault,
-	)
-	require.NoError(t, err, "failed to upsert adapter identity %s", email)
 }

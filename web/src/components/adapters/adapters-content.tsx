@@ -337,49 +337,47 @@ function AdapterActions({
     ? "Shared from _system — read only in this workspace"
     : "This adapter is read only";
 
-  const actionButton = (
-    label: string,
-    icon: ReactNode,
-    onClick: () => void,
-    disabled = false,
-    destructive = false,
-    disabledReason?: string,
-  ) => (
+  const actionButton = (opts: {
+    label: string;
+    icon: ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    destructive?: boolean;
+    disabledReason?: string;
+  }) => (
     <Tooltip>
       <TooltipTrigger asChild>
         <span>
           <Button
             variant="ghost"
             size="icon"
-            className={`h-8 w-8 ${destructive ? "text-destructive" : ""}`}
-            onClick={onClick}
-            disabled={disabled}
+            className={`h-8 w-8 ${opts.destructive ? "text-destructive" : ""}`}
+            onClick={opts.onClick}
+            disabled={opts.disabled}
           >
-            {icon}
+            {opts.icon}
           </Button>
         </span>
       </TooltipTrigger>
-      <TooltipContent>{disabled ? (disabledReason ?? readOnlyReason) : label}</TooltipContent>
+      <TooltipContent>{opts.disabled ? (opts.disabledReason ?? readOnlyReason) : opts.label}</TooltipContent>
     </Tooltip>
   );
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {adapter.adapter_type === "ses" && (
-        actionButton("Senders", <Mail className="h-4 w-4" />, () => onIdentities(adapter))
-      )}
+      {adapter.adapter_type === "ses" &&
+        actionButton({ label: "Senders", icon: <Mail className="h-4 w-4" />, onClick: () => onIdentities(adapter) })}
       {isSystemWorkspace && adapter.adapter_type === "gmail" &&
-        actionButton("Workspace access", <Share2 className="h-4 w-4" />, () => onShare(adapter))}
-      {actionButton("Edit", <Pencil className="h-4 w-4" />, () => onEdit(adapter), !adapter.is_editable)}
-      {actionButton(
-        "Test Send",
-        <Zap className="h-4 w-4" />,
-        () => onTest(adapter),
-        !hasVerifiedSender,
-        false,
-        "No verified sender emails — add and verify an email identity first",
-      )}
-      {actionButton("Delete", <Trash2 className="h-4 w-4" />, () => onDelete(adapter), !adapter.is_editable, true)}
+        actionButton({ label: "Workspace access", icon: <Share2 className="h-4 w-4" />, onClick: () => onShare(adapter) })}
+      {actionButton({ label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => onEdit(adapter), disabled: !adapter.is_editable })}
+      {actionButton({
+        label: "Test Send",
+        icon: <Zap className="h-4 w-4" />,
+        onClick: () => onTest(adapter),
+        disabled: !hasVerifiedSender,
+        disabledReason: "No verified sender emails — add and verify an email identity first",
+      })}
+      {actionButton({ label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => onDelete(adapter), disabled: !adapter.is_editable, destructive: true })}
     </div>
   );
 }

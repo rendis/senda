@@ -486,10 +486,7 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) 
 		if matched == nil {
 			return response.WriteError(c, http.StatusUnprocessableEntity, "INVALID_FROM", "from address is not an accessible identity for this adapter")
 		}
-		from.Address = matched.Identity
-		if matched.DisplayName != nil {
-			from.Name = *matched.DisplayName
-		}
+		from = resolution.IdentityToEmailAddress(matched)
 	} else {
 		from = resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
 	}

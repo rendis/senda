@@ -8,6 +8,15 @@ import (
 	"github.com/rendis/senda/internal/port"
 )
 
+// IdentityToEmailAddress converts an AdapterIdentity into an EmailAddress.
+func IdentityToEmailAddress(identity *domain.AdapterIdentity) port.EmailAddress {
+	addr := port.EmailAddress{Address: identity.Identity}
+	if identity.DisplayName != nil {
+		addr.Name = *identity.DisplayName
+	}
+	return addr
+}
+
 // ResolveFromAddress determines the sender email address for an adapter by trying:
 // 1. The default identity from the identity store.
 // 2. The delegate_email from adapter config_meta.
@@ -18,11 +27,7 @@ func ResolveFromAddress(ctx context.Context, identityStore port.AdapterIdentityS
 	// 1. Try default identity from DB.
 	identity, err := identityStore.GetDefault(ctx, adapter.ID)
 	if err == nil {
-		from.Address = identity.Identity
-		if identity.DisplayName != nil {
-			from.Name = *identity.DisplayName
-		}
-		return from
+		return IdentityToEmailAddress(identity)
 	}
 
 	// 2. Try config_meta (populated on create/update).
