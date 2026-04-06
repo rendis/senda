@@ -431,6 +431,38 @@ grep "dependencies:" stories/backlog/HT-XX.md
 
 ---
 
+## Branch & PR Workflow
+
+**Main is protected.** Direct pushes to main are blocked (enforce_admins). ALL work goes through PRs with required CI checks.
+
+### Branch conventions
+
+Always create a branch before writing code. Use a worktree (`isolation: "worktree"`) or a regular branch — user's preference.
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Feature / Story | `feat/<short-desc>` | `feat/ses-email-selector` |
+| Bug fix | `fix/<short-desc>` | `fix/identity-grant-count` |
+| Refactor | `refactor/<short-desc>` | `refactor/simplify-from-resolver` |
+| CI / Infra | `ci/<short-desc>` | `ci/harden-workflows` |
+| Docs only | `docs/<short-desc>` | `docs/task-completion-gate` |
+| Story-specific | `feat/HT-<nn>-<short-desc>` | `feat/HT-17-echo-server` |
+
+Rules:
+- Lowercase, kebab-case, no spaces
+- Short and descriptive (max ~40 chars)
+- Delete branch after merge (PRs use `--delete-branch`)
+
+### PR flow
+
+1. `git checkout -b <type>/<desc>` (or use worktree)
+2. Implement + run Task Completion Gate (lint, vet, test on ALL packages)
+3. `git push -u origin <branch>`
+4. `gh pr create --base main` with summary + test plan
+5. Wait for CI (`backend` + `frontend` checks must pass)
+6. `gh pr merge --squash --delete-branch`
+7. `git checkout main && git pull`
+
 ## Implementation Protocol
 
 ### For Each Story:
