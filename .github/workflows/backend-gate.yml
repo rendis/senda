@@ -14,6 +14,9 @@ on:
       - '.github/workflows/backend-gate.yml'
       - '.golangci.yml'
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -29,7 +32,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Setup golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
         with:
           version: latest
           install-mode: binary

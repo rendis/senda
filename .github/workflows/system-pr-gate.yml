@@ -13,6 +13,9 @@ on:
       - 'Makefile'
       - '.github/workflows/system-pr-gate.yml'
 
+permissions:
+  contents: read
+
 jobs:
   system-pr:
     runs-on: ubuntu-latest
