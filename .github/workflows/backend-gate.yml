@@ -12,6 +12,7 @@ on:
       - 'migrations/**'
       - 'test/**'
       - '.github/workflows/backend-gate.yml'
+      - '.golangci.yml'
 
 jobs:
   backend:
