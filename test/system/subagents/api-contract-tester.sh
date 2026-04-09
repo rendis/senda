@@ -30,6 +30,23 @@ SHARED_SES_DOMAIN="${SHARED_SES_DOMAIN:-api-contract.shared-mail.test}"
 SHARED_SES_DEFAULT_EMAIL="${SHARED_SES_DEFAULT_EMAIL:-default@${SHARED_SES_DOMAIN}}"
 SHARED_SES_TEMP_EMAIL="${SHARED_SES_TEMP_EMAIL:-shared-sender@${SHARED_SES_DOMAIN}}"
 
+run_repo_tests_without_system_env() {
+  local target="$1"
+  env \
+    -u SENDA_DATABASE_URL \
+    -u SENDA_BASE_URL \
+    -u MAILPIT_URL \
+    -u KEYCLOAK_BASE_URL \
+    -u FRONTEND_BASE_URL \
+    -u AUTH_URL \
+    -u AUTH_SECRET \
+    -u AUTH_TRUST_HOST \
+    -u AUTH_OIDC_ISSUER \
+    -u AUTH_OIDC_ID \
+    -u AUTH_OIDC_SECRET \
+    make -C "$ROOT_DIR" "$target"
+}
+
 bootstrap_api_request() {
   local method="$1"
   local path="$2"
@@ -295,14 +312,14 @@ sync_adapter_identities "$SHARED_SES_ADAPTER_ID"
 SHARED_SES_IDENTITY_ID="$(ensure_manual_identity "$SHARED_SES_ADAPTER_ID" "$SHARED_SES_DEFAULT_EMAIL" "API Contract Shared Sender")"
 delete_manual_identity_if_exists "$SHARED_SES_ADAPTER_ID" "$SHARED_SES_TEMP_EMAIL"
 
-if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
+if [[ "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
   log "api-contract-tester: make test"
-  make -C "$ROOT_DIR" test
+  run_repo_tests_without_system_env test
 
   log "api-contract-tester: make test-integration"
-  make -C "$ROOT_DIR" test-integration
+  run_repo_tests_without_system_env test-integration
 else
-  log "api-contract-tester: skipping make test + make test-integration in PR mode (covered by dedicated gates)"
+  log "api-contract-tester: skipping make test + make test-integration (covered by dedicated backend gates; opt in with SYSTEM_API_CONTRACT_FULL=1)"
 fi
 
 POSTGRES_CONTAINER="$(jq -r '.runtime.containers.postgres // empty' "$ENV_REPORT_FILE")"
@@ -320,11 +337,11 @@ fi
 export MAILPIT_URL="${MAILPIT_BASE_URL}"
 export SENDA_DATABASE_URL="postgres://senda:senda@127.0.0.1:${POSTGRES_PORT}/senda?sslmode=disable"
 
-if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
-  log "api-contract-tester: make test-e2e-run"
+if [[ "${SYSTEM_API_CONTRACT_E2E:-0}" == "1" ]]; then
+  log "api-contract-tester: make test-e2e-run (explicit opt-in)"
   make -C "$ROOT_DIR" test-e2e-run
 else
-  log "api-contract-tester: skipping make test-e2e-run in PR mode (run locally before PR when change scope requires it)"
+  log "api-contract-tester: skipping make test-e2e-run (covered by dedicated nightly security/chaos suites or explicit local runs)"
 fi
 
 ensure_runtime_env
@@ -377,19 +394,19 @@ process.stdout.write(JSON.stringify(out));
 NODE
 )"
 
-if [[ "$SYSTEM_MODE" == "nightly" || "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
+if [[ "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
   EXECUTED_GATES=$(cat <<EOF_GATES
 1. \`make test\` (unit tests).
 2. \`make test-integration\` (integration tests).
-3. \`make test-e2e-run\` (deterministic E2E backend suites).
-4. Newman run over collection: \`$COLLECTION\`.
+3. Newman run over collection: \`$COLLECTION\`.
+4. Optional deterministic E2E backend suites are available via \`SYSTEM_API_CONTRACT_E2E=1\`, but are not part of the default API-contract gate because nightly already runs dedicated security/chaos coverage separately.
 EOF_GATES
 )
 else
   EXECUTED_GATES=$(cat <<EOF_GATES
 1. Seed deterministic auth + RBAC fixtures for the system test tenant/workspace.
 2. Newman run over collection: \`$COLLECTION\`.
-3. Dedicated backend/unit/integration/E2E suites are expected to run outside this PR smoke gate.
+3. Dedicated backend/unit/integration/E2E suites are expected to run in their own gates; opt in here with \`SYSTEM_API_CONTRACT_FULL=1\` and/or \`SYSTEM_API_CONTRACT_E2E=1\` when explicitly needed.
 EOF_GATES
 )
 fi

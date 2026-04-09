@@ -452,10 +452,14 @@ create_injector_via_ui() {
   log "ui-injector-flow: opening ${target_url}"
   ab open "$target_url" >/dev/null
   ab wait 2000 >/dev/null
-  expect_body_text "Add Injector"
+  if ! expect_body_text "New Injector"; then
+    expect_body_text "Add Injector"
+  fi
 
   log "ui-injector-flow: opening injector dialog"
-  click_selector '[data-testid="injector-empty-create-trigger"]'
+  if ! click_selector '[data-testid="injector-create-trigger"]'; then
+    click_selector '[data-testid="injector-empty-create-trigger"]'
+  fi
   ab wait "#injector-name" >/dev/null
   assert_visible '[data-testid="injector-field-header-0"]'
 

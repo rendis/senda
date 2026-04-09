@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,6 +13,10 @@ import (
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/pkg/apperr"
 )
+
+func ptr[T any](v T) *T {
+	return &v
+}
 
 // createTestWorkspaceWith creates a tenant + workspace for FK chains in tests.
 func createTestWorkspaceWith(ctx context.Context, t *testing.T, tenantRepo *pgadapter.TenantRepo, wsRepo *pgadapter.WorkspaceRepo) *domain.Workspace {
@@ -446,6 +451,9 @@ func TestInjectorRepo_UpdateDefinitionSchema_ReplacesFieldsAndClearsValues(t *te
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)
 	repo := pgadapter.NewInjectorRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
 
 	def := &domain.InjectorDefinition{ID: uuid.New(), Name: "student"}
 	if err := repo.CreateDefinition(ctx, def); err != nil {
@@ -477,12 +485,11 @@ func TestInjectorRepo_UpdateDefinitionSchema_ReplacesFieldsAndClearsValues(t *te
 		t.Fatalf("CreateField(fieldTwo) error: %v", err)
 	}
 
-	wsID := uuid.New()
 	if err := repo.SetValue(ctx, &domain.InjectorValue{
 		ID:                   uuid.New(),
 		InjectorDefinitionID: def.ID,
 		FieldName:            "name",
-		WorkspaceID:          &wsID,
+		WorkspaceID:          &ws.ID,
 		Value:                "Grace",
 	}); err != nil {
 		t.Fatalf("SetValue() error: %v", err)
@@ -542,7 +549,7 @@ func TestInjectorRepo_UpdateDefinitionSchema_ReplacesFieldsAndClearsValues(t *te
 		t.Fatal("expected age overwrite disabled")
 	}
 
-	values, err := repo.GetValues(ctx, gotDef.ID, []uuid.NullUUID{{UUID: wsID, Valid: true}})
+	values, err := repo.GetValues(ctx, gotDef.ID, []uuid.NullUUID{{UUID: ws.ID, Valid: true}})
 	if err != nil {
 		t.Fatalf("GetValues() error: %v", err)
 	}
@@ -576,7 +583,8 @@ func TestInjectorRepo_UpdateDefinitionSchema_ConflictOnRenamedDefinition(t *test
 	if err == nil {
 		t.Fatal("expected conflict error, got nil")
 	}
-	if !apperr.IsConflict(err) {
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != http.StatusConflict {
 		t.Fatalf("expected conflict error, got %v", err)
 	}
 }
