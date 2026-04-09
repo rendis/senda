@@ -40,7 +40,7 @@
     "fumadocs-mdx": "^14.2.11",
     "fumadocs-ui": "^16.7.9",
     "ky": "^1.14.3",
-    "lucide-react": "^0.572.0",
+    "lucide-react": "^1.8.0",
     "motion": "^12.34.2",
     "next": "16.2.3",
     "next-auth": "^5.0.0-beta.30",
