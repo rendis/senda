@@ -11,14 +11,13 @@ const workspaceRoot =
     ? process.cwd()
     : path.join(process.cwd(), "web");
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const videoThumbnailOrigin = process.env.SENDA_SERVER_URL || apiOrigin;
 
 const nextConfig: NextConfig = {
   turbopack: {
     root: workspaceRoot,
   },
   async rewrites() {
-    return buildRewrites(apiOrigin, videoThumbnailOrigin);
+    return buildRewrites(apiOrigin);
   },
 };
 
