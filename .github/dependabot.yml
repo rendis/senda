@@ -16,7 +16,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       next-react-stack:
         patterns:
@@ -27,13 +27,22 @@ updates:
           - next-auth
           - next-intl
           - next-themes
+        update-types:
+          - minor
+          - patch
       tiptap:
         patterns:
           - "@tiptap/*"
+        update-types:
+          - minor
+          - patch
       docs:
         patterns:
           - "fumadocs-*"
           - "@scalar/*"
+        update-types:
+          - minor
+          - patch
       tooling:
         patterns:
           - eslint
@@ -45,14 +54,27 @@ updates:
           - eslint-plugin-sonarjs
           - shadcn
           - tw-animate-css
+        update-types:
+          - minor
+          - patch
       tanstack:
         patterns:
           - "@tanstack/*"
+        update-types:
+          - minor
+          - patch
       forms:
         patterns:
           - react-hook-form
           - "@hookform/resolvers"
           - zod
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
