@@ -514,6 +514,47 @@ func doc_delete_api_v1_manage_global_injectors_name() {}
 // @Router       /api/v1/manage/global/injectors/{name} [get]
 func doc_get_api_v1_manage_global_injectors_name() {}
 
+// doc_put_api_v1_manage_global_injectors_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/global/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        name  path  string  true  "name path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/injectors/{name} [put]
+func doc_put_api_v1_manage_global_injectors_name() {}
+
+// doc_put_api_v1_manage_global_injectors_name_fields_field_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/global/injectors/{name}/fields/{field_name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        name  path  string  true  "name path parameter"
+// @Param        field_name  path  string  true  "field_name path parameter"
+// @Param        body  body  request.UpdateInjectorFieldRequest  true  "Request body"
+// @Success      200  {object}  response.InjectorFieldResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/injectors/{name}/fields/{field_name} [put]
+func doc_put_api_v1_manage_global_injectors_name_fields_field_name() {}
+
 // doc_get_api_v1_manage_global_template_types auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/template-types
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -2001,6 +2042,51 @@ func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_inje
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [get]
 func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name_fields_field_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        field_name  path  string  true  "field_name path parameter"
+// @Param        body  body  request.UpdateInjectorFieldRequest  true  "Request body"
+// @Success      200  {object}  response.InjectorFieldResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name} [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name_fields_field_name() {}
 
 // doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injectors_name_values auto-generated route documentation.
 // @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/values
