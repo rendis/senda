@@ -522,8 +522,8 @@ func doc_get_api_v1_manage_global_injectors_name() {}
 // @Produce      json
 // @Security     ManagementBearer
 // @Param        name  path  string  true  "name path parameter"
-// @Param        body  body  DocGenericBody  true  "Request body"
-// @Success      200  {object}  DocGenericObject
+// @Param        body  body  request.CreateInjectorRequest  true  "Request body"
+// @Success      200  {object}  response.InjectorDetailResponse
 // @Failure      400  {object}  DocErrorResponse
 // @Failure      401  {object}  DocErrorResponse
 // @Failure      403  {object}  DocErrorResponse
@@ -1971,6 +1971,7 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_emails_
 // @Security     ManagementBearer
 // @Param        tenant_code  path  string  true  "tenant_code path parameter"
 // @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        include_inherited  query  boolean  false  "Include inherited injectors from _system/global scope"
 // @Success      200  {object}  response.InjectorListResponse
 // @Failure      400  {object}  DocErrorResponse
 // @Failure      401  {object}  DocErrorResponse
@@ -2053,8 +2054,8 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_injecto
 // @Param        tenant_code  path  string  true  "tenant_code path parameter"
 // @Param        workspace_code  path  string  true  "workspace_code path parameter"
 // @Param        name  path  string  true  "name path parameter"
-// @Param        body  body  DocGenericBody  true  "Request body"
-// @Success      200  {object}  DocGenericObject
+// @Param        body  body  request.CreateInjectorRequest  true  "Request body"
+// @Success      200  {object}  response.InjectorDetailResponse
 // @Failure      400  {object}  DocErrorResponse
 // @Failure      401  {object}  DocErrorResponse
 // @Failure      403  {object}  DocErrorResponse

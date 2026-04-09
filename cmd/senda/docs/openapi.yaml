@@ -3013,7 +3013,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -3022,7 +3022,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: OK
                 "400":
                     content:
@@ -8349,6 +8349,11 @@ paths:
                   required: true
                   schema:
                     type: string
+                - description: Include inherited injectors from _system/global scope
+                  in: query
+                  name: include_inherited
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -8656,7 +8661,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                            $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
                 description: Request body
                 required: true
                 x-originalParamName: body
@@ -8665,7 +8670,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                                $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
                     description: OK
                 "400":
                     content:

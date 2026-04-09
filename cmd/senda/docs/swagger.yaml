@@ -2618,14 +2618,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/cmd_senda.DocGenericBody'
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/cmd_senda.DocGenericObject'
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
         "400":
           description: Bad Request
           schema:
@@ -6774,6 +6774,10 @@ paths:
         name: workspace_code
         required: true
         type: string
+      - description: Include inherited injectors from _system/global scope
+        in: query
+        name: include_inherited
+        type: boolean
       produces:
       - application/json
       responses:
@@ -7017,14 +7021,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/cmd_senda.DocGenericBody'
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/cmd_senda.DocGenericObject'
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
         "400":
           description: Bad Request
           schema:

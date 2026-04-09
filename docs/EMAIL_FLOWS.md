@@ -59,7 +59,7 @@ sequenceDiagram
     H->>S: Send(req)
     S->>R: ParseRef → resolve tenant, workspace
     S->>R: ResolveTemplate (locale fallback)
-    S->>R: MergeInjectors (DB + code)
+    S->>R: MergeInjectors (defaults + stored values + code + request overrides)
     S->>R: ResolveAdapter (cached 10min)
     S->>S: ResolveFromEmail (identity or default)
     S->>S: RenderSubject + RenderFromName
@@ -86,6 +86,21 @@ The API returns one of three overall statuses:
 - **`accepted`** — all recipients queued successfully.
 - **`partial`** — some recipients queued, others suppressed or failed. Per-recipient `status` and `error` fields indicate which.
 - **error (4xx/5xx)** — all recipients failed (validation, adapter not found, etc.).
+
+### Injector runtime precedence
+
+El merge de injectors en runtime es **por field**:
+
+- `allow_overwrite=false` → siempre gana `default_value`
+- `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+- fields code-only no definidos en DB se agregan como fields extra
+
+Esto aplica a:
+
+- `POST /api/v1/send`
+- `POST /api/v1/send/batch`
+- `POST /api/v1/manage/.../templates/{template_id}/test-send`
+- `POST /api/v1/manage/.../templates/{template_id}/bulk-send`
 
 ---
 

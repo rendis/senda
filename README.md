@@ -492,10 +492,17 @@ The repo includes `.mcp.json` with the server config. It exposes three tools:
 | `make test-integration` | Integration tests (TestContainers) |
 | `make test-e2e`         | E2E deterministic gate             |
 | `make lint`             | golangci-lint                      |
+| `make ci-backend-pr`    | Fast local backend PR gate         |
+| `make ci-frontend`      | Fast local frontend gate           |
+| `make ci-pr`            | Combined local PR gate             |
+| `make ci-main`          | Fast systemic local gate           |
+| `make install-githooks` | Instala el pre-push gate local     |
 | `make swagger`          | Regenerate OpenAPI spec            |
-| `make system-pr`        | PR gate (functional + UI)          |
+| `make system-pr`        | Manual GitHub/system gate          |
 
 Frontend: `pnpm --dir web dev` | `pnpm --dir web typecheck` | `pnpm --dir web lint`
+
+GitHub corre automáticamente los gates livianos de backend/frontend en PRs. Los workflows pesados (`system-pr`, `system-nightly`, `chaos-e2e`) quedaron manuales en GitHub (`workflow_dispatch`).
 
 > Full guide: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 

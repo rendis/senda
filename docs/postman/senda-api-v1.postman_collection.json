@@ -47,11 +47,6 @@
       "type": "string"
     },
     {
-      "key": "domain_id",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "template_type_id",
       "value": "",
       "type": "string"
@@ -88,6 +83,10 @@
     {
       "key": "identity_id",
       "value": ""
+    },
+    {
+      "key": "injector_name",
+      "value": "student"
     }
   ],
   "auth": {
@@ -1066,10 +1065,6 @@
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"name\": \"{{injector_name}}\",\n    \"description\": \"Brand-related injector values\",\n    \"fields\": [\n        {\n            \"field_name\": \"company_name\",\n            \"field_type\": \"text\",\n            \"description\": \"The company display name\",\n            \"position\": 0\n        },\n        {\n            \"field_name\": \"logo_url\",\n            \"field_type\": \"url\",\n            \"description\": \"URL to the company logo\",\n            \"position\": 1\n        }\n    ]\n}"
-            },
             "url": {
               "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors",
               "host": [
@@ -1086,33 +1081,24 @@
                 "injectors"
               ]
             },
-            "description": "Create an injector definition with fields.\n\n**Field types:** text, number, bool, img, url, html\n\n**Required role:** workspace_admin"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 201', function () {",
-                  "    pm.response.to.have.status(201);",
-                  "});",
-                  "pm.test('Response has fields', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('id');",
-                  "    pm.expect(jsonData.fields).to.be.an('array');",
-                  "});"
-                ]
-              }
+            "description": "Create injector schema in the current workspace.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"{{injector_name}}\",\n    \"description\": \"Student runtime injector\",\n    \"fields\": [\n        {\n            \"field_name\": \"full_name\",\n            \"field_type\": \"text\",\n            \"description\": \"Student full name\",\n            \"position\": 0,\n            \"default_value\": \"Alumno\",\n            \"allow_overwrite\": true\n        },\n        {\n            \"field_name\": \"campus\",\n            \"field_type\": \"text\",\n            \"description\": \"Campus code\",\n            \"position\": 1,\n            \"default_value\": \"central\",\n            \"allow_overwrite\": false\n        }\n    ]\n}"
             }
-          ]
+          },
+          "response": []
         },
         {
           "name": "List Injectors",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors",
               "host": [
@@ -1129,53 +1115,148 @@
                 "injectors"
               ]
             },
-            "description": "List injector definitions for this workspace.\n\n**Required role:** workspace_viewer"
+            "description": "List workspace injectors."
           },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response has items', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.items).to.be.an('array');",
-                  "});"
-                ]
+          "response": []
+        },
+        {
+          "name": "List Injectors (Include Inherited)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
-            }
-          ]
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors?include_inherited=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors"
+              ],
+              "query": [
+                {
+                  "key": "include_inherited",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "List workspace + _system + global injectors deduplicated by priority."
+          },
+          "response": []
         },
         {
           "name": "Get Injector by Name",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{{injector_name}}",
-            "description": "Get an injector definition by name, with fields and resolved values.\n\n**Required role:** workspace_viewer"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response has fields and values', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('fields');",
-                  "});"
-                ]
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{injector_name}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors",
+                "{injector_name}"
+              ]
+            },
+            "description": "Get injector detail by name."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Injector Schema",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{injector_name}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors",
+                "{injector_name}"
+              ]
+            },
+            "description": "Replace the full injector schema.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"{{injector_name}}\",\n    \"description\": \"Student runtime injector updated\",\n    \"fields\": [\n        {\n            \"field_name\": \"full_name\",\n            \"field_type\": \"text\",\n            \"description\": \"Student full name\",\n            \"position\": 0,\n            \"default_value\": \"Alumno\",\n            \"allow_overwrite\": true\n        },\n        {\n            \"field_name\": \"campus\",\n            \"field_type\": \"text\",\n            \"description\": \"Campus code\",\n            \"position\": 1,\n            \"default_value\": \"north\",\n            \"allow_overwrite\": false\n        }\n    ]\n}"
             }
-          ]
+          },
+          "response": []
+        },
+        {
+          "name": "Update Injector Field Runtime Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{injector_name}/fields/campus",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors",
+                "{injector_name}",
+                "fields",
+                "campus"
+              ]
+            },
+            "description": "Update one field runtime policy without replacing the full schema.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"default_value\": \"north\",\n    \"allow_overwrite\": false\n}"
+            }
+          },
+          "response": []
         },
         {
           "name": "Set Injector Values",
@@ -1187,27 +1268,62 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{injector_name}/values",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors",
+                "{injector_name}",
+                "values"
+              ]
+            },
+            "description": "Persist workspace-scoped values for an injector.",
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"values\": [\n        {\n            \"field_name\": \"company_name\",\n            \"value\": \"Test Corp\"\n        },\n        {\n            \"field_name\": \"logo_url\",\n            \"value\": \"https://example.com/logo.png\"\n        }\n    ]\n}"
-            },
-            "url": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{{injector_name}}/values",
-            "description": "Set field values for an injector.\n\n**Required role:** workspace_editor"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 204', function () {",
-                  "    pm.response.to.have.status(204);",
-                  "});"
-                ]
-              }
+              "raw": "{\n    \"values\": [\n        {\n            \"field_name\": \"full_name\",\n            \"value\": \"Jane Doe\"\n        },\n        {\n            \"field_name\": \"campus\",\n            \"value\": \"north\"\n        }\n    ]\n}"
             }
-          ]
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Injector",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/injectors/{injector_name}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "injectors",
+                "{injector_name}"
+              ]
+            },
+            "description": "Delete injector schema by name."
+          },
+          "response": []
         }
       ]
     },
@@ -1834,187 +1950,6 @@
       ]
     },
     {
-      "name": "Domains",
-      "description": "Domain registration and DKIM verification (workspace-scoped).",
-      "item": [
-        {
-          "name": "Register Domain",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"domain_name\": \"mail.test.example.com\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/domains",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
-                "domains"
-              ]
-            },
-            "description": "Register a new domain. Generates DKIM keys and returns DNS records to configure.\n\n**Required role:** workspace_admin"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 404 (endpoint not implemented)\", function () {",
-                  "    pm.response.to.have.status(404);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "List Domains",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/domains?limit=25",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
-                "domains"
-              ],
-              "query": [
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "25"
-                }
-              ]
-            },
-            "description": "List domains for this workspace.\n\n**Required role:** workspace_viewer"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Domain",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/domains/{{domain_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
-                "domains",
-                "{{domain_id}}"
-              ]
-            },
-            "description": "Get domain details including DNS records and verification status.\n\n**Required role:** workspace_viewer"
-          },
-          "response": []
-        },
-        {
-          "name": "Verify Domain",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/domains/{{domain_id}}/verify",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
-                "domains",
-                "{{domain_id}}",
-                "verify"
-              ]
-            },
-            "description": "Trigger DNS verification for a domain. Returns 202 Accepted.\n\n**Required role:** workspace_admin"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 404 (endpoint not implemented)\", function () {",
-                  "    pm.response.to.have.status(404);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Delete Domain (Soft)",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/domains/{{domain_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "manage",
-                "tenants",
-                "{{tenant_code}}",
-                "workspaces",
-                "{{workspace_code}}",
-                "domains",
-                "{{domain_id}}"
-              ]
-            },
-            "description": "Soft-delete a domain.\n\n**Required role:** workspace_admin"
-          },
-          "response": []
-        }
-      ]
-    },
-    {
       "name": "Template Types",
       "description": "Template type CRUD (workspace-scoped).",
       "item": [
@@ -2472,6 +2407,42 @@
           ]
         },
         {
+          "name": "Test Send",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/templates/{template_id}/test-send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "tenants",
+                "{{tenant_code}}",
+                "workspaces",
+                "{{workspace_code}}",
+                "templates",
+                "{template_id}",
+                "test-send"
+              ]
+            },
+            "description": "Send a synchronous template test email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"recipient_email\": \"qa@example.com\",\n    \"variables\": {\n        \"first_name\": \"QA\"\n    },\n    \"injectors\": {\n        \"{{injector_name}}\": {\n            \"full_name\": \"QA User\"\n        }\n    },\n    \"locale\": \"es\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Bulk Send Config",
           "request": {
             "method": "GET",
@@ -2509,7 +2480,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"ui-batch-ana-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"ui-batch-bob-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
+              "raw": "{\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"injectors\": {\n                \"{{injector_name}}\": {\n                    \"full_name\": \"Ana Pérez\"\n                }\n            },\n            \"external_id\": \"ui-batch-ana-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"injectors\": {\n                \"{{injector_name}}\": {\n                    \"full_name\": \"Bob Smith\"\n                }\n            },\n            \"external_id\": \"ui-batch-bob-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/templates/{{template_id}}/bulk-send",
@@ -2561,7 +2532,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"ref\": \"{{tenant_code}}:{{workspace_code}}:{{template_type_slug}}\",\n    \"to\": [\"user@example.com\"],\n    \"cc\": [],\n    \"bcc\": [],\n    \"variables\": {\n        \"first_name\": \"John\",\n        \"company_name\": \"Test Corp\"\n    },\n    \"external_id\": \"order-12345\",\n    \"locale\": \"en\"\n}"
+              "raw": "{\n    \"ref\": \"{{tenant_code}}:{{workspace_code}}:{{template_type_slug}}\",\n    \"to\": [\n        \"user@example.com\"\n    ],\n    \"cc\": [],\n    \"bcc\": [],\n    \"variables\": {\n        \"first_name\": \"John\",\n        \"company_name\": \"Test Corp\"\n    },\n    \"injectors\": {\n        \"{{injector_name}}\": {\n            \"full_name\": \"John Doe\",\n            \"campus\": \"north\"\n        }\n    },\n    \"external_id\": \"order-12345\",\n    \"locale\": \"en\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/send",
@@ -2574,34 +2545,9 @@
                 "send"
               ]
             },
-            "description": "Send an email using a template reference.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Ref format:** `tenant_code:workspace_code:template_type_slug`\n\n**Response:** 202 Accepted with tracking IDs for each recipient."
+            "description": "Send one async email using a workspace API key."
           },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 202 or expected domain/validation error\", function () {",
-                  "    pm.expect([202, 404, 409, 422]).to.include(pm.response.code);",
-                  "});",
-                  "pm.test(\"Response shape is valid\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    if (pm.response.code === 202) {",
-                  "        pm.expect(jsonData).to.have.property(\"tracking_ids\");",
-                  "        pm.expect(jsonData.tracking_ids).to.be.an(\"array\");",
-                  "        if (jsonData.tracking_ids.length > 0) {",
-                  "            pm.collectionVariables.set(\"tracking_id\", jsonData.tracking_ids[0].tracking_id);",
-                  "        }",
-                  "        return;",
-                  "    }",
-                  "    pm.expect(jsonData).to.have.property(\"error\");",
-                  "});"
-                ]
-              }
-            }
-          ]
+          "response": []
         },
         {
           "name": "Send Email Batch",
@@ -2625,7 +2571,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"ref\": \"{{tenant_code}}:{{workspace_code}}:{{template_type_slug}}\",\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"batch-ana-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\",\n                \"company_name\": \"Test Corp\"\n            },\n            \"external_id\": \"batch-bob-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
+              "raw": "{\n    \"ref\": \"{{tenant_code}}:{{workspace_code}}:{{template_type_slug}}\",\n    \"items\": [\n        {\n            \"to\": \"ana@example.com\",\n            \"variables\": {\n                \"first_name\": \"Ana\"\n            },\n            \"injectors\": {\n                \"{{injector_name}}\": {\n                    \"full_name\": \"Ana Pérez\"\n                }\n            },\n            \"external_id\": \"batch-1\",\n            \"locale\": \"es\"\n        },\n        {\n            \"to\": \"bob@example.com\",\n            \"variables\": {\n                \"first_name\": \"Bob\"\n            },\n            \"injectors\": {\n                \"{{injector_name}}\": {\n                    \"full_name\": \"Bob Smith\"\n                }\n            },\n            \"external_id\": \"batch-2\",\n            \"locale\": \"en\"\n        }\n    ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/send/batch",
@@ -2639,30 +2585,9 @@
                 "batch"
               ]
             },
-            "description": "Send a same-template batch where each item has its own variables and injector context.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Limits:** default max 100 items (configurable via `send.batch_max_items` / `SENDA_SEND_BATCH_MAX_ITEMS`).\n\n**Response:** 202 Accepted with per-item tracking IDs and statuses."
+            "description": "Send same ref to many recipients with per-item variables and injectors."
           },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 202\", function () {",
-                  "    pm.expect(pm.response.code).to.eql(202);",
-                  "});",
-                  "pm.test(\"Batch response shape is valid\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property(\"items\");",
-                  "    pm.expect(jsonData.items).to.be.an(\"array\");",
-                  "    if (jsonData.items.length > 0 && jsonData.items[0].tracking_id) {",
-                  "        pm.collectionVariables.set(\"tracking_id\", jsonData.items[0].tracking_id);",
-                  "    }",
-                  "});"
-                ]
-              }
-            }
-          ]
+          "response": []
         }
       ]
     },
@@ -3606,10 +3531,6 @@
                     "value": "application/json"
                   }
                 ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"name\": \"global-brand\",\n    \"description\": \"Global brand injector\",\n    \"fields\": [\n        {\n            \"field_name\": \"platform_name\",\n            \"field_type\": \"text\",\n            \"description\": \"Platform display name\",\n            \"position\": 0\n        }\n    ]\n}"
-                },
                 "url": {
                   "raw": "{{base_url}}/api/v1/manage/global/injectors",
                   "host": [
@@ -3623,7 +3544,11 @@
                     "injectors"
                   ]
                 },
-                "description": "Create a global-scoped injector definition.\n\n**Required role:** superadmin"
+                "description": "Create global injector schema.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"{{injector_name}}\",\n    \"description\": \"Global injector defaults\",\n    \"fields\": [\n        {\n            \"field_name\": \"full_name\",\n            \"field_type\": \"text\",\n            \"description\": \"Student full name\",\n            \"position\": 0,\n            \"default_value\": \"Alumno\",\n            \"allow_overwrite\": true\n        },\n        {\n            \"field_name\": \"campus\",\n            \"field_type\": \"text\",\n            \"description\": \"Campus code\",\n            \"position\": 1,\n            \"default_value\": \"central\",\n            \"allow_overwrite\": false\n        }\n    ]\n}"
+                }
               },
               "response": []
             },
@@ -3631,7 +3556,12 @@
               "name": "List Global Injectors",
               "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/manage/global/injectors",
                   "host": [
@@ -3645,7 +3575,7 @@
                     "injectors"
                   ]
                 },
-                "description": "List global-scoped injector definitions.\n\n**Required role:** superadmin"
+                "description": "List global injectors."
               },
               "response": []
             },
@@ -3653,9 +3583,14 @@
               "name": "Get Global Injector",
               "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/manage/global/injectors/global-brand",
+                  "raw": "{{base_url}}/api/v1/manage/global/injectors/{{injector_name}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -3665,10 +3600,104 @@
                     "manage",
                     "global",
                     "injectors",
-                    "global-brand"
+                    "{{injector_name}}"
                   ]
                 },
-                "description": "Get a global injector by name.\n\n**Required role:** superadmin"
+                "description": "Get global injector by name."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Global Injector Schema",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/manage/global/injectors/{{injector_name}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "manage",
+                    "global",
+                    "injectors",
+                    "{{injector_name}}"
+                  ]
+                },
+                "description": "Replace global injector schema.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"{{injector_name}}\",\n    \"description\": \"Global injector defaults updated\",\n    \"fields\": [\n        {\n            \"field_name\": \"full_name\",\n            \"field_type\": \"text\",\n            \"description\": \"Student full name\",\n            \"position\": 0,\n            \"default_value\": \"Alumno\",\n            \"allow_overwrite\": true\n        },\n        {\n            \"field_name\": \"campus\",\n            \"field_type\": \"text\",\n            \"description\": \"Campus code\",\n            \"position\": 1,\n            \"default_value\": \"north\",\n            \"allow_overwrite\": false\n        }\n    ]\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Global Injector Field Runtime Policy",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/manage/global/injectors/{{injector_name}}/fields/campus",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "manage",
+                    "global",
+                    "injectors",
+                    "{{injector_name}}",
+                    "fields",
+                    "campus"
+                  ]
+                },
+                "description": "Update one global field runtime policy.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"default_value\": \"north\",\n    \"allow_overwrite\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Global Injector",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/manage/global/injectors/{{injector_name}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "manage",
+                    "global",
+                    "injectors",
+                    "{{injector_name}}"
+                  ]
+                },
+                "description": "Delete global injector by name."
               },
               "response": []
             }
@@ -3816,121 +3845,6 @@
                   ]
                 },
                 "description": "Soft-delete a global adapter.\n\n**Required role:** superadmin"
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "Domains",
-          "item": [
-            {
-              "name": "Register Global Domain",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"domain_name\": \"mail.global.example.com\"\n}"
-                },
-                "url": {
-                  "raw": "{{base_url}}/api/v1/manage/global/domains",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "manage",
-                    "global",
-                    "domains"
-                  ]
-                },
-                "description": "Register a global-scoped domain.\n\n**Required role:** superadmin"
-              },
-              "response": []
-            },
-            {
-              "name": "List Global Domains",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{base_url}}/api/v1/manage/global/domains?limit=25",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "manage",
-                    "global",
-                    "domains"
-                  ],
-                  "query": [
-                    {
-                      "key": "cursor",
-                      "value": "",
-                      "disabled": true
-                    },
-                    {
-                      "key": "limit",
-                      "value": "25"
-                    }
-                  ]
-                },
-                "description": "List global-scoped domains.\n\n**Required role:** superadmin"
-              },
-              "response": []
-            },
-            {
-              "name": "Get Global Domain",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{base_url}}/api/v1/manage/global/domains/{{domain_id}}",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "manage",
-                    "global",
-                    "domains",
-                    "{{domain_id}}"
-                  ]
-                },
-                "description": "Get a global domain by ID.\n\n**Required role:** superadmin"
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Global Domain (Soft)",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "{{base_url}}/api/v1/manage/global/domains/{{domain_id}}",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "manage",
-                    "global",
-                    "domains",
-                    "{{domain_id}}"
-                  ]
-                },
-                "description": "Soft-delete a global domain.\n\n**Required role:** superadmin"
               },
               "response": []
             }

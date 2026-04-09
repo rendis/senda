@@ -1,46 +1,31 @@
 # Senda API - Postman Collection
 
-Comprehensive Postman collection for the Senda email orchestration platform API v1.
+Colección Postman para explorar la API v1 de Senda sin inventar payloads a mano.
 
 ## Files
 
-| File                                     | Description                                        |
-| ---------------------------------------- | -------------------------------------------------- |
-| `senda-api-v1.postman_collection.json`   | Full API collection (Postman v2.1 format)          |
-| `senda-local.postman_environment.json`   | Environment for local development (localhost:8081) |
-| `senda-staging.postman_environment.json` | Environment for staging (placeholder URL)          |
+| File | Description |
+| --- | --- |
+| `senda-api-v1.postman_collection.json` | Colección principal |
+| `senda-local.postman_environment.json` | Environment local |
+| `senda-staging.postman_environment.json` | Environment staging/template |
 
 ## Quick Start
 
-1. **Import the collection** into Postman: File > Import > select `senda-api-v1.postman_collection.json`
-2. **Import the environment**: File > Import > select `senda-local.postman_environment.json`
-3. **Select the environment** from the environment dropdown (top-right)
-4. **Set your OIDC token** in the environment variables (`oidc_token`)
-5. **Start testing** with the Health folder to verify connectivity
+1. Importá la colección
+2. Importá el environment local o staging
+3. Configurá `base_url`, `oidc_token` y/o `api_key`
+4. Corré `Health` para validar conectividad
 
 ## Authentication
 
-### OIDC (Management API)
+### Management API
 
-All management endpoints under `/api/v1/manage/` require an OIDC Bearer token. Set the `oidc_token` environment variable with a valid JWT.
+Bearer OIDC/JWT en `oidc_token` para `/api/v1/manage/*` y `/api/v1/members/me`.
 
-The collection uses Bearer token auth by default. Individual requests inherit this.
+### Data plane
 
-### API Key (Data Plane)
-
-The send and data-plane email query endpoints use Bearer auth with the raw workspace API key:
-
-```http
-Authorization: Bearer senda_live_...
-```
-
-To get an API key:
-
-1. Create one via `POST /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/api-keys`
-2. Save the `key` from the response (returned only once)
-3. Set the `api_key` environment variable
-
-Available data-plane endpoints for API key clients:
+Bearer API key raw (`senda_live_*`) en `api_key` para:
 
 - `POST /api/v1/send`
 - `POST /api/v1/send/batch`
@@ -49,103 +34,90 @@ Available data-plane endpoints for API key clients:
 - `GET /api/v1/emails/:tracking_id/events`
 - `GET /api/v1/emails/export`
 
-### No Auth
-
-- `GET /health`, `GET /healthz`, `GET /metrics` - public health checks
-- `GET /api/v1/onboarding/status` - public onboarding status
-- `POST /api/v1/webhooks/ses/inbound` - SNS signature verification (no app auth)
-
 ## Collection Structure
 
-The collection is organized into folders matching the API structure:
-
-| Folder             | Endpoints | Auth                     | Description                                |
-| ------------------ | --------- | ------------------------ | ------------------------------------------ |
-| **Health**         | 3         | None                     | Health checks and Prometheus metrics       |
-| **Onboarding**     | 2         | Public / OIDC            | First-use setup                            |
-| **Tenants**        | 5         | OIDC (superadmin)        | Tenant CRUD                                |
-| **Workspaces**     | 5         | OIDC (tenant_admin+)     | Workspace CRUD                             |
-| **Members**        | 4         | OIDC (superadmin)        | Member and role management                 |
-| **Config**         | 2         | OIDC (superadmin)        | Global configuration                       |
-| **Injectors**      | 4         | OIDC (workspace roles)   | Injector definitions and values            |
-| **Adapters**       | 14        | OIDC (workspace roles)   | Email adapter CRUD, identities, and `_system` sharing controls |
-| **Domains**        | 5         | OIDC (workspace roles)   | Domain registration and DKIM verification  |
-| **Template Types** | 3         | OIDC (workspace roles)   | Template type CRUD                         |
-| **Templates**      | 9         | OIDC (workspace roles)   | Templates, versions, locales, MJML preview |
-| **Send**           | 1         | Bearer `senda_live_*`    | Send emails                                |
-| **Emails**         | 4         | Bearer `senda_live_*`    | Data-plane email query and event history   |
-| **Suppression**    | 3         | OIDC (workspace roles)   | Suppression list management                |
-| **Audit Log**      | 1         | OIDC (workspace_viewer+) | Workspace audit log                        |
-| **Webhooks**       | 6         | OIDC (workspace roles)   | Webhook CRUD and test                      |
-| **API Keys**       | 3         | OIDC (workspace_admin)   | API key management                         |
-| **SES Webhooks**   | 1         | None (SNS sig)           | Provider event ingestion                   |
-| **Global**         | 15        | OIDC (superadmin)        | Global-scoped resources                    |
+| Folder | Notes |
+| --- | --- |
+| Health | health / healthz / metrics |
+| Onboarding | status + setup |
+| Tenants / Workspaces / Members / Config | management core |
+| Injectors | schema, field runtime policy, values, inherited list |
+| Adapters | CRUD, identities, `_system` sharing |
+| Template Types | CRUD |
+| Templates | CRUD + preview + versions/locales + test-send + bulk-send |
+| Send | `send` + `send/batch` |
+| Emails | data-plane query |
+| Suppression / Audit Log / Webhooks / API Keys | workspace ops |
+| SES Webhooks | public SNS endpoint |
+| Global (Superadmin) | recursos globales |
 
 ## Variables
 
-The collection uses these variables (auto-populated by test scripts):
+| Variable | Description |
+| --- | --- |
+| `base_url` | base URL del server |
+| `oidc_token` | JWT de management |
+| `api_key` | API key raw de workspace |
+| `tenant_code` | tenant actual |
+| `workspace_code` | workspace actual |
+| `system_workspace_code` | default `_system` |
+| `member_id` | member actual |
+| `role_id` | role actual |
+| `adapter_id` | adapter actual |
+| `identity_id` | identity actual |
+| `injector_name` | injector actual |
+| `template_type_id` | template type actual |
+| `template_id` | template actual |
+| `version_id` | version actual |
+| `tracking_id` | tracking actual |
+| `webhook_id` | webhook actual |
+| `api_key_id` | API key record actual |
 
-| Variable           | Source                      | Description                   |
-| ------------------ | --------------------------- | ----------------------------- |
-| `base_url`         | Environment                 | Server base URL               |
-| `oidc_token`       | Environment                 | OIDC Bearer token             |
-| `api_key`          | Auto (Create API Key)       | Workspace API key (`senda_live_*`) |
-| `tenant_code`      | Auto (Create Tenant)        | Current tenant code           |
-| `workspace_code`   | Auto (Create Workspace)     | Current workspace code        |
-| `system_workspace_code` | Default (`_system`)    | Tenant system workspace code  |
-| `member_id`        | Auto (Create Member)        | Last created member ID        |
-| `role_id`          | Auto (Add Role)             | Last created role ID          |
-| `adapter_id`       | Auto (Create Adapter)       | Last created adapter ID       |
-| `identity_id`      | Auto (List/Create Identity) | Last created or discovered adapter identity ID |
-| `domain_id`        | Auto (Register Domain)      | Last created domain ID        |
-| `template_type_id` | Auto (Create Template Type) | Last created template type ID |
-| `template_id`      | Auto (Create Template)      | Last created template ID      |
-| `version_id`       | Auto (Create Version)       | Last created version ID       |
-| `tracking_id`      | Auto (Send Email)           | Last tracking ID from send    |
-| `webhook_id`       | Auto (Create Webhook)       | Last created webhook ID       |
-| `api_key_id`       | Auto (Create API Key)       | Last created API key ID       |
+## Injectors notes
 
-## Recommended Test Order
+La colección ya refleja el modelo runtime actual:
 
-For a full end-to-end flow, run requests in this order:
+- `GET /injectors?include_inherited=true`
+- `PUT /injectors/:name`
+- `PUT /injectors/:name/fields/:field_name`
+- `PUT /injectors/:name/values`
+- `DELETE /injectors/:name`
 
-1. Health > Simple Health
-2. Onboarding > Get Onboarding Status
-3. Onboarding > Run Onboarding Setup
-4. Workspaces > Create Workspace
-5. Adapters > Create Adapter
-6. Adapters > List Adapter Identities
-7. Adapters > Update Adapter Workspace Access (when managing Gmail sharing from `_system`)
-8. Adapters > Update Identity Workspace Access (when managing SES email sharing from `_system`)
-9. Domains > Register Domain
-10. Template Types > Create Template Type
-11. Templates > Create Template
-12. Templates > Create Version
-13. Templates > Publish Version
-14. API Keys > Create API Key
-15. Send > Send Email
-16. Emails > List Emails
-17. Emails > Get Email by Tracking ID
-18. Emails > Export Emails (optional)
+### Runtime precedence
 
-## Shared Adapter Notes
+- `allow_overwrite=false` → gana `default_value`
+- `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+- la precedencia es **por field**
 
-- The workspace-access endpoints must be called against the tenant `_system` workspace. The collection exposes this through the `system_workspace_code` variable, which defaults to `_system`.
-- Gmail sharing is configured on the adapter itself.
-- SES sharing is configured on an **email identity**, not on the whole domain.
-- For a child workspace using a shared SES adapter, remember to send `sender_identity_id` on the template type payload.
+### Important semantics
 
-## Pagination
+- `PUT /injectors/:name` reemplaza el schema completo
+- `PUT /injectors/:name/fields/:field_name` sirve para ajustar política runtime de un field puntual
+- `PUT /injectors/:name/values` persiste valores del scope actual
 
-All list endpoints use cursor-based pagination:
+## Shared adapter notes
 
-- `limit` (query param): Number of items per page (default: 25, max: 100)
-- `cursor` (query param): Cursor from previous response's `next_cursor`
-- Response includes `next_cursor` and `has_more` fields
+- Gmail se comparte desde `_system` a nivel adapter
+- SES se comparte desde `_system` a nivel **email identity**
+- las domain identities SES no son shareables
+- la colección ya evita referencias viejas a Domains/DKIM porque Senda sigue el ADR de provider-managed auth
 
-## Error Format
+## Recommended order
 
-All errors follow the standard envelope:
+1. Health
+2. Onboarding
+3. Create workspace
+4. Create adapter
+5. Create template type
+6. Create template
+7. Create/publish version
+8. Create API key
+9. Send / Send Batch / Test Send / Bulk Send
+10. Query Emails
+
+## Error format
+
+Todas las requests esperan este envelope:
 
 ```json
 {
@@ -158,9 +130,7 @@ All errors follow the standard envelope:
         "message": "is required"
       }
     ],
-    "request_id": "abc-123"
+    "request_id": "req_123"
   }
 }
 ```
-
-Error codes: `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED`, `INTERNAL_ERROR`

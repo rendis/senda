@@ -240,13 +240,15 @@ Zero (default) uses the engine default of **30 seconds**.
 
 ### Name Collisions
 
-If a code injector has the same `Code()` as a DB injector, the **code injector wins** and a warning is logged:
+If a code injector has the same `Code()` as a DB injector, the **code injector namespace wins** and a warning is logged:
 
 ```
 WARN code injector overrides DB injector code=brand
 ```
 
 If two code injectors have the same `Code()`, the **last registered wins** (map overwrite).
+
+Importante: con el runtime actual, eso no significa “el code injector gana todo”. Si el schema DB define un field con `allow_overwrite=false`, ese field sigue fijado a `default_value`. La precedencia real se evalúa **por field**, no por injector completo.
 
 ### Registration
 
@@ -369,6 +371,7 @@ The `InjectorContext` is passed to both the init function and all code injectors
 | `Headers()` | `map[string]string` | Copy of all HTTP headers. Safe to modify |
 | `Ref()` | `string` | Send request addressing ref (e.g., `"tenant:workspace:templateType"`) |
 | `Variables()` | `map[string]any` | Caller-provided event variables from the send request |
+| `RequestInjectors()` | `map[string]map[string]any` | Runtime injector overrides enviados en el request body |
 | `InitData()` | `any` | Value returned by `InitFunc`. Nil if no InitFunc set. Type-assert to your concrete type |
 | `TenantID()` | `uuid.UUID` | Resolved tenant UUID |
 | `WorkspaceID()` | `uuid.UUID` | Resolved workspace UUID |
@@ -412,11 +415,14 @@ Senda has two types of injectors that coexist:
 
 ### Merge Process
 
-1. **DB injectors resolve first** — the `InjectorMerger` resolves all DB injectors via the scope hierarchy chain (workspace > \_system > global), producing `map[string]map[string]any`
+1. **DB injectors resolve first** — the `InjectorMerger` resolves definitions/fields across the scope chain and seeds each field with its DB-resolved value or `default_value`
 2. **DB values seeded into context** — all DB injector values are available to code injectors via `injCtx.GetResolved("db_injector_name")`
 3. **InitFunc runs** — loads shared per-request data
 4. **Code injectors resolve** — in dependency order (topological sort). Each injector's result is immediately available to subsequent injectors
-5. **Merge** — code injector values are merged into the same map. On name collision, code injector wins
+5. **Field-level precedence runs** — for DB-defined fields:
+   - `allow_overwrite=false` → `default_value`
+   - `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+6. **Extra code-only fields merge** — if a code injector returns fields not defined in the DB schema, those fields are appended to the runtime result
 
 ### Template Access
 
@@ -428,7 +434,7 @@ Both types use the same template syntax:
 {{ event.name }}                  ← caller-provided variable (not an injector)
 ```
 
-The template doesn't know or care whether a value came from DB or code.
+The template doesn't know or care whether a value came from DB defaults, persisted values, code injectors, or request-time overrides.
 
 ---
 
@@ -619,7 +625,7 @@ Errors are logged but don't prevent other shutdown hooks from executing.
 
 ### "code injector overrides DB injector"
 
-A code injector and a DB injector have the same name. The code injector wins. If this is unintentional, rename your code injector's `Code()` to something unique.
+A code injector and a DB injector have the same name. The code injector namespace wins, but DB-defined fields still obey `default_value` / `allow_overwrite`. If this is unintentional, rename your code injector's `Code()` to something unique.
 
 ### Injector values are empty in the template
 

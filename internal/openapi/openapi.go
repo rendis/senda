@@ -270,6 +270,17 @@ func routeParameters(route Route) []operationParam {
 		)
 	}
 
+	normalized := NormalizeEchoPath(route.Path)
+	if route.Method == "GET" && strings.Contains(normalized, "/workspaces/{workspace_code}/injectors") && strings.HasSuffix(normalized, "/injectors") {
+		params = append(params, operationParam{
+			Name:        "include_inherited",
+			In:          "query",
+			Type:        "boolean",
+			Required:    false,
+			Description: "Include inherited injectors from _system/global scope",
+		})
+	}
+
 	return params
 }
 
@@ -422,6 +433,8 @@ func routeRequestType(route Route) string {
 	switch {
 	case strings.HasSuffix(normalized, "/injectors") && route.Method == "POST":
 		return "request.CreateInjectorRequest"
+	case strings.HasSuffix(normalized, "/injectors/{name}") && route.Method == "PUT":
+		return "request.CreateInjectorRequest"
 	case strings.HasSuffix(normalized, "/injectors/{name}/fields/{field_name}") && route.Method == "PUT":
 		return "request.UpdateInjectorFieldRequest"
 	case strings.HasSuffix(normalized, "/injectors/{name}/values") && route.Method == "PUT":
@@ -525,6 +538,8 @@ func routeSuccessType(route Route) string {
 	case strings.HasSuffix(normalized, "/injectors") && route.Method == "GET":
 		return "response.InjectorListResponse"
 	case strings.HasSuffix(normalized, "/injectors") && route.Method == "POST":
+		return "response.InjectorDetailResponse"
+	case strings.HasSuffix(normalized, "/injectors/{name}") && route.Method == "PUT":
 		return "response.InjectorDetailResponse"
 	case strings.HasSuffix(normalized, "/injectors/{name}/fields/{field_name}") && route.Method == "PUT":
 		return "response.InjectorFieldResponse"

@@ -1,539 +1,523 @@
 # Senda API Reference
 
-Complete API reference for Senda v1. All endpoints under `/api/v1/` unless noted. Request and response bodies use `application/json`. For an interactive collection, see [docs/postman/](postman/).
+Referencia práctica de la API v1 de Senda. Todos los endpoints usan JSON y viven bajo `/api/v1/` salvo health/tracking públicos. Para requests listas para importar, ver `docs/postman/`.
 
 ---
 
 ## Authentication
 
-| Scheme     | Header                                 | Plane      | Scope                                      |
-| ---------- | -------------------------------------- | ---------- | ------------------------------------------ |
-| OIDC / JWT | `Authorization: Bearer <oidc_token>`   | Management | User identity, RBAC role determines access |
-| API Key    | `Authorization: Bearer senda_live_xxx` | Data       | Workspace-scoped, used by applications     |
+| Scheme | Header | Plane | Scope |
+| --- | --- | --- | --- |
+| OIDC / JWT | `Authorization: Bearer <oidc_token>` | Management | RBAC humano sobre recursos global / tenant / workspace |
+| API Key | `Authorization: Bearer senda_live_xxx` | Data plane | Una workspace; pensado para aplicaciones |
 
-API keys are scoped to a single workspace. Management tokens carry the member's RBAC role evaluated against the resource hierarchy.
+Las API keys sólo sirven para data plane. La management API requiere OIDC/JWT.
 
-### RBAC Roles (highest to lowest)
+### RBAC Roles
 
-| Role            | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| Superadmin      | Full platform access. Manages tenants, global resources, members. |
-| TenantAdmin     | Manages a tenant and all its workspaces.                          |
-| WorkspaceAdmin  | Full control over a single workspace.                             |
-| WorkspaceEditor | Create and modify resources within a workspace.                   |
-| WorkspaceViewer | Read-only access to workspace resources.                          |
+| Role | Description |
+| --- | --- |
+| `Superadmin` | Acceso total a plataforma y recursos globales |
+| `TenantAdmin` | Administra un tenant y todas sus workspaces |
+| `WorkspaceAdmin` | Control total de una workspace |
+| `WorkspaceEditor` | Edita recursos funcionales de una workspace |
+| `WorkspaceViewer` | Solo lectura |
 
 ---
 
-## Error Format
+## Error Envelope
 
-All errors use a consistent JSON structure via `pkg/apperr`:
+La API usa un envelope consistente:
 
 ```json
-{ "code": 422, "message": "ref is required" }
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "validation failed",
+    "details": [
+      {
+        "field": "name",
+        "message": "is required"
+      }
+    ],
+    "request_id": "req_123"
+  }
+}
 ```
 
-### Error Codes
+### Common Error Codes
 
-| Status | Meaning               | Common Causes                                                 |
-| ------ | --------------------- | ------------------------------------------------------------- |
-| 400    | Bad Request           | Malformed JSON, missing required fields, invalid query params |
-| 401    | Unauthorized          | Missing/expired token, invalid API key                        |
-| 403    | Forbidden             | Insufficient RBAC role                                        |
-| 404    | Not Found             | Resource does not exist or is soft-deleted                    |
-| 409    | Conflict              | Duplicate resource (unique code collision)                    |
-| 422    | Unprocessable Entity  | Validation failure on semantically invalid input              |
-| 429    | Too Many Requests     | Rate limit exceeded (token-bucket, per workspace)             |
-| 500    | Internal Server Error | Unexpected server-side failure                                |
+| HTTP | `error.code` | Typical cause |
+| --- | --- | --- |
+| 400 | `BAD_REQUEST` | JSON inválido, params mal formados |
+| 401 | `UNAUTHORIZED` | Token/API key ausente o inválida |
+| 403 | `FORBIDDEN` | RBAC insuficiente |
+| 404 | `NOT_FOUND` | Recurso inexistente o borrado lógicamente |
+| 409 | `CONFLICT` | Colisión de unicidad o dependencia activa |
+| 422 | `VALIDATION_ERROR` | Datos semánticamente inválidos |
+| 429 | `RATE_LIMITED` | Rate limit por workspace |
+| 500 | `INTERNAL_ERROR` | Error inesperado |
 
 ---
 
 ## Pagination
 
-All list endpoints use cursor-based pagination. Cursors are opaque UUIDv7 strings.
+Los listados usan cursor-based pagination.
 
-| Parameter | Type    | Default  | Description                                     |
-| --------- | ------- | -------- | ----------------------------------------------- |
-| `cursor`  | string  | _(none)_ | Cursor from a previous response's `next_cursor` |
-| `limit`   | integer | 20       | Items per page (max varies by endpoint)         |
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `cursor` | string | Cursor opaco de la página anterior |
+| `limit` | integer | Tamaño de página |
 
-```json
-{ "items": [ ... ], "next_cursor": "019012ab-..." }
-```
-
-When `next_cursor` is `null` or absent, there are no more pages.
-
----
-
-## Infrastructure Endpoints (No Auth)
-
-| Method | Path       | Description                        |
-| ------ | ---------- | ---------------------------------- |
-| GET    | `/health`  | Basic application status           |
-| GET    | `/healthz` | Database connectivity check        |
-| GET    | `/metrics` | Prometheus metrics scrape endpoint |
-
----
-
-## Public Endpoints (No Auth)
-
-| Method | Path                           | Description                                      |
-| ------ | ------------------------------ | ------------------------------------------------ |
-| GET    | `/t/o/:tracking_id`            | Open-tracking pixel (1x1 transparent GIF)        |
-| GET    | `/public/video-thumbnail`      | Video thumbnail composite image                  |
-| POST   | `/api/v1/webhooks/ses/inbound` | AWS SES inbound webhook (SNS signature verified) |
-
----
-
-## Onboarding
-
-| Method | Path                        | Auth | Description                         |
-| ------ | --------------------------- | ---- | ----------------------------------- |
-| GET    | `/api/v1/onboarding/status` | None | Current onboarding state            |
-| POST   | `/api/v1/onboarding/setup`  | OIDC | Initialize the platform (first-run) |
-
----
-
-## Data Plane (Workspace API Key Auth)
-
-All requests require `Authorization: Bearer senda_live_xxx`. The raw key implicitly scopes operations
-to its workspace. Management OIDC tokens are not accepted on these endpoints because the handlers
-require workspace context derived from the API key.
-
-### POST /api/v1/send
-
-| Field         | Type     | Required | Description                                                  |
-| ------------- | -------- | -------- | ------------------------------------------------------------ |
-| `ref`         | string   | yes      | Template ref in `tenant:workspace:template_type_slug` format |
-| `to`          | string[] | yes      | One or more recipient email addresses (max 50)               |
-| `variables`   | object   | no       | Key-value pairs for template interpolation                   |
-| `locale`      | string   | no       | BCP-47 locale (e.g., `en`, `es-419`). Falls back to default. |
-| `cc`          | string[] | no       | CC recipients                                                |
-| `bcc`         | string[] | no       | BCC recipients                                               |
-| `external_id` | string   | no       | Caller-provided idempotency/correlation ID                   |
-
-**Response (202):**
+Respuesta típica:
 
 ```json
 {
-  "status": "accepted",
-  "tracking_ids": [
-    {
-      "to": "user@example.com",
-      "tracking_id": "trk_019012ab7c3d7def8abc1234567890ab",
-      "status": "accepted"
-    }
-  ],
-  "external_id": "signup-jane-20260226",
-  "template_resolved": "acme:production:welcome-email",
-  "template_version": 3
+  "items": [],
+  "next_cursor": "019012ab-...",
+  "has_more": true
 }
 ```
 
-**Full curl example:**
+---
 
-```bash
-curl -X POST https://senda.example.com/api/v1/send \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer senda_live_sk_abc123def456" \
-  -d '{
-    "ref": "acme:production:welcome-email",
-    "to": ["user@example.com"],
-    "variables": {
-      "first_name": "Jane",
-      "activation_url": "https://app.example.com/activate?token=xyz"
-    },
-    "locale": "en",
-    "external_id": "signup-jane-20260226"
-  }'
+## Infrastructure / Public Endpoints
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/health` | None | Liveness básica |
+| GET | `/healthz` | None | Health con chequeos de dependencias |
+| GET | `/metrics` | None | Prometheus scrape |
+| GET | `/t/o/:tracking_id` | None | Pixel de open tracking |
+| GET | `/public/video-thumbnail` | None | Thumbnail pública |
+| POST | `/api/v1/webhooks/ses/inbound` | None | Inbound webhook SES/SNS |
+| GET | `/api/v1/onboarding/status` | None | Estado del onboarding |
+| POST | `/api/v1/onboarding/setup` | OIDC | Setup inicial de plataforma |
+
+---
+
+## Data Plane (Workspace API Key)
+
+### POST /api/v1/send
+
+Envía un mensaje asincrónico usando una API key de workspace.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ref` | string | yes | Formato `tenant:workspace:template_type_slug` |
+| `to` | string[] | yes | Destinatarios primarios |
+| `variables` | object | no | Variables del template |
+| `injectors` | object | no | Overrides runtime por injector/field |
+| `locale` | string | no | Locale preferido |
+| `cc` | string[] | no | CC |
+| `bcc` | string[] | no | BCC |
+| `external_id` | string | no | Correlation/idempotency ID |
+
+Ejemplo:
+
+```json
+{
+  "ref": "acme:main:welcome-email",
+  "to": ["user@example.com"],
+  "variables": {
+    "first_name": "Jane"
+  },
+  "injectors": {
+    "student": {
+      "full_name": "Jane Doe"
+    }
+  },
+  "locale": "es",
+  "external_id": "signup-jane-1"
+}
 ```
 
 ### POST /api/v1/send/batch
 
-Use this endpoint when every logical message uses the **same template ref** but needs its **own variables/injector context**.
-
-**Limits:**
-
-- `items` must contain at least 1 item
-- default max: **100 items** per request
-- configurable via `send.batch_max_items` or `SENDA_SEND_BATCH_MAX_ITEMS`
-- each item has exactly **one** primary recipient in `to`
+Mismo `ref` para muchos mensajes, cada item con su propio contexto.
 
 | Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `ref` | string | yes | Shared template ref in `tenant:workspace:template_type_slug` format |
-| `items` | object[] | yes | One logical message per item |
-| `items[].to` | string | yes | Primary recipient email |
-| `items[].variables` | object | no | Variables used for that item's template rendering and injector resolution |
-| `items[].locale` | string | no | Locale override for that item |
-| `items[].cc` | string[] | no | CC recipients for that item |
-| `items[].bcc` | string[] | no | BCC recipients for that item |
-| `items[].external_id` | string | no | Per-item correlation/idempotency ID |
+| --- | --- | --- | --- |
+| `ref` | string | yes | Template ref compartido |
+| `items` | object[] | yes | Un mensaje lógico por item |
+| `items[].to` | string | yes | Destinatario primario |
+| `items[].variables` | object | no | Variables por item |
+| `items[].injectors` | object | no | Overrides runtime por item |
+| `items[].locale` | string | no | Locale por item |
+| `items[].cc` | string[] | no | CC por item |
+| `items[].bcc` | string[] | no | BCC por item |
+| `items[].external_id` | string | no | Correlation ID por item |
 
-**Response (202):**
+Ejemplo:
 
 ```json
 {
-  "status": "partial",
-  "template_resolved": "acme:production:welcome-email",
+  "ref": "acme:main:welcome-email",
   "items": [
     {
-      "index": 0,
       "to": "ana@example.com",
-      "tracking_id": "trk_111",
-      "status": "accepted",
+      "variables": {"first_name": "Ana"},
+      "injectors": {
+        "student": {"full_name": "Ana Pérez"}
+      },
       "external_id": "msg-1"
     },
     {
-      "index": 1,
-      "to": "blocked@example.com",
-      "tracking_id": "trk_222",
-      "status": "suppressed",
+      "to": "bob@example.com",
+      "variables": {"first_name": "Bob"},
+      "injectors": {
+        "student": {"full_name": "Bob Smith"}
+      },
       "external_id": "msg-2"
-    },
-    {
-      "index": 2,
-      "to": "broken@example.com",
-      "status": "failed",
-      "external_id": "msg-3",
-      "error": "all recipients failed: create email: db down"
     }
-  ],
-  "accepted_count": 1,
-  "suppressed_count": 1,
-  "failed_count": 1
+  ]
 }
 ```
 
-**Full curl example:**
+### Injector runtime precedence
 
-```bash
-curl -X POST https://senda.example.com/api/v1/send/batch \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer senda_live_sk_abc123def456" \
-  -d '{
-    "ref": "acme:production:welcome-email",
-    "items": [
-      {
-        "to": "ana@example.com",
-        "variables": {
-          "first_name": "Ana",
-          "activation_url": "https://app.example.com/activate?token=ana"
-        },
-        "external_id": "signup-ana-1",
-        "locale": "es"
-      },
-      {
-        "to": "bob@example.com",
-        "variables": {
-          "first_name": "Bob",
-          "activation_url": "https://app.example.com/activate?token=bob"
-        },
-        "external_id": "signup-bob-2",
-        "locale": "en"
-      }
-    ]
-  }'
-```
+El merge es **por field**, no por injector completo:
+
+- `allow_overwrite=false` → siempre gana `default_value`
+- `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+- si existe un field definido en código pero no en el schema DB, se agrega como field extra en runtime
+
+Esto aplica tanto a `POST /api/v1/send` como a `POST /api/v1/send/batch`.
 
 ### Query Emails
 
-| Method | Path                                 | Description                               |
-| ------ | ------------------------------------ | ----------------------------------------- |
-| GET    | `/api/v1/emails`                     | List emails (paginated, workspace-scoped) |
-| GET    | `/api/v1/emails/export`              | Export emails                             |
-| GET    | `/api/v1/emails/:tracking_id`        | Get email by tracking ID                  |
-| GET    | `/api/v1/emails/:tracking_id/events` | Get delivery events                       |
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/v1/emails` | Lista emails de la workspace |
+| GET | `/api/v1/emails/export` | Exporta emails |
+| GET | `/api/v1/emails/:tracking_id` | Detalle de email |
+| GET | `/api/v1/emails/:tracking_id/events` | Historial de eventos |
 
 ---
 
-## Member Profile (OIDC Auth)
+## Current Member
 
-| Method | Path                 | Description            |
-| ------ | -------------------- | ---------------------- |
-| GET    | `/api/v1/members/me` | Current member profile |
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/members/me` | OIDC | Perfil autenticado + roles |
 
 ---
 
-## Management API (OIDC Auth, RBAC Enforced)
+## Management API
 
-All management endpoints live under `/api/v1/manage/`. The path hierarchy mirrors the resource hierarchy: global, tenant, workspace.
+Base: `/api/v1/manage`
 
 ### Tenants (Superadmin)
 
-Base: `/api/v1/manage/tenants`
-
-| Method | Path                    | Description        |
-| ------ | ----------------------- | ------------------ |
-| POST   | `/tenants`              | Create tenant      |
-| GET    | `/tenants`              | List tenants       |
-| GET    | `/tenants/:tenant_code` | Get tenant         |
-| PUT    | `/tenants/:tenant_code` | Update tenant      |
-| DELETE | `/tenants/:tenant_code` | Soft-delete tenant |
+| Method | Path |
+| --- | --- |
+| POST | `/tenants` |
+| GET | `/tenants` |
+| GET | `/tenants/:tenant_code` |
+| PUT | `/tenants/:tenant_code` |
+| DELETE | `/tenants/:tenant_code` |
 
 ### Workspaces (TenantAdmin+)
 
-Base: `/api/v1/manage/tenants/:tenant_code/workspaces`
+| Method | Path |
+| --- | --- |
+| POST | `/tenants/:tenant_code/workspaces` |
+| GET | `/tenants/:tenant_code/workspaces` |
+| GET | `/tenants/:tenant_code/workspaces/:workspace_code` |
+| PUT | `/tenants/:tenant_code/workspaces/:workspace_code` |
+| DELETE | `/tenants/:tenant_code/workspaces/:workspace_code` |
 
-| Method | Path                          | Description           |
-| ------ | ----------------------------- | --------------------- |
-| POST   | `/workspaces`                 | Create workspace      |
-| GET    | `/workspaces`                 | List workspaces       |
-| GET    | `/workspaces/:workspace_code` | Get workspace         |
-| PUT    | `/workspaces/:workspace_code` | Update workspace      |
-| DELETE | `/workspaces/:workspace_code` | Soft-delete workspace |
+### Members
 
-### Members (Superadmin)
+#### Global members (Superadmin)
 
-Base: `/api/v1/manage/members`
+| Method | Path |
+| --- | --- |
+| POST | `/members` |
+| GET | `/members` |
+| GET | `/members/:member_id` |
+| POST | `/members/:member_id/roles` |
+| DELETE | `/members/:member_id/roles/:role_id` |
 
-| Method | Path                          | Description   |
-| ------ | ----------------------------- | ------------- |
-| POST   | `/members`                    | Create member |
-| GET    | `/members`                    | List members  |
-| GET    | `/members/:id`                | Get member    |
-| POST   | `/members/:id/roles`          | Assign role   |
-| DELETE | `/members/:id/roles/:role_id` | Remove role   |
+#### Scoped member creation
 
-### Platform Config (Superadmin)
+También existen rutas scopiadas para crear/listar members en tenant/workspace, con las mismas reglas RBAC del scope resuelto.
 
-| Method | Path                    | Description            |
-| ------ | ----------------------- | ---------------------- |
-| GET    | `/api/v1/manage/config` | Get platform config    |
-| PUT    | `/api/v1/manage/config` | Update platform config |
+**Cambio importante:** si creás un member con un email ya existente, Senda **reutiliza la identidad** (`members`) y sólo agrega el nuevo rol/scope (`member_roles`). No duplica personas por email.
+
+### Config (Superadmin)
+
+| Method | Path |
+| --- | --- |
+| GET | `/config` |
+| PUT | `/config` |
 
 ---
 
-### Workspace-Scoped Resources
+## Workspace-scoped resources
 
-Base: `/api/v1/manage/tenants/:tc/workspaces/:wc`
+Base: `/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code`
 
-Required role varies by operation (typically WorkspaceEditor+ for writes, WorkspaceViewer+ for reads).
+### Injectors
 
-#### Injectors
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/injectors` | Crea schema completo |
+| GET | `/injectors` | Lista del scope actual |
+| GET | `/injectors?include_inherited=true` | Incluye workspace + `_system` + global, deduplicado por prioridad |
+| GET | `/injectors/:name` | Lookup por nombre |
+| PUT | `/injectors/:name` | Reemplaza schema completo |
+| PUT | `/injectors/:name/fields/:field_name` | Actualiza `default_value` / `allow_overwrite` de un field |
+| PUT | `/injectors/:name/values` | Setea valores persistidos por workspace |
+| DELETE | `/injectors/:name` | Soft delete lógico del schema |
 
-| Method | Path                    | Description            |
-| ------ | ----------------------- | ---------------------- |
-| POST   | `/injectors`            | Create injector        |
-| GET    | `/injectors`            | List injectors         |
-| GET    | `/injectors/:id`        | Get injector           |
-| PUT    | `/injectors/:id/values` | Update injector values |
+#### Create / replace schema body
 
-#### Adapters
+```json
+{
+  "name": "student",
+  "description": "Datos del alumno",
+  "fields": [
+    {
+      "field_name": "full_name",
+      "field_type": "string",
+      "position": 1,
+      "default_value": "Alumno",
+      "allow_overwrite": true
+    },
+    {
+      "field_name": "campus",
+      "field_type": "string",
+      "position": 2,
+      "default_value": "central",
+      "allow_overwrite": false
+    }
+  ]
+}
+```
 
-| Method | Path                                    | Description                    |
-| ------ | --------------------------------------- | ------------------------------ |
-| POST   | `/adapters`                             | Create adapter                 |
-| GET    | `/adapters`                             | List adapters                  |
-| GET    | `/adapters/:id`                         | Get adapter                    |
-| PUT    | `/adapters/:id`                         | Update adapter                 |
-| DELETE | `/adapters/:id`                         | Soft-delete adapter            |
-| POST   | `/adapters/:id/test`                    | Test connectivity              |
-| GET    | `/adapters/:id/setup-guide`             | Provider setup instructions    |
-| POST   | `/adapters/:id/auto-provision-tracking` | Auto-provision tracking domain |
-| GET    | `/adapters/:id/workspace-access`        | List workspace grants (Gmail, `_system` only) |
-| PUT    | `/adapters/:id/workspace-access`        | Replace workspace grants (Gmail, `_system` only) |
+#### Update one field runtime policy
 
-#### Adapter Identities
+```json
+{
+  "default_value": "central",
+  "allow_overwrite": false
+}
+```
 
-| Method | Path                                        | Description        |
-| ------ | ------------------------------------------- | ------------------ |
-| GET    | `/adapters/:id/identities`                  | List identities    |
-| POST   | `/adapters/:id/identities`                  | Create identity    |
-| POST   | `/adapters/:id/identities/sync`             | Sync from provider |
-| DELETE | `/adapters/:id/identities/:iid`             | Delete identity    |
-| POST   | `/adapters/:id/identities/:iid/set-default` | Set as default     |
-| GET    | `/adapters/:id/identities/:iid/workspace-access` | List workspace grants (SES email identities, `_system` only) |
-| PUT    | `/adapters/:id/identities/:iid/workspace-access` | Replace workspace grants (SES email identities, `_system` only) |
+#### Set persistent values
+
+```json
+{
+  "values": [
+    {"field_name": "full_name", "value": "Jane Doe"},
+    {"field_name": "campus", "value": "north"}
+  ]
+}
+```
+
+**Runtime semantics:**
+
+- `PUT /injectors/:name` es **destructivo respecto del schema**: reemplaza fields del injector completo
+- `default_value` vive en `injector_fields`
+- `allow_overwrite` decide si runtime puede usar request/code o debe fijar el default
+- `PUT /injectors/:name/values` persiste valores del scope actual; en runtime el fallback base sigue siendo el schema + cadena de scopes + overrides
+
+### Adapters
+
+| Method | Path |
+| --- | --- |
+| POST | `/adapters` |
+| GET | `/adapters` |
+| GET | `/adapters/:id` |
+| PUT | `/adapters/:id` |
+| DELETE | `/adapters/:id` |
+| POST | `/adapters/:id/test` |
+| GET | `/adapters/:id/setup-guide` |
+| POST | `/adapters/:id/auto-provision-tracking` |
+| GET | `/adapters/:id/workspace-access` |
+| PUT | `/adapters/:id/workspace-access` |
+
+### Adapter identities
+
+| Method | Path |
+| --- | --- |
+| GET | `/adapters/:id/identities` |
+| POST | `/adapters/:id/identities` |
+| POST | `/adapters/:id/identities/sync` |
+| DELETE | `/adapters/:id/identities/:identity_id` |
+| POST | `/adapters/:id/identities/:identity_id/set-default` |
+| GET | `/adapters/:id/identities/:identity_id/workspace-access` |
+| PUT | `/adapters/:id/identities/:identity_id/workspace-access` |
 
 **Sharing rules**
 
-- Sharing is managed only from the tenant's **`_system`** workspace.
-- **Gmail** sharing happens at the **adapter** level.
-- **SES** sharing happens at the **email identity** level; identities of type `domain` are **not** shareable.
-- `GET /adapters` in a regular workspace returns both workspace-owned adapters and visible `_system` shared adapters.
-- Shared adapters are **read-only** from child workspaces: update/delete/test/sync/set-default/manual identity mutations return `403`.
-- `GET /adapters/:id/identities` in a regular workspace returns:
-  - all identities for owned adapters;
-  - all identities for shared Gmail adapters;
-  - only the **granted email identities** for shared SES adapters.
+- el sharing se administra desde la workspace `_system`
+- Gmail se comparte a nivel adapter
+- SES se comparte a nivel **email identity**, no dominio
+- identidades SES de tipo `domain` no son shareables
+- un child workspace ve adapters heredados como read-only
 
-#### Template Types
+### Template types
 
-| Method | Path                  | Description          |
-| ------ | --------------------- | -------------------- |
-| POST   | `/template-types`     | Create template type |
-| GET    | `/template-types`     | List template types  |
-| GET    | `/template-types/:id` | Get template type    |
+| Method | Path |
+| --- | --- |
+| POST | `/template-types` |
+| GET | `/template-types` |
+| GET | `/template-types/:slug` |
+| PUT | `/template-types/:slug` |
+| DELETE | `/template-types/:slug` |
+| GET | `/template-types/:slug/templates` |
 
-**Template type rules with shared adapters**
+### Templates, versions y locales
 
-- Workspace template types can reference:
-  - a workspace-owned adapter;
-  - a Gmail adapter shared from tenant `_system`;
-  - a SES adapter shared from tenant `_system` **only when** the selected `sender_identity_id` is a granted SES email identity for that workspace.
-- For shared SES adapters, `sender_identity_id` is **required**.
-- Revoking a shared adapter grant or SES identity grant returns **`409 CONFLICT`** when a workspace template type still depends on it.
+| Method | Path |
+| --- | --- |
+| POST | `/templates` |
+| GET | `/templates` |
+| GET | `/templates/:template_id` |
+| POST | `/templates/:template_id/disable` |
+| POST | `/templates/:template_id/enable` |
+| POST | `/templates/:template_id/versions` |
+| GET | `/templates/:template_id/versions` |
+| GET | `/templates/:template_id/versions/:version_id` |
+| PUT | `/templates/:template_id/versions/:version_id` |
+| POST | `/templates/:template_id/versions/:version_id/publish` |
+| POST | `/templates/:template_id/versions/:version_id/locales/:locale` |
+| GET | `/templates/:template_id/versions/:version_id/locales` |
+| GET | `/templates/:template_id/versions/:version_id/locales/:locale` |
+| PUT | `/templates/:template_id/versions/:version_id/locales/:locale` |
+| DELETE | `/templates/:template_id/versions/:version_id/locales/:locale` |
+| POST | `/templates/:template_id/preview-mjml` |
 
-#### Templates
+### Test send
 
-| Method | Path                     | Description      |
-| ------ | ------------------------ | ---------------- |
-| POST   | `/templates`             | Create template  |
-| GET    | `/templates`             | List templates   |
-| GET    | `/templates/:id`         | Get template     |
-| POST   | `/templates/:id/disable` | Disable template |
-| POST   | `/templates/:id/enable`  | Enable template  |
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/templates/:template_id/test-send` | Envía síncrono usando published o latest draft |
 
-#### Template Versions
+Body:
 
-| Method | Path                                   | Description          |
-| ------ | -------------------------------------- | -------------------- |
-| POST   | `/templates/:id/versions`              | Create version       |
-| GET    | `/templates/:id/versions`              | List versions        |
-| GET    | `/templates/:id/versions/:vid`         | Get version          |
-| PUT    | `/templates/:id/versions/:vid`         | Update draft version |
-| POST   | `/templates/:id/versions/:vid/publish` | Publish version      |
+```json
+{
+  "recipient_email": "qa@example.com",
+  "variables": {
+    "first_name": "QA"
+  },
+  "injectors": {
+    "student": {
+      "full_name": "QA User"
+    }
+  },
+  "locale": "es"
+}
+```
 
-#### Template Version Locales
+También respeta la precedencia runtime de injectors por field.
 
-| Method | Path                                           | Description   |
-| ------ | ---------------------------------------------- | ------------- |
-| POST   | `/templates/:id/versions/:vid/locales`         | Add locale    |
-| GET    | `/templates/:id/versions/:vid/locales`         | List locales  |
-| PUT    | `/templates/:id/versions/:vid/locales/:locale` | Update locale |
-| DELETE | `/templates/:id/versions/:vid/locales/:locale` | Remove locale |
+### Bulk send
 
-#### Template Preview & Test
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/templates/:template_id/bulk-send-config` | Config de límites y comportamiento UI |
+| POST | `/templates/:template_id/bulk-send` | Encola batch usando la versión publicada actual |
 
-| Method | Path                       | Description                   |
-| ------ | -------------------------- | ----------------------------- |
-| POST   | `/templates/:id/preview`   | Render preview (returns HTML) |
-| POST   | `/templates/:id/test-send` | Send test email               |
+Body:
 
-#### Template Bulk Send (workspace scope)
+```json
+{
+  "items": [
+    {
+      "to": "ana@example.com",
+      "variables": {"first_name": "Ana"},
+      "injectors": {
+        "student": {"full_name": "Ana Pérez"}
+      },
+      "external_id": "bulk-1"
+    }
+  ]
+}
+```
 
-| Method | Path                              | Description |
-| ------ | --------------------------------- | ----------- |
-| GET    | `/templates/:id/bulk-send-config` | Return UI bulk-send limits and behavior |
-| POST   | `/templates/:id/bulk-send`        | Queue a bulk send using the current published version |
+Cada item acepta el mismo shape runtime que `send/batch`: `variables`, `injectors`, `locale`, `cc`, `bcc`, `external_id`.
 
-**Notes**
+### API Keys
 
-- Only available on **workspace-scoped** template editors.
-- Uses the **current published version** of the template.
-- Request body contains only `items[]`; the template comes from the current screen.
-- The POST endpoint reuses the same batch send engine as `/api/v1/send/batch`.
-- Every persisted email is tagged with provenance so you can distinguish API-key sends from UI bulk uploads.
+| Method | Path |
+| --- | --- |
+| POST | `/api-keys` |
+| GET | `/api-keys` |
+| DELETE | `/api-keys/:id` |
 
-#### API Keys
+### Webhooks
 
-| Method | Path                   | Description    |
-| ------ | ---------------------- | -------------- |
-| POST   | `/api-keys`            | Create API key |
-| GET    | `/api-keys`            | List API keys  |
-| DELETE | `/api-keys/:id/revoke` | Revoke API key |
+| Method | Path |
+| --- | --- |
+| POST | `/webhooks` |
+| GET | `/webhooks` |
+| GET | `/webhooks/:id` |
+| PUT | `/webhooks/:id` |
+| DELETE | `/webhooks/:id` |
+| POST | `/webhooks/:id/test` |
 
-#### Webhooks
+### Emails / audit / suppression / dashboard
 
-| Method | Path                 | Description     |
-| ------ | -------------------- | --------------- |
-| POST   | `/webhooks`          | Create webhook  |
-| GET    | `/webhooks`          | List webhooks   |
-| GET    | `/webhooks/:id`      | Get webhook     |
-| PUT    | `/webhooks/:id`      | Update webhook  |
-| DELETE | `/webhooks/:id`      | Delete webhook  |
-| POST   | `/webhooks/:id/test` | Send test event |
-
-#### Emails (Management View)
-
-| Method | Path                          | Description                      |
-| ------ | ----------------------------- | -------------------------------- |
-| GET    | `/emails`                     | List emails (management filters) |
-| GET    | `/emails/:tracking_id`        | Get email                        |
-| GET    | `/emails/:tracking_id/events` | Get delivery events              |
-
-#### Suppression List
-
-| Method | Path                  | Description                          |
-| ------ | --------------------- | ------------------------------------ |
-| POST   | `/suppression/add`    | Add address to suppression list      |
-| POST   | `/suppression/check`  | Check if address is suppressed       |
-| POST   | `/suppression/remove` | Remove address from suppression list |
-
-#### Audit Log
-
-| Method | Path         | Description                               |
-| ------ | ------------ | ----------------------------------------- |
-| GET    | `/audit-log` | Query audit entries (paginated, filtered) |
-
-#### Dashboard
-
-| Method | Path               | Description                            |
-| ------ | ------------------ | -------------------------------------- |
-| GET    | `/dashboard/stats` | Workspace email statistics and metrics |
+| Resource | Routes |
+| --- | --- |
+| Emails | `GET /emails`, `GET /emails/:tracking_id`, `GET /emails/:tracking_id/events` |
+| Suppression | `POST /suppression`, `GET /suppression/:email`, `DELETE /suppression/:email` |
+| Audit log | `GET /audit-log` |
+| Dashboard | `GET /dashboard-stats` |
 
 ---
 
-### Global-Scoped Resources (Superadmin)
+## Global-scoped resources
 
 Base: `/api/v1/manage/global`
 
-Global resources mirror the workspace-scoped structure but apply at the platform level. Only Superadmins have access. Global resources participate in the resolution chain and can be inherited by tenants and workspaces.
+El scope global replica la mayoría de los recursos de workspace para configuración plataforma-wide.
 
-| Resource           | Endpoints                                       |
-| ------------------ | ----------------------------------------------- |
-| Injectors          | CRUD + values (same as workspace-scoped)        |
-| Adapters           | CRUD + test + setup-guide + auto-provision      |
-| Adapter Identities | List, create, sync, delete, set-default         |
-| Template Types     | CRUD                                            |
-| Templates          | CRUD + versions + locales + preview + test-send |
-| Audit Log          | GET with filters                                |
-| Dashboard          | GET stats                                       |
+| Resource | Coverage |
+| --- | --- |
+| Injectors | create/list/get/update schema/update field/delete |
+| Adapters | CRUD + test + setup guide + auto provision |
+| Adapter identities | list/create/sync/delete/set-default |
+| Template types | CRUD |
+| Templates | create/list/get/disable/enable + versions + locales + preview + test-send |
+| Audit log | list |
+| Dashboard | stats |
 
 ---
 
 ## Webhook Events
 
-Senda delivers real-time event notifications to configured webhook URLs.
+| Event | Description |
+| --- | --- |
+| `email.queued` | aceptado y encolado |
+| `email.sent` | entregado al provider |
+| `email.delivered` | provider confirmó delivery |
+| `email.bounced` | bounce duro o blando |
+| `email.complained` | complaint / spam report |
+| `email.failed` | fallo permanente |
+| `email.opened` | pixel de apertura |
+| `*` | wildcard |
 
-| Event              | Description                                       |
-| ------------------ | ------------------------------------------------- |
-| `email.queued`     | Email accepted and placed in the send queue       |
-| `email.sent`       | Email handed off to the provider                  |
-| `email.delivered`  | Provider confirmed delivery to recipient MTA      |
-| `email.bounced`    | Email bounced (hard or soft)                      |
-| `email.complained` | Recipient marked the email as spam                |
-| `email.failed`     | Permanent send failure                            |
-| `email.opened`     | Recipient opened the email (tracking pixel fired) |
-| `*`                | Wildcard, subscribes to all events                |
+### Signature
 
-### Signature Verification
+Los webhooks salientes usan HMAC-SHA256 en `X-Senda-Signature`:
 
-Every webhook request includes an HMAC-SHA256 signature in `X-Senda-Signature`, computed over the raw request body using the webhook's secret key.
-
-```
-X-Senda-Signature: sha256=<hex_digest>
-```
-
-Verification example:
-
-```python
-import hmac, hashlib
-
-def verify(body: bytes, secret: str, signature: str) -> bool:
-    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+```text
+sha256=<hex_digest>
 ```
 
 ---
 
-## Rate Limiting
+## Rate limiting
 
-The data plane enforces token-bucket rate limiting per workspace. When exceeded, the API returns `429 Too Many Requests`. Retry after the period indicated in the `Retry-After` response header.
+El data plane aplica token bucket por workspace. Si excedés el límite, responde `429 RATE_LIMITED`.
 
 ---
 
-## Postman Collection
+## Postman
 
-An importable Postman collection covering all endpoints is available at `docs/postman/senda-api-v1.postman_collection.json`.
+Colección importable: `docs/postman/senda-api-v1.postman_collection.json`.

@@ -12,29 +12,25 @@ allowed-tools:
 
 # Senda MCP
 
-MCP integration for Senda — a multi-tenant email orchestration platform with MJML templates, provider abstraction (SES, Gmail, SMTP), RBAC, audit trails, and webhooks.
+MCP integration for Senda, generado desde el OpenAPI usando [mcp-openapi-proxy](https://github.com/rendis/mcp-openapi-proxy). Cada endpoint expone una tool `senda_{method}_{path}`.
 
-Uses [mcp-openapi-proxy](https://github.com/rendis/mcp-openapi-proxy) to auto-generate MCP tools from the OpenAPI spec. Each API endpoint becomes a callable tool.
-
-**Repository**: https://github.com/rendis/senda
-**Install proxy**: `go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest`
+**Repository:** https://github.com/rendis/senda
+**Install proxy:** `go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest`
 
 ## Setup
 
 ### Claude Code
 
-The project includes `.mcp.json` — Claude Code auto-detects it. No manual setup needed.
+El repo ya incluye `.mcp.json`.
 
 ```bash
-make dev          # Start API on port 8081 (docker-compose: postgres + keycloak + senda)
-# MCP auto-configured via .mcp.json
+make dev
+# Claude detecta .mcp.json automáticamente
 ```
-
-Verify: `claude mcp list` → should show `senda` connected.
 
 ### OpenAI Codex
 
-Edit `~/.codex/config.toml`:
+Editar `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.senda]
@@ -45,11 +41,14 @@ args = []
 MCP_SPEC = "https://raw.githubusercontent.com/rendis/senda/main/cmd/senda/docs/openapi.yaml"
 MCP_BASE_URL = "<your-api-url>"
 MCP_TOOL_PREFIX = "senda"
+MCP_AUTH_PROFILE = "senda"
+MCP_OIDC_ISSUER = "http://localhost:9090/realms/senda"
+MCP_OIDC_CLIENT_ID = "tether-mcp"
 ```
 
 ### Gemini CLI
 
-Edit `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
+Editar `~/.gemini/settings.json` o `.gemini/settings.json`:
 
 ```json
 {
@@ -60,89 +59,91 @@ Edit `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
       "env": {
         "MCP_SPEC": "https://raw.githubusercontent.com/rendis/senda/main/cmd/senda/docs/openapi.yaml",
         "MCP_BASE_URL": "<your-api-url>",
-        "MCP_TOOL_PREFIX": "senda"
+        "MCP_TOOL_PREFIX": "senda",
+        "MCP_AUTH_PROFILE": "senda",
+        "MCP_OIDC_ISSUER": "http://localhost:9090/realms/senda",
+        "MCP_OIDC_CLIENT_ID": "tether-mcp"
       }
     }
   }
 }
 ```
 
-### OIDC Authentication (production)
+### OIDC login flow
 
 ```bash
-mcp-openapi-proxy login     # browser-based OIDC PKCE login
-mcp-openapi-proxy status    # check auth status
-mcp-openapi-proxy logout    # clear stored tokens
+mcp-openapi-proxy login
+mcp-openapi-proxy status
+mcp-openapi-proxy logout
 ```
 
 ## Available MCP Tools
 
-Tool naming: `senda_{method}_{path}`. Use `senda_list_endpoints` to discover all.
+Naming pattern: `senda_{method}_{path}`. Usá `senda_list_endpoints` para discovery completo.
 
 ### Key Tools
 
 | Tool | Purpose |
-|------|---------|
+| --- | --- |
 | `senda_get_health` | Health check |
-| `senda_post_api_v1_send` | Send an email (async, 202) |
+| `senda_post_api_v1_send` | Send async |
+| `senda_post_api_v1_send_batch` | Batch send async con contexto por item |
 | `senda_get_api_v1_emails` | List sent emails |
-| `senda_get_api_v1_onboarding_status` | Check if onboarding needed |
-| `senda_post_api_v1_onboarding_setup` | Run first-time setup |
+| `senda_get_api_v1_onboarding_status` | Check onboarding |
+| `senda_post_api_v1_onboarding_setup` | First-time setup |
 | `senda_post_api_v1_manage_tenants` | Create tenant |
-| `senda_get_api_v1_manage_tenants` | List tenants |
 | `senda_post_api_v1_manage_tenants_tc_workspaces` | Create workspace |
-| `senda_get_api_v1_manage_members` | List members |
-| `senda_post_api_v1_manage_members` | Create member |
-| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters` | Create email adapter |
+| `senda_post_api_v1_manage_members` | Create global member |
+| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters` | Create adapter |
 | `senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates` | Create template |
+| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates_template_id_test_send` | Sync template test-send |
+| `senda_get_api_v1_manage_tenants_tc_workspaces_wc_templates_template_id_bulk_send_config` | Read bulk-send limits |
+| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates_template_id_bulk_send` | Queue bulk-send |
 | `senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys` | Create API key |
 
 ## Quick Start Workflow
 
-```
-1. senda_get_api_v1_onboarding_status       → check if setup needed
-2. senda_post_api_v1_onboarding_setup       → create tenant + member (first time)
-3. senda_get_api_v1_manage_tenants          → list tenants
-4. senda_post_api_v1_manage_tenants_tc_workspaces  → create workspace
-5. senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters  → add email provider
-6. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_workspace_access  → grant a Gmail adapter from tenant `_system` to selected workspaces (optional)
-7. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_identities_identity_id_workspace_access → grant an SES email identity from tenant `_system` to selected workspaces (optional)
-8. senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates → create template
-9. senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys  → create API key
-10. senda_post_api_v1_send                   → send email with API key
-11. senda_get_api_v1_emails                  → check delivery status
+```text
+1. senda_get_api_v1_onboarding_status
+2. senda_post_api_v1_onboarding_setup
+3. senda_get_api_v1_manage_tenants
+4. senda_post_api_v1_manage_tenants_tc_workspaces
+5. senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters
+6. senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates
+7. senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys
+8. senda_post_api_v1_send
+9. senda_post_api_v1_send_batch (optional)
+10. senda_get_api_v1_emails
 ```
 
 ## API Groups
 
-### Public (no auth)
+### Public
 
-- `GET /health` — health check
-- `GET /healthz` — full health (pinger)
-- `GET /metrics` — Prometheus metrics
-- `GET /t/o/{tracking_id}` — email open-tracking pixel
-- `GET /public/video-thumbnail` — video thumbnail composite
-- `GET /api/v1/onboarding/status` — check setup status
+- `GET /health`
+- `GET /healthz`
+- `GET /metrics`
+- `GET /t/o/{tracking_id}`
+- `GET /public/video-thumbnail`
+- `GET /api/v1/onboarding/status`
+- `POST /api/v1/webhooks/ses/inbound`
 
-### Data Plane (WorkspaceAPIKeyBearer)
+### Data Plane (`WorkspaceAPIKeyBearer`)
 
-Auth: `Authorization: Bearer senda_live_...` (workspace API key)
+Auth: `Authorization: Bearer senda_live_...`
 
-- `POST /api/v1/send` — send email (202 Accepted, async)
-- `GET /api/v1/emails` — list emails (cursor pagination)
-- `GET /api/v1/emails/{tracking_id}` — get email details
-- `GET /api/v1/emails/{tracking_id}/events` — get email events
-- `GET /api/v1/emails/export` — export emails (CSV/JSON)
+- `POST /api/v1/send`
+- `POST /api/v1/send/batch`
+- `GET /api/v1/emails`
+- `GET /api/v1/emails/{tracking_id}`
+- `GET /api/v1/emails/{tracking_id}/events`
+- `GET /api/v1/emails/export`
 
-### Webhooks Inbound (no auth, SNS signature)
+`send` y `send/batch` aceptan `variables` **e `injectors`** en runtime.
 
-- `POST /api/v1/webhooks/ses/inbound` — SES/SNS event ingestion
+### Management API (`ManagementBearer`)
 
-### Management API (ManagementBearer — OIDC JWT)
-
-Auth: `Authorization: Bearer <keycloak-jwt>`
-
-All routes under `/api/v1/manage/` require OIDC JWT + role-based access.
+Auth: `Authorization: Bearer <oidc-jwt>`
 
 #### Tenants (Superadmin)
 - `POST/GET /api/v1/manage/tenants`
@@ -152,167 +153,146 @@ All routes under `/api/v1/manage/` require OIDC JWT + role-based access.
 - `POST/GET /api/v1/manage/tenants/{tc}/workspaces`
 - `GET/PUT/DELETE /api/v1/manage/tenants/{tc}/workspaces/{wc}`
 
-#### Members (Superadmin)
+#### Members
 - `GET/POST /api/v1/manage/members`
-- `GET /api/v1/manage/members/{id}`
-- `POST /api/v1/manage/members/{id}/roles`
-- `DELETE /api/v1/manage/members/{id}/roles/{role_id}`
+- `GET /api/v1/manage/members/{member_id}`
+- `POST /api/v1/manage/members/{member_id}/roles`
+- `DELETE /api/v1/manage/members/{member_id}/roles/{role_id}`
+- scoped member routes also exist under tenant/workspace hierarchy
 
-#### Workspace Resources (under `.../workspaces/{wc}/`)
+#### Workspace resources (under `.../workspaces/{wc}/`)
 
-| Resource | Create | List | Get | Update | Delete | Test |
-|----------|--------|------|-----|--------|--------|------|
-| Adapters | POST | GET | GET /{id} | PUT /{id} | DELETE /{id} | POST /{id}/test |
-| Adapter Identities | POST | GET | — | — | DELETE /{id} | — |
-| Templates | POST | GET | GET /{id} | — | — | POST /{id}/test-send |
-| Template Versions | POST | GET | GET /{vid} | PUT /{vid} | — | POST /{vid}/publish |
-| Template Locales | POST | GET | GET /{loc} | PUT /{loc} | DELETE /{loc} | — |
-| Template Types | POST | GET | GET /{slug} | — | — | — |
-| Injectors | POST | GET | GET /{name} | PUT /{name}/values | — | — |
-| API Keys | POST | GET | — | — | DELETE /{id} | — |
-| Webhooks | POST | GET | GET /{id} | PUT /{id} | DELETE /{id} | POST /{id}/test |
-| Emails | — | GET | GET /{tid} | — | — | — |
-| Suppression | POST | GET /{email} | — | — | DELETE /{email} | — |
-| Audit Log | — | GET | — | — | — | — |
-| Dashboard Stats | — | GET | — | — | — | — |
+| Resource | Create | List | Get | Update | Delete | Extra |
+| --- | --- | --- | --- | --- | --- | --- |
+| Adapters | POST | GET | `GET /{id}` | `PUT /{id}` | DELETE | `POST /{id}/test`, `GET /{id}/setup-guide`, sharing endpoints |
+| Adapter identities | POST | GET | — | — | DELETE | `POST /sync`, `POST /set-default`, identity workspace access |
+| Template types | POST | GET | `GET /{slug}` | `PUT /{slug}` | DELETE | `GET /{slug}/templates` |
+| Templates | POST | GET | `GET /{template_id}` | — | — | disable/enable, preview, versions, locales, `test-send`, `bulk-send-config`, `bulk-send` |
+| Injectors | POST | GET | `GET /{name}` | `PUT /{name}`, `PUT /{name}/fields/{field_name}`, `PUT /{name}/values` | DELETE | `GET ?include_inherited=true` |
+| API keys | POST | GET | — | — | DELETE | — |
+| Webhooks | POST | GET | `GET /{id}` | `PUT /{id}` | DELETE | `POST /{id}/test` |
+| Emails | — | GET | `GET /{tracking_id}` | — | — | `GET /{tracking_id}/events` |
+| Suppression | POST | — | `GET /{email}` | — | DELETE | — |
+| Audit log | — | GET | — | — | — | — |
+| Dashboard | — | GET | — | — | — | stats |
 
-#### Shared adapters from tenant `_system`
+#### Global scope (`/api/v1/manage/global/...`)
+
+Misma idea que workspace scope para recursos globales. En injectors globales también existen:
+
+- `POST /injectors`
+- `GET /injectors`
+- `GET /injectors/{name}`
+- `PUT /injectors/{name}`
+- `PUT /injectors/{name}/fields/{field_name}`
+- `DELETE /injectors/{name}`
+
+## Injectors runtime model
+
+### DB schema fields
+
+Cada `injector_field` puede definir:
+
+- `default_value`
+- `allow_overwrite`
+
+### Runtime precedence
+
+La precedencia es **por field**, no por injector completo:
+
+- `allow_overwrite=false` → siempre gana `default_value`
+- `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+- fields no definidos en el schema DB pero devueltos por un code injector se agregan al resultado runtime
+
+### Operational notes
+
+- `GET /injectors?include_inherited=true` devuelve workspace + `_system` + global, deduplicado por prioridad
+- `PUT /injectors/{name}` reemplaza el schema completo del injector
+- `PUT /injectors/{name}/fields/{field_name}` actualiza la política runtime de un field sin reemplazar el resto
+- `PUT /injectors/{name}/values` persiste valores del scope actual
+
+## Shared adapters from `_system`
 
 - `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/workspace-access`
-  - only valid when `{wc}` resolves to the tenant `_system` workspace
-  - manages **Gmail adapter** visibility by workspace
+  - válido para Gmail compartido desde `_system`
 - `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/identities/{identity_id}/workspace-access`
-  - only valid when `{wc}` resolves to the tenant `_system` workspace
-  - manages **SES email identity** visibility by workspace
-  - SES identities of type `domain` are **not** shareable
-- Regular workspaces list both owned adapters and visible shared adapters; shared entries are **read-only**
-- For template types in a child workspace:
-  - shared Gmail adapters can be selected directly
-  - shared SES adapters require `sender_identity_id`
-  - that `sender_identity_id` must be an **email identity granted to that workspace**
+  - válido para SES compartido por **email identity** desde `_system`
+- SES `domain` identities no son shareables
+- child workspaces ven recursos heredados como read-only
 
-#### Global Scope (Superadmin, under `/api/v1/manage/global/`)
-Same resources as workspace-scoped but for system-wide configuration.
+## Auth schemes
 
-#### Config (Superadmin)
-- `GET/PUT /api/v1/manage/config`
+| Scheme | Type | Used by |
+| --- | --- | --- |
+| `ManagementBearer` | HTTP Bearer JWT | `/api/v1/manage/*`, `/api/v1/members/me`, onboarding setup |
+| `WorkspaceAPIKeyBearer` | HTTP Bearer `senda_live_*` | `/api/v1/send*`, `/api/v1/emails*` |
 
-#### Current User
-- `GET /api/v1/members/me` — get authenticated member profile (OIDC only)
-
-## Auth Schemes
-
-| Scheme | Type | Format | Used by |
-|--------|------|--------|---------|
-| ManagementBearer | HTTP Bearer | JWT from OIDC (Keycloak) | Management API (`/api/v1/manage/*`) |
-| WorkspaceAPIKeyBearer | HTTP Bearer | `senda_live_...` | Data Plane (`/api/v1/send`, `/api/v1/emails`) |
-
-## RBAC Roles
+## RBAC summary
 
 | Role | Scope | Access |
-|------|-------|--------|
-| Superadmin | Global | All operations, tenant/member management, global config |
-| TenantAdmin | Tenant | Workspace CRUD, tenant settings |
-| WorkspaceAdmin | Workspace | Adapters, API keys, webhooks, template publish, suppression |
-| WorkspaceEditor | Workspace | Template versions/locales, injector values, test-send |
-| WorkspaceViewer | Workspace | Read-only access to all workspace resources |
+| --- | --- | --- |
+| Superadmin | Global | todo, incluyendo recursos globales, tenants y members |
+| TenantAdmin | Tenant | CRUD de workspaces y administración tenant |
+| WorkspaceAdmin | Workspace | adapters, template types, templates, API keys, webhooks, injectors schema CRUD |
+| WorkspaceEditor | Workspace | template versions/locales, injector values, injector field runtime policy, test-send, bulk-send |
+| WorkspaceViewer | Workspace | lectura |
 
-## Go SDK (for embedders)
+## Go SDK (embedders)
 
-Senda can be embedded as a library via the `sdk` package:
+Senda también puede embederse vía `sdk`.
 
 ```go
-import "github.com/rendis/senda/sdk"
-
 engine := sdk.NewWithConfig("config.yaml")
-engine.RegisterInjector(&MyInjector{})      // custom template variables
-engine.SetInitFunc(myInit)                   // per-request init
+engine.RegisterInjector(&MyInjector{})
+engine.SetInitFunc(myInit)
 engine.OnStart(func(ctx context.Context) error { return nil })
 engine.OnShutdown(func(ctx context.Context) error { return nil })
 engine.Run()
 ```
 
-### Injector Interface
+### Injector interface
 
 ```go
 type Injector interface {
-    Code() string                                           // unique name
-    Resolve() (ResolveFunc, []string)                       // resolver + dependencies
-    IsCritical() bool                                       // true = failure aborts send
-    Timeout() time.Duration                                 // max resolution time (0 = 30s)
+    Code() string
+    Resolve() (ResolveFunc, []string)
+    IsCritical() bool
+    Timeout() time.Duration
 }
-type ResolveFunc func(ctx context.Context, injCtx *InjectorContext) (map[string]any, error)
 ```
 
-Templates access injected values as `{{ injector.CODE.fieldName }}`.
+`InjectorContext` expone headers, variables, init data, injectors resueltos y `RequestInjectors()` para overrides runtime del request body.
 
 ## Key Configuration
 
 | Config | Env Var | Required | Purpose |
-|--------|---------|----------|---------|
-| Database URL | `SENDA_DATABASE_URL` | Yes | PostgreSQL 16 connection |
-| Master Key | `SENDA_MASTER_KEY` | Yes | AES-256-GCM encryption (32+ chars) |
-| OIDC Discovery | `SENDA_OIDC_DISCOVERY_URL` | Yes | Keycloak .well-known URL |
-| OIDC Client ID | `SENDA_OIDC_CLIENT_ID` | Yes | OIDC client identifier |
-| OIDC Client Secret | `SENDA_OIDC_CLIENT_SECRET` | Yes | OIDC client secret |
-| Port | `SENDA_PORT` | No | HTTP port (default: 8080) |
-| Log Level | `SENDA_LOG_LEVEL` | No | debug, info, warn, error |
-| Environment | `SENDA_ENVIRONMENT` | No | production, development |
+| --- | --- | --- | --- |
+| Database URL | `SENDA_DATABASE_URL` | Yes | PostgreSQL 16 |
+| Master Key | `SENDA_MASTER_KEY` | Yes | AES-256-GCM |
+| OIDC Discovery | `SENDA_OIDC_DISCOVERY_URL` | Yes | issuer discovery |
+| OIDC Client ID | `SENDA_OIDC_CLIENT_ID` | Yes | management auth |
+| OIDC Client Secret | `SENDA_OIDC_CLIENT_SECRET` | Yes | management auth |
+| Port | `SENDA_PORT` | No | HTTP port |
+| Environment | `SENDA_ENVIRONMENT` | No | prod/dev |
 
 ## SES Adapter Lifecycle
 
-### Provisioning Flow (6 steps)
-
-Auto-provisions SES tracking resources when `SENDA_TRACKING_BASE_URL` is set.
-Tracked in `adapter_provisioning_steps` table. Each step is idempotent.
+### Provisioning flow (6 steps)
 
 | Step | Name | AWS Operation |
-|------|------|---------------|
-| 1 | create_configuration_set | ses:CreateConfigurationSet |
-| 2 | create_sns_topic | sns:CreateTopic |
-| 3 | create_event_destination | ses:CreateConfigurationSetEventDestination |
-| 4 | subscribe_webhook | sns:Subscribe (HTTPS) |
-| 5 | save_configuration | DB only (persist config set name) |
-| 6 | verify_subscription | sns:GetSubscriptionAttributes (polling, 15s timeout) |
+| --- | --- | --- |
+| 1 | `create_configuration_set` | `ses:CreateConfigurationSet` |
+| 2 | `create_sns_topic` | `sns:CreateTopic` |
+| 3 | `create_event_destination` | `ses:CreateConfigurationSetEventDestination` |
+| 4 | `subscribe_webhook` | `sns:Subscribe` |
+| 5 | `save_configuration` | DB only |
+| 6 | `verify_subscription` | `sns:GetSubscriptionAttributes` |
 
-Resource naming:
-- ConfigSet: `senda-{id[:8]}`
-- Topic: `senda-ses-events-{id[:8]}`
-- EventDest: `senda-events` (fixed)
-- Webhook: `{baseURL}/api/v1/webhooks/ses/inbound`
-
-### Deprovision Flow (4 steps)
-
-Executes on adapter soft-delete (SES type only). Best-effort -- failure does not block deletion.
-Tracked in same `adapter_provisioning_steps` table with `deprov_` prefix.
+### Deprovision flow (4 steps)
 
 | Step | Name | AWS Operation |
-|------|------|---------------|
-| 10 | deprov_unsubscribe_webhook | sns:Unsubscribe |
-| 11 | deprov_delete_event_destination | ses:DeleteConfigurationSetEventDestination |
-| 12 | deprov_delete_sns_topic | sns:DeleteTopic |
-| 13 | deprov_delete_configuration_set | ses:DeleteConfigurationSet |
-
-### AWS IAM Permissions (full lifecycle)
-
-**Sending (required)**:
-- `ses:SendEmail`, `ses:SendRawEmail` -- Send emails
-- `ses:ListEmailIdentities` -- Sync verified sender identities
-- `ses:GetAccount` -- Check sandbox/production status
-
-**Event Tracking Provisioning (required if `SENDA_TRACKING_BASE_URL` set)**:
-- `ses:CreateConfigurationSet` -- Create tracking ConfigSet
-- `ses:CreateConfigurationSetEventDestination` -- Link ConfigSet to SNS
-- `ses:ListConfigurationSets` -- List existing ConfigSets
-- `sns:CreateTopic` -- Create SNS Topic
-- `sns:Subscribe` -- Subscribe webhook
-- `sns:GetSubscriptionAttributes` -- Verify subscription confirmed
-- `sns:ListTopics` -- List existing Topics
-
-**Cleanup on Adapter Deletion (recommended)**:
-- `ses:DeleteConfigurationSet` -- Remove ConfigSet on adapter delete
-- `ses:DeleteConfigurationSetEventDestination` -- Remove EventDest on adapter delete
-- `sns:Unsubscribe` -- Cancel subscription on adapter delete
-- `sns:DeleteTopic` -- Remove Topic on adapter delete
-
-Permissions validated by `ValidateCredentials()` (`validator.go`) -- cleanup checks are non-blocking.
+| --- | --- | --- |
+| 10 | `deprov_unsubscribe_webhook` | `sns:Unsubscribe` |
+| 11 | `deprov_delete_event_destination` | `ses:DeleteConfigurationSetEventDestination` |
+| 12 | `deprov_delete_sns_topic` | `sns:DeleteTopic` |
+| 13 | `deprov_delete_configuration_set` | `ses:DeleteConfigurationSet` |

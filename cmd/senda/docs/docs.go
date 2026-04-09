@@ -1965,7 +1965,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest"
                         }
                     }
                 ],
@@ -1973,7 +1973,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {
@@ -8411,6 +8411,12 @@ const docTemplate = `{
                         "name": "workspace_code",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include inherited injectors from _system/global scope",
+                        "name": "include_inherited",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -8692,7 +8698,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.CreateInjectorRequest"
                         }
                     }
                 ],
@@ -8700,7 +8706,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                            "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse"
                         }
                     },
                     "400": {

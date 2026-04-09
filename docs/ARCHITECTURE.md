@@ -114,7 +114,7 @@ graph LR
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **InjectorDefinition**                       | Scoped variable definition (workspace,\_system, or global)                                                                                 |
 | **InjectorField**                            | Individual field within a definition                                                                                                       |
-| **InjectorValue**                            | Field-level value; merged across scopes (highest priority wins)                                                                            |
+| **InjectorValue**                            | Field-level persisted value; runtime also considers `default_value`, `allow_overwrite`, request overrides, and code injectors              |
 | **Email**                                    | Send record. States:`Queued` -> `Processing` -> `Sent` -> `Delivered` -> `Opened` -> `Bounced` -> `Complained` -> `Failed` -> `Suppressed` |
 | **EmailEvent**                               | State transition log                                                                                                                       |
 | **Webhook**                                  | Outbound webhook. HMAC-SHA256 signed, supports wildcard events                                                                             |
@@ -186,7 +186,15 @@ Walks the chain to find a published template matching the requested type slug. A
 
 ### InjectorMerger
 
-Collects injector definitions from all scopes in the chain. Merges at field level -- values from the most specific scope (workspace) override less specific ones (global).
+Collects injector definitions from all scopes in the chain and resuelve injectors **por field**:
+
+- primero toma el schema efectivo por nombre según prioridad de scope;
+- cada field arranca con el valor persistido resuelto en cadena o, si no existe, con `default_value`;
+- si `allow_overwrite=false`, el runtime fija ese `default_value`;
+- si `allow_overwrite=true`, la precedencia es `reqBody.injectors > code injector value > default_value`;
+- si un code injector devuelve fields que no existen en el schema DB, se agregan como fields runtime extra.
+
+`PUT /injectors/:name` reemplaza el schema completo del injector; no es un patch parcial.
 
 ### AdapterResolver
 
@@ -321,7 +329,7 @@ AES-256-GCM with HKDF key derivation. Salt: `senda-v1`, info: `senda-aes-256-gcm
 - **UUIDs v7** -- time-ordered, used as primary keys and cursor-based pagination tokens.
 - **Soft delete** -- `deleted_at` column on all mutable entities. No physical deletes.
 - **Cursor-based pagination** -- no OFFSET queries. UUIDv7 natural ordering serves as the cursor.
-- **24 SQL migrations** -- managed by golang-migrate, applied in order.
+- **37 migration versions / 74 SQL files** -- managed by golang-migrate, applied in order.
 
 ---
 
@@ -374,7 +382,7 @@ senda/
       handler/        # Echo route handlers
       middleware/      # Auth, RBAC, rate limit, logging
       server.go       # Echo setup and DI wiring
-  migrations/         # SQL migration files (001..024)
+  migrations/         # SQL migration files (37 versions, up + down)
   docker/             # Docker Compose + Keycloak config
   docs/               # Specs, Postman collection, this file
   stories/            # Implementation stories (HT-01..HT-37)
