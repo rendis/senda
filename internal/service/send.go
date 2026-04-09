@@ -454,25 +454,7 @@ func effectiveSendSource(source SendSource) SendSource {
 // resolveFromEmail gets the from_email. If senderIdentityID is set, uses that specific identity;
 // otherwise falls back to the adapter's default identity.
 func (s *SendService) resolveFromEmail(ctx context.Context, adapter *domain.Adapter, senderIdentityID *uuid.UUID) (string, error) {
-	if senderIdentityID != nil {
-		identity, err := s.identitySvc.GetByID(ctx, *senderIdentityID)
-		if err != nil {
-			return "", fmt.Errorf("sender identity %s not found: %w", *senderIdentityID, err)
-		}
-		if identity.IdentityType != domain.IdentityTypeEmail {
-			return "", fmt.Errorf("%w: sender identity %s is not an email", domain.ErrSenderIdentityAccessDenied, *senderIdentityID)
-		}
-		return identity.Identity, nil
-	}
-
-	identity, err := s.identitySvc.GetDefault(ctx, adapter.ID)
-	if err != nil {
-		return "", fmt.Errorf("%w: adapter %s", domain.ErrNoDefaultIdentity, adapter.ID)
-	}
-	if identity.IdentityType != domain.IdentityTypeEmail {
-		return "", fmt.Errorf("%w: adapter %s default is a domain, not an email", domain.ErrNoDefaultIdentity, adapter.ID)
-	}
-	return identity.Identity, nil
+	return resolveFromEmail(s.identitySvc.identityStore, ctx, adapter, senderIdentityID)
 }
 
 // getLocalizedField returns the localized value for a field, falling back to version default.
