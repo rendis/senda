@@ -24,8 +24,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: web/.nvmrc
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          package-manager-cache: false
 
       - name: Enable Corepack
         run: corepack enable
@@ -33,6 +32,19 @@ jobs:
       - name: Install pinned pnpm
         working-directory: web
         run: corepack install
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        working-directory: web
+        run: echo "path=$(corepack pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install web dependencies
         run: corepack pnpm --dir web install --frozen-lockfile
