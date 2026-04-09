@@ -18,11 +18,15 @@ import (
 // --- Send-specific mocks (suffixed to avoid collisions with other test files) ---
 
 type mockTenantStoreSend struct {
+	getByIDFn   func(ctx context.Context, id uuid.UUID) (*domain.Tenant, error)
 	getByCodeFn func(ctx context.Context, code string) (*domain.Tenant, error)
 }
 
 func (m *mockTenantStoreSend) Create(_ context.Context, _ *domain.Tenant) error { return nil }
-func (m *mockTenantStoreSend) GetByID(_ context.Context, _ uuid.UUID) (*domain.Tenant, error) {
+func (m *mockTenantStoreSend) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
 	return nil, nil
 }
 func (m *mockTenantStoreSend) GetByCode(ctx context.Context, code string) (*domain.Tenant, error) {
@@ -322,6 +326,9 @@ type mockInjectorStoreSend struct {
 func (m *mockInjectorStoreSend) CreateDefinition(_ context.Context, _ *domain.InjectorDefinition) error {
 	return nil
 }
+func (m *mockInjectorStoreSend) UpdateDefinitionSchema(_ context.Context, _ string, _ *uuid.UUID, _ *domain.InjectorDefinition, _ []*domain.InjectorField) error {
+	return nil
+}
 func (m *mockInjectorStoreSend) GetDefinitionByID(_ context.Context, _ uuid.UUID) (*domain.InjectorDefinition, error) {
 	return nil, nil
 }
@@ -340,6 +347,9 @@ func (m *mockInjectorStoreSend) ListDefinitionsInChain(ctx context.Context, chai
 func (m *mockInjectorStoreSend) CreateField(_ context.Context, _ *domain.InjectorField) error {
 	return nil
 }
+func (m *mockInjectorStoreSend) UpdateField(_ context.Context, _ *domain.InjectorField) error {
+	return nil
+}
 func (m *mockInjectorStoreSend) GetFieldsByDefinition(ctx context.Context, defID uuid.UUID) ([]*domain.InjectorField, error) {
 	if m.getFieldsByDefinitionFn != nil {
 		return m.getFieldsByDefinitionFn(ctx, defID)
@@ -355,8 +365,16 @@ func (m *mockInjectorStoreSend) GetValues(ctx context.Context, defID uuid.UUID, 
 	}
 	return nil, nil
 }
-func (m *mockInjectorStoreSend) GetAllFieldsByDefinitions(_ context.Context, _ []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
-	return nil, nil
+func (m *mockInjectorStoreSend) GetAllFieldsByDefinitions(ctx context.Context, defIDs []uuid.UUID) (map[uuid.UUID][]*domain.InjectorField, error) {
+	result := make(map[uuid.UUID][]*domain.InjectorField, len(defIDs))
+	for _, defID := range defIDs {
+		fields, err := m.GetFieldsByDefinition(ctx, defID)
+		if err != nil {
+			return nil, err
+		}
+		result[defID] = fields
+	}
+	return result, nil
 }
 func (m *mockInjectorStoreSend) GetAllValuesByDefinitions(_ context.Context, _ []uuid.UUID, _ []uuid.NullUUID) (map[uuid.UUID][]*domain.InjectorValue, error) {
 	return nil, nil

@@ -45,8 +45,9 @@ type InjectorContext struct {
 	headers map[string]string
 
 	// From the send request.
-	ref       string
-	variables map[string]any
+	ref              string
+	variables        map[string]any
+	requestInjectors map[string]map[string]any
 
 	// From the user's CodeInitFunc.
 	initData any
@@ -102,6 +103,21 @@ func (c *InjectorContext) Ref() string { return c.ref }
 // Variables returns the caller-provided event variables.
 func (c *InjectorContext) Variables() map[string]any { return c.variables }
 
+// RequestInjectors returns a copy of request-body injector overrides.
+func (c *InjectorContext) RequestInjectors() map[string]map[string]any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	cp := make(map[string]map[string]any, len(c.requestInjectors))
+	for code, fields := range c.requestInjectors {
+		fieldCopy := make(map[string]any, len(fields))
+		for field, value := range fields {
+			fieldCopy[field] = value
+		}
+		cp[code] = fieldCopy
+	}
+	return cp
+}
+
 // InitData returns the value produced by CodeInitFunc.
 func (c *InjectorContext) InitData() any {
 	c.mu.RLock()
@@ -138,6 +154,20 @@ func (c *InjectorContext) SetResolved(code string, fields map[string]any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.resolved[code] = fields
+}
+
+// SetRequestInjectors stores request-body injector overrides. Internal use only.
+func (c *InjectorContext) SetRequestInjectors(injectors map[string]map[string]any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.requestInjectors = make(map[string]map[string]any, len(injectors))
+	for code, fields := range injectors {
+		fieldCopy := make(map[string]any, len(fields))
+		for field, value := range fields {
+			fieldCopy[field] = value
+		}
+		c.requestInjectors[code] = fieldCopy
+	}
 }
 
 // MergeDBInjectors seeds the context with all DB-resolved injector values.

@@ -16,7 +16,9 @@ type TestSendRequest struct {
 	TemplateID     uuid.UUID
 	RecipientEmail string
 	Variables      map[string]any
+	Injectors      map[string]map[string]any
 	Locale         *string
+	Headers        map[string]string
 }
 
 // TestSendResult holds the result of a successful test send.
@@ -28,13 +30,16 @@ type TestSendResult struct {
 // TestSendService handles synchronous test-send for templates.
 // It orchestrates: template resolution → MJML compilation → variable rendering → direct send.
 type TestSendService struct {
-	templateStore port.TemplateStore
-	adapterStore  port.AdapterStore
-	identityStore port.AdapterIdentityStore
-	crypto        port.Crypto
-	compiler      port.TemplateCompiler
-	renderer      port.VariableRenderer
-	senderFactory port.SenderFactory
+	templateStore  port.TemplateStore
+	adapterStore   port.AdapterStore
+	identityStore  port.AdapterIdentityStore
+	crypto         port.Crypto
+	compiler       port.TemplateCompiler
+	renderer       port.VariableRenderer
+	senderFactory  port.SenderFactory
+	injectorMerger *resolution.InjectorMerger
+	tenantStore    port.TenantStore
+	workspaceStore port.WorkspaceStore
 }
 
 // NewTestSendService creates a new TestSendService.
@@ -46,15 +51,21 @@ func NewTestSendService(
 	compiler port.TemplateCompiler,
 	renderer port.VariableRenderer,
 	senderFactory port.SenderFactory,
+	injectorMerger *resolution.InjectorMerger,
+	tenantStore port.TenantStore,
+	workspaceStore port.WorkspaceStore,
 ) *TestSendService {
 	return &TestSendService{
-		templateStore: templateStore,
-		adapterStore:  adapterStore,
-		identityStore: identityStore,
-		crypto:        crypto,
-		compiler:      compiler,
-		renderer:      renderer,
-		senderFactory: senderFactory,
+		templateStore:  templateStore,
+		adapterStore:   adapterStore,
+		identityStore:  identityStore,
+		crypto:         crypto,
+		compiler:       compiler,
+		renderer:       renderer,
+		senderFactory:  senderFactory,
+		injectorMerger: injectorMerger,
+		tenantStore:    tenantStore,
+		workspaceStore: workspaceStore,
 	}
 }
 
@@ -122,20 +133,25 @@ func (s *TestSendService) Send(ctx context.Context, req *TestSendRequest) (*Test
 		}
 	}
 
+	injectors, err := s.resolveInjectors(ctx, tpl.WorkspaceID, tt.Slug, req)
+	if err != nil {
+		return nil, err
+	}
+
 	// 6. Compile MJML → HTML.
 	bodyHTML, err := s.compiler.Compile(ctx, bodyMJML)
 	if err != nil {
 		return nil, fmt.Errorf("compile MJML: %w", err)
 	}
 
-	// 7. Render variables in subject and body.
-	if req.Variables != nil {
-		if rendered, err := s.renderer.Render(subject, nil, req.Variables); err == nil {
-			subject = rendered
-		}
-		if rendered, err := s.renderer.Render(bodyHTML, nil, req.Variables); err == nil {
-			bodyHTML = rendered
-		}
+	// 7. Render variables and injectors in subject and body.
+	subject, err = s.renderer.Render(subject, injectors, req.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("render subject: %w", err)
+	}
+	bodyHTML, err = s.renderer.Render(bodyHTML, injectors, req.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("render body: %w", err)
 	}
 
 	// 8. Send synchronously with timeout.
@@ -161,3 +177,46 @@ func (s *TestSendService) Send(ctx context.Context, req *TestSendRequest) (*Test
 	}, nil
 }
 
+func (s *TestSendService) resolveInjectors(
+	ctx context.Context,
+	workspaceID *uuid.UUID,
+	templateTypeSlug string,
+	req *TestSendRequest,
+) (map[string]map[string]any, error) {
+	if s.injectorMerger == nil {
+		return nil, nil
+	}
+	if workspaceID == nil {
+		injCtx := port.NewInjectorContext(req.Headers, "global::"+templateTypeSlug, req.Variables, uuid.Nil, uuid.Nil, templateTypeSlug)
+		injCtx.SetRequestInjectors(req.Injectors)
+		injectors, err := s.injectorMerger.ResolveGlobalWithContext(ctx, injCtx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve injectors: %w", err)
+		}
+		return injectors, nil
+	}
+	if s.workspaceStore == nil {
+		return nil, fmt.Errorf("resolve workspace: workspace store not configured")
+	}
+	workspace, err := s.workspaceStore.GetByID(ctx, *workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace: %w", err)
+	}
+	if s.tenantStore == nil {
+		return nil, fmt.Errorf("resolve tenant: tenant store not configured")
+	}
+	tenant, err := s.tenantStore.GetByID(ctx, workspace.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve tenant: %w", err)
+	}
+
+	ref := fmt.Sprintf("%s:%s:%s", tenant.Code, workspace.Code, templateTypeSlug)
+	injCtx := port.NewInjectorContext(req.Headers, ref, req.Variables, tenant.ID, workspace.ID, templateTypeSlug)
+	injCtx.SetRequestInjectors(req.Injectors)
+
+	injectors, err := s.injectorMerger.ResolveWithContext(ctx, workspace.ID, injCtx)
+	if err != nil {
+		return nil, fmt.Errorf("resolve injectors: %w", err)
+	}
+	return injectors, nil
+}

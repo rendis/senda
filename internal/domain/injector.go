@@ -34,6 +34,8 @@ type InjectorField struct {
 	FieldType            InjectorFieldType
 	Description          *string
 	Position             int
+	DefaultValue         any
+	AllowOverwrite       bool
 }
 
 type InjectorValue struct {

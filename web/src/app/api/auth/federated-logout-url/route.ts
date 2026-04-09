@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { buildFederatedLogoutUrl } from "./logout-url";
 
 function getPublicOrigin(request: NextRequest): string {
   return process.env.AUTH_URL || `https://${request.headers.get("host")}` || request.nextUrl.origin;
@@ -31,27 +32,12 @@ export async function GET(request: NextRequest) {
     request,
     request.nextUrl.searchParams.get("callbackUrl"),
   );
-  const issuer = process.env.AUTH_OIDC_ISSUER;
+  const url = buildFederatedLogoutUrl({
+    issuer: process.env.AUTH_OIDC_ISSUER,
+    clientId: process.env.AUTH_OIDC_ID,
+    callbackUrl,
+    session,
+  });
 
-  if (!issuer) {
-    return NextResponse.json({ url: callbackUrl.toString() });
-  }
-
-  const logoutUrl = new URL(
-    `${issuer.replace(/\/$/, "")}/protocol/openid-connect/logout`,
-  );
-  logoutUrl.searchParams.set(
-    "post_logout_redirect_uri",
-    callbackUrl.toString(),
-  );
-
-  if (process.env.AUTH_OIDC_ID) {
-    logoutUrl.searchParams.set("client_id", process.env.AUTH_OIDC_ID);
-  }
-
-  if (session?.idToken) {
-    logoutUrl.searchParams.set("id_token_hint", session.idToken);
-  }
-
-  return NextResponse.json({ url: logoutUrl.toString() });
+  return NextResponse.json({ url });
 }

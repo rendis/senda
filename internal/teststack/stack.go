@@ -445,6 +445,7 @@ func startApp(ctx context.Context, root string, names resourceNames, report *Rep
 		"SENDA_SMTP_PORT":                       fmt.Sprintf("%d", defaultSMTPPort),
 		"SENDA_TRACKING_BASE_URL":               "http://senda:8080",
 		"SENDA_SNS_SKIP_SIGNATURE_VERIFICATION": fmt.Sprintf("%t", report.Runtime.SkipSNSignatureVerification),
+		"SENDA_E2E_ENABLE_CODE_INJECTORS":       "true",
 	}
 
 	req := testcontainers.ContainerRequest{

@@ -2,12 +2,18 @@ import { redirect } from "next/navigation";
 import { authWithoutRefresh } from "@/auth";
 import { OnboardingWizard } from "./_components/wizard";
 import type { OnboardingStatus } from "@/types/api";
+import { decideOnboardingPageRedirect } from "./page-guard";
 
 export default async function OnboardingPage() {
   const session = await authWithoutRefresh();
   const headers = session?.idToken
     ? { Authorization: `Bearer ${session.idToken}` }
     : undefined;
+
+  const missingSessionRedirect = decideOnboardingPageRedirect(session, null);
+  if (missingSessionRedirect) {
+    redirect(missingSessionRedirect);
+  }
 
   // Server-side onboarding check — redirect if already completed
   try {
@@ -17,11 +23,14 @@ export default async function OnboardingPage() {
       cache: "no-store",
       headers,
     });
-    if (res.ok) {
-      const data: OnboardingStatus = await res.json();
-      if (!data.needs_onboarding) {
-        redirect("/global");
-      }
+    const data = res.ok ? ((await res.json()) as OnboardingStatus) : undefined;
+    const statusRedirect = decideOnboardingPageRedirect(session, {
+      ok: res.ok,
+      status: res.status,
+      data,
+    });
+    if (statusRedirect) {
+      redirect(statusRedirect);
     }
   } catch {
     // Backend unavailable — show wizard anyway

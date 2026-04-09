@@ -19,13 +19,14 @@ import (
 
 // SendRequest represents an email send API request.
 type SendRequest struct {
-	Ref        string         `json:"ref"`
-	To         []string       `json:"to"`
-	CC         []string       `json:"cc,omitempty"`
-	BCC        []string       `json:"bcc,omitempty"`
-	Variables  map[string]any `json:"variables"`
-	ExternalID *string        `json:"external_id,omitempty"`
-	Locale     *string        `json:"locale,omitempty"`
+	Ref        string                    `json:"ref"`
+	To         []string                  `json:"to"`
+	CC         []string                  `json:"cc,omitempty"`
+	BCC        []string                  `json:"bcc,omitempty"`
+	Variables  map[string]any            `json:"variables"`
+	Injectors  map[string]map[string]any `json:"injectors,omitempty"`
+	ExternalID *string                   `json:"external_id,omitempty"`
+	Locale     *string                   `json:"locale,omitempty"`
 	// AuthWorkspaceID is the workspace resolved from API key auth context.
 	// When set, it must match the workspace resolved from Ref.
 	AuthWorkspaceID uuid.UUID `json:"-"`
@@ -48,12 +49,13 @@ type SendBatchRequest struct {
 
 // SendBatchItemRequest represents one logical message in a batch send.
 type SendBatchItemRequest struct {
-	To         string         `json:"to"`
-	CC         []string       `json:"cc,omitempty"`
-	BCC        []string       `json:"bcc,omitempty"`
-	Variables  map[string]any `json:"variables,omitempty"`
-	ExternalID *string        `json:"external_id,omitempty"`
-	Locale     *string        `json:"locale,omitempty"`
+	To         string                    `json:"to"`
+	CC         []string                  `json:"cc,omitempty"`
+	BCC        []string                  `json:"bcc,omitempty"`
+	Variables  map[string]any            `json:"variables,omitempty"`
+	Injectors  map[string]map[string]any `json:"injectors,omitempty"`
+	ExternalID *string                   `json:"external_id,omitempty"`
+	Locale     *string                   `json:"locale,omitempty"`
 }
 
 // SendSource captures provenance for persisted emails.
@@ -116,6 +118,7 @@ func (s *SendService) SendBatch(ctx context.Context, req *SendBatchRequest) (*Se
 			CC:              item.CC,
 			BCC:             item.BCC,
 			Variables:       item.Variables,
+			Injectors:       item.Injectors,
 			ExternalID:      item.ExternalID,
 			Locale:          item.Locale,
 			AuthWorkspaceID: req.AuthWorkspaceID,
@@ -271,20 +274,16 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// 4. Merge injectors (DB + code injectors if registered).
-	var injectors resolution.MergedInjectors
-	if s.injectorMerger.HasCodeInjectors() {
-		injCtx := port.NewInjectorContext(
-			req.Headers,
-			req.Ref,
-			req.Variables,
-			tenant.ID, ws.ID,
-			ref.TemplateType,
-		)
-		injectors, err = s.injectorMerger.ResolveWithContext(ctx, ws.ID, injCtx)
-	} else {
-		injectors, err = s.injectorMerger.Resolve(ctx, ws.ID)
-	}
+	// 4. Merge injectors (workspace defaults + request overrides + optional code injectors).
+	injCtx := port.NewInjectorContext(
+		req.Headers,
+		req.Ref,
+		req.Variables,
+		tenant.ID, ws.ID,
+		ref.TemplateType,
+	)
+	injCtx.SetRequestInjectors(req.Injectors)
+	injectors, err := s.injectorMerger.ResolveWithContext(ctx, ws.ID, injCtx)
 	if err != nil {
 		return nil, err
 	}

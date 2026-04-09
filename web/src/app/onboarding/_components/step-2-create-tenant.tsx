@@ -14,7 +14,7 @@ import { createAuthenticatedApi, parseApiError } from "@/lib/api";
 import { OnboardingStepper } from "@/components/shared/onboarding-stepper";
 import { slugSchema, nameSchema, generateSlug } from "@/lib/validations/slug";
 import type { OnboardingSetupResponse } from "@/types/api";
-import { HTTPError } from "ky";
+import { getHttpStatus } from "./api-errors";
 
 const tenantSchema = z.object({
   name: nameSchema,
@@ -65,7 +65,12 @@ export function Step2CreateTenant({
       toast.success(t("successToast"));
       onSuccess(values.code);
     } catch (error) {
-      if (error instanceof HTTPError && error.response.status === 409) {
+      const statusCode = getHttpStatus(error);
+      if (statusCode === 401) {
+        window.location.replace("/login");
+        return;
+      }
+      if (statusCode === 409) {
         onSuccess(values.code);
         return;
       }

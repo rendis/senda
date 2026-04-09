@@ -23,6 +23,7 @@ Ese target ejecuta la **gate determinística** completa, incluyendo:
 - CRUD flows
 - error flows
 - happy paths
+- **injector runtime precedence (`reqBody > code > default`, con locked fields)**
 - **SES lifecycle sobre aws-sim + MiniStack**
 - **SNS signed replay**
 
@@ -110,6 +111,49 @@ Por eso el **bridge aws-sim** entrega el envelope SNS al webhook de Senda cuando
 Eso significa que el pipeline cubierto sigue siendo real desde el punto de vista de Senda:
 
 `SES notification -> SNS envelope -> webhook -> parser -> EventProcessor -> DB/suppressions`
+
+## Suite de injectors runtime
+
+El archivo:
+
+- `/Users/rendis/Documents/Projects/Libraries/senda/test/e2e/injector_runtime_test.go`
+
+cierra la cobertura E2E del nuevo modelo de injectors workspace-only con `default_value` +
+`allow_overwrite`.
+
+Casos cubiertos:
+
+1. default-only
+2. `reqBody.injectors` gana sobre code/default
+3. field locked ignora reqBody/code y usa default
+4. code gana sobre default cuando no hay reqBody
+5. reqBody gana sobre code
+6. fallback parcial por field dentro del mismo injector
+7. `null` explícito en reqBody
+8. string vacío explícito en reqBody
+9. management template test-send respeta la misma precedencia
+10. management template bulk-send propaga `injectors` por item
+11. sanity check con SES/MiniStack para confirmar que el render nuevo sobrevive un send real
+
+La suite usa un binario E2E test-only:
+
+- `/Users/rendis/Documents/Projects/Libraries/senda/cmd/senda-e2e/main.go`
+
+Ese binario registra un code injector determinístico `student` cuando
+`SENDA_E2E_ENABLE_CODE_INJECTORS=true`.
+
+### Ejecutar solo injectors runtime
+
+```bash
+go test -tags=e2e -v -count=1 -timeout 20m ./test/e2e/ -run 'TestInjectorRuntime0[1-3]_'
+```
+
+### Qué valida exactamente la precedencia
+
+- `allow_overwrite=false` → siempre default
+- `allow_overwrite=true` → `reqBody.injectors > code > default_value`
+- la precedencia es **por field**, no por injector completo
+- `event.*` sigue separado de `injector.*`
 
 ## Variables útiles
 

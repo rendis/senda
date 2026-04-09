@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { shouldRestoreDialogFocus } from "@/components/shared/form-dialog-focus";
 
 interface FormDialogProps {
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
   title: string;
   description?: string;
   submitLabel?: string;
@@ -42,9 +43,57 @@ export function FormDialog({
 }: FormDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const previousFocusedRef = useRef<HTMLElement | null>(null);
 
   const open = controlledOpen ?? internalOpen;
   const onOpenChange = controlledOnOpenChange ?? setInternalOpen;
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen && typeof document !== "undefined") {
+        previousFocusedRef.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+      }
+
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange],
+  );
+
+  const handleCloseAutoFocus = useCallback(
+    (event: Event) => {
+      event.preventDefault();
+
+      if (typeof document === "undefined") {
+        previousFocusedRef.current = null;
+        return;
+      }
+
+      const previousFocused = previousFocusedRef.current;
+      previousFocusedRef.current = null;
+
+      requestAnimationFrame(() => {
+        if (
+          previousFocused &&
+          shouldRestoreDialogFocus({
+            isConnected: previousFocused.isConnected,
+            disabled: previousFocused.hasAttribute("disabled"),
+            ariaHidden: previousFocused.getAttribute("aria-hidden"),
+          })
+        ) {
+          previousFocused.focus();
+          return;
+        }
+
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+    },
+    [],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +107,12 @@ export function FormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-h-[85vh] flex flex-col">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      <DialogContent
+        className="max-h-[85vh] flex flex-col"
+        onCloseAutoFocus={handleCloseAutoFocus}
+      >
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
           <DialogHeader className="shrink-0">
             <DialogTitle>{title}</DialogTitle>
