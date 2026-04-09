@@ -18,8 +18,41 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
-      npm-deps:
-        patterns: ["*"]
+      next-react-stack:
+        patterns:
+          - next
+          - react
+          - react-dom
+          - eslint-config-next
+          - next-auth
+          - next-intl
+          - next-themes
+      tiptap:
+        patterns:
+          - "@tiptap/*"
+      docs:
+        patterns:
+          - "fumadocs-*"
+          - "@scalar/*"
+      tooling:
+        patterns:
+          - eslint
+          - "eslint-*"
+          - typescript
+          - "@types/*"
+          - tailwindcss
+          - "@tailwindcss/*"
+          - eslint-plugin-sonarjs
+          - shadcn
+          - tw-animate-css
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      forms:
+        patterns:
+          - react-hook-form
+          - "@hookform/resolvers"
+          - zod
 
   - package-ecosystem: github-actions
     directory: /

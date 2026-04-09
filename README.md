@@ -58,7 +58,7 @@ Senda supports **selective adapter inheritance** from a tenant's `_system` works
 
 ## Quick Start
 
-**Prerequisites:** Docker, Go 1.25+, Node 22+, Make
+**Prerequisites:** Docker, Go 1.25+, Node 25 (or `nvm use` from `web/.nvmrc`), Make
 
 ```bash
 # 1. Clone and start
@@ -81,7 +81,17 @@ curl -X POST http://localhost:8081/api/v1/send \
   }'
 ```
 
-Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with `npm --prefix web install && npm --prefix web run dev`.
+Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with `corepack enable && (cd web && corepack install) && pnpm --dir web install && pnpm --dir web dev`.
+
+For local PR-style validation, run the same fast gates used by CI:
+
+```bash
+make ci-backend-pr
+make ci-frontend      # if you changed web/
+make ci-pr            # if the change spans backend + frontend
+make ci-main          # for systemic flows
+make install-githooks
+```
 
 ---
 
@@ -178,7 +188,11 @@ func (i *StudentInjector) Timeout() time.Duration   { return 10 * time.Second }
 - `Code()` maps to the template namespace: `{{ injector.<Code()>.<field> }}`
 - `Resolve()` returns `(resolveFunc, dependencies)` — dependencies are other injector codes that must resolve first
 - `IsCritical()` — if `true`, a failure aborts the send; if `false`, the injector is silently skipped
-- Code injector values merge with DB injectors. On name collision, code injectors win (with a warning log)
+- `InjectorContext.RequestInjectors()` exposes request-body runtime overrides
+- Runtime precedence is **per field**:
+  - `allow_overwrite=false` → always use `default_value`
+  - `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
+- If a code injector and a DB injector share the same code, the code injector still wins for that injector name, but overwrite rules are evaluated field by field
 - `InjectorContext` provides: HTTP headers, send request variables, init data, tenant/workspace IDs, and other resolved injectors
 
 </details>
@@ -376,7 +390,7 @@ flowchart LR
 | Superadmin      | Global    | Everything                               |
 | TenantAdmin     | Tenant    | Manage workspaces, members within tenant |
 | WorkspaceAdmin  | Workspace | Full workspace management                |
-| WorkspaceEditor | Workspace | Edit templates, injectors, adapters      |
+| WorkspaceEditor | Workspace | Edit template versions/locales, injector values, field runtime policy, test-send, bulk-send |
 | WorkspaceViewer | Workspace | Read-only access                         |
 
 </details>
@@ -481,7 +495,7 @@ The repo includes `.mcp.json` with the server config. It exposes three tools:
 | `make swagger`          | Regenerate OpenAPI spec            |
 | `make system-pr`        | PR gate (functional + UI)          |
 
-Frontend: `npm --prefix web run dev` | `npm --prefix web run build` | `npm --prefix web run lint`
+Frontend: `pnpm --dir web dev` | `pnpm --dir web typecheck` | `pnpm --dir web lint`
 
 > Full guide: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
@@ -502,7 +516,7 @@ senda/
 │   ├── http/               Handlers + middleware
 │   └── app/                Bootstrap + DI wiring
 ├── pkg/                    Shared utilities
-├── migrations/             28 SQL migrations
+├── migrations/             37 migration versions (74 SQL files: up + down)
 ├── config/                 YAML configuration
 ├── docker/                 Dockerfiles + Compose
 ├── test/                   E2E + system tests
@@ -532,7 +546,7 @@ We welcome focused, well-validated contributions.
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, validation rules, commit conventions, and PR expectations. Please also read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md) before opening issues or pull requests.
 
-The short version: fork the repo, create a focused branch, write or update tests first when behavior changes, run the relevant local gates (`make lint`, `go vet ./...`, `make test`, `make test-integration`, and `make test-e2e` for systemic changes), then open a small PR with clear context.
+The short version: fork the repo, create a focused branch, write or update tests first when behavior changes, run the fast local gates (`make ci-backend-pr`, `make ci-frontend`, `make ci-pr`, `make ci-main` as needed), and then run deeper suites like `make test-integration` and `make test-e2e` for systemic changes before opening a small PR with clear context.
 
 For larger changes, open an issue before implementation so maintainers can align on scope and fit. Repository-specific development and planning details remain documented in [AGENTS.md](AGENTS.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 

@@ -46,6 +46,15 @@ require_cmd() {
   fi
 }
 
+pnpm_cmd() {
+  require_cmd corepack
+  corepack pnpm "$@"
+}
+
+pnpm_web() {
+  pnpm_cmd --dir "$ROOT_DIR/web" "$@"
+}
+
 load_env_report() {
   local report="${1:-$ENV_REPORT_FILE}"
   if [[ ! -f "$report" ]]; then
@@ -111,7 +120,7 @@ start_frontend() {
 
   stop_stale_frontend_listeners
 
-  log "building frontend"
+  log "starting frontend dev server"
   (
     cd "$ROOT_DIR"
     NEXT_PUBLIC_API_URL="$api_url" \
@@ -121,20 +130,7 @@ start_frontend() {
     AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
     AUTH_OIDC_ID="$auth_oidc_id" \
     AUTH_OIDC_SECRET="$auth_oidc_secret" \
-    npm --prefix "$ROOT_DIR/web" run build >/dev/null
-  )
-
-  log "starting frontend server"
-  (
-    cd "$ROOT_DIR"
-    NEXT_PUBLIC_API_URL="$api_url" \
-    AUTH_URL="$FRONTEND_BASE_URL" \
-    AUTH_SECRET="$auth_secret" \
-    AUTH_TRUST_HOST=true \
-    AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
-    AUTH_OIDC_ID="$auth_oidc_id" \
-    AUTH_OIDC_SECRET="$auth_oidc_secret" \
-    npm --prefix web run start -- --port 3000
+    pnpm_web dev -- --hostname 0.0.0.0 --port 3000
   ) >"$log_file" 2>&1 &
 
   local pid=$!

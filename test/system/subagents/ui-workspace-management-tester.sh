@@ -7,7 +7,7 @@ require_cmd agent-browser
 require_cmd jq
 require_cmd curl
 require_cmd timeout
-require_cmd npm
+require_cmd corepack
 
 SESSION_NAME="senda-workspace-management-$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
 STATE_FILE="$ARTIFACT_DIR/ui-workspace-management.state.json"
@@ -83,7 +83,7 @@ start_frontend_dev() {
   log "ui-workspace-management: starting frontend dev server"
   (
     cd "$ROOT_DIR"
-    frontend_env npm --prefix web run dev -- --hostname 0.0.0.0 --port 3000
+    frontend_env corepack pnpm --dir web dev -- --hostname 0.0.0.0 --port 3000
   ) >"$FRONTEND_LOG_FILE" 2>&1 &
 
   local pid=$!

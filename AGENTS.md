@@ -307,7 +307,7 @@ Pencil exposes a local MCP server while Pencil is open. The code agent connects 
 
 3. VALIDATE (DoD Gate 1):
    get_screenshot → capture the Pencil design
-   Compare it against a screenshot of the running app (`npm run dev`)
+   Compare it against a screenshot of the running app (`pnpm --dir web dev`)
    snapshot_layout → verify structure and positioning
    If there is drift → fix it in CODE, not in Pencil
 
@@ -499,8 +499,8 @@ make test                 # go test ./... with race detector — validates nothi
 If the task touches frontend (`web/`), also run:
 
 ```bash
-npm --prefix web run typecheck   # tsc --noEmit (full project)
-npm --prefix web run lint        # ESLint with sonarjs (--max-warnings=0, full project)
+pnpm --dir web typecheck         # tsc --noEmit (full project)
+pnpm --dir web lint              # ESLint with sonarjs (--max-warnings=0, full project)
 ```
 
 **On-demand only (not part of the standard gate):**
@@ -728,10 +728,9 @@ my-senda-app/
 ### Frontend Scripts
 
 ```bash
-npm --prefix web run dev      # Next.js dev server (localhost:3000)
-npm --prefix web run build    # Production build
-npm --prefix web run start    # Production server
-npm --prefix web run lint     # ESLint
+pnpm --dir web dev           # Next.js dev server (localhost:3000)
+pnpm --dir web typecheck     # TypeScript validation
+pnpm --dir web lint          # ESLint
 ```
 
 ---

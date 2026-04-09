@@ -24,14 +24,25 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: web/.nvmrc
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pinned pnpm
+        working-directory: web
+        run: corepack install
 
       - name: Install web dependencies
-        run: npm --prefix web ci
+        run: corepack pnpm --dir web install --frozen-lockfile
 
       - name: Install test CLIs
-        run: npm install -g newman agent-browser
+        run: |
+          export PNPM_HOME="$HOME/.local/share/pnpm"
+          echo "$PNPM_HOME" >> "$GITHUB_PATH"
+          echo "PNPM_HOME=$PNPM_HOME" >> "$GITHUB_ENV"
+          corepack pnpm add --global agent-browser
 
       - name: Install browser runtime
         run: agent-browser install --with-deps

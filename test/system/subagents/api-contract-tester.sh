@@ -5,9 +5,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd go
 require_cmd make
-require_cmd npm
 require_cmd node
 require_cmd jq
+require_cmd corepack
 
 load_env_report "$ENV_REPORT_FILE"
 
@@ -17,11 +17,6 @@ COLLECTION="$ROOT_DIR/docs/postman/senda-api-v1.postman_collection.json"
 ENV_FILE="$ROOT_DIR/docs/postman/senda-local.postman_environment.json"
 JSON_REPORT="$ARTIFACT_DIR/newman-report.json"
 JUNIT_REPORT="$ARTIFACT_DIR/newman-junit.xml"
-
-if ! command -v newman >/dev/null 2>&1; then
-  log "installing newman"
-  npm install -g newman >/dev/null
-fi
 
 log "api-contract-tester: seeding keycloak users + RBAC"
 seed_keycloak_users
@@ -97,7 +92,7 @@ set +a
 
 log "api-contract-tester: executing Postman collection with newman"
 set +e
-newman run "$COLLECTION" \
+corepack pnpm dlx newman run "$COLLECTION" \
   -e "$ENV_FILE" \
   --env-var "base_url=$SENDA_BASE_URL" \
   --env-var "oidc_token=$OIDC_TOKEN" \

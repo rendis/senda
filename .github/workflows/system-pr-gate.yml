@@ -24,14 +24,18 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: web/.nvmrc
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pinned pnpm
+        working-directory: web
+        run: corepack install
 
       - name: Install web dependencies
-        run: npm --prefix web ci
-
-      - name: Install test CLIs
-        run: npm install -g newman
+        run: corepack pnpm --dir web install --frozen-lockfile
 
       - name: Run system PR gate
         run: make system-pr
