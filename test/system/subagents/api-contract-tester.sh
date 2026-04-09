@@ -39,6 +39,7 @@ fi
 log "api-contract-tester: seeding deterministic E2E fixture RBAC (test-corp/main)"
 go run "$ROOT_DIR/cmd/systemtest" seed-rbac \
   --base-url "$SENDA_BASE_URL" \
+  --email "$SUPERADMIN_EMAIL" \
   --secret "$SENDA_E2E_JWT_SECRET" \
   --tenant-code "test-corp" \
   --tenant-name "Test Corp" \

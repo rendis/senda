@@ -130,7 +130,7 @@ start_frontend() {
     AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
     AUTH_OIDC_ID="$auth_oidc_id" \
     AUTH_OIDC_SECRET="$auth_oidc_secret" \
-    pnpm_web dev -- --hostname 0.0.0.0 --port 3000
+    pnpm_web exec next dev --hostname 0.0.0.0 --port 3000
   ) >"$log_file" 2>&1 &
 
   local pid=$!

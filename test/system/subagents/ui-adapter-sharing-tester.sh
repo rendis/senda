@@ -109,7 +109,7 @@ start_frontend_dev() {
   log "ui-adapter-sharing: starting frontend dev server"
   (
     cd "$ROOT_DIR"
-    frontend_env corepack pnpm --dir web dev -- --hostname 0.0.0.0 --port 3000
+    frontend_env corepack pnpm --dir web exec next dev --hostname 0.0.0.0 --port 3000
   ) >"$FRONTEND_LOG_FILE" 2>&1 &
 
   local pid=$!
