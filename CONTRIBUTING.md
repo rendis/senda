@@ -56,8 +56,10 @@ curl http://localhost:8081/health
 ### Frontend
 
 ```bash
-npm --prefix web install
-npm --prefix web run dev
+corepack enable
+(cd web && corepack install)
+pnpm --dir web install
+pnpm --dir web dev
 ```
 
 For more detail, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).

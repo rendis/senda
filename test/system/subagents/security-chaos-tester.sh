@@ -31,8 +31,8 @@ cat >"$REPORT_PATH" <<EOF_MD
 
 ## Executed Suites
 
-1. Security suite (`TestS*`) with E2E tag.
-2. Chaos suite (`TestC*`) using `make test-e2e-chaos-run`.
+1. Security suite (\`TestS*\`) with E2E tag.
+2. Chaos suite (\`TestC*\`) using \`make test-e2e-chaos-run\`.
 
 ## Notes
 

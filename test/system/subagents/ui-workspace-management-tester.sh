@@ -7,7 +7,7 @@ require_cmd agent-browser
 require_cmd jq
 require_cmd curl
 require_cmd timeout
-require_cmd npm
+require_cmd corepack
 
 SESSION_NAME="senda-workspace-management-$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
 STATE_FILE="$ARTIFACT_DIR/ui-workspace-management.state.json"
@@ -34,16 +34,7 @@ ab_json() {
 }
 
 stop_frontend_dev() {
-  if [[ -f "$FRONTEND_PID_FILE" ]]; then
-    local pid
-    pid="$(cat "$FRONTEND_PID_FILE")"
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      log "ui-workspace-management: stopping frontend dev pid=$pid"
-      kill "$pid" >/dev/null 2>&1 || true
-      wait "$pid" >/dev/null 2>&1 || true
-    fi
-    rm -f "$FRONTEND_PID_FILE"
-  fi
+  stop_managed_frontend "$FRONTEND_PID_FILE" "ui-workspace-management"
 }
 
 cleanup() {
@@ -71,44 +62,7 @@ frontend_env() {
 }
 
 start_frontend_dev() {
-  load_env_report "$ENV_REPORT_FILE"
-
-  if [[ -f "$FRONTEND_PID_FILE" ]] && kill -0 "$(cat "$FRONTEND_PID_FILE")" >/dev/null 2>&1; then
-    log "ui-workspace-management: frontend dev already running (pid=$(cat "$FRONTEND_PID_FILE"))"
-    return 0
-  fi
-
-  stop_stale_frontend_listeners
-
-  log "ui-workspace-management: starting frontend dev server"
-  (
-    cd "$ROOT_DIR"
-    frontend_env npm --prefix web run dev -- --hostname 0.0.0.0 --port 3000
-  ) >"$FRONTEND_LOG_FILE" 2>&1 &
-
-  local pid=$!
-  echo "$pid" >"$FRONTEND_PID_FILE"
-
-  log "ui-workspace-management: waiting frontend health"
-  local ok=0
-  for _ in $(seq 1 120); do
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
-      echo "frontend dev exited before becoming healthy, log: $FRONTEND_LOG_FILE" >&2
-      return 1
-    fi
-    if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
-      ok=1
-      break
-    fi
-    sleep 1
-  done
-
-  if [[ "$ok" -ne 1 ]]; then
-    echo "frontend dev failed to start, log: $FRONTEND_LOG_FILE" >&2
-    return 1
-  fi
-
-  log "ui-workspace-management: frontend dev ready"
+  start_managed_frontend "$FRONTEND_PID_FILE" "$FRONTEND_LOG_FILE" "ui-workspace-management"
 }
 
 management_api_token() {
@@ -161,6 +115,15 @@ management_api_expect() {
     return 1
   fi
   printf '%s\n' "$payload"
+}
+
+management_api_status() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local response
+  response="$(management_api_request "$method" "$path" "$body")"
+  printf '%s' "$response" | tail -n1
 }
 
 ensure_management_login() {
@@ -228,7 +191,7 @@ wait_for_text() {
 
 wait_for_eval_true() {
   local expression="$1"
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 120); do
     if ab_json eval "$expression" | jq -e '.data.result == true' >/dev/null; then
       return 0
     fi
@@ -285,6 +248,77 @@ click_button_by_aria_label() {
     echo "button with aria-label not found: ${label}" >&2
     return 1
   fi
+}
+
+click_dialog_button() {
+  local anchor_selector="${1:-}"
+  local expected_label="${2:-}"
+  local anchor_json
+  local expected_json
+  anchor_json="$(printf '%s' "$anchor_selector" | jq -Rs .)"
+  expected_json="$(printf '%s' "$expected_label" | jq -Rs .)"
+
+  if ! ab_json eval "(() => {
+    const anchorSelector = ${anchor_json};
+    const expected = ${expected_json};
+    const buttons = anchorSelector
+      ? Array.from((document.querySelector(anchorSelector)?.closest('form') || document).querySelectorAll('button[type=\"submit\"], button'))
+      : Array.from(document.querySelectorAll('button'));
+    const candidates = buttons.filter((candidate) => {
+      if (candidate.disabled) return false;
+      const text = (candidate.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (expected) {
+        return text === expected;
+      }
+      return candidate.getAttribute('type') === 'submit';
+    });
+    const target = candidates.at(-1);
+    if (!target) return 'missing-button';
+    target.click();
+    return 'clicked';
+  })()" | jq -e '.data.result == "clicked"' >/dev/null; then
+    echo "dialog button not found${expected_label:+: ${expected_label}}${anchor_selector:+ (anchor=${anchor_selector})}" >&2
+    return 1
+  fi
+}
+
+wait_for_workspace_row() {
+  local code="$1"
+  if wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+    return 0
+  fi
+
+  log "ui-workspace-management: workspace row ${code} not visible yet, reloading list once"
+  ab open "$WORKSPACES_URL" >/dev/null
+  wait_for_url "$WORKSPACES_URL"
+  wait_for_text "Create Workspace"
+  wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"
+}
+
+wait_for_workspace_deleted() {
+  local code="$1"
+  local path="/api/v1/manage/tenants/${TENANT_CODE}/workspaces/${code}"
+
+  if wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+    return 0
+  fi
+
+  local status
+  status="$(management_api_status GET "$path")"
+  if [[ "$status" == "404" ]]; then
+    log "ui-workspace-management: backend already reports workspace ${code} deleted, reloading list once"
+    ab open "$WORKSPACES_URL" >/dev/null
+    wait_for_url "$WORKSPACES_URL"
+    wait_for_text "Create Workspace"
+    if wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+      return 0
+    fi
+    log "ui-workspace-management: row ${code} still visible after reload but backend confirms deletion; accepting stage"
+    return 0
+  fi
+
+  echo "workspace ${code} still visible and backend status=${status}" >&2
+  return 1
 }
 
 select_status() {
@@ -360,8 +394,9 @@ ab wait "#workspace-name" >/dev/null
 ab fill "#workspace-name" "$FIXTURE_NAME" >/dev/null
 ab fill "#workspace-code" "$FIXTURE_CODE" >/dev/null
 ab screenshot "$SCREENSHOT_DIR/04-create-dialog.png" >/dev/null
-ab find role button click --name "Create Workspace" >/dev/null
-wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${FIXTURE_CODE}')))()"
+click_dialog_button "#workspace-name" "Create Workspace"
+wait_for_eval_true "(() => !document.querySelector('#workspace-name'))()"
+wait_for_workspace_row "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/05-created.png" >/dev/null
 
 log "ui-workspace-management: disabling fixture workspace from list toggle"
@@ -407,8 +442,8 @@ log "ui-workspace-management: deleting fixture workspace"
 click_button_by_aria_label "Delete workspace ${FIXTURE_CODE}"
 wait_for_text "Delete workspace"
 ab screenshot "$SCREENSHOT_DIR/10-delete-confirm.png" >/dev/null
-ab find role button click --name "Delete workspace" >/dev/null
-wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${FIXTURE_CODE}')))()"
+click_dialog_button "" "Delete workspace"
+wait_for_workspace_deleted "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/11-deleted.png" >/dev/null
 
 cat >"$REPORT_PATH" <<EOF

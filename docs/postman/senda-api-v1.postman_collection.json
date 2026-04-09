@@ -1488,10 +1488,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"identity\": \"shared-sender@example.dev\",\n    \"display_name\": \"Shared Sender\"\n}"
+              "raw": "{\n    \"identity\": \"{{shared_ses_temp_email}}\",\n    \"display_name\": \"Shared Sender\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities",
               "host": [
                 "{{base_url}}"
               ],
@@ -1502,9 +1502,9 @@
                 "tenants",
                 "{{tenant_code}}",
                 "workspaces",
-                "{{workspace_code}}",
+                "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities"
               ]
             },
@@ -1520,10 +1520,10 @@
                   "pm.test('Status is 201', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
-                  "pm.test('Store identity_id', function () {",
+                  "pm.test('Store temp_identity_id', function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('id');",
-                  "    pm.collectionVariables.set('identity_id', jsonData.id);",
+                  "    pm.collectionVariables.set('temp_identity_id', jsonData.id);",
                   "});"
                 ]
               }
@@ -1535,7 +1535,7 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/sync",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities/sync",
               "host": [
                 "{{base_url}}"
               ],
@@ -1546,9 +1546,9 @@
                 "tenants",
                 "{{tenant_code}}",
                 "workspaces",
-                "{{workspace_code}}",
+                "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities",
                 "sync"
               ]
@@ -1575,7 +1575,7 @@
           "request": {
             "method": "DELETE",
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities/{{temp_identity_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -1586,11 +1586,11 @@
                 "tenants",
                 "{{tenant_code}}",
                 "workspaces",
-                "{{workspace_code}}",
+                "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities",
-                "{{identity_id}}"
+                "{{temp_identity_id}}"
               ]
             },
             "description": "Delete an adapter identity. Shared resources stay read-only from child workspaces.\n\n**Required role:** workspace_admin"
@@ -1615,7 +1615,7 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/set-default",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities/{{shared_ses_identity_id}}/set-default",
               "host": [
                 "{{base_url}}"
               ],
@@ -1626,11 +1626,11 @@
                 "tenants",
                 "{{tenant_code}}",
                 "workspaces",
-                "{{workspace_code}}",
+                "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities",
-                "{{identity_id}}",
+                "{{shared_ses_identity_id}}",
                 "set-default"
               ]
             },
@@ -1656,7 +1656,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/workspace-access",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_gmail_adapter_id}}/workspace-access",
               "host": [
                 "{{base_url}}"
               ],
@@ -1669,7 +1669,7 @@
                 "workspaces",
                 "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_gmail_adapter_id}}",
                 "workspace-access"
               ]
             },
@@ -1702,10 +1702,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"workspace_ids\": [\n        \"00000000-0000-7000-8000-000000000001\",\n        \"00000000-0000-7000-8000-000000000002\"\n    ]\n}"
+              "raw": "{\n    \"workspace_ids\": [\n        \"{{shared_workspace_a_id}}\",\n        \"{{shared_workspace_b_id}}\"\n    ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/workspace-access",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_gmail_adapter_id}}/workspace-access",
               "host": [
                 "{{base_url}}"
               ],
@@ -1718,7 +1718,7 @@
                 "workspaces",
                 "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_gmail_adapter_id}}",
                 "workspace-access"
               ]
             },
@@ -1744,7 +1744,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/workspace-access",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities/{{shared_ses_identity_id}}/workspace-access",
               "host": [
                 "{{base_url}}"
               ],
@@ -1757,9 +1757,9 @@
                 "workspaces",
                 "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities",
-                "{{identity_id}}",
+                "{{shared_ses_identity_id}}",
                 "workspace-access"
               ]
             },
@@ -1792,10 +1792,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"workspace_ids\": [\n        \"00000000-0000-7000-8000-000000000001\"\n    ]\n}"
+              "raw": "{\n    \"workspace_ids\": [\n        \"{{shared_workspace_a_id}}\"\n    ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{adapter_id}}/identities/{{identity_id}}/workspace-access",
+              "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{system_workspace_code}}/adapters/{{shared_ses_adapter_id}}/identities/{{shared_ses_identity_id}}/workspace-access",
               "host": [
                 "{{base_url}}"
               ],
@@ -1808,9 +1808,9 @@
                 "workspaces",
                 "{{system_workspace_code}}",
                 "adapters",
-                "{{adapter_id}}",
+                "{{shared_ses_adapter_id}}",
                 "identities",
-                "{{identity_id}}",
+                "{{shared_ses_identity_id}}",
                 "workspace-access"
               ]
             },

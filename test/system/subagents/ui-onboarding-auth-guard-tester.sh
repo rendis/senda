@@ -11,6 +11,7 @@ require_cmd curl
 REPORT_PATH="$ARTIFACT_DIR/ui-onboarding-auth-guard-report.md"
 SCREENSHOT_DIR="$ARTIFACT_DIR/ui-onboarding-auth-guard"
 SESSION_NAME="senda-onboarding-auth-guard-$(basename "$ARTIFACT_DIR" | tr -cs '[:alnum:]' '-')"
+STARTED_FRONTEND=0
 
 mkdir -p "$SCREENSHOT_DIR"
 
@@ -24,6 +25,9 @@ ab_json() {
 
 cleanup() {
   timeout 5s agent-browser --session "$SESSION_NAME" close >/dev/null 2>&1 || true
+  if [[ "$STARTED_FRONTEND" -eq 1 ]]; then
+    stop_frontend
+  fi
 }
 
 trap cleanup EXIT
@@ -32,6 +36,7 @@ load_env_report "$ENV_REPORT_FILE"
 
 if ! curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
   start_frontend
+  STARTED_FRONTEND=1
 fi
 
 log "ui-onboarding-auth-guard: seeding stale onboarding session state"

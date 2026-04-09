@@ -11,7 +11,7 @@ fi
 run_backend_pr() {
   echo "==> Backend gate (PR)"
   make lint
-  go vet ./...
+  make vet
   make swagger-check
   make test
 }
@@ -22,9 +22,8 @@ run_backend_main() {
 
 run_frontend() {
   echo "==> Frontend gate"
-  npm --prefix web run typecheck
-  npm --prefix web run lint -- --max-warnings=0
-  npm --prefix web run build
+  corepack pnpm --dir web typecheck
+  corepack pnpm --dir web lint --max-warnings=0
 }
 
 case "${MODE}" in

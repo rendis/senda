@@ -6,7 +6,7 @@
 | ----------------------- | ------- | ------------------------------------------------- |
 | Docker + Docker Compose | Latest  | Yes                                               |
 | Go                      | 1.25+   | Yes                                               |
-| Node.js                 | 22+     | Yes (frontend)                                    |
+| Node.js                 | 25.x    | Yes (frontend, aligned with `web/.nvmrc`)         |
 | Make                    | Any     | Yes                                               |
 | golang-migrate CLI      | Latest  | Optional (migrations run on app start by default) |
 
@@ -36,8 +36,10 @@ No local Go installation is strictly required for backend work (everything runs 
 ## Frontend Development
 
 ```bash
-npm --prefix web install
-npm --prefix web run dev    # starts on localhost:3000
+corepack enable
+(cd web && corepack install)
+pnpm --dir web install
+pnpm --dir web dev          # starts on localhost:3000
 ```
 
 - **Framework:** Next.js 16
@@ -79,7 +81,7 @@ is served.
   ```bash
   psql postgres://senda:senda@localhost:5435/senda
   ```
-- **Migrations directory:** `/migrations/` (24 migration files)
+- **Migrations directory:** `/migrations/` (37 migration versions / 74 SQL files including `up` + `down`)
 - **Migration tool:** [golang-migrate](https://github.com/golang-migrate/migrate)
 
 ## Docker Compose Stacks
@@ -147,6 +149,8 @@ All 27 available targets:
 | `make system-pr`                | Run PR-level system tests (API contract + UI flow; visual opt-in) |
 | `make system-nightly`           | Run full nightly system test suite (visual opt-in)         |
 | `make system-down`              | Stop system test infrastructure                             |
+
+GitHub runs the lightweight backend/frontend gates automatically on pull requests. Heavy workflows such as `system-pr`, `system-nightly`, and `chaos-e2e` are manual in GitHub (`workflow_dispatch`) and should be triggered intentionally when you need deeper coverage.
 
 ### Database
 

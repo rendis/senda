@@ -7,7 +7,7 @@ require_cmd agent-browser
 require_cmd jq
 require_cmd curl
 require_cmd timeout
-require_cmd npm
+require_cmd corepack
 
 BODY_TEXT_JS='(() => (document.body?.innerText || "").replace(/\s+/g, " ").trim())()'
 
@@ -39,16 +39,7 @@ ab_json() {
 }
 
 stop_frontend_dev() {
-  if [[ -f "$FRONTEND_PID_FILE" ]]; then
-    local pid
-    pid="$(cat "$FRONTEND_PID_FILE")"
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      log "ui-injector-flow: stopping frontend dev pid=$pid"
-      kill "$pid" >/dev/null 2>&1 || true
-      wait "$pid" >/dev/null 2>&1 || true
-    fi
-    rm -f "$FRONTEND_PID_FILE"
-  fi
+  stop_managed_frontend "$FRONTEND_PID_FILE" "ui-injector-flow"
 }
 
 cleanup() {
@@ -76,44 +67,7 @@ frontend_env() {
 }
 
 start_frontend_dev() {
-  load_env_report "$ENV_REPORT_FILE"
-
-  if [[ -f "$FRONTEND_PID_FILE" ]] && kill -0 "$(cat "$FRONTEND_PID_FILE")" >/dev/null 2>&1; then
-    log "ui-injector-flow: frontend dev already running (pid=$(cat "$FRONTEND_PID_FILE"))"
-    return 0
-  fi
-
-  stop_stale_frontend_listeners
-
-  log "ui-injector-flow: starting frontend dev server"
-  (
-    cd "$ROOT_DIR"
-    frontend_env npm --prefix web run dev -- --hostname 0.0.0.0 --port 3000
-  ) >"$FRONTEND_LOG_FILE" 2>&1 &
-
-  local pid=$!
-  echo "$pid" >"$FRONTEND_PID_FILE"
-
-  log "ui-injector-flow: waiting frontend health"
-  local ok=0
-  for _ in $(seq 1 120); do
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
-      echo "frontend dev exited before becoming healthy, log: $FRONTEND_LOG_FILE" >&2
-      return 1
-    fi
-    if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
-      ok=1
-      break
-    fi
-    sleep 1
-  done
-
-  if [[ "$ok" -ne 1 ]]; then
-    echo "frontend dev failed to start, log: $FRONTEND_LOG_FILE" >&2
-    return 1
-  fi
-
-  log "ui-injector-flow: frontend dev ready"
+  start_managed_frontend "$FRONTEND_PID_FILE" "$FRONTEND_LOG_FILE" "ui-injector-flow"
 }
 
 issue_test_token() {
@@ -277,12 +231,58 @@ assert_visible() {
 
 click_selector() {
   local selector="$1"
-  ab eval "(() => {
+  if ! ab_json eval "(() => {
     const el = document.querySelector('${selector}');
     if (!el) return 'missing';
     el.click();
     return 'clicked';
-  })()" >/dev/null
+  })()" | jq -e '.data.result == "clicked"' >/dev/null; then
+    echo "failed to click selector=${selector}" >&2
+    return 1
+  fi
+}
+
+click_button_by_text() {
+  local label="$1"
+  local exact="${2:-1}"
+  local label_json
+  label_json="$(printf '%s' "$label" | jq -Rs .)"
+  if ! ab_json eval "(() => {
+    const label = ${label_json};
+    const exact = ${exact};
+    const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const target = buttons.find((candidate) => {
+      const text = normalize(candidate.textContent);
+      return exact ? text === label : text.includes(label);
+    });
+    if (!target) return 'missing';
+    target.click();
+    return 'clicked';
+  })()" | jq -e '.data.result == "clicked"' >/dev/null; then
+    echo "failed to click button with label=${label}" >&2
+    return 1
+  fi
+}
+
+set_input_value() {
+  local selector="$1"
+  local value="$2"
+  local value_json
+  value_json="$(printf '%s' "$value" | jq -Rs .)"
+  if ! ab_json eval "(() => {
+    const el = document.querySelector('${selector}');
+    if (!el) return 'missing';
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (!setter) return 'missing-setter';
+    setter.call(el, ${value_json});
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return 'ok';
+  })()" | jq -e '.data.result == "ok"' >/dev/null; then
+    echo "failed to set value for selector=${selector}" >&2
+    return 1
+  fi
 }
 
 set_overwrite_state() {
@@ -472,11 +472,17 @@ resolve_editor_query_params() {
 
 create_injector_via_ui() {
   local target_url="$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${WORKSPACE_CODE}/injectors"
+  log "ui-injector-flow: opening ${target_url}"
   ab open "$target_url" >/dev/null
   ab wait 2000 >/dev/null
-  expect_body_text "New Injector"
+  if ! expect_body_text "New Injector"; then
+    expect_body_text "Add Injector"
+  fi
 
-  ab find role button click --name "New Injector" >/dev/null
+  log "ui-injector-flow: opening injector dialog"
+  if ! click_selector '[data-testid="injector-create-trigger"]'; then
+    click_selector '[data-testid="injector-empty-create-trigger"]'
+  fi
   ab wait "#injector-name" >/dev/null
   assert_visible '[data-testid="injector-field-header-0"]'
 
@@ -489,18 +495,19 @@ create_injector_via_ui() {
   ab fill '[data-testid="injector-field-default-0"]' "Default Student" >/dev/null
   set_overwrite_state '[data-testid="injector-field-overwrite-0-allow"]' '[data-testid="injector-field-overwrite-0-locked"]' true
 
-  ab find role button click --name "Add Field" >/dev/null
+  click_button_by_text "Add Field"
   assert_visible '[data-testid="injector-field-header-1"]'
   ab fill '[data-testid="injector-field-name-1"]' "locked" >/dev/null
   ab fill '[data-testid="injector-field-default-1"]' "LOCKED-DEFAULT" >/dev/null
   set_overwrite_state '[data-testid="injector-field-overwrite-1-allow"]' '[data-testid="injector-field-overwrite-1-locked"]' false
 
-  ab find role button click --name "Add Field" >/dev/null
+  click_button_by_text "Add Field"
   assert_visible '[data-testid="injector-field-header-2"]'
   ab fill '[data-testid="injector-field-name-2"]' "status" >/dev/null
   ab fill '[data-testid="injector-field-default-2"]' "DEFAULT-STATUS" >/dev/null
 
-  ab find role button click --name "Create" >/dev/null
+  log "ui-injector-flow: submitting injector form"
+  click_button_by_text "Create"
   ab wait 2000 >/dev/null
   expect_body_text "$INJECTOR_NAME"
   expect_body_text "3 fields"
@@ -511,6 +518,7 @@ verify_injector_builder_and_test_send() {
   editor_query="$(resolve_editor_query_params)"
   local target_url="$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${WORKSPACE_CODE}/templates/${TEMPLATE_TYPE_SLUG}/edit?${editor_query}"
 
+  log "ui-injector-flow: opening template editor ${target_url}"
   ab open "$target_url" >/dev/null
   ab wait 2500 >/dev/null
 
@@ -521,7 +529,8 @@ verify_injector_builder_and_test_send() {
   expect_body_text "${INJECTOR_NAME}.status"
   ab screenshot "$SCREENSHOT_DIR/template-editor.png" >/dev/null
 
-  ab find role button click --name "Send Test" >/dev/null
+  log "ui-injector-flow: running default test send"
+  click_button_by_text "Send Test"
   ab wait --text "Send Test Email" >/dev/null
 
   assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "Default Student"
@@ -537,7 +546,8 @@ verify_injector_builder_and_test_send() {
   mailpit_wait_for_messages 1 30
   mailpit_assert_message_contains "ui-injector-default@test.example.com" "NAME=Code Student|LOCKED=LOCKED-DEFAULT|STATUS=code-status|EVENT=UIDefault"
 
-  ab find role button click --name "Send Test" >/dev/null
+  log "ui-injector-flow: running override test send"
+  click_button_by_text "Send Test"
   ab wait --text "Send Test Email" >/dev/null
   mailpit_clear
   ab fill '[data-testid="test-send-email"]' "ui-injector-override@test.example.com" >/dev/null
@@ -547,19 +557,22 @@ verify_injector_builder_and_test_send() {
   mailpit_wait_for_messages 1 30
   mailpit_assert_message_contains "ui-injector-override@test.example.com" "NAME=UI Override|LOCKED=LOCKED-DEFAULT|STATUS=code-status|EVENT=UIOverride"
 
-  ab find role button click --name "Send Test" >/dev/null
+  log "ui-injector-flow: running empty override test send"
+  click_button_by_text "Send Test"
   ab wait --text "Send Test Email" >/dev/null
   mailpit_clear
   ab fill '[data-testid="test-send-email"]' "ui-injector-empty@test.example.com" >/dev/null
   ab fill '[data-testid="test-send-variables-json"]' '{"user_name":"UIEmpty"}' >/dev/null
-  ab fill "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "tmp" >/dev/null
-  ab fill "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "" >/dev/null
+  set_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "tmp"
+  set_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" ""
+  assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" ""
   click_selector '[data-testid="test-send-submit"]'
   mailpit_wait_for_messages 1 30
   mailpit_assert_message_contains "ui-injector-empty@test.example.com" "NAME=|LOCKED=LOCKED-DEFAULT|STATUS=code-status|EVENT=UIEmpty"
 }
 
 verify_bulk_send_ui() {
+  log "ui-injector-flow: preparing bulk send fixture"
   cat >"$VALID_BULK_JSON_FILE" <<EOF_JSON
 {
   "items": [
@@ -585,7 +598,8 @@ verify_bulk_send_ui() {
 }
 EOF_JSON
 
-  ab find role button click --name "Bulk Send" >/dev/null
+  log "ui-injector-flow: opening bulk send dialog"
+  click_button_by_text "Bulk Send"
   ab wait --text "Uses the current published version." >/dev/null
   ab upload 'input[type="file"]' "$VALID_BULK_JSON_FILE" >/dev/null
   ab wait --text "Preview" >/dev/null
@@ -593,7 +607,8 @@ EOF_JSON
   ab screenshot "$SCREENSHOT_DIR/bulk-send-preview.png" >/dev/null
 
   mailpit_clear
-  ab find role button click --name "Confirm & Queue" >/dev/null
+  log "ui-injector-flow: submitting bulk send"
+  click_button_by_text "Confirm & Queue"
   ab wait --text "accepted" >/dev/null
   ab screenshot "$SCREENSHOT_DIR/bulk-send-result.png" >/dev/null
 

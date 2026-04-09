@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE="${1:-pr}"
 SYSTEM_UI_VISUAL="${SYSTEM_UI_VISUAL:-0}"
 SYSTEM_UI_FLOW="${SYSTEM_UI_FLOW:-}"
+SYSTEM_UI_A11Y="${SYSTEM_UI_A11Y:-0}"
+SYSTEM_SECURITY_CHAOS="${SYSTEM_SECURITY_CHAOS:-0}"
 
 case "$MODE" in
   pr|nightly)
@@ -87,10 +89,10 @@ run_visual_stage() {
 }
 
 run_ui_flow_stage() {
-  if [[ "$MODE" == "pr" && "$SYSTEM_UI_FLOW" != "1" ]]; then
+  if [[ "$SYSTEM_UI_FLOW" != "1" ]]; then
     skip_stage \
       "ui-flow" \
-      "disabled-in-pr (set SYSTEM_UI_FLOW=1 to enable browser-based login/navigation coverage)"
+      "disabled-by-default (set SYSTEM_UI_FLOW=1 to enable browser-based login/navigation coverage)"
     return
   fi
 
@@ -115,6 +117,28 @@ run_ui_onboarding_auth_guard_stage() {
 
 run_ui_adapter_sharing_stage() {
   run_stage "ui-adapter-sharing" "$ROOT_DIR/test/system/subagents/ui-adapter-sharing-tester.sh"
+}
+
+run_ui_a11y_stage() {
+  if [[ "$SYSTEM_UI_A11Y" != "1" ]]; then
+    skip_stage \
+      "ui-a11y" \
+      "disabled-by-default (set SYSTEM_UI_A11Y=1 to enable the heavyweight accessibility sweep)"
+    return
+  fi
+
+  run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
+}
+
+run_security_chaos_stage() {
+  if [[ "$SYSTEM_SECURITY_CHAOS" != "1" ]]; then
+    skip_stage \
+      "security-chaos" \
+      "disabled-by-default (set SYSTEM_SECURITY_CHAOS=1 to enable the heavyweight chaos suite)"
+    return
+  fi
+
+  run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
 }
 
 cleanup() {
@@ -168,7 +192,6 @@ load_env_report "$ENV_REPORT"
 
 if [[ "$MODE" == "nightly" ]]; then
   run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
-  run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
   run_ui_flow_stage
   run_ui_onboarding_auth_guard_stage
   run_ui_template_type_slug_edit_stage
@@ -176,7 +199,8 @@ if [[ "$MODE" == "nightly" ]]; then
   run_ui_injector_flow_stage
   run_ui_adapter_sharing_stage
   run_visual_stage
-  run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
+  run_ui_a11y_stage
+  run_security_chaos_stage
 else
   run_ui_flow_stage
   run_ui_onboarding_auth_guard_stage

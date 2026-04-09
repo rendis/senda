@@ -56,6 +56,7 @@ linters:
       - cmd/openapi/
       - cmd/systemtest/
       - cmd/aws-sim-bridge/
+      - web/node_modules/
     rules:
       # Generated files
       - path: cmd/senda/openapi_generated\.go

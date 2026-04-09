@@ -1,23 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import NextAuth from "next-auth";
 
-declare module "next-auth" {
-  interface Session {
-    idToken?: string;
-    error?: "RefreshTokenError";
-  }
-}
-
-declare module "@auth/core/jwt" {
-  interface JWT {
-    idToken?: string;
-    accessToken?: string;
-    refreshToken?: string;
-    expiresAt?: number;
-    error?: "RefreshTokenError";
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Refresh-skip context: Server Components CANNOT write cookies, so token
 // refresh inside their auth() call is wasted work that causes double-refresh

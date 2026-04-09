@@ -7,7 +7,7 @@ require_cmd agent-browser
 require_cmd jq
 require_cmd curl
 require_cmd timeout
-require_cmd npm
+require_cmd corepack
 require_cmd docker
 require_cmd go
 
@@ -60,16 +60,7 @@ json_string() {
 }
 
 stop_frontend_dev() {
-  if [[ -f "$FRONTEND_PID_FILE" ]]; then
-    local pid
-    pid="$(cat "$FRONTEND_PID_FILE")"
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      log "ui-adapter-sharing: stopping frontend dev pid=$pid"
-      kill "$pid" >/dev/null 2>&1 || true
-      wait "$pid" >/dev/null 2>&1 || true
-    fi
-    rm -f "$FRONTEND_PID_FILE"
-  fi
+  stop_managed_frontend "$FRONTEND_PID_FILE" "ui-adapter-sharing"
 }
 
 cleanup() {
@@ -97,44 +88,7 @@ frontend_env() {
 }
 
 start_frontend_dev() {
-  load_env_report "$ENV_REPORT_FILE"
-
-  if [[ -f "$FRONTEND_PID_FILE" ]] && kill -0 "$(cat "$FRONTEND_PID_FILE")" >/dev/null 2>&1; then
-    log "ui-adapter-sharing: frontend dev already running (pid=$(cat "$FRONTEND_PID_FILE"))"
-    return 0
-  fi
-
-  stop_stale_frontend_listeners
-
-  log "ui-adapter-sharing: starting frontend dev server"
-  (
-    cd "$ROOT_DIR"
-    frontend_env npm --prefix web run dev -- --hostname 0.0.0.0 --port 3000
-  ) >"$FRONTEND_LOG_FILE" 2>&1 &
-
-  local pid=$!
-  echo "$pid" >"$FRONTEND_PID_FILE"
-
-  log "ui-adapter-sharing: waiting frontend health"
-  local ok=0
-  for _ in $(seq 1 120); do
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
-      echo "frontend dev exited before becoming healthy, log: $FRONTEND_LOG_FILE" >&2
-      return 1
-    fi
-    if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
-      ok=1
-      break
-    fi
-    sleep 1
-  done
-
-  if [[ "$ok" -ne 1 ]]; then
-    echo "frontend dev failed to start, log: $FRONTEND_LOG_FILE" >&2
-    return 1
-  fi
-
-  log "ui-adapter-sharing: frontend dev ready"
+  start_managed_frontend "$FRONTEND_PID_FILE" "$FRONTEND_LOG_FILE" "ui-adapter-sharing"
 }
 
 tenant_admin_token() {
@@ -787,8 +741,8 @@ ab wait 2500 >/dev/null
 wait_for_text "$GMAIL_NAME"
 wait_for_text "$SES_NAME"
 wait_for_text "Shared"
-assert_shared_row_state "$GMAIL_NAME" 3 '[true,true,true]'
-assert_shared_row_state "$SES_NAME" 4 '[false,true,true,true]'
+assert_shared_row_state "$GMAIL_NAME" 3 '[true,false,true]'
+assert_shared_row_state "$SES_NAME" 4 '[false,true,false,true]'
 ab screenshot "$SCREENSHOT_DIR/06-workspace-a-shared-adapters.png" >/dev/null
 
 click_adapter_row_action "$SES_NAME" 0

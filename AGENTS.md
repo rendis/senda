@@ -75,7 +75,7 @@ web/src/                Frontend app (Next.js App Router)
 4. Implement with TDD (test → code → refactor)
 5. Record decisions and progress in the HT ("Implementation Notes" and "Progress Log")
 6. When all acceptance criteria are met:
-   - Run the quality gates (`make test`, `make lint`, `go vet`)
+   - Run the quality gates (`make test`, `make lint`, `make vet`)
    - Move the HT to `stories/done/`
    - Update `stories/MANIFEST.md` (status, counters, "Ready to Start")
 
@@ -307,7 +307,7 @@ Pencil exposes a local MCP server while Pencil is open. The code agent connects 
 
 3. VALIDATE (DoD Gate 1):
    get_screenshot → capture the Pencil design
-   Compare it against a screenshot of the running app (`npm run dev`)
+   Compare it against a screenshot of the running app (`pnpm --dir web dev`)
    snapshot_layout → verify structure and positioning
    If there is drift → fix it in CODE, not in Pencil
 
@@ -491,16 +491,16 @@ Rules:
 **Always run (every task, ALL packages — never skip to "just what I touched"):**
 
 ```bash
-make lint                 # golangci-lint on ALL packages (./...)
-go vet ./...              # Go vet on ALL packages
-make test                 # go test ./... with race detector — validates nothing existing broke
+make lint                 # golangci-lint on repo Go packages only
+make vet                  # Go vet on repo Go packages only
+make test                 # go test on repo Go packages with race detector — validates nothing existing broke
 ```
 
 If the task touches frontend (`web/`), also run:
 
 ```bash
-npm --prefix web run typecheck   # tsc --noEmit (full project)
-npm --prefix web run lint        # ESLint with sonarjs (--max-warnings=0, full project)
+pnpm --dir web typecheck         # tsc --noEmit (full project)
+pnpm --dir web lint              # ESLint with sonarjs (--max-warnings=0, full project)
 ```
 
 **On-demand only (not part of the standard gate):**
@@ -520,7 +520,7 @@ make test                 # Unit tests pass
 make test-integration     # Integration tests pass (if applicable)
 make test-e2e             # E2E deterministic gate (if applicable)
 make lint                 # golangci-lint passes
-go vet ./...              # No issues
+make vet                  # No issues
 ```
 
 ### PR Local Gate (mandatory before opening or updating a PR)
@@ -728,10 +728,9 @@ my-senda-app/
 ### Frontend Scripts
 
 ```bash
-npm --prefix web run dev      # Next.js dev server (localhost:3000)
-npm --prefix web run build    # Production build
-npm --prefix web run start    # Production server
-npm --prefix web run lint     # ESLint
+pnpm --dir web dev           # Next.js dev server (localhost:3000)
+pnpm --dir web typecheck     # TypeScript validation
+pnpm --dir web lint          # ESLint
 ```
 
 ---
