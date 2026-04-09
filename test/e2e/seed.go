@@ -111,6 +111,7 @@ type SendRequest struct {
 	CC         []string               `json:"cc,omitempty"`
 	BCC        []string               `json:"bcc,omitempty"`
 	Variables  map[string]interface{} `json:"variables,omitempty"`
+	Injectors  map[string]map[string]interface{} `json:"injectors,omitempty"`
 	ExternalID string                 `json:"external_id,omitempty"`
 	Locale     string                 `json:"locale,omitempty"`
 }
@@ -127,6 +128,7 @@ type SendBatchItemRequest struct {
 	CC         []string               `json:"cc,omitempty"`
 	BCC        []string               `json:"bcc,omitempty"`
 	Variables  map[string]interface{} `json:"variables,omitempty"`
+	Injectors  map[string]map[string]interface{} `json:"injectors,omitempty"`
 	ExternalID string                 `json:"external_id,omitempty"`
 	Locale     string                 `json:"locale,omitempty"`
 }
@@ -140,10 +142,12 @@ type InjectorRequest struct {
 
 // InjectorFieldRequest defines a field in an injector schema.
 type InjectorFieldRequest struct {
-	FieldName   string `json:"field_name"`
-	FieldType   string `json:"field_type"`
-	Description string `json:"description,omitempty"`
-	Position    int    `json:"position,omitempty"`
+	FieldName      string      `json:"field_name"`
+	FieldType      string      `json:"field_type"`
+	Description    string      `json:"description,omitempty"`
+	Position       int         `json:"position,omitempty"`
+	DefaultValue   interface{} `json:"default_value,omitempty"`
+	AllowOverwrite *bool       `json:"allow_overwrite,omitempty"`
 }
 
 // SetInjectorValuesRequest sets injector field values.

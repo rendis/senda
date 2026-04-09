@@ -311,6 +311,7 @@ func (h *TemplateHandler) TestSend(c *echo.Context) error {
 	var req struct {
 		RecipientEmail string         `json:"recipient_email"`
 		Variables      map[string]any `json:"variables"`
+		Injectors      map[string]map[string]any `json:"injectors"`
 		Locale         *string        `json:"locale"`
 	}
 	if err := c.Bind(&req); err != nil {
@@ -324,7 +325,9 @@ func (h *TemplateHandler) TestSend(c *echo.Context) error {
 		TemplateID:     templateID,
 		RecipientEmail: req.RecipientEmail,
 		Variables:      req.Variables,
+		Injectors:      req.Injectors,
 		Locale:         req.Locale,
+		Headers:        firstHeaderValues(c.Request().Header),
 	})
 	if err != nil {
 		return mapTestSendError(c, err)
@@ -407,6 +410,7 @@ func (h *TemplateHandler) BulkSend(c *echo.Context) error {
 			CC:         item.CC,
 			BCC:        item.BCC,
 			Variables:  item.Variables,
+			Injectors:  item.Injectors,
 			ExternalID: item.ExternalID,
 			Locale:     item.Locale,
 		}
@@ -448,6 +452,16 @@ func (h *TemplateHandler) BulkSend(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusAccepted, response.NewSendBatchResponse(resp))
+}
+
+func firstHeaderValues(header http.Header) map[string]string {
+	headers := make(map[string]string, len(header))
+	for k, vals := range header {
+		if len(vals) > 0 {
+			headers[k] = vals[0]
+		}
+	}
+	return headers
 }
 
 func (h *TemplateHandler) effectiveBatchMaxItems() int {

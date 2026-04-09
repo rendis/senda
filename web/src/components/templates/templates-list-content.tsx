@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter, useParams } from "next/navigation";
-import { Plus, FileText, Pencil, Eye, Send, Trash2 } from "lucide-react";
+import { Plus, FileText, Pencil, Send, Trash2 } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { useTemplateType } from "@/hooks/use-template-types";
 import {
@@ -19,6 +19,11 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  buildDefaultEditorData,
+  DEFAULT_MJML,
+} from "@/components/templates/template-version-defaults";
+import { getVersionPrimaryAction } from "@/components/templates/templates-list-actions";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -34,38 +39,6 @@ function createEditorId() {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-function buildDefaultEditorData() {
-  return {
-    version: 1,
-    blocks: [
-      {
-        id: createEditorId(),
-        type: "text",
-        segments: [
-          {
-            kind: "text",
-            id: createEditorId(),
-            text: "Hello ",
-          },
-          {
-            kind: "token",
-            id: createEditorId(),
-            token: "user_name",
-            label: "user_name",
-            category: "event",
-          },
-          {
-            kind: "text",
-            id: createEditorId(),
-            text: "!",
-          },
-        ],
-        align: "left",
-      },
-    ],
-  };
 }
 
 export function TemplatesListContent() {
@@ -129,7 +102,7 @@ export function TemplatesListContent() {
         from_name: "Senda",
         body_mjml: DEFAULT_MJML,
         default_locale: "en",
-        editor_data: buildDefaultEditorData(),
+        editor_data: buildDefaultEditorData(createEditorId),
       };
       const version = tplId === templateId
         ? await createVersion.mutateAsync(versionData)
@@ -174,13 +147,16 @@ export function TemplatesListContent() {
       accessorKey: "version_number",
       header: "VERSION",
       cell: ({ row }) => (
-        <span
-          className={`font-mono text-sm ${
+        <button
+          type="button"
+          onClick={() => router.push(buildEditPath(templateId, row.original.id))}
+          className={`font-mono text-sm transition-colors hover:text-primary ${
             row.original.status === "published" ? "font-semibold" : ""
           }`}
+          aria-label={`Open version ${row.original.version_number}`}
         >
           v{row.original.version_number}
-        </span>
+        </button>
       ),
     },
     {
@@ -212,7 +188,10 @@ export function TemplatesListContent() {
     },
     {
       id: "actions",
-      cell: ({ row }) => (
+      cell: ({ row }) => {
+        const primaryAction = getVersionPrimaryAction(row.original.status);
+
+        return (
         <div className="flex items-center justify-end gap-1">
           {row.original.status === "draft" && (
             <Tooltip>
@@ -221,7 +200,7 @@ export function TemplatesListContent() {
                   <Pencil className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Edit</TooltipContent>
+              <TooltipContent>{primaryAction.label}</TooltipContent>
             </Tooltip>
           )}
           {row.original.status === "draft" && (
@@ -248,14 +227,14 @@ export function TemplatesListContent() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(buildEditPath(templateId, row.original.id))}>
-                  <Eye className="h-4 w-4" />
+                  <FileText className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>View</TooltipContent>
+              <TooltipContent>{primaryAction.label}</TooltipContent>
             </Tooltip>
           )}
         </div>
-      ),
+      )},
     },
   ];
 
@@ -342,13 +321,3 @@ export function TemplatesListContent() {
     </div>
   );
 }
-
-const DEFAULT_MJML = `<mjml>
-  <mj-body>
-    <mj-section>
-      <mj-column>
-        <mj-text>Hello {{user_name}}!</mj-text>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>`;

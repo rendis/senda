@@ -911,6 +911,12 @@ func TestTemplateHandler_BulkSend_SendsBatchAndWritesAudit(t *testing.T) {
 			if len(req.Items) != 2 {
 				t.Fatalf("expected 2 items, got %d", len(req.Items))
 			}
+			if got := req.Items[0].Injectors["student"]["name"]; got != "Ana Override" {
+				t.Fatalf("expected first item injector override, got %#v", req.Items[0].Injectors)
+			}
+			if got := req.Items[1].Injectors["student"]["name"]; got != "Beto Override" {
+				t.Fatalf("expected second item injector override, got %#v", req.Items[1].Injectors)
+			}
 			return &service.SendBatchResponse{
 				Status:           "partial",
 				TemplateResolved: req.Ref,
@@ -933,7 +939,7 @@ func TestTemplateHandler_BulkSend_SendsBatchAndWritesAudit(t *testing.T) {
 		}
 	})
 
-	body := `{"items":[{"to":"ana@example.com","variables":{"name":"Ana"}},{"to":"beto@example.com","external_id":"msg-2"}]}`
+	body := `{"items":[{"to":"ana@example.com","variables":{"name":"Ana"},"injectors":{"student":{"name":"Ana Override"}}},{"to":"beto@example.com","external_id":"msg-2","injectors":{"student":{"name":"Beto Override"}}}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/bulk-send", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

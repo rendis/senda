@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Step1Welcome } from "./step-1-welcome";
@@ -69,13 +69,21 @@ export function OnboardingWizard() {
     [router],
   );
 
-  // Show nothing while session is loading
-  if (status === "loading") return null;
+  useEffect(() => {
+    if (status === "authenticated" && wizardStep === 1) {
+      saveState({ step: 2 });
+    }
+  }, [status, wizardStep]);
 
-  // Persist step 2 to sessionStorage when auto-advancing
-  if (status === "authenticated" && wizardStep === 1) {
-    saveState({ step: 2 });
-  }
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      clearState();
+      router.replace("/login");
+    }
+  }, [status, router]);
+
+  // Show nothing while session is loading or redirecting unauthenticated users.
+  if (status === "loading" || status === "unauthenticated") return null;
 
   const idToken = session?.idToken ?? "";
 

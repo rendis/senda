@@ -24,6 +24,7 @@ import (
 	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/adapter/sns"
 	"github.com/rendis/senda/internal/adapter/testauth"
+	"github.com/rendis/senda/internal/domain"
 	sendahttp "github.com/rendis/senda/internal/http"
 	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/port"
@@ -110,6 +111,9 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	if ext != nil {
 		codeInjectors = ext.Injectors
 		codeInitFunc = ext.InitFunc
+	}
+	if len(codeInjectors) > 0 || codeInitFunc != nil {
+		logger.Info("registered runtime code injector extensions", "injector_count", len(codeInjectors), "has_init_func", codeInitFunc != nil)
 	}
 	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver, codeInjectors, codeInitFunc)
 	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
@@ -209,11 +213,28 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	if cfg.Tracking.BaseURL != "" {
 		trackingProvisioner = sesadapter.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger, provisioningStepRepo)
 	}
+	testSendSenderFactory := river.DefaultAdapterSenderFactory
+	if emailSender != nil {
+		testSendSenderFactory = func(context.Context, *domain.Adapter, []byte) (port.EmailSender, error) {
+			return emailSender, nil
+		}
+	}
 	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo,
 		river.DefaultAdapterSenderFactory, adapterIdentityRepo, trackingProvisioner, logger)
 	cacheInvalidator := resolution.NewCacheInvalidator(cache, wsRepo)
 	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo, cacheInvalidator)
-	testSendSvc := service.NewTestSendService(templateRepo, adapterRepo, adapterIdentityRepo, aesCrypto, compiler, renderer, river.DefaultAdapterSenderFactory)
+	testSendSvc := service.NewTestSendService(
+		templateRepo,
+		adapterRepo,
+		adapterIdentityRepo,
+		aesCrypto,
+		compiler,
+		renderer,
+		testSendSenderFactory,
+		injectorMerger,
+		tenantRepo,
+		wsRepo,
+	)
 	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc, sendSvc, auditRepo, cfg.Send.BatchMaxItems, cacheInvalidator)
 	sendH := handler.NewSendHandler(sendSvc, cfg.Send.BatchMaxItems)
 	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)

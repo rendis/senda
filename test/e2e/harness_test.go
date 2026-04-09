@@ -224,6 +224,9 @@ func startAppContainer(ctx context.Context, rootDir, networkName string) (testco
 			Dockerfile: "docker/Dockerfile.e2e",
 		},
 		ExposedPorts: []string{"8080/tcp"},
+		Env: map[string]string{
+			"SENDA_E2E_ENABLE_CODE_INJECTORS": "true",
+		},
 		Networks:     []string{networkName},
 		NetworkAliases: map[string][]string{
 			networkName: []string{"senda"},

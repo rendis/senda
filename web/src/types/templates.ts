@@ -68,6 +68,7 @@ export interface CreateTemplateVersionRequest {
 export interface TestSendRequest {
   recipient_email: string;
   variables?: Record<string, unknown>;
+  injectors?: Record<string, Record<string, unknown>>;
   locale?: string;
 }
 
@@ -76,6 +77,7 @@ export interface TemplateBulkSendItem {
   cc?: string[];
   bcc?: string[];
   variables?: Record<string, unknown>;
+  injectors?: Record<string, Record<string, unknown>>;
   external_id?: string;
   locale?: string;
 }

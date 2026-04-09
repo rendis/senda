@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+const { getVersionPrimaryAction } = await import(
+  new URL("./templates-list-actions.ts", import.meta.url).href,
+);
+
+test("published versions expose an explicit open action instead of view semantics", () => {
+  assert.deepEqual(getVersionPrimaryAction("published"), {
+    icon: "file-text",
+    label: "Open version",
+  });
+});
+
+test("draft versions keep edit semantics", () => {
+  assert.deepEqual(getVersionPrimaryAction("draft"), {
+    icon: "pencil",
+    label: "Edit version",
+  });
+});
+

@@ -105,6 +105,14 @@ run_ui_workspace_management_stage() {
   run_stage "ui-workspace-management" "$ROOT_DIR/test/system/subagents/ui-workspace-management-tester.sh"
 }
 
+run_ui_injector_flow_stage() {
+  run_stage "ui-injector-flow" "$ROOT_DIR/test/system/subagents/ui-injector-flow-tester.sh"
+}
+
+run_ui_onboarding_auth_guard_stage() {
+  run_stage "ui-onboarding-auth-guard" "$ROOT_DIR/test/system/subagents/ui-onboarding-auth-guard-tester.sh"
+}
+
 run_ui_adapter_sharing_stage() {
   run_stage "ui-adapter-sharing" "$ROOT_DIR/test/system/subagents/ui-adapter-sharing-tester.sh"
 }
@@ -162,15 +170,19 @@ if [[ "$MODE" == "nightly" ]]; then
   run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
   run_stage "security-chaos" "$ROOT_DIR/test/system/subagents/security-chaos-tester.sh"
   run_ui_flow_stage
+  run_ui_onboarding_auth_guard_stage
   run_ui_template_type_slug_edit_stage
   run_ui_workspace_management_stage
+  run_ui_injector_flow_stage
   run_ui_adapter_sharing_stage
   run_visual_stage
   run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
 else
   run_ui_flow_stage
+  run_ui_onboarding_auth_guard_stage
   run_ui_template_type_slug_edit_stage
   run_ui_workspace_management_stage
+  run_ui_injector_flow_stage
   run_ui_adapter_sharing_stage
   run_visual_stage
   skip_stage "ui-a11y" "nightly-only"

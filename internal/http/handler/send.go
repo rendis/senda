@@ -70,16 +70,17 @@ func (h *SendHandler) Send(c *echo.Context) error {
 		}
 	}
 
-	svcReq := &service.SendRequest{
-		Ref:             req.Ref,
-		To:              req.To,
-		CC:              req.CC,
-		BCC:             req.BCC,
-		Variables:       req.Variables,
-		ExternalID:      req.ExternalID,
-		Locale:          req.Locale,
-		AuthWorkspaceID: wsID,
-		Headers:         headers,
+		svcReq := &service.SendRequest{
+			Ref:             req.Ref,
+			To:              req.To,
+			CC:              req.CC,
+			BCC:             req.BCC,
+			Variables:       req.Variables,
+			Injectors:       req.Injectors,
+			ExternalID:      req.ExternalID,
+			Locale:          req.Locale,
+			AuthWorkspaceID: wsID,
+			Headers:         headers,
 		Source: service.SendSource{
 			Type: domain.EmailSourceTypeDataPlaneAPIKey,
 		},
@@ -139,16 +140,17 @@ func (h *SendHandler) SendBatch(c *echo.Context) error {
 	}
 
 	items := make([]service.SendBatchItemRequest, len(req.Items))
-	for i, item := range req.Items {
-		items[i] = service.SendBatchItemRequest{
-			To:         item.To,
-			CC:         item.CC,
-			BCC:        item.BCC,
-			Variables:  item.Variables,
-			ExternalID: item.ExternalID,
-			Locale:     item.Locale,
+		for i, item := range req.Items {
+			items[i] = service.SendBatchItemRequest{
+				To:         item.To,
+				CC:         item.CC,
+				BCC:        item.BCC,
+				Variables:  item.Variables,
+				Injectors:  item.Injectors,
+				ExternalID: item.ExternalID,
+				Locale:     item.Locale,
+			}
 		}
-	}
 
 	resp, err := h.sendService.SendBatch(c.Request().Context(), &service.SendBatchRequest{
 		Ref:             req.Ref,

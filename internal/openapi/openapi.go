@@ -422,6 +422,8 @@ func routeRequestType(route Route) string {
 	switch {
 	case strings.HasSuffix(normalized, "/injectors") && route.Method == "POST":
 		return "request.CreateInjectorRequest"
+	case strings.HasSuffix(normalized, "/injectors/{name}/fields/{field_name}") && route.Method == "PUT":
+		return "request.UpdateInjectorFieldRequest"
 	case strings.HasSuffix(normalized, "/injectors/{name}/values") && route.Method == "PUT":
 		return "request.SetInjectorValuesRequest"
 	case strings.HasSuffix(normalized, "/adapters") && route.Method == "POST":
@@ -524,6 +526,8 @@ func routeSuccessType(route Route) string {
 		return "response.InjectorListResponse"
 	case strings.HasSuffix(normalized, "/injectors") && route.Method == "POST":
 		return "response.InjectorDetailResponse"
+	case strings.HasSuffix(normalized, "/injectors/{name}/fields/{field_name}") && route.Method == "PUT":
+		return "response.InjectorFieldResponse"
 	case strings.Contains(normalized, "/injectors/{name}") && route.Method == "GET":
 		return "response.InjectorDetailResponse"
 	case strings.HasSuffix(normalized, "/adapters") && route.Method == "GET":

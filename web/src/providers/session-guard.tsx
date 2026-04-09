@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { startFederatedLogout } from "@/lib/logout";
+import { shouldTriggerFederatedLogout } from "@/providers/session-guard-policy";
 
 /**
  * SessionGuard watches for expired/invalid sessions and redirects to login.
@@ -14,19 +16,23 @@ import { startFederatedLogout } from "@/lib/logout";
  */
 export function SessionGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const logoutTriggered = useRef(false);
 
   // 1. Watch for RefreshTokenError from server-side token refresh.
   useEffect(() => {
     if (
-      status === "authenticated" &&
-      session?.error === "RefreshTokenError" &&
-      !logoutTriggered.current
+      shouldTriggerFederatedLogout({
+        pathname,
+        status,
+        sessionError: session?.error,
+        alreadyTriggered: logoutTriggered.current,
+      })
     ) {
       logoutTriggered.current = true;
       startFederatedLogout("/login");
     }
-  }, [status, session?.error]);
+  }, [pathname, status, session?.error]);
 
   // 2. Handle bfcache restoration (back button after logout).
   // 3. Handle tab visibility change (user returns to tab after long absence).

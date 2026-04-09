@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rendis/senda/internal/domain"
@@ -16,6 +17,14 @@ import (
 // InjectorRepo implements port.InjectorStore using PostgreSQL.
 type InjectorRepo struct {
 	pool *pgxpool.Pool
+}
+
+type queryRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }
 
 // NewInjectorRepo creates a new InjectorRepo.
@@ -41,6 +50,78 @@ func (r *InjectorRepo) CreateDefinition(ctx context.Context, def *domain.Injecto
 			return appErr
 		}
 		return fmt.Errorf("inserting injector definition: %w", err)
+	}
+
+	return nil
+}
+
+func (r *InjectorRepo) UpdateDefinitionSchema(
+	ctx context.Context,
+	currentName string,
+	workspaceID *uuid.UUID,
+	def *domain.InjectorDefinition,
+	fields []*domain.InjectorField,
+) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin injector schema update transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	existing, err := r.findDefinitionByNameTx(ctx, tx, currentName, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	row := tx.QueryRow(ctx,
+		`UPDATE injector_definitions
+		 SET name = @name,
+		     description = @description,
+		     updated_at = now()
+		 WHERE id = @id
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":          existing.ID,
+			"name":        def.Name,
+			"description": def.Description,
+		},
+	)
+
+	def.ID = existing.ID
+	def.WorkspaceID = existing.WorkspaceID
+	if err := row.Scan(&def.CreatedAt, &def.UpdatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
+		return fmt.Errorf("updating injector definition: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM injector_values WHERE injector_definition_id = @injector_definition_id`,
+		pgx.NamedArgs{"injector_definition_id": existing.ID},
+	); err != nil {
+		return fmt.Errorf("deleting injector values: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM injector_fields WHERE injector_definition_id = @injector_definition_id`,
+		pgx.NamedArgs{"injector_definition_id": existing.ID},
+	); err != nil {
+		return fmt.Errorf("deleting injector fields: %w", err)
+	}
+
+	for _, field := range fields {
+		field.InjectorDefinitionID = existing.ID
+		if err := r.createFieldTx(ctx, tx, field); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
+		return fmt.Errorf("commit injector schema update transaction: %w", err)
 	}
 
 	return nil
@@ -72,16 +153,20 @@ func (r *InjectorRepo) SoftDeleteDefinition(ctx context.Context, id uuid.UUID) e
 }
 
 func (r *InjectorRepo) FindDefinitionByName(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+	return r.findDefinitionByNameTx(ctx, r.pool, name, workspaceID)
+}
+
+func (r *InjectorRepo) findDefinitionByNameTx(ctx context.Context, q queryRower, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
 	var row pgx.Row
 	if workspaceID == nil {
-		row = r.pool.QueryRow(ctx,
+		row = q.QueryRow(ctx,
 			`SELECT id, name, workspace_id, description, created_at, updated_at, deleted_at
 			 FROM injector_definitions
 			 WHERE name = @name AND workspace_id IS NULL AND deleted_at IS NULL`,
 			pgx.NamedArgs{"name": name},
 		)
 	} else {
-		row = r.pool.QueryRow(ctx,
+		row = q.QueryRow(ctx,
 			`SELECT id, name, workspace_id, description, created_at, updated_at, deleted_at
 			 FROM injector_definitions
 			 WHERE name = @name AND workspace_id = @workspace_id AND deleted_at IS NULL`,
@@ -119,16 +204,31 @@ func (r *InjectorRepo) ListDefinitionsInChain(ctx context.Context, chain []uuid.
 }
 
 func (r *InjectorRepo) CreateField(ctx context.Context, field *domain.InjectorField) error {
-	_, err := r.pool.Exec(ctx,
-		`INSERT INTO injector_fields (id, injector_definition_id, field_name, field_type, description, position)
-		 VALUES (@id, @injector_definition_id, @field_name, @field_type, @description, @position)`,
+	return r.createFieldTx(ctx, r.pool, field)
+}
+
+func (r *InjectorRepo) createFieldTx(ctx context.Context, q execer, field *domain.InjectorField) error {
+	var defaultJSON []byte
+	if field.DefaultValue != nil {
+		var err error
+		defaultJSON, err = json.Marshal(field.DefaultValue)
+		if err != nil {
+			return fmt.Errorf("marshaling injector field default value: %w", err)
+		}
+	}
+
+	_, err := q.Exec(ctx,
+		`INSERT INTO injector_fields (id, injector_definition_id, field_name, field_type, description, position, default_value, allow_overwrite)
+		 VALUES (@id, @injector_definition_id, @field_name, @field_type, @description, @position, @default_value, @allow_overwrite)`,
 		pgx.NamedArgs{
-			"id":                      field.ID,
-			"injector_definition_id":  field.InjectorDefinitionID,
-			"field_name":              field.FieldName,
-			"field_type":              field.FieldType,
-			"description":             field.Description,
-			"position":                field.Position,
+			"id":                     field.ID,
+			"injector_definition_id": field.InjectorDefinitionID,
+			"field_name":             field.FieldName,
+			"field_type":             field.FieldType,
+			"description":            field.Description,
+			"position":               field.Position,
+			"default_value":          defaultJSON,
+			"allow_overwrite":        field.AllowOverwrite,
 		},
 	)
 	if err != nil {
@@ -141,9 +241,42 @@ func (r *InjectorRepo) CreateField(ctx context.Context, field *domain.InjectorFi
 	return nil
 }
 
+func (r *InjectorRepo) UpdateField(ctx context.Context, field *domain.InjectorField) error {
+	var defaultJSON []byte
+	if field.DefaultValue != nil {
+		var err error
+		defaultJSON, err = json.Marshal(field.DefaultValue)
+		if err != nil {
+			return fmt.Errorf("marshaling injector field default value: %w", err)
+		}
+	}
+
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE injector_fields
+		 SET default_value = @default_value,
+		     allow_overwrite = @allow_overwrite
+		 WHERE id = @id`,
+		pgx.NamedArgs{
+			"id":              field.ID,
+			"default_value":   defaultJSON,
+			"allow_overwrite": field.AllowOverwrite,
+		},
+	)
+	if err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return appErr
+		}
+		return fmt.Errorf("updating injector field: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("injector field %s not found", field.ID)
+	}
+	return nil
+}
+
 func (r *InjectorRepo) GetFieldsByDefinition(ctx context.Context, defID uuid.UUID) ([]*domain.InjectorField, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, injector_definition_id, field_name, field_type, description, position
+		`SELECT id, injector_definition_id, field_name, field_type, description, position, default_value, allow_overwrite
 		 FROM injector_fields
 		 WHERE injector_definition_id = @def_id
 		 ORDER BY position`,
@@ -153,7 +286,7 @@ func (r *InjectorRepo) GetFieldsByDefinition(ctx context.Context, defID uuid.UUI
 		return nil, fmt.Errorf("querying injector fields: %w", err)
 	}
 
-	fields, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.InjectorField])
+	fields, err := pgx.CollectRows(rows, scanInjectorField)
 	if err != nil {
 		return nil, fmt.Errorf("collecting injector fields: %w", err)
 	}
@@ -174,11 +307,11 @@ func (r *InjectorRepo) SetValue(ctx context.Context, val *domain.InjectorValue) 
 		 DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 		 RETURNING id, updated_at`,
 		pgx.NamedArgs{
-			"id":                      val.ID,
-			"injector_definition_id":  val.InjectorDefinitionID,
-			"field_name":              val.FieldName,
-			"workspace_id":            val.WorkspaceID,
-			"value":                   jsonVal,
+			"id":                     val.ID,
+			"injector_definition_id": val.InjectorDefinitionID,
+			"field_name":             val.FieldName,
+			"workspace_id":           val.WorkspaceID,
+			"value":                  jsonVal,
 		},
 	)
 
@@ -221,7 +354,7 @@ func (r *InjectorRepo) GetAllFieldsByDefinitions(ctx context.Context, defIDs []u
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, injector_definition_id, field_name, field_type, description, position
+		`SELECT id, injector_definition_id, field_name, field_type, description, position, default_value, allow_overwrite
 		 FROM injector_fields
 		 WHERE injector_definition_id = ANY(@def_ids)
 		 ORDER BY injector_definition_id, position`,
@@ -231,7 +364,7 @@ func (r *InjectorRepo) GetAllFieldsByDefinitions(ctx context.Context, defIDs []u
 		return nil, fmt.Errorf("batch querying injector fields: %w", err)
 	}
 
-	fields, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.InjectorField])
+	fields, err := pgx.CollectRows(rows, scanInjectorField)
 	if err != nil {
 		return nil, fmt.Errorf("collecting batch injector fields: %w", err)
 	}
@@ -302,6 +435,29 @@ func scanInjectorValue(row pgx.CollectableRow) (*domain.InjectorValue, error) {
 		return nil, fmt.Errorf("unmarshaling injector value: %w", err)
 	}
 	return &v, nil
+}
+
+func scanInjectorField(row pgx.CollectableRow) (*domain.InjectorField, error) {
+	var f domain.InjectorField
+	var defaultJSON []byte
+	if err := row.Scan(
+		&f.ID,
+		&f.InjectorDefinitionID,
+		&f.FieldName,
+		&f.FieldType,
+		&f.Description,
+		&f.Position,
+		&defaultJSON,
+		&f.AllowOverwrite,
+	); err != nil {
+		return nil, fmt.Errorf("scanning injector field: %w", err)
+	}
+	if len(defaultJSON) > 0 {
+		if err := json.Unmarshal(defaultJSON, &f.DefaultValue); err != nil {
+			return nil, fmt.Errorf("unmarshaling injector field default value: %w", err)
+		}
+	}
+	return &f, nil
 }
 
 // splitChain separates a chain of nullable UUIDs into a slice of non-null UUIDs
