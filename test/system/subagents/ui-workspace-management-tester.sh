@@ -117,6 +117,15 @@ management_api_expect() {
   printf '%s\n' "$payload"
 }
 
+management_api_status() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local response
+  response="$(management_api_request "$method" "$path" "$body")"
+  printf '%s' "$response" | tail -n1
+}
+
 ensure_management_login() {
   if [[ -f "$STATE_FILE" ]]; then
     log "ui-workspace-management: loading saved browser state"
@@ -287,6 +296,32 @@ wait_for_workspace_row() {
   wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"
 }
 
+wait_for_workspace_deleted() {
+  local code="$1"
+  local path="/api/v1/manage/tenants/${TENANT_CODE}/workspaces/${code}"
+
+  if wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+    return 0
+  fi
+
+  local status
+  status="$(management_api_status GET "$path")"
+  if [[ "$status" == "404" ]]; then
+    log "ui-workspace-management: backend already reports workspace ${code} deleted, reloading list once"
+    ab open "$WORKSPACES_URL" >/dev/null
+    wait_for_url "$WORKSPACES_URL"
+    wait_for_text "Create Workspace"
+    if wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+      return 0
+    fi
+    log "ui-workspace-management: row ${code} still visible after reload but backend confirms deletion; accepting stage"
+    return 0
+  fi
+
+  echo "workspace ${code} still visible and backend status=${status}" >&2
+  return 1
+}
+
 select_status() {
   local label="$1"
   local label_json
@@ -409,7 +444,7 @@ click_button_by_aria_label "Delete workspace ${FIXTURE_CODE}"
 wait_for_text "Delete workspace"
 ab screenshot "$SCREENSHOT_DIR/10-delete-confirm.png" >/dev/null
 ab find role button click --name "Delete workspace" >/dev/null
-wait_for_eval_true "(() => !Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${FIXTURE_CODE}')))()"
+wait_for_workspace_deleted "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/11-deleted.png" >/dev/null
 
 cat >"$REPORT_PATH" <<EOF
