@@ -52,6 +52,7 @@ jobs:
       - name: Install test CLIs
         run: |
           export PNPM_HOME="$HOME/.local/share/pnpm"
+          export PATH="$PNPM_HOME:$PATH"
           echo "$PNPM_HOME" >> "$GITHUB_PATH"
           echo "PNPM_HOME=$PNPM_HOME" >> "$GITHUB_ENV"
           corepack pnpm add --global agent-browser
