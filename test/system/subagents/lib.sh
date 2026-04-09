@@ -102,45 +102,75 @@ stop_stale_frontend_listeners() {
   done < <(lsof -tiTCP:3000 -sTCP:LISTEN 2>/dev/null || true)
 }
 
-start_frontend() {
-  load_env_report
+terminate_process_tree() {
+  local pid="$1"
+  local label="${2:-process}"
 
-  local pid_file="$ARTIFACT_DIR/frontend.pid"
-  local log_file="$ARTIFACT_DIR/frontend.log"
+  [[ -n "$pid" ]] || return 0
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v pgrep >/dev/null 2>&1; then
+    local child
+    while read -r child; do
+      [[ -n "$child" ]] || continue
+      terminate_process_tree "$child" "$label"
+    done < <(pgrep -P "$pid" 2>/dev/null || true)
+  fi
+
+  kill "$pid" >/dev/null 2>&1 || true
+  sleep 1
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  fi
+}
+
+frontend_env_run() {
   local api_url="$SENDA_BASE_URL"
   local auth_secret="${AUTH_SECRET:-ysf1mCbeKS9WIY7kan1OOXg/8MmK35YVZRC9qsYUYFM=}"
   local auth_oidc_issuer="${AUTH_OIDC_ISSUER:-$KEYCLOAK_BASE_URL/realms/senda}"
   local auth_oidc_id="${AUTH_OIDC_ID:-senda-web}"
   local auth_oidc_secret="${AUTH_OIDC_SECRET:-senda-dev-secret}"
 
-  if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" >/dev/null 2>&1; then
-    log "frontend already running (pid=$(cat "$pid_file"))"
-    return 0
-  fi
-
-  stop_stale_frontend_listeners
-
-  log "starting frontend dev server"
-  (
-    cd "$ROOT_DIR"
-    NEXT_PUBLIC_API_URL="$api_url" \
+  NEXT_PUBLIC_API_URL="$api_url" \
     AUTH_URL="$FRONTEND_BASE_URL" \
     AUTH_SECRET="$auth_secret" \
     AUTH_TRUST_HOST=true \
     AUTH_OIDC_ISSUER="$auth_oidc_issuer" \
     AUTH_OIDC_ID="$auth_oidc_id" \
     AUTH_OIDC_SECRET="$auth_oidc_secret" \
-    pnpm_web exec next dev --hostname 0.0.0.0 --port 3000
+    exec "$@"
+}
+
+start_managed_frontend() {
+  local pid_file="$1"
+  local log_file="$2"
+  local label="${3:-frontend}"
+
+  load_env_report
+
+  if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" >/dev/null 2>&1; then
+    log "${label}: frontend dev already running (pid=$(cat "$pid_file"))"
+    return 0
+  fi
+
+  stop_stale_frontend_listeners
+
+  log "${label}: starting frontend dev server"
+  (
+    cd "$ROOT_DIR"
+    frontend_env_run corepack pnpm --dir "$ROOT_DIR/web" exec next dev --hostname 0.0.0.0 --port 3000
   ) >"$log_file" 2>&1 &
 
   local pid=$!
   echo "$pid" >"$pid_file"
 
-  log "waiting frontend health"
+  log "${label}: waiting frontend health"
   local ok=0
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 120); do
     if ! kill -0 "$pid" >/dev/null 2>&1; then
-      echo "frontend exited before becoming healthy, log: $log_file" >&2
+      echo "frontend dev exited before becoming healthy, log: $log_file" >&2
       return 1
     fi
     if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
@@ -151,25 +181,38 @@ start_frontend() {
   done
 
   if [[ "$ok" -ne 1 ]]; then
-    echo "frontend failed to start, log: $log_file" >&2
+    echo "frontend dev failed to start, log: $log_file" >&2
     return 1
   fi
 
-  log "frontend ready"
+  log "${label}: frontend dev ready"
 }
 
-stop_frontend() {
-  local pid_file="$ARTIFACT_DIR/frontend.pid"
+stop_managed_frontend() {
+  local pid_file="$1"
+  local label="${2:-frontend}"
+
   if [[ -f "$pid_file" ]]; then
     local pid
     pid="$(cat "$pid_file")"
     if kill -0 "$pid" >/dev/null 2>&1; then
-      log "stopping frontend pid=$pid"
-      kill "$pid" >/dev/null 2>&1 || true
+      log "${label}: stopping frontend dev pid=$pid"
+      terminate_process_tree "$pid" "$label"
       wait "$pid" >/dev/null 2>&1 || true
     fi
     rm -f "$pid_file"
   fi
+}
+
+start_frontend() {
+  local pid_file="$ARTIFACT_DIR/frontend.pid"
+  local log_file="$ARTIFACT_DIR/frontend.log"
+  start_managed_frontend "$pid_file" "$log_file" "shared-frontend"
+}
+
+stop_frontend() {
+  local pid_file="$ARTIFACT_DIR/frontend.pid"
+  stop_managed_frontend "$pid_file" "shared-frontend"
 }
 
 ensure_runtime_env() {

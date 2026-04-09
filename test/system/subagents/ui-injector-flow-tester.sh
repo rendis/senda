@@ -39,16 +39,7 @@ ab_json() {
 }
 
 stop_frontend_dev() {
-  if [[ -f "$FRONTEND_PID_FILE" ]]; then
-    local pid
-    pid="$(cat "$FRONTEND_PID_FILE")"
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      log "ui-injector-flow: stopping frontend dev pid=$pid"
-      kill "$pid" >/dev/null 2>&1 || true
-      wait "$pid" >/dev/null 2>&1 || true
-    fi
-    rm -f "$FRONTEND_PID_FILE"
-  fi
+  stop_managed_frontend "$FRONTEND_PID_FILE" "ui-injector-flow"
 }
 
 cleanup() {
@@ -76,44 +67,7 @@ frontend_env() {
 }
 
 start_frontend_dev() {
-  load_env_report "$ENV_REPORT_FILE"
-
-  if [[ -f "$FRONTEND_PID_FILE" ]] && kill -0 "$(cat "$FRONTEND_PID_FILE")" >/dev/null 2>&1; then
-    log "ui-injector-flow: frontend dev already running (pid=$(cat "$FRONTEND_PID_FILE"))"
-    return 0
-  fi
-
-  stop_stale_frontend_listeners
-
-  log "ui-injector-flow: starting frontend dev server"
-  (
-    cd "$ROOT_DIR"
-    frontend_env corepack pnpm --dir web exec next dev --hostname 0.0.0.0 --port 3000
-  ) >"$FRONTEND_LOG_FILE" 2>&1 &
-
-  local pid=$!
-  echo "$pid" >"$FRONTEND_PID_FILE"
-
-  log "ui-injector-flow: waiting frontend health"
-  local ok=0
-  for _ in $(seq 1 120); do
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
-      echo "frontend dev exited before becoming healthy, log: $FRONTEND_LOG_FILE" >&2
-      return 1
-    fi
-    if curl -fsS "$FRONTEND_BASE_URL/login" >/dev/null 2>&1; then
-      ok=1
-      break
-    fi
-    sleep 1
-  done
-
-  if [[ "$ok" -ne 1 ]]; then
-    echo "frontend dev failed to start, log: $FRONTEND_LOG_FILE" >&2
-    return 1
-  fi
-
-  log "ui-injector-flow: frontend dev ready"
+  start_managed_frontend "$FRONTEND_PID_FILE" "$FRONTEND_LOG_FILE" "ui-injector-flow"
 }
 
 issue_test_token() {
