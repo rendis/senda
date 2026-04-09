@@ -439,6 +439,8 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 				ws.POST("/injectors", s.injectorHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/injectors/:name", s.injectorHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				ws.PUT("/injectors/:name", s.injectorHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.PUT("/injectors/:name/fields/:field_name", s.injectorHandler.UpdateField, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.PUT("/injectors/:name/values", s.injectorHandler.SetValues, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.DELETE("/injectors/:name", s.injectorHandler.Delete, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			}
@@ -458,7 +460,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 					ws.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatus, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				}
 			}
-			if s.identityHandler != nil {
+				if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.GET("/adapters/:id/identities", s.identityHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities", s.identityHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities/sync", s.identityHandler.Sync, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
@@ -508,7 +510,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			}
 
 			// Webhooks CRUD (HT-24).
-			if s.webhookHandler != nil {
+			if s.webhookHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.POST("/webhooks", s.webhookHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/webhooks", s.webhookHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/webhooks/:id", s.webhookHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -558,6 +560,8 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 				global.POST("/injectors", s.injectorHandler.CreateGlobal)
 				global.GET("/injectors", s.injectorHandler.ListGlobal)
 				global.GET("/injectors/:name", s.injectorHandler.GetGlobal)
+				global.PUT("/injectors/:name", s.injectorHandler.UpdateGlobal)
+				global.PUT("/injectors/:name/fields/:field_name", s.injectorHandler.UpdateFieldGlobal)
 				global.DELETE("/injectors/:name", s.injectorHandler.DeleteGlobal)
 			}
 			if s.adapterHandler != nil {
@@ -573,7 +577,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 					global.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatusGlobal)
 				}
 			}
-			if s.identityHandler != nil {
+				if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
 				global.GET("/adapters/:id/identities", s.identityHandler.ListGlobal)
 				global.POST("/adapters/:id/identities", s.identityHandler.CreateGlobal)
 				global.POST("/adapters/:id/identities/sync", s.identityHandler.SyncGlobal)

@@ -187,6 +187,7 @@ ensure_runtime_env() {
   log "resolving runtime context -> $runtime_env"
   go run "$ROOT_DIR/cmd/systemtest" resolve-context \
     --base-url "$SENDA_BASE_URL" \
+    --email "$SUPERADMIN_EMAIL" \
     --secret "$SENDA_E2E_JWT_SECRET" \
     --tenant-code "$SYSTEM_TENANT_CODE" \
     --tenant-name "$SYSTEM_TENANT_NAME" \
@@ -228,6 +229,7 @@ seed_rbac_memberships() {
   log "seeding RBAC member roles"
   go run "$ROOT_DIR/cmd/systemtest" seed-rbac \
     --base-url "$SENDA_BASE_URL" \
+    --email "$SUPERADMIN_EMAIL" \
     --secret "$SENDA_E2E_JWT_SECRET" \
     --tenant-code "${TENANT_CODE:-test-corp}" \
     --workspace-code "${WORKSPACE_CODE:-main}" \

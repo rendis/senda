@@ -59,12 +59,14 @@ import {
 } from "@/hooks/use-template-version";
 import { useTemplateType } from "@/hooks/use-template-types";
 import { useInjectorList } from "@/hooks/use-injectors";
-import { useApi } from "@/hooks/use-api";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { SaveStatusIndicator } from "@/components/templates/save-status-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { BulkSendModal } from "@/components/templates/bulk-send-modal";
 import { TestSendModal } from "@/components/templates/test-send-modal";
+import { getTestSendAvailability } from "@/components/templates/test-send-policy";
+import { resolveTestSendInjectorUsage } from "@/components/templates/test-send-injector-usage";
+import { buildInjectorVariableHint } from "@/components/templates/template-variable-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +84,7 @@ import {
 } from "@/components/ui/popover";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import type { InjectorDefinition, InjectorWithValues } from "@/types/injectors";
+import type { InjectorDefinition } from "@/types/injectors";
 
 const metadataSchema = z.object({
   subject: z.string().min(1, { message: "Subject is required" }),
@@ -1730,11 +1732,16 @@ export function MjmlEditor() {
   const previewMutation = usePreviewMjml(scopedPath, templateId);
 
   const templateTypeQuery = useTemplateType(scopedPath, templateTypeSlug);
+  const testSendAvailability = useMemo(
+    () =>
+      getTestSendAvailability({
+        adapterId: templateTypeQuery.data?.adapter_id,
+      }),
+    [templateTypeQuery.data?.adapter_id],
+  );
   const injectorList = useInjectorList(scopedPath);
-  const api = useApi();
   const injectorItems = useMemo<InjectorDefinition[]>(() => {
-    if (!injectorList.data) return [];
-    return injectorList.data.pages.flatMap((page) => page.items);
+    return injectorList.data?.items ?? [];
   }, [injectorList.data]);
   const [injectorVariableTokens, setInjectorVariableTokens] = useState<
     TemplateVariable[]
@@ -1812,6 +1819,7 @@ export function MjmlEditor() {
     register,
     getValues,
     reset,
+    watch,
     formState: { errors },
   } = useForm<MetadataForm>({
     resolver: zodResolver(metadataSchema),
@@ -2066,62 +2074,37 @@ export function MjmlEditor() {
   }, [version?.id, version?.body_mjml, serializedEditorData]);
 
   useEffect(() => {
-    if (!scopedPath || !injectorItems.length) {
+    if (!injectorItems.length) {
       setInjectorVariableTokens([]);
       return;
     }
 
-    let cancelled = false;
-
-    const injectorFields = [...new Set(injectorItems.map((item) => item.name))];
-    const tokens: TemplateVariable[] = [];
-
-    Promise.all(
-      injectorFields.map((injectorName) =>
-        api
-          .get(`${scopedPath}/injectors/${injectorName}`)
-          .json<InjectorWithValues>()
-          .then((payload) => {
-            const fields = Array.isArray(payload.fields) ? payload.fields : [];
-            for (const field of fields) {
-              const token = makeVariableToken(
-                `injector.${injectorName}.${field.field_name}`,
-                "injector"
-              );
-              if (!token) continue;
-              tokens.push({
-                id: `${injectorName}-${field.field_name}`,
-                token,
-                label: `${injectorName}.${field.field_name}`,
-                hint: field.description || t("variableHintInjector"),
-                category: "injector",
-              });
-            }
-          })
-          .catch(() => undefined)
-      )
-    )
-      .then(() => {
-        if (cancelled) {
-          return;
-        }
-        const injectorTokens = tokens.filter((item, index, list) =>
-          index === list.findIndex((candidate) => candidate.token === item.token)
+    const tokens = injectorItems.reduce<TemplateVariable[]>((acc, injector) => {
+      for (const field of injector.fields ?? []) {
+        const token = makeVariableToken(
+          `injector.${injector.name}.${field.field_name}`,
+          "injector"
         );
-
-        setInjectorVariableTokens(injectorTokens);
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
+        if (!token) {
+          continue;
         }
-        setInjectorVariableTokens([]);
-      });
+        acc.push({
+          id: `${injector.name}-${field.field_name}`,
+          token,
+          label: `${injector.name}.${field.field_name}`,
+          hint: buildInjectorVariableHint({
+            fieldDescription: field.description,
+            injectorDescription: injector.description,
+            fallbackHint: t("variableHintInjector"),
+          }),
+          category: "injector",
+        });
+      }
+      return acc;
+    }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [api, scopedPath, injectorItems, t]);
+    setInjectorVariableTokens(tokens);
+  }, [injectorItems, t]);
 
   function clampPreviewPanelWidth(nextWidth: number, containerWidth: number) {
     const safeContainerWidth = Math.max(0, Math.floor(containerWidth));
@@ -2461,6 +2444,33 @@ export function MjmlEditor() {
   }
 
   const codeMjml = version ? codeOverride : "";
+  const watchedSubject = watch("subject");
+  const watchedPreviewText = watch("preview_text");
+  const watchedFromName = watch("from_name");
+  const watchedReplyTo = watch("reply_to");
+  const usedInjectorUsage = useMemo(
+    () =>
+      resolveTestSendInjectorUsage({
+        editorMode,
+        builderDocument,
+        codeMjml,
+        metadataValues: [
+          watchedSubject,
+          watchedPreviewText,
+          watchedFromName,
+          watchedReplyTo,
+        ],
+      }),
+    [
+      editorMode,
+      builderDocument,
+      codeMjml,
+      watchedFromName,
+      watchedPreviewText,
+      watchedReplyTo,
+      watchedSubject,
+    ],
+  );
   const previewNaturalWidth = Math.max(1, previewDocumentSize.width);
   const previewNaturalHeight = Math.max(1, previewDocumentSize.height);
   const previewScale = getPreviewScale(previewDocumentSize, previewStageSize);
@@ -3661,14 +3671,30 @@ export function MjmlEditor() {
                 </Button>
               </>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowTestSend(true)}
-            >
-              <Send className="h-4 w-4 mr-1.5" />
-              Send Test
-            </Button>
+            {testSendAvailability.enabled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowTestSend(true)}
+              >
+                <Send className="h-4 w-4 mr-1.5" />
+                Send Test
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button variant="outline" size="sm" disabled>
+                      <Send className="h-4 w-4 mr-1.5" />
+                      Send Test
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {testSendAvailability.reason}
+                </TooltipContent>
+              </Tooltip>
+            )}
             <div className="mx-1 h-6 w-px bg-border" />
             {bulkSendEnabled ? (
               <Button
@@ -4834,6 +4860,9 @@ export function MjmlEditor() {
         scopedPath={scopedPath}
         templateId={templateId}
         locale={activeLocale === "default" ? undefined : activeLocale}
+        sendEnabled={testSendAvailability.enabled}
+        sendDisabledReason={testSendAvailability.reason}
+        allowedInjectorUsage={usedInjectorUsage}
       />
 
       <BulkSendModal

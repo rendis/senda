@@ -79,6 +79,9 @@ definitions:
     type: object
   github_com_rendis_senda_internal_http_request.CreateInjectorField:
     properties:
+      allow_overwrite:
+        type: boolean
+      default_value: {}
       description:
         type: string
       field_name:
@@ -227,6 +230,11 @@ definitions:
         type: array
       external_id:
         type: string
+      injectors:
+        additionalProperties:
+          additionalProperties: {}
+          type: object
+        type: object
       locale:
         type: string
       to:
@@ -256,6 +264,11 @@ definitions:
         type: array
       external_id:
         type: string
+      injectors:
+        additionalProperties:
+          additionalProperties: {}
+          type: object
+        type: object
       locale:
         type: string
       ref:
@@ -320,6 +333,12 @@ definitions:
         $ref: '#/definitions/github_com_rendis_senda_internal_http_request.DomainUpdate'
       email_defaults:
         $ref: '#/definitions/github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate'
+    type: object
+  github_com_rendis_senda_internal_http_request.UpdateInjectorFieldRequest:
+    properties:
+      allow_overwrite:
+        type: boolean
+      default_value: {}
     type: object
   github_com_rendis_senda_internal_http_request.UpdateTenantRequest:
     properties:
@@ -782,21 +801,6 @@ definitions:
       workspace_id:
         type: string
     type: object
-  github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse:
-    properties:
-      created_at:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      updated_at:
-        type: string
-      workspace_id:
-        type: string
-    type: object
   github_com_rendis_senda_internal_http_response.InjectorDetailResponse:
     properties:
       created_at:
@@ -822,6 +826,9 @@ definitions:
     type: object
   github_com_rendis_senda_internal_http_response.InjectorFieldResponse:
     properties:
+      allow_overwrite:
+        type: boolean
+      default_value: {}
       description:
         type: string
       field_name:
@@ -837,7 +844,7 @@ definitions:
     properties:
       items:
         items:
-          $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorDefinitionResponse'
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorDetailResponse'
         type: array
     type: object
   github_com_rendis_senda_internal_http_response.InjectorValueResponse:
@@ -2594,6 +2601,124 @@ paths:
       security:
       - ManagementBearer: []
       summary: GET /api/v1/manage/global/injectors/{name}
+      tags:
+      - injectors
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: name path parameter
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_senda.DocGenericBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_senda.DocGenericObject'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/global/injectors/{name}
+      tags:
+      - injectors
+  /api/v1/manage/global/injectors/{name}/fields/{field_name}:
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: name path parameter
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: field_name path parameter
+        in: path
+        name: field_name
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.UpdateInjectorFieldRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorFieldResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/global/injectors/{name}/fields/{field_name}
       tags:
       - injectors
   /api/v1/manage/global/template-types:
@@ -6865,6 +6990,144 @@ paths:
       security:
       - ManagementBearer: []
       summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+      tags:
+      - injectors
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: name path parameter
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_senda.DocGenericBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_senda.DocGenericObject'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+      tags:
+      - injectors
+  /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name}:
+    put:
+      consumes:
+      - application/json
+      description: Auto-generated route stub for OpenAPI + MCP discovery.
+      parameters:
+      - description: tenant_code path parameter
+        in: path
+        name: tenant_code
+        required: true
+        type: string
+      - description: workspace_code path parameter
+        in: path
+        name: workspace_code
+        required: true
+        type: string
+      - description: name path parameter
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: field_name path parameter
+        in: path
+        name: field_name
+        required: true
+        type: string
+      - description: Request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_rendis_senda_internal_http_request.UpdateInjectorFieldRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_rendis_senda_internal_http_response.InjectorFieldResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_senda.DocErrorResponse'
+      security:
+      - ManagementBearer: []
+      summary: PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name}
       tags:
       - injectors
   /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/values:

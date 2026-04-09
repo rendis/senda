@@ -42,6 +42,8 @@ The orchestrator now expects a unified stack lifecycle command from `cmd/systemt
 - `subagents/ui-flow-tester.sh`
 - `subagents/ui-workspace-management-tester.sh`
 - `subagents/ui-adapter-sharing-tester.sh`
+- `subagents/ui-injector-flow-tester.sh`
+- `subagents/ui-onboarding-auth-guard-tester.sh`
 - `subagents/ui-visual-tester.sh`
 - `subagents/ui-a11y-tester.sh`
 
@@ -92,11 +94,63 @@ Key outputs:
 - `ui-flow-report.md`
 - `ui-workspace-management-report.md`
 - `ui-adapter-sharing-report.md`
+- `ui-injector-flow-report.md`
+- `ui-onboarding-auth-guard-report.md`
 - `visual-diff-report.html`
 - `a11y-report.md`
 - `coverage-matrix.csv`
 - `run-result.json`
 - `stage-results.tsv`
+
+## Injector UI flow stage
+
+`subagents/ui-injector-flow-tester.sh` is the dedicated browser/system regression for the
+new workspace-owned injector model.
+
+It uses the runtime env report from `infra-orchestrator`, starts the frontend locally, logs in
+through OIDC, and validates the full UI flow against the running backend + Mailpit stack.
+
+Coverage:
+
+- injector management in the workspace UI
+- per-field `default_value`
+- per-field `allow_overwrite`
+- locked-field validation (`allow_overwrite=false` requires default)
+- template editor token palette shows only workspace injectors grouped by field
+- test-send modal:
+  - locked fields are read-only
+  - untouched overwriteable fields fall back to runtime precedence
+  - explicit overrides win
+  - explicit empty override renders empty string
+- bulk-send modal accepts per-item `injectors` JSON overrides
+- Mailpit confirms rendered output for:
+  - default-only
+  - reqBody override
+  - code fallback
+  - locked field behavior
+  - bulk-send partial fallback per field
+
+Useful direct invocation:
+
+```bash
+ARTIFACT_DIR=/tmp/senda-ui-injector-flow \
+ENV_REPORT_FILE=artifacts/system/<timestamp>/env-report.json \
+FRONTEND_BASE_URL=http://localhost:3000 \
+test/system/subagents/ui-injector-flow-tester.sh
+```
+
+## Onboarding auth guard stage
+
+`subagents/ui-onboarding-auth-guard-tester.sh` verifies that `/onboarding` does not leak
+wizard step 2/3 when the browser is unauthenticated but still has stale onboarding state
+in `sessionStorage`.
+
+Coverage:
+
+- seeds stale `senda-onboarding` sessionStorage state
+- opens `/onboarding` in a fresh unauthenticated browser session
+- expects redirect to `/login`
+- rejects leaked onboarding content such as “Create your organization” or “Create your workspace”
 
 ## Environment defaults
 

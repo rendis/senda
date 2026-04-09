@@ -1,199 +1,133 @@
 "use client";
 
-import { useState } from "react";
-import { Save, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ResolutionChainViewer } from "./resolution-chain-viewer";
-import type { InjectorField, InjectorFieldResolution } from "@/types/injectors";
-import { SYSTEM_WORKSPACE_CODE, type ScopeLevel } from "@/types/api";
+import { InjectorFieldCard } from "@/components/injectors/injector-field-card";
+import {
+  DefaultValueInput,
+  OverwriteModeToggle,
+} from "@/components/injectors/field-runtime-controls";
+import type { InjectorField } from "@/types/injectors";
 
 interface InjectorFieldEditorProps {
   field: InjectorField;
-  resolution: InjectorFieldResolution | null;
-  currentScope: ScopeLevel;
-  onSave: (fieldName: string, value: unknown) => void;
-  onDeleteOverride: (fieldName: string) => void;
+  onSave: (
+    fieldName: string,
+    data: { default_value?: unknown; allow_overwrite: boolean }
+  ) => void;
   saving?: boolean;
 }
 
-const emptyResolution: InjectorFieldResolution = {
-  field_name: "",
-  global_level: null,
-  tenant_level: null,
-  workspace_level: null,
-  effective_value: null,
-};
-
 export function InjectorFieldEditor({
   field,
-  resolution: rawResolution,
-  currentScope,
   onSave,
-  onDeleteOverride,
   saving = false,
 }: InjectorFieldEditorProps) {
-  const resolution = rawResolution ?? emptyResolution;
-  const workspaceValue = resolution.workspace_level;
-  const hasOverride = workspaceValue != null;
-  const [localValue, setLocalValue] = useState<string>(
-    hasOverride ? String(workspaceValue) : ""
+  const initialSerialized = useMemo(
+    () => serializeFieldValue(field.field_type, field.default_value),
+    [field.default_value, field.field_type]
   );
-  const [editing, setEditing] = useState(false);
+  const [defaultValue, setDefaultValue] = useState(initialSerialized);
+  const [allowOverwrite, setAllowOverwrite] = useState(field.allow_overwrite);
 
-  const isEditable = currentScope === "workspace";
+  const dirty =
+    defaultValue !== initialSerialized || allowOverwrite !== field.allow_overwrite;
 
-  const chainLevels = [
-    {
-      scope: "global" as const,
-      value: resolution.global_level,
-    },
-    {
-      scope: "system" as const,
-      value: resolution.tenant_level,
-      inherited: resolution.tenant_level == null,
-    },
-    {
-      scope: "workspace" as const,
-      value: resolution.workspace_level,
-      inherited: resolution.workspace_level == null,
-    },
-  ];
+  const saveDisabled =
+    saving ||
+    !dirty ||
+    (!allowOverwrite && isEmptyDefault(defaultValue, field.field_type));
 
-  const effectiveSource =
-    resolution.workspace_level != null
-      ? "Workspace"
-      : resolution.tenant_level != null
-        ? SYSTEM_WORKSPACE_CODE
-        : "Global";
-
-  function renderWorkspaceInput() {
-    if (!isEditable) return null;
-
-    if (field.field_type === "bool") {
-      const checked = localValue === "true";
-      return (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={checked}
-          onClick={() => {
-            const next = !checked;
-            setLocalValue(String(next));
-            setEditing(true);
-          }}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-            checked ? "bg-primary" : "bg-muted"
-          }`}
-        >
-          <span
-            className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg transition-transform ${
-              checked ? "translate-x-5" : "translate-x-0"
-            }`}
-          />
-        </button>
-      );
-    }
-
-    const placeholder = getPlaceholder(field.field_type);
-    const inputType = field.field_type === "number" ? "number" : "text";
-
-    return (
-      <Input
-        type={inputType}
-        value={localValue}
-        onChange={(e) => {
-          setLocalValue(e.target.value);
-          setEditing(true);
-        }}
-        placeholder={placeholder}
-        className="w-[280px] font-mono text-[13px] h-9"
-      />
-    );
+  function handleSave() {
+    onSave(field.field_name, {
+      allow_overwrite: allowOverwrite,
+      default_value: parseFieldValue(field.field_type, defaultValue),
+    });
   }
 
   return (
-    <div className="rounded-lg border bg-card p-5 flex flex-col gap-3">
-      {/* Header: field name + type */}
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-semibold text-foreground">
-          {field.field_name}
-        </span>
-        <span className="font-mono text-xs text-muted-foreground">
-          type: {field.field_type}
-        </span>
-      </div>
+    <InjectorFieldCard
+      testId={`injector-field-editor-row-${field.field_name}`}
+      headerTestId={`injector-field-editor-header-${field.field_name}`}
+      title={field.field_name}
+      typeLabel={formatFieldType(field.field_type)}
+      actions={
+        <OverwriteModeToggle
+          allowOverwrite={allowOverwrite}
+          onChange={setAllowOverwrite}
+          testIdPrefix={`injector-field-editor-overwrite-${field.field_name}`}
+        />
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="text-xs text-muted-foreground">
+          {field.description || "No description provided for this field yet."}
+        </div>
 
-      {/* Resolution chain */}
-      <div className="flex flex-col gap-2">
-        {chainLevels.slice(0, currentScope === "global" ? 1 : 3).map((level) => (
-          <div key={level.scope} className="flex items-center gap-2">
-            <ResolutionChainViewer levels={[level]} />
-            {level.scope === "workspace" && isEditable && (
-              <div className="flex items-center gap-2">
-                {renderWorkspaceInput()}
-                {editing && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const val =
-                        field.field_type === "number"
-                          ? Number(localValue)
-                          : field.field_type === "bool"
-                            ? localValue === "true"
-                            : localValue;
-                      onSave(field.field_name, val);
-                      setEditing(false);
-                    }}
-                    disabled={saving}
-                    className="gap-1"
-                  >
-                    <Save className="h-4 w-4" />
-                    Save
-                  </Button>
-                )}
-                {hasOverride && !editing && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDeleteOverride(field.field_name)}
-                    disabled={saving}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+          <DefaultValueInput
+            fieldType={field.field_type}
+            value={defaultValue}
+            onChange={setDefaultValue}
+            hasError={!allowOverwrite && isEmptyDefault(defaultValue, field.field_type)}
+            inputTestId={`injector-field-editor-default-${field.field_name}`}
+            errorTestId={`injector-field-editor-default-error-${field.field_name}`}
+            ariaLabel={`Default value for field ${field.field_name}`}
+          />
+        </div>
 
-      {/* Effective value */}
-      <div className="flex items-center gap-2 border-t pt-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          Effective value:
-        </span>
-        <span className="font-mono text-xs text-primary">
-          {resolution.effective_value != null
-            ? `${String(resolution.effective_value)} (from ${effectiveSource})`
-            : "\u2014"}
-        </span>
+        <div className="flex justify-start lg:justify-end">
+          <Button onClick={handleSave} disabled={saveDisabled} className="gap-2 w-fit">
+            <Save className="h-4 w-4" />
+            Save field
+          </Button>
+        </div>
       </div>
-    </div>
+    </InjectorFieldCard>
   );
 }
 
-function getPlaceholder(fieldType: string): string {
+function serializeFieldValue(fieldType: InjectorField["field_type"], value: unknown): string {
+  if (value == null) {
+    return fieldType === "bool" ? "false" : "";
+  }
+  if (fieldType === "bool") {
+    return String(Boolean(value));
+  }
+  return String(value);
+}
+
+function parseFieldValue(fieldType: InjectorField["field_type"], value: string): unknown {
+  if (fieldType === "bool") {
+    return value === "true";
+  }
+  if (fieldType === "number") {
+    return value === "" ? undefined : Number(value);
+  }
+  return value === "" ? undefined : value;
+}
+
+function isEmptyDefault(value: string, fieldType: InjectorField["field_type"]): boolean {
+  if (fieldType === "bool") {
+    return false;
+  }
+  return value.trim() === "";
+}
+
+function formatFieldType(fieldType: InjectorField["field_type"]): string {
   switch (fieldType) {
+    case "bool":
+      return "Boolean";
     case "img":
-      return "Image URL...";
+      return "Image URL";
     case "url":
-      return "https://...";
+      return "URL";
     case "html":
-      return "HTML content...";
+      return "HTML";
     case "number":
-      return "0";
+      return "Number";
     default:
-      return "Value...";
+      return "Text";
   }
 }

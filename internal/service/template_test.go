@@ -22,6 +22,8 @@ type mockTemplateStore struct {
 	createTemplateFn        func(ctx context.Context, tpl *domain.Template) error
 	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
+	getTemplateByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.Template, error)
+	getTypeByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
@@ -139,10 +141,16 @@ func (m *mockTemplateStore) UpdateType(ctx context.Context, tt *domain.TemplateT
 	return nil
 }
 func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockTemplateStore) GetTemplateByID(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+func (m *mockTemplateStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error) {
+	if m.getTemplateByIDFn != nil {
+		return m.getTemplateByIDFn(ctx, id)
+	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockTemplateStore) GetTypeByID(_ context.Context, _ uuid.UUID) (*domain.TemplateType, error) {
+func (m *mockTemplateStore) GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+	if m.getTypeByIDFn != nil {
+		return m.getTypeByIDFn(ctx, id)
+	}
 	return nil, domain.ErrNotFound
 }
 

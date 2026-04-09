@@ -57,11 +57,15 @@ func setupSendTestNoWorkspace() (*echo.Echo, *handler.SendHandler) {
 }
 
 type fakeSendService struct {
+	sendFn      func(*service.SendRequest) *service.SendResponse
 	sendBatchFn func(*service.SendBatchRequest) *service.SendBatchResponse
 }
 
-func (f *fakeSendService) Send(_ context.Context, _ *service.SendRequest) (*service.SendResponse, error) {
-	return nil, nil
+func (f *fakeSendService) Send(_ context.Context, req *service.SendRequest) (*service.SendResponse, error) {
+	if f.sendFn != nil {
+		return f.sendFn(req), nil
+	}
+	return &service.SendResponse{}, nil
 }
 
 func (f *fakeSendService) SendBatch(_ context.Context, req *service.SendBatchRequest) (*service.SendBatchResponse, error) {
@@ -307,6 +311,34 @@ func TestSendHandler_SendBatch_ValidRequest(t *testing.T) {
 
 	body := `{"ref":"acme:default:welcome","items":[{"to":"user@example.com","variables":{"name":"Jane"}}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/send/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendHandler_Send_PassesInjectorsFromRequestBody(t *testing.T) {
+	svc := &fakeSendService{
+		sendFn: func(req *service.SendRequest) *service.SendResponse {
+			if req.Injectors["student"]["name"] != "Jane Doe" {
+				t.Fatalf("unexpected injectors payload: %+v", req.Injectors)
+			}
+			return &service.SendResponse{Status: "accepted"}
+		},
+	}
+
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	e.Use(middleware.RequestID())
+	e.Use(fakeWorkspaceContext(uuid.Must(uuid.NewV7())))
+	h := handler.NewSendHandler(svc, 100)
+	e.POST("/api/v1/send", h.Send)
+
+	body := `{"ref":"acme:default:welcome","to":["user@example.com"],"injectors":{"student":{"name":"Jane Doe"}}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/send", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)

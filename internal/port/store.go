@@ -35,6 +35,7 @@ type WorkspaceStore interface {
 type InjectorStore interface {
 	// Definitions (schema)
 	CreateDefinition(ctx context.Context, def *domain.InjectorDefinition) error
+	UpdateDefinitionSchema(ctx context.Context, currentName string, workspaceID *uuid.UUID, def *domain.InjectorDefinition, fields []*domain.InjectorField) error
 	GetDefinitionByID(ctx context.Context, id uuid.UUID) (*domain.InjectorDefinition, error)
 	SoftDeleteDefinition(ctx context.Context, id uuid.UUID) error
 	FindDefinitionByName(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error)
@@ -42,6 +43,7 @@ type InjectorStore interface {
 
 	// Fields (immutable schema)
 	CreateField(ctx context.Context, field *domain.InjectorField) error
+	UpdateField(ctx context.Context, field *domain.InjectorField) error
 	GetFieldsByDefinition(ctx context.Context, defID uuid.UUID) ([]*domain.InjectorField, error)
 
 	// Values (overrideable)

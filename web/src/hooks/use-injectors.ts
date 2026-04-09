@@ -2,43 +2,58 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
-import { usePaginatedQuery } from "@/hooks/use-paginated-query";
-import type { PaginatedResponse } from "@/types/api";
 import type {
-  InjectorDefinition,
-  InjectorWithValues,
-  SetInjectorValuesRequest,
   CreateInjectorRequest,
+  InjectorDefinition,
+  InjectorField,
+  InjectorListResponse,
+  UpdateInjectorRequest,
+  UpdateInjectorFieldRequest,
 } from "@/types/injectors";
 import { toast } from "sonner";
 
-export function useInjectorList(scopedPath: string) {
+export interface UseInjectorListOptions {
+  enabled?: boolean;
+  includeInherited?: boolean;
+}
+
+export function buildInjectorListPath(
+  scopedPath: string,
+  options: UseInjectorListOptions = {},
+): string {
+  const params = new URLSearchParams();
+  if (options.includeInherited) {
+    params.set("include_inherited", "true");
+  }
+
+  const query = params.toString();
+  return query ? `${scopedPath}/injectors?${query}` : `${scopedPath}/injectors`;
+}
+
+export function useInjectorList(
+  scopedPath: string,
+  options: UseInjectorListOptions = {},
+) {
   const api = useApi();
   const ready = useApiReady();
+  const { enabled = true, includeInherited = false } = options;
 
-  return usePaginatedQuery<InjectorDefinition>({
-    queryKey: ["injectors", scopedPath],
-    fetcher: (cursor) => {
-      const params = new URLSearchParams();
-      if (cursor) params.set("cursor", cursor);
-      const qs = params.toString();
-      return api
-        .get(`${scopedPath}/injectors${qs ? `?${qs}` : ""}`)
-        .json<PaginatedResponse<InjectorDefinition>>();
-    },
-    enabled: ready,
+  return useQuery({
+    queryKey: ["injectors", scopedPath, includeInherited],
+    queryFn: () =>
+      api.get(buildInjectorListPath(scopedPath, { includeInherited })).json<InjectorListResponse>(),
+    enabled: ready && enabled,
   });
 }
 
-export function useInjectorDetail(scopedPath: string, name: string) {
+export function useInjectorDetail(scopedPath: string, name: string, enabled = true) {
   const api = useApi();
   const ready = useApiReady();
 
   return useQuery({
     queryKey: ["injector", scopedPath, name],
-    queryFn: () =>
-      api.get(`${scopedPath}/injectors/${name}`).json<InjectorWithValues>(),
-    enabled: ready && !!name,
+    queryFn: () => api.get(`${scopedPath}/injectors/${name}`).json<InjectorDefinition>(),
+    enabled: ready && enabled && !!name,
   });
 }
 
@@ -48,9 +63,7 @@ export function useCreateInjector(scopedPath: string) {
 
   return useMutation({
     mutationFn: (data: CreateInjectorRequest) =>
-      api
-        .post(`${scopedPath}/injectors`, { json: data })
-        .json<InjectorDefinition>(),
+      api.post(`${scopedPath}/injectors`, { json: data }).json<InjectorDefinition>(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
       toast.success("Injector created");
@@ -61,21 +74,61 @@ export function useCreateInjector(scopedPath: string) {
   });
 }
 
-export function useSetInjectorValues(scopedPath: string, name: string) {
+export function useUpdateInjector(scopedPath: string) {
   const api = useApi();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: SetInjectorValuesRequest) =>
+    mutationFn: ({
+      currentName,
+      data,
+    }: {
+      currentName: string;
+      data: UpdateInjectorRequest;
+    }) =>
       api
-        .put(`${scopedPath}/injectors/${name}/values`, { json: data })
-        .json<InjectorWithValues>(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["injector", scopedPath, name] });
-      toast.success("Injector values saved");
+        .put(`${scopedPath}/injectors/${currentName}`, { json: data })
+        .json<InjectorDefinition>(),
+    onSuccess: (updated, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
+      queryClient.invalidateQueries({
+        queryKey: ["injector", scopedPath, variables.currentName],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["injector", scopedPath, updated.name],
+      });
+      toast.success("Injector updated");
     },
     onError: () => {
-      toast.error("Failed to save injector values");
+      toast.error("Failed to update injector");
+    },
+  });
+}
+
+export function useUpdateInjectorField(scopedPath: string, injectorName: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      fieldName,
+      data,
+    }: {
+      fieldName: string;
+      data: UpdateInjectorFieldRequest;
+    }) =>
+      api
+        .put(`${scopedPath}/injectors/${injectorName}/fields/${fieldName}`, {
+          json: data,
+        })
+        .json<InjectorField>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["injector", scopedPath, injectorName] });
+      queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
+      toast.success("Field updated");
+    },
+    onError: () => {
+      toast.error("Failed to update field");
     },
   });
 }
@@ -85,33 +138,13 @@ export function useDeleteInjector(scopedPath: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) =>
-      api.delete(`${scopedPath}/injectors/${name}`).then(() => {}),
+    mutationFn: (name: string) => api.delete(`${scopedPath}/injectors/${name}`).then(() => {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["injectors", scopedPath] });
       toast.success("Injector deleted");
     },
     onError: () => {
       toast.error("Failed to delete injector");
-    },
-  });
-}
-
-export function useDeleteInjectorOverride(scopedPath: string, name: string) {
-  const api = useApi();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (fieldName: string) =>
-      api
-        .delete(`${scopedPath}/injectors/${name}/values/${fieldName}`)
-        .then(() => {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["injector", scopedPath, name] });
-      toast.success("Override removed");
-    },
-    onError: () => {
-      toast.error("Failed to remove override");
     },
   });
 }

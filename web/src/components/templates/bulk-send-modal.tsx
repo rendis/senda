@@ -29,6 +29,7 @@ const bulkSendItemSchema = z.object({
   cc: z.array(z.string().email("cc entries must be valid emails")).optional(),
   bcc: z.array(z.string().email("bcc entries must be valid emails")).optional(),
   variables: z.record(z.string(), z.unknown()).optional(),
+  injectors: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   external_id: z.string().optional(),
   locale: z.string().optional(),
 });
@@ -198,11 +199,14 @@ function BulkSendModalBody({
 {`{
   "items": [
     {
-      "to": "ana@example.com",
-      "variables": { "name": "Ana" },
-      "external_id": "msg-1",
-      "locale": "es"
-    }
+                      "to": "ana@example.com",
+                      "variables": { "name": "Ana" },
+                      "injectors": {
+                        "student": { "name": "Ana Override" }
+                      },
+                      "external_id": "msg-1",
+                      "locale": "es"
+                    }
   ]
 }`}
           </pre>
@@ -268,6 +272,9 @@ function BulkSendModalBody({
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Variables: {Object.keys(item.variables ?? {}).length}
+                        {Object.keys(item.injectors ?? {}).length
+                          ? ` · Injectors ${Object.keys(item.injectors ?? {}).length}`
+                          : ""}
                         {item.cc?.length ? ` · CC ${item.cc.length}` : ""}
                         {item.bcc?.length ? ` · BCC ${item.bcc.length}` : ""}
                       </p>

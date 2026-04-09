@@ -1,6 +1,7 @@
 package response
 
 import (
+	"github.com/google/uuid"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/port"
 )
@@ -17,11 +18,13 @@ type InjectorDefinitionResponse struct {
 
 // InjectorFieldResponse is the JSON response for an injector field.
 type InjectorFieldResponse struct {
-	ID          string  `json:"id"`
-	FieldName   string  `json:"field_name"`
-	FieldType   string  `json:"field_type"`
-	Description *string `json:"description,omitempty"`
-	Position    int     `json:"position"`
+	ID             string  `json:"id"`
+	FieldName      string  `json:"field_name"`
+	FieldType      string  `json:"field_type"`
+	Description    *string `json:"description,omitempty"`
+	Position       int     `json:"position"`
+	DefaultValue   any     `json:"default_value,omitempty"`
+	AllowOverwrite bool    `json:"allow_overwrite"`
 }
 
 // InjectorValueResponse is the JSON response for an injector field value.
@@ -42,7 +45,7 @@ type InjectorDetailResponse struct {
 
 // InjectorListResponse is the JSON response for a list of injector definitions.
 type InjectorListResponse struct {
-	Items []InjectorDefinitionResponse `json:"items"`
+	Items []InjectorDetailResponse `json:"items"`
 }
 
 // NewInjectorDefinitionResponse maps a domain InjectorDefinition to a response.
@@ -64,11 +67,13 @@ func NewInjectorDefinitionResponse(d *domain.InjectorDefinition) InjectorDefinit
 // NewInjectorFieldResponse maps a domain InjectorField to a response.
 func NewInjectorFieldResponse(f *domain.InjectorField) InjectorFieldResponse {
 	return InjectorFieldResponse{
-		ID:          f.ID.String(),
-		FieldName:   f.FieldName,
-		FieldType:   string(f.FieldType),
-		Description: f.Description,
-		Position:    f.Position,
+		ID:             f.ID.String(),
+		FieldName:      f.FieldName,
+		FieldType:      string(f.FieldType),
+		Description:    f.Description,
+		Position:       f.Position,
+		DefaultValue:   f.DefaultValue,
+		AllowOverwrite: f.AllowOverwrite,
 	}
 }
 
@@ -88,10 +93,10 @@ func NewInjectorValueResponse(v *domain.InjectorValue) InjectorValueResponse {
 }
 
 // NewInjectorListResponse maps a slice of domain InjectorDefinition to a list response.
-func NewInjectorListResponse(defs []*domain.InjectorDefinition) InjectorListResponse {
-	items := make([]InjectorDefinitionResponse, len(defs))
+func NewInjectorListResponse(defs []*domain.InjectorDefinition, fieldsByDefinition map[uuid.UUID][]*domain.InjectorField) InjectorListResponse {
+	items := make([]InjectorDetailResponse, len(defs))
 	for i, d := range defs {
-		items[i] = NewInjectorDefinitionResponse(d)
+		items[i] = NewInjectorCreateResponse(d, fieldsByDefinition[d.ID])
 	}
 	return InjectorListResponse{Items: items}
 }

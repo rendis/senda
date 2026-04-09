@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { createAuthenticatedApi, parseApiError } from "@/lib/api";
 import { OnboardingStepper } from "@/components/shared/onboarding-stepper";
 import { slugSchema, nameSchema, generateSlug } from "@/lib/validations/slug";
-import { HTTPError } from "ky";
+import { getHttpStatus } from "./api-errors";
 
 const workspaceSchema = z.object({
   name: nameSchema,
@@ -66,7 +66,12 @@ export function Step3CreateWorkspace({
       toast.success(t("successToast"));
       onSuccess(values.code, tenantCode);
     } catch (error) {
-      if (error instanceof HTTPError && error.response.status === 409) {
+      const statusCode = getHttpStatus(error);
+      if (statusCode === 401) {
+        window.location.replace("/login");
+        return;
+      }
+      if (statusCode === 409) {
         onSuccess(values.code, tenantCode);
         return;
       }

@@ -360,6 +360,227 @@ func TestInjectorRepo_GetFieldsByDefinition(t *testing.T) {
 	}
 }
 
+func TestInjectorRepo_FieldDefaultsPersist(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewInjectorRepo(pool)
+
+	def := &domain.InjectorDefinition{ID: uuid.New(), Name: "defaults-def-" + uuid.New().String()[:8]}
+	if err := repo.CreateDefinition(ctx, def); err != nil {
+		t.Fatalf("CreateDefinition() error: %v", err)
+	}
+
+	field := &domain.InjectorField{
+		ID:                   uuid.New(),
+		InjectorDefinitionID: def.ID,
+		FieldName:            "name",
+		FieldType:            domain.FieldTypeText,
+		Position:             0,
+		DefaultValue:         "Acme",
+		AllowOverwrite:       false,
+	}
+	if err := repo.CreateField(ctx, field); err != nil {
+		t.Fatalf("CreateField() error: %v", err)
+	}
+
+	fields, err := repo.GetFieldsByDefinition(ctx, def.ID)
+	if err != nil {
+		t.Fatalf("GetFieldsByDefinition() error: %v", err)
+	}
+	if len(fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(fields))
+	}
+	if fields[0].DefaultValue != "Acme" {
+		t.Fatalf("expected default value Acme, got %#v", fields[0].DefaultValue)
+	}
+	if fields[0].AllowOverwrite {
+		t.Fatal("expected allow overwrite to persist as false")
+	}
+}
+
+func TestInjectorRepo_UpdateField(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewInjectorRepo(pool)
+
+	def := &domain.InjectorDefinition{ID: uuid.New(), Name: "update-field-def-" + uuid.New().String()[:8]}
+	if err := repo.CreateDefinition(ctx, def); err != nil {
+		t.Fatalf("CreateDefinition() error: %v", err)
+	}
+
+	field := &domain.InjectorField{
+		ID:                   uuid.New(),
+		InjectorDefinitionID: def.ID,
+		FieldName:            "name",
+		FieldType:            domain.FieldTypeText,
+		Position:             0,
+		DefaultValue:         "Old",
+		AllowOverwrite:       true,
+	}
+	if err := repo.CreateField(ctx, field); err != nil {
+		t.Fatalf("CreateField() error: %v", err)
+	}
+
+	field.DefaultValue = "Updated"
+	field.AllowOverwrite = false
+	if err := repo.UpdateField(ctx, field); err != nil {
+		t.Fatalf("UpdateField() error: %v", err)
+	}
+
+	fields, err := repo.GetFieldsByDefinition(ctx, def.ID)
+	if err != nil {
+		t.Fatalf("GetFieldsByDefinition() error: %v", err)
+	}
+	if len(fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(fields))
+	}
+	if fields[0].DefaultValue != "Updated" {
+		t.Fatalf("expected updated default value, got %#v", fields[0].DefaultValue)
+	}
+	if fields[0].AllowOverwrite {
+		t.Fatal("expected allow overwrite to persist as false")
+	}
+}
+
+func TestInjectorRepo_UpdateDefinitionSchema_ReplacesFieldsAndClearsValues(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewInjectorRepo(pool)
+
+	def := &domain.InjectorDefinition{ID: uuid.New(), Name: "student"}
+	if err := repo.CreateDefinition(ctx, def); err != nil {
+		t.Fatalf("CreateDefinition() error: %v", err)
+	}
+
+	fieldOne := &domain.InjectorField{
+		ID:                   uuid.New(),
+		InjectorDefinitionID: def.ID,
+		FieldName:            "name",
+		FieldType:            domain.FieldTypeText,
+		Position:             0,
+		DefaultValue:         "Ada",
+		AllowOverwrite:       true,
+	}
+	fieldTwo := &domain.InjectorField{
+		ID:                   uuid.New(),
+		InjectorDefinitionID: def.ID,
+		FieldName:            "last_name",
+		FieldType:            domain.FieldTypeText,
+		Position:             1,
+		DefaultValue:         "Lovelace",
+		AllowOverwrite:       true,
+	}
+	if err := repo.CreateField(ctx, fieldOne); err != nil {
+		t.Fatalf("CreateField(fieldOne) error: %v", err)
+	}
+	if err := repo.CreateField(ctx, fieldTwo); err != nil {
+		t.Fatalf("CreateField(fieldTwo) error: %v", err)
+	}
+
+	wsID := uuid.New()
+	if err := repo.SetValue(ctx, &domain.InjectorValue{
+		ID:                   uuid.New(),
+		InjectorDefinitionID: def.ID,
+		FieldName:            "name",
+		WorkspaceID:          &wsID,
+		Value:                "Grace",
+	}); err != nil {
+		t.Fatalf("SetValue() error: %v", err)
+	}
+
+	newDescription := "Student profile"
+	updatedDef := &domain.InjectorDefinition{
+		Name:        "student_profile",
+		Description: &newDescription,
+	}
+	updatedFields := []*domain.InjectorField{
+		{
+			ID:             uuid.New(),
+			FieldName:      "full name",
+			FieldType:      domain.FieldTypeText,
+			Description:    ptr("Full display name"),
+			Position:       0,
+			DefaultValue:   "Ada Lovelace",
+			AllowOverwrite: true,
+		},
+		{
+			ID:             uuid.New(),
+			FieldName:      "age",
+			FieldType:      domain.FieldTypeNumber,
+			Position:       1,
+			DefaultValue:   18,
+			AllowOverwrite: false,
+		},
+	}
+
+	if err := repo.UpdateDefinitionSchema(ctx, "student", nil, updatedDef, updatedFields); err != nil {
+		t.Fatalf("UpdateDefinitionSchema() error: %v", err)
+	}
+
+	gotDef, err := repo.FindDefinitionByName(ctx, "student_profile", nil)
+	if err != nil {
+		t.Fatalf("FindDefinitionByName(updated) error: %v", err)
+	}
+	if gotDef.Description == nil || *gotDef.Description != newDescription {
+		t.Fatalf("expected updated description %q, got %#v", newDescription, gotDef.Description)
+	}
+
+	fields, err := repo.GetFieldsByDefinition(ctx, gotDef.ID)
+	if err != nil {
+		t.Fatalf("GetFieldsByDefinition() error: %v", err)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("expected 2 replaced fields, got %d", len(fields))
+	}
+	if fields[0].FieldName != "full name" || fields[1].FieldName != "age" {
+		t.Fatalf("expected replaced fields [full name age], got [%s %s]", fields[0].FieldName, fields[1].FieldName)
+	}
+	if fields[1].FieldType != domain.FieldTypeNumber {
+		t.Fatalf("expected age field type number, got %q", fields[1].FieldType)
+	}
+	if fields[1].AllowOverwrite {
+		t.Fatal("expected age overwrite disabled")
+	}
+
+	values, err := repo.GetValues(ctx, gotDef.ID, []uuid.NullUUID{{UUID: wsID, Valid: true}})
+	if err != nil {
+		t.Fatalf("GetValues() error: %v", err)
+	}
+	if len(values) != 0 {
+		t.Fatalf("expected injector values to be cleared, got %d", len(values))
+	}
+}
+
+func TestInjectorRepo_UpdateDefinitionSchema_ConflictOnRenamedDefinition(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewInjectorRepo(pool)
+
+	if err := repo.CreateDefinition(ctx, &domain.InjectorDefinition{ID: uuid.New(), Name: "student"}); err != nil {
+		t.Fatalf("CreateDefinition(student) error: %v", err)
+	}
+	if err := repo.CreateDefinition(ctx, &domain.InjectorDefinition{ID: uuid.New(), Name: "student_profile"}); err != nil {
+		t.Fatalf("CreateDefinition(student_profile) error: %v", err)
+	}
+
+	err := repo.UpdateDefinitionSchema(ctx, "student", nil, &domain.InjectorDefinition{Name: "student_profile"}, []*domain.InjectorField{
+		{
+			ID:             uuid.New(),
+			FieldName:      "name",
+			FieldType:      domain.FieldTypeText,
+			Position:       0,
+			DefaultValue:   "Ada",
+			AllowOverwrite: true,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected conflict error, got nil")
+	}
+	if !apperr.IsConflict(err) {
+		t.Fatalf("expected conflict error, got %v", err)
+	}
+}
+
 // --- InjectorValue tests ---
 
 func TestInjectorRepo_SetValue(t *testing.T) {

@@ -339,6 +339,7 @@ func startSESAppContainer(t *testing.T, ctx context.Context, rootDir, networkNam
 			"SENDA_SMTP_HOST":                       "",
 			"SENDA_TRACKING_BASE_URL":               "http://senda:8080",
 			"SENDA_SNS_SKIP_SIGNATURE_VERIFICATION": "true",
+			"SENDA_E2E_ENABLE_CODE_INJECTORS":       "true",
 		},
 		Networks: []string{networkName},
 		NetworkAliases: map[string][]string{

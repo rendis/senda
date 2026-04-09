@@ -18,14 +18,18 @@ type MergedInjectors map[string]map[string]any
 // defaultCodeInjectorTimeout is the fallback timeout for code injectors.
 const defaultCodeInjectorTimeout = 30 * time.Second
 
-// InjectorMerger resolves all injector values for a workspace,
-// merging values across the resolution chain with priority ordering.
-// It also resolves user-provided code injectors and merges them in.
+type injectorFieldRule struct {
+	DefaultValue   any
+	AllowOverwrite bool
+}
+
+// InjectorMerger resolves DB injectors through the documented scope chain and
+// then applies runtime request/code overrides on top of the resolved base value.
 type InjectorMerger struct {
-	store          port.InjectorStore
-	chainResolver  *ChainResolver
-	codeInjectors  []port.CodeInjector
-	codeInitFunc   port.CodeInitFunc
+	store         port.InjectorStore
+	chainResolver *ChainResolver
+	codeInjectors []port.CodeInjector
+	codeInitFunc  port.CodeInitFunc
 }
 
 // NewInjectorMerger creates an InjectorMerger with the given dependencies.
@@ -48,32 +52,61 @@ func (m *InjectorMerger) HasCodeInjectors() bool {
 	return len(m.codeInjectors) > 0 || m.codeInitFunc != nil
 }
 
-// Resolve returns all merged injector values for the given workspace,
-// applying the resolution chain priority (workspace > _system > global).
-// This is the DB-only path, preserved for backward compatibility.
+// Resolve returns only UI-defined workspace injectors with their default values.
 func (m *InjectorMerger) Resolve(ctx context.Context, workspaceID uuid.UUID) (MergedInjectors, error) {
-	return m.resolveDB(ctx, workspaceID)
+	defaults, _, err := m.resolveDB(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return defaults, nil
 }
 
-// ResolveWithContext resolves both DB injectors and code injectors,
-// merging them into a single MergedInjectors map. Code injectors take
-// precedence over DB injectors with the same name (with a warning).
-func (m *InjectorMerger) ResolveWithContext(ctx context.Context, workspaceID uuid.UUID, injCtx *port.InjectorContext) (MergedInjectors, error) {
-	// 1. Resolve DB injectors.
-	dbValues, err := m.resolveDB(ctx, workspaceID)
+// ResolveGlobalWithContext resolves only global DB injectors and applies
+// request-time overrides for overwriteable fields.
+func (m *InjectorMerger) ResolveGlobalWithContext(ctx context.Context, injCtx *port.InjectorContext) (MergedInjectors, error) {
+	defaults, fieldRules, err := m.resolveDBForScopes(ctx, []uuid.NullUUID{{}})
 	if err != nil {
 		return nil, err
 	}
 
-	// If no code injectors, return DB-only.
-	if len(m.codeInjectors) == 0 {
-		return dbValues, nil
+	result := cloneMergedInjectors(defaults)
+	requestValues := injCtx.RequestInjectors()
+
+	for injectorName, rules := range fieldRules {
+		if result[injectorName] == nil {
+			result[injectorName] = make(map[string]any, len(rules))
+		}
+
+		for fieldName, rule := range rules {
+			if !rule.AllowOverwrite {
+				result[injectorName][fieldName] = rule.DefaultValue
+				continue
+			}
+
+			if value, ok := getFieldValue(requestValues, injectorName, fieldName); ok {
+				result[injectorName][fieldName] = value
+				continue
+			}
+
+			result[injectorName][fieldName] = rule.DefaultValue
+		}
 	}
 
-	// 2. Seed context with DB values so code injectors can reference them.
-	injCtx.MergeDBInjectors(dbValues)
+	return result, nil
+}
 
-	// 3. Run init function if set.
+// ResolveWithContext resolves workspace defaults, optional code injectors, and
+// request-body injector overrides into a single runtime map.
+//
+//nolint:gocognit // precedence orchestration across defaults, request data, and code injectors
+func (m *InjectorMerger) ResolveWithContext(ctx context.Context, workspaceID uuid.UUID, injCtx *port.InjectorContext) (MergedInjectors, error) {
+	defaults, fieldRules, err := m.resolveDB(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	injCtx.MergeDBInjectors(defaults)
+
 	if m.codeInitFunc != nil {
 		initData, initErr := m.codeInitFunc(ctx, injCtx)
 		if initErr != nil {
@@ -82,87 +115,123 @@ func (m *InjectorMerger) ResolveWithContext(ctx context.Context, workspaceID uui
 		injCtx.SetInitData(initData)
 	}
 
-	// 4. Resolve code injectors (respecting dependency order).
 	codeValues, err := m.resolveCodeInjectors(ctx, injCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. Merge: code injectors override DB on name collision.
-	for name, fields := range codeValues {
-		if _, exists := dbValues[name]; exists {
-			slog.Warn("code injector overrides DB injector", "code", name)
+	result := cloneMergedInjectors(defaults)
+	requestValues := injCtx.RequestInjectors()
+
+	for injectorName, rules := range fieldRules {
+		if result[injectorName] == nil {
+			result[injectorName] = make(map[string]any, len(rules))
 		}
-		dbValues[name] = fields
+
+		for fieldName, rule := range rules {
+			if !rule.AllowOverwrite {
+				continue
+			}
+
+			if value, ok := getFieldValue(requestValues, injectorName, fieldName); ok {
+				result[injectorName][fieldName] = value
+				continue
+			}
+			if value, ok := getFieldValue(codeValues, injectorName, fieldName); ok {
+				result[injectorName][fieldName] = value
+				continue
+			}
+
+			result[injectorName][fieldName] = rule.DefaultValue
+		}
 	}
 
-	return dbValues, nil
+	for name, fields := range codeValues {
+		if result[name] == nil {
+			result[name] = cloneFields(fields)
+			continue
+		}
+
+		if _, exists := fieldRules[name]; exists {
+			for fieldName, value := range fields {
+				if _, defined := fieldRules[name][fieldName]; !defined {
+					result[name][fieldName] = value
+				}
+			}
+		}
+	}
+
+	injCtx.MergeDBInjectors(result)
+	return result, nil
 }
 
-// resolveDB resolves DB injectors only (existing logic).
-func (m *InjectorMerger) resolveDB(ctx context.Context, workspaceID uuid.UUID) (MergedInjectors, error) {
+func (m *InjectorMerger) resolveDB(ctx context.Context, workspaceID uuid.UUID) (MergedInjectors, map[string]map[string]injectorFieldRule, error) {
 	chain, err := m.chainResolver.Resolve(ctx, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	allDefs, err := m.store.ListDefinitionsInChain(ctx, chain.Scopes)
+	return m.resolveDBForScopes(ctx, chain.Scopes)
+}
+
+func (m *InjectorMerger) resolveDBForScopes(ctx context.Context, scopes []uuid.NullUUID) (MergedInjectors, map[string]map[string]injectorFieldRule, error) {
+	defs, err := m.store.ListDefinitionsInChain(ctx, scopes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Deduplicate definitions by name: highest-priority scope wins.
 	type dedupEntry struct {
-		defID uuid.UUID
+		def   *domain.InjectorDefinition
 		index int
 	}
-	bestByName := make(map[string]dedupEntry)
 
-	for _, def := range allDefs {
-		scopeIdx := scopeIndex(def.WorkspaceID, chain.Scopes)
+	bestByName := make(map[string]dedupEntry, len(defs))
+	for _, def := range defs {
+		scopeIdx := scopeIndex(def.WorkspaceID, scopes)
 		existing, found := bestByName[def.Name]
 		if !found || scopeIdx < existing.index {
-			bestByName[def.Name] = dedupEntry{defID: def.ID, index: scopeIdx}
+			bestByName[def.Name] = dedupEntry{def: def, index: scopeIdx}
 		}
 	}
 
 	defIDs := make([]uuid.UUID, 0, len(bestByName))
 	for _, entry := range bestByName {
-		defIDs = append(defIDs, entry.defID)
+		defIDs = append(defIDs, entry.def.ID)
 	}
 
 	allFields, err := m.store.GetAllFieldsByDefinitions(ctx, defIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
-	allValues, err := m.store.GetAllValuesByDefinitions(ctx, defIDs, chain.Scopes)
+	allValues, err := m.store.GetAllValuesByDefinitions(ctx, defIDs, scopes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	valIdx := buildValueIndex(allValues)
-
 	result := make(MergedInjectors, len(bestByName))
+	fieldRules := make(map[string]map[string]injectorFieldRule, len(bestByName))
 
 	for name, entry := range bestByName {
-		fields := allFields[entry.defID]
+		def := entry.def
+		fields := allFields[def.ID]
+		result[def.Name] = make(map[string]any, len(fields))
+		fieldRules[def.Name] = make(map[string]injectorFieldRule, len(fields))
 
-		fieldMap := make(map[string]any, len(fields))
-		for _, f := range fields {
-			fieldMap[f.FieldName] = nil
+		for _, field := range fields {
+			resolved := resolveFieldValueIndexed(field.FieldName, scopes, valIdx[def.ID])
+			if resolved == nil {
+				resolved = field.DefaultValue
+			}
+			result[name][field.FieldName] = resolved
+			fieldRules[def.Name][field.FieldName] = injectorFieldRule{
+				DefaultValue:   field.DefaultValue,
+				AllowOverwrite: field.AllowOverwrite,
+			}
 		}
-
-		defIdx := valIdx[entry.defID]
-		for _, f := range fields {
-			resolved := resolveFieldValueIndexed(f.FieldName, chain.Scopes, defIdx)
-			fieldMap[f.FieldName] = resolved
-		}
-
-		result[name] = fieldMap
 	}
 
-	return result, nil
+	return result, fieldRules, nil
 }
 
 // resolveCodeInjectors runs all code injectors respecting dependency order.
@@ -171,7 +240,6 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 		return nil, nil
 	}
 
-	// Build dependency graph and resolve in topological order.
 	byCode := make(map[string]port.CodeInjector, len(m.codeInjectors))
 	for _, inj := range m.codeInjectors {
 		byCode[inj.Code()] = inj
@@ -189,19 +257,16 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 
 		inj, ok := byCode[code]
 		if !ok {
-			return nil // dependency is a DB injector or unknown; skip
+			return nil
 		}
 
 		resolveFn, deps := inj.Resolve()
-
-		// Resolve dependencies first.
 		for _, dep := range deps {
 			if err := resolveOne(dep); err != nil {
 				return err
 			}
 		}
 
-		// Execute with timeout.
 		timeout := inj.Timeout()
 		if timeout == 0 {
 			timeout = defaultCodeInjectorTimeout
@@ -233,9 +298,31 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 	return resolved, nil
 }
 
-// --- existing helper functions below (unchanged) ---
+func getFieldValue(values map[string]map[string]any, injectorName, fieldName string) (any, bool) {
+	fields, ok := values[injectorName]
+	if !ok {
+		return nil, false
+	}
+	value, ok := fields[fieldName]
+	return value, ok
+}
 
-// valueIndex maps defID -> fieldName -> scopeKey -> *InjectorValue for O(1) lookup.
+func cloneMergedInjectors(injectors MergedInjectors) MergedInjectors {
+	cloned := make(MergedInjectors, len(injectors))
+	for name, fields := range injectors {
+		cloned[name] = cloneFields(fields)
+	}
+	return cloned
+}
+
+func cloneFields(fields map[string]any) map[string]any {
+	cloned := make(map[string]any, len(fields))
+	for fieldName, value := range fields {
+		cloned[fieldName] = value
+	}
+	return cloned
+}
+
 type valueIndex map[uuid.UUID]map[string]map[string]*domain.InjectorValue
 
 func buildValueIndex(allValues map[uuid.UUID][]*domain.InjectorValue) valueIndex {
@@ -248,8 +335,7 @@ func buildValueIndex(allValues map[uuid.UUID][]*domain.InjectorValue) valueIndex
 			if idx[defID][v.FieldName] == nil {
 				idx[defID][v.FieldName] = make(map[string]*domain.InjectorValue)
 			}
-			key := scopeKey(v.WorkspaceID)
-			idx[defID][v.FieldName][key] = v
+			idx[defID][v.FieldName][scopeKey(v.WorkspaceID)] = v
 		}
 	}
 	return idx
@@ -286,8 +372,7 @@ func resolveFieldValueIndexed(fieldName string, scopes []uuid.NullUUID, fieldIdx
 		return nil
 	}
 	for _, scope := range scopes {
-		key := scopeKeyFromNullUUID(scope)
-		if v, found := scopeValues[key]; found {
+		if v, found := scopeValues[scopeKeyFromNullUUID(scope)]; found {
 			return parseJSONValue(v.Value)
 		}
 	}
@@ -305,8 +390,8 @@ func matchScope(wsID *uuid.UUID, scope uuid.NullUUID) bool {
 }
 
 func scopeIndex(wsID *uuid.UUID, scopes []uuid.NullUUID) int {
-	for i, s := range scopes {
-		if matchScope(wsID, s) {
+	for i, scope := range scopes {
+		if matchScope(wsID, scope) {
 			return i
 		}
 	}
