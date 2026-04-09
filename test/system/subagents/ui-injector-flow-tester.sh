@@ -231,12 +231,15 @@ assert_visible() {
 
 click_selector() {
   local selector="$1"
-  ab eval "(() => {
+  if ! ab_json eval "(() => {
     const el = document.querySelector('${selector}');
     if (!el) return 'missing';
     el.click();
     return 'clicked';
-  })()" >/dev/null
+  })()" | jq -e '.data.result == "clicked"' >/dev/null; then
+    echo "failed to click selector=${selector}" >&2
+    return 1
+  fi
 }
 
 click_button_by_text() {
@@ -258,6 +261,26 @@ click_button_by_text() {
     return 'clicked';
   })()" | jq -e '.data.result == "clicked"' >/dev/null; then
     echo "failed to click button with label=${label}" >&2
+    return 1
+  fi
+}
+
+set_input_value() {
+  local selector="$1"
+  local value="$2"
+  local value_json
+  value_json="$(printf '%s' "$value" | jq -Rs .)"
+  if ! ab_json eval "(() => {
+    const el = document.querySelector('${selector}');
+    if (!el) return 'missing';
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (!setter) return 'missing-setter';
+    setter.call(el, ${value_json});
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return 'ok';
+  })()" | jq -e '.data.result == "ok"' >/dev/null; then
+    echo "failed to set value for selector=${selector}" >&2
     return 1
   fi
 }
@@ -540,8 +563,9 @@ verify_injector_builder_and_test_send() {
   mailpit_clear
   ab fill '[data-testid="test-send-email"]' "ui-injector-empty@test.example.com" >/dev/null
   ab fill '[data-testid="test-send-variables-json"]' '{"user_name":"UIEmpty"}' >/dev/null
-  ab fill "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "tmp" >/dev/null
-  ab fill "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "" >/dev/null
+  set_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "tmp"
+  set_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" ""
+  assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" ""
   click_selector '[data-testid="test-send-submit"]'
   mailpit_wait_for_messages 1 30
   mailpit_assert_message_contains "ui-injector-empty@test.example.com" "NAME=|LOCKED=LOCKED-DEFAULT|STATUS=code-status|EVENT=UIEmpty"

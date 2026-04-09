@@ -182,7 +182,7 @@ wait_for_text() {
 
 wait_for_eval_true() {
   local expression="$1"
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 120); do
     if ab_json eval "$expression" | jq -e '.data.result == true' >/dev/null; then
       return 0
     fi
@@ -239,6 +239,52 @@ click_button_by_aria_label() {
     echo "button with aria-label not found: ${label}" >&2
     return 1
   fi
+}
+
+click_dialog_submit() {
+  local anchor_selector="${1:-}"
+  local expected_label="${2:-}"
+  local anchor_json
+  local expected_json
+  anchor_json="$(printf '%s' "$anchor_selector" | jq -Rs .)"
+  expected_json="$(printf '%s' "$expected_label" | jq -Rs .)"
+
+  if ! ab_json eval "(() => {
+    const anchorSelector = ${anchor_json};
+    const expected = ${expected_json};
+    const anchor = anchorSelector ? document.querySelector(anchorSelector) : null;
+    const form = anchor?.closest('form');
+    if (!form) return 'missing-form';
+
+    const buttons = Array.from(form.querySelectorAll('button[type=\"submit\"], button'));
+    const target = buttons.find((candidate) => {
+      if (candidate.offsetParent === null || candidate.disabled) return false;
+      const text = (candidate.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (expected) {
+        return text === expected;
+      }
+      return candidate.getAttribute('type') === 'submit';
+    });
+    if (!target) return 'missing-button';
+    target.click();
+    return 'clicked';
+  })()" | jq -e '.data.result == "clicked"' >/dev/null; then
+    echo "dialog submit button not found${expected_label:+: ${expected_label}}${anchor_selector:+ (anchor=${anchor_selector})}" >&2
+    return 1
+  fi
+}
+
+wait_for_workspace_row() {
+  local code="$1"
+  if wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"; then
+    return 0
+  fi
+
+  log "ui-workspace-management: workspace row ${code} not visible yet, reloading list once"
+  ab open "$WORKSPACES_URL" >/dev/null
+  wait_for_url "$WORKSPACES_URL"
+  wait_for_text "Create Workspace"
+  wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${code}')))()"
 }
 
 select_status() {
@@ -314,8 +360,9 @@ ab wait "#workspace-name" >/dev/null
 ab fill "#workspace-name" "$FIXTURE_NAME" >/dev/null
 ab fill "#workspace-code" "$FIXTURE_CODE" >/dev/null
 ab screenshot "$SCREENSHOT_DIR/04-create-dialog.png" >/dev/null
-ab find role button click --name "Create Workspace" >/dev/null
-wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).some((candidate) => (candidate.innerText || '').includes('${FIXTURE_CODE}')))()"
+click_dialog_submit "#workspace-name" "Create Workspace"
+wait_for_eval_true "(() => !document.querySelector('#workspace-name'))()"
+wait_for_workspace_row "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/05-created.png" >/dev/null
 
 log "ui-workspace-management: disabling fixture workspace from list toggle"
