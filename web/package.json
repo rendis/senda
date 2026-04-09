@@ -39,7 +39,7 @@
     "fumadocs-core": "^16.7.9",
     "fumadocs-mdx": "^14.2.11",
     "fumadocs-ui": "^16.7.9",
-    "ky": "^1.14.3",
+    "ky": "^2.0.0",
     "lucide-react": "^0.572.0",
     "motion": "^12.34.2",
     "next": "16.1.7",
