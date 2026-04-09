@@ -6,16 +6,16 @@ import type { ApiError } from "@/types/api";
  * Uses Next.js rewrites — requests go to /api/v1/* which proxies to backend.
  */
 export const api = ky.create({
-  prefixUrl: "/api/v1",
+  prefix: "/api/v1",
   timeout: 30_000,
   hooks: {
     afterResponse: [
-      async (request, _options, response, state) => {
+      async ({ request, response, retryCount }) => {
         if (
           response.status === 401 &&
           typeof window !== "undefined" &&
           request.headers.has("Authorization") &&
-          state.retryCount === 0
+          retryCount === 0
         ) {
           // First 401 — attempt silent token refresh via next-auth session.
           const { getSession } = await import("next-auth/react");
@@ -50,7 +50,7 @@ export function createAuthenticatedApi(idToken: string): KyInstance {
   return api.extend({
     hooks: {
       beforeRequest: [
-        (request) => {
+        ({ request }) => {
           request.headers.set("Authorization", `Bearer ${idToken}`);
         },
       ],
