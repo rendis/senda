@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-backend-main ci-frontend ci-pr ci-main install-githooks clean help
+.PHONY: dev dev-down dev-clean build test vet test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-backend-main ci-frontend ci-pr ci-main install-githooks clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -10,6 +10,7 @@ SWAG_VERSION ?= v1.16.6
 SWAGGER_DOCS_DIR := cmd/senda/docs
 SWAGGER_V2 := $(SWAGGER_DOCS_DIR)/swagger.yaml
 OPENAPI_V3 := $(SWAGGER_DOCS_DIR)/openapi.yaml
+GO_PACKAGES := $(shell bash scripts/go-packages.sh)
 
 E2E_ENV := SENDA_BASE_URL=$(SENDA_BASE_URL) \
            MAILPIT_URL=$(MAILPIT_URL) \
@@ -32,10 +33,13 @@ build: ## Build the binary
 
 ## Test
 test: ## Run unit tests
-	go test ./... -v -count=1 -race
+	go test $(GO_PACKAGES) -v -count=1 -race
+
+vet: ## Run go vet on repo packages only
+	go vet $(GO_PACKAGES)
 
 test-integration: ## Run integration tests (requires running postgres)
-	go test ./... -v -count=1 -race -tags=integration
+	go test $(GO_PACKAGES) -v -count=1 -race -tags=integration
 
 ## E2E Tests
 test-e2e-up: ## E2E harness is managed inside go test via Testcontainers
@@ -97,7 +101,7 @@ migrate-down: ## Roll back last migration
 
 ## Lint
 lint: ## Run linter
-	golangci-lint run ./...
+	golangci-lint run $(GO_PACKAGES)
 
 ## OpenAPI / MCP
 swagger: ## Generate swag-based Swagger 2 + OpenAPI 3 docs and validate route coverage

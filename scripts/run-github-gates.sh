@@ -11,7 +11,7 @@ fi
 run_backend_pr() {
   echo "==> Backend gate (PR)"
   make lint
-  go vet ./...
+  make vet
   make swagger-check
   make test
 }

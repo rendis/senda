@@ -75,7 +75,7 @@ web/src/                Frontend app (Next.js App Router)
 4. Implement with TDD (test → code → refactor)
 5. Record decisions and progress in the HT ("Implementation Notes" and "Progress Log")
 6. When all acceptance criteria are met:
-   - Run the quality gates (`make test`, `make lint`, `go vet`)
+   - Run the quality gates (`make test`, `make lint`, `make vet`)
    - Move the HT to `stories/done/`
    - Update `stories/MANIFEST.md` (status, counters, "Ready to Start")
 
@@ -491,9 +491,9 @@ Rules:
 **Always run (every task, ALL packages — never skip to "just what I touched"):**
 
 ```bash
-make lint                 # golangci-lint on ALL packages (./...)
-go vet ./...              # Go vet on ALL packages
-make test                 # go test ./... with race detector — validates nothing existing broke
+make lint                 # golangci-lint on repo Go packages only
+make vet                  # Go vet on repo Go packages only
+make test                 # go test on repo Go packages with race detector — validates nothing existing broke
 ```
 
 If the task touches frontend (`web/`), also run:
@@ -520,7 +520,7 @@ make test                 # Unit tests pass
 make test-integration     # Integration tests pass (if applicable)
 make test-e2e             # E2E deterministic gate (if applicable)
 make lint                 # golangci-lint passes
-go vet ./...              # No issues
+make vet                  # No issues
 ```
 
 ### PR Local Gate (mandatory before opening or updating a PR)
