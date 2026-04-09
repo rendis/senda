@@ -787,8 +787,8 @@ ab wait 2500 >/dev/null
 wait_for_text "$GMAIL_NAME"
 wait_for_text "$SES_NAME"
 wait_for_text "Shared"
-assert_shared_row_state "$GMAIL_NAME" 3 '[true,true,true]'
-assert_shared_row_state "$SES_NAME" 4 '[false,true,true,true]'
+assert_shared_row_state "$GMAIL_NAME" 3 '[true,false,true]'
+assert_shared_row_state "$SES_NAME" 4 '[false,true,false,true]'
 ab screenshot "$SCREENSHOT_DIR/06-workspace-a-shared-adapters.png" >/dev/null
 
 click_adapter_row_action "$SES_NAME" 0

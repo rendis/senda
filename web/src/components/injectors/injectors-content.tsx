@@ -66,6 +66,7 @@ function InjectorsTable() {
   const scopedPath = useScopedPath();
   const [selectedInjector, setSelectedInjector] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [editingOpen, setEditingOpen] = useState(false);
 
   const { data: listData, isLoading: listLoading } = useInjectorList(scopedPath);
@@ -325,15 +326,14 @@ function InjectorsTable() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-[280px]"
         />
-        <InjectorForm
-          trigger={
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Injector
-            </Button>
-          }
-          onSubmit={handleCreate}
-        />
+        <Button
+          className="gap-2"
+          data-testid="injector-create-trigger"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          New Injector
+        </Button>
       </div>
 
       <DataTable
@@ -346,18 +346,23 @@ function InjectorsTable() {
             title="No injectors defined"
             description="Define the tokens your template builders can use and how each field resolves at runtime."
             action={
-              <InjectorForm
-                trigger={
-                  <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Injector
-                  </Button>
-                }
-                onSubmit={handleCreate}
-              />
+              <Button
+                className="gap-2"
+                data-testid="injector-empty-create-trigger"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Injector
+              </Button>
             }
           />
         }
+      />
+
+      <InjectorForm
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSubmit={handleCreate}
       />
 
       <ConfirmDialog
