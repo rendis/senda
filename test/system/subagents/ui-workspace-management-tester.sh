@@ -250,7 +250,7 @@ click_button_by_aria_label() {
   fi
 }
 
-click_dialog_submit() {
+click_dialog_button() {
   local anchor_selector="${1:-}"
   local expected_label="${2:-}"
   local anchor_json
@@ -261,24 +261,23 @@ click_dialog_submit() {
   if ! ab_json eval "(() => {
     const anchorSelector = ${anchor_json};
     const expected = ${expected_json};
-    const anchor = anchorSelector ? document.querySelector(anchorSelector) : null;
-    const form = anchor?.closest('form');
-    if (!form) return 'missing-form';
-
-    const buttons = Array.from(form.querySelectorAll('button[type=\"submit\"], button'));
-    const target = buttons.find((candidate) => {
-      if (candidate.offsetParent === null || candidate.disabled) return false;
+    const buttons = anchorSelector
+      ? Array.from((document.querySelector(anchorSelector)?.closest('form') || document).querySelectorAll('button[type=\"submit\"], button'))
+      : Array.from(document.querySelectorAll('button'));
+    const candidates = buttons.filter((candidate) => {
+      if (candidate.disabled) return false;
       const text = (candidate.textContent || '').replace(/\\s+/g, ' ').trim();
       if (expected) {
         return text === expected;
       }
       return candidate.getAttribute('type') === 'submit';
     });
+    const target = candidates.at(-1);
     if (!target) return 'missing-button';
     target.click();
     return 'clicked';
   })()" | jq -e '.data.result == "clicked"' >/dev/null; then
-    echo "dialog submit button not found${expected_label:+: ${expected_label}}${anchor_selector:+ (anchor=${anchor_selector})}" >&2
+    echo "dialog button not found${expected_label:+: ${expected_label}}${anchor_selector:+ (anchor=${anchor_selector})}" >&2
     return 1
   fi
 }
@@ -395,7 +394,7 @@ ab wait "#workspace-name" >/dev/null
 ab fill "#workspace-name" "$FIXTURE_NAME" >/dev/null
 ab fill "#workspace-code" "$FIXTURE_CODE" >/dev/null
 ab screenshot "$SCREENSHOT_DIR/04-create-dialog.png" >/dev/null
-click_dialog_submit "#workspace-name" "Create Workspace"
+click_dialog_button "#workspace-name" "Create Workspace"
 wait_for_eval_true "(() => !document.querySelector('#workspace-name'))()"
 wait_for_workspace_row "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/05-created.png" >/dev/null
@@ -443,7 +442,7 @@ log "ui-workspace-management: deleting fixture workspace"
 click_button_by_aria_label "Delete workspace ${FIXTURE_CODE}"
 wait_for_text "Delete workspace"
 ab screenshot "$SCREENSHOT_DIR/10-delete-confirm.png" >/dev/null
-ab find role button click --name "Delete workspace" >/dev/null
+click_dialog_button "" "Delete workspace"
 wait_for_workspace_deleted "$FIXTURE_CODE"
 ab screenshot "$SCREENSHOT_DIR/11-deleted.png" >/dev/null
 

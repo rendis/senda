@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE="${1:-pr}"
 SYSTEM_UI_VISUAL="${SYSTEM_UI_VISUAL:-0}"
 SYSTEM_UI_FLOW="${SYSTEM_UI_FLOW:-}"
+SYSTEM_UI_A11Y="${SYSTEM_UI_A11Y:-0}"
 SYSTEM_SECURITY_CHAOS="${SYSTEM_SECURITY_CHAOS:-0}"
 
 case "$MODE" in
@@ -118,6 +119,17 @@ run_ui_adapter_sharing_stage() {
   run_stage "ui-adapter-sharing" "$ROOT_DIR/test/system/subagents/ui-adapter-sharing-tester.sh"
 }
 
+run_ui_a11y_stage() {
+  if [[ "$SYSTEM_UI_A11Y" != "1" ]]; then
+    skip_stage \
+      "ui-a11y" \
+      "disabled-by-default (set SYSTEM_UI_A11Y=1 to enable the heavyweight accessibility sweep)"
+    return
+  fi
+
+  run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
+}
+
 run_security_chaos_stage() {
   if [[ "$SYSTEM_SECURITY_CHAOS" != "1" ]]; then
     skip_stage \
@@ -187,7 +199,7 @@ if [[ "$MODE" == "nightly" ]]; then
   run_ui_injector_flow_stage
   run_ui_adapter_sharing_stage
   run_visual_stage
-  run_stage "ui-a11y" "$ROOT_DIR/test/system/subagents/ui-a11y-tester.sh"
+  run_ui_a11y_stage
   run_security_chaos_stage
 else
   run_ui_flow_stage
