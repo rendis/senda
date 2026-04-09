@@ -81,7 +81,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		return nil, fmt.Errorf("app: init crypto: %w", err)
 	}
 	rateLimiter := postgres.NewProviderRateLimiter(pool)
-	compiler := mjml.NewCompiler()
+	compiler := mjml.NewCompiler(mjml.WithPublicBaseURL(cfg.Tracking.BaseURL))
 	renderer := service.NewVariableRenderer()
 
 	// 5. Repository layer.

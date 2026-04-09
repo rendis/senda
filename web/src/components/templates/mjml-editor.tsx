@@ -46,6 +46,11 @@ import {
   X,
 } from "lucide-react";
 import { TextBlockEditor, type TextBlockEditorHandle } from "./text-block-editor";
+import {
+  extractOriginalThumbnailUrl,
+  extractVideoThumbnail,
+  renderVideoBlockToMjml,
+} from "./video-block";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import {
   useTemplateVersion,
@@ -794,58 +799,6 @@ function renderListItemsToHtml(
     })
     .join("");
   return `<${tag} style="list-style-type:${styleType};padding-left:${depth === 0 ? 0 : 20}px;margin:0;">${liHtml}</${tag}>`;
-}
-
-function extractVideoThumbnail(url: string): string {
-  if (!url) return "";
-  // YouTube: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
-  const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?.*v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-  );
-  if (ytMatch?.[1]) {
-    return `https://img.youtube.com/vi/${ytMatch[1]}/maxresdefault.jpg`;
-  }
-  // Vimeo: vimeo.com/ID
-  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeoMatch?.[1]) {
-    return `https://vumbnail.com/${vimeoMatch[1]}.jpg`;
-  }
-  return "";
-}
-
-const VIDEO_THUMBNAIL_PATH = "/public/video-thumbnail";
-
-/**
- * Wraps a raw thumbnail URL in the backend video-thumbnail composite endpoint
- * so the rendered email shows the thumbnail with a play-button overlay.
- */
-function buildVideoThumbnailUrl(rawThumbnailUrl: string): string {
-  if (!rawThumbnailUrl) return "";
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
-  return `${apiBase}${VIDEO_THUMBNAIL_PATH}?url=${encodeURIComponent(rawThumbnailUrl)}`;
-}
-
-/**
- * Extracts the original thumbnail URL from a video-thumbnail composite endpoint
- * URL, so the editor can round-trip the thumbnail URL correctly.
- * If the src is not a composite URL, returns it as-is.
- */
-function extractOriginalThumbnailUrl(src: string): string {
-  if (!src) return "";
-  try {
-    const u = new URL(src);
-    if (u.pathname === VIDEO_THUMBNAIL_PATH) {
-      return u.searchParams.get("url") || src;
-    }
-  } catch {
-    // Not a valid URL — might be a relative path or already a raw thumbnail URL.
-    if (src.includes(VIDEO_THUMBNAIL_PATH + "?url=")) {
-      const idx = src.indexOf("?url=");
-      return decodeURIComponent(src.slice(idx + 5));
-    }
-  }
-  return src;
 }
 
 function mergeAdjacentTextSegments(segments: BuilderSegment[]) {
@@ -1609,13 +1562,7 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
         20
       )}px" />`;
     case "video": {
-      const href = block.videoUrl ? ` href="${block.videoUrl}"` : "";
-      const width = block.width ? ` width="${block.width}"` : "";
-      const alt = block.alt ? ` alt="${block.alt}"` : "";
-      const thumbSrc = block.thumbnailUrl
-        ? buildVideoThumbnailUrl(block.thumbnailUrl)
-        : "";
-      return `\n<mj-image src="${thumbSrc}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
+      return renderVideoBlockToMjml(block);
     }
     case "list": {
       const html = renderListItemsToHtml(block.items, block.listType);

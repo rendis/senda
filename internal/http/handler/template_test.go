@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
+	mjmladapter "github.com/rendis/senda/internal/adapter/mjml"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/http/middleware"
@@ -749,6 +750,31 @@ func TestTemplateHandler_PreviewMJML_Success(t *testing.T) {
 	}
 	if resp.HTML == "" {
 		t.Fatal("expected non-empty HTML")
+	}
+}
+
+func TestTemplateHandler_PreviewMJML_RewritesVideoThumbnailUsingRequestBaseURL(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	e, _ := setupTemplateTest(&mockTemplateStore{}, mjmladapter.NewCompiler(), ts, wsStore)
+
+	templateID := uuid.Must(uuid.NewV7())
+	body := `{"mjml":"<mjml><mj-body><mj-section><mj-column><mj-image src=\"https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg\" href=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\" css-class=\"senda-video\" /></mj-column></mj-section></mj-body></mjml>"}`
+	req := httptest.NewRequest(http.MethodPost, "http://builder.local/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/preview-mjml", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.MJMLPreviewResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if !strings.Contains(resp.HTML, "http://builder.local/public/video-thumbnail?url=https%3A%2F%2Fimg.youtube.com%2Fvi%2FdQw4w9WgXcQ%2Fmaxresdefault.jpg") {
+		t.Fatalf("expected request-scoped video thumbnail URL, got %q", resp.HTML)
 	}
 }
 
