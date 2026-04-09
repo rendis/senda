@@ -309,10 +309,10 @@ func (h *TemplateHandler) TestSend(c *echo.Context) error {
 	}
 
 	var req struct {
-		RecipientEmail string         `json:"recipient_email"`
-		Variables      map[string]any `json:"variables"`
+		RecipientEmail string                    `json:"recipient_email"`
+		Variables      map[string]any            `json:"variables"`
 		Injectors      map[string]map[string]any `json:"injectors"`
-		Locale         *string        `json:"locale"`
+		Locale         *string                   `json:"locale"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
@@ -780,7 +780,12 @@ func (h *TemplateHandler) PreviewMJML(c *echo.Context) error {
 		)
 	}
 
-	html, err := h.svc.PreviewMJML(c.Request().Context(), req.MJML)
+	ctx := port.WithTemplateCompilerPublicBaseURL(
+		c.Request().Context(),
+		c.Scheme()+"://"+c.Request().Host,
+	)
+
+	html, err := h.svc.PreviewMJML(ctx, req.MJML)
 	if err != nil {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	}
