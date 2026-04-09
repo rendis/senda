@@ -6,9 +6,6 @@ on:
 permissions:
   contents: read
 
-permissions:
-  contents: read
-
 jobs:
   chaos:
     runs-on: ubuntu-latest
