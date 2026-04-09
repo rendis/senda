@@ -50,7 +50,7 @@ body:
     attributes:
       label: Validation attempted
       description: Tell us what you already verified locally.
-      placeholder: make test, make test-integration, make test-e2e, npm --prefix web run typecheck, etc.
+      placeholder: make test, make test-integration, make test-e2e, pnpm --dir web typecheck, etc.
   - type: textarea
     id: environment
     attributes:
