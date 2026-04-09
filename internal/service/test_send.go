@@ -113,10 +113,11 @@ func (s *TestSendService) Send(ctx context.Context, req *TestSendRequest) (*Test
 	}
 
 	// 4. Resolve from address.
-	from := resolution.ResolveFromAddress(ctx, s.identityStore, adapter, decrypted)
-	if from.Address == "" {
-		return nil, fmt.Errorf("%w: no sender identity for adapter %s", domain.ErrNoDefaultIdentity, adapter.Name)
+	fromEmail, err := resolveFromEmailForTemplateTest(s.identityStore, ctx, adapter, decrypted, tt.SenderIdentityID)
+	if err != nil {
+		return nil, err
 	}
+	from := port.EmailAddress{Address: fromEmail}
 
 	// 5. Resolve locale override if requested.
 	bodyMJML := ver.BodyMJML

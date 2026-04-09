@@ -14,7 +14,7 @@ import (
 
 type mockCryptoTestSend struct{}
 
-func (m *mockCryptoTestSend) Encrypt(plaintext []byte) ([]byte, error) { return plaintext, nil }
+func (m *mockCryptoTestSend) Encrypt(plaintext []byte) ([]byte, error)  { return plaintext, nil }
 func (m *mockCryptoTestSend) Decrypt(ciphertext []byte) ([]byte, error) { return ciphertext, nil }
 
 type mockEmailSenderTestSend struct {
@@ -431,5 +431,271 @@ func TestTestSendService_ResolvesGlobalInjectorsWithRequestAndDefaultPrecedence(
 	}
 	if captured.BodyHTML != "<mjml><mj-body><mj-section><mj-column><mj-text>Name=Request Brand Locked=LOCKED-GLOBAL</mj-text></mj-column></mj-section></mj-body></mjml>" {
 		t.Fatalf("unexpected body html: %q", captured.BodyHTML)
+	}
+}
+
+func TestTestSendService_UsesTemplateTypeSenderIdentityWhenConfigured(t *testing.T) {
+	tenantID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	templateTypeID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	senderIdentityID := uuid.Must(uuid.NewV7())
+
+	templateStore := &mockTemplateStore{
+		getPublishedVersionFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateVersion, error) {
+			if id != templateID {
+				t.Fatalf("unexpected template id %s", id)
+			}
+			return &domain.TemplateVersion{
+				ID:            uuid.Must(uuid.NewV7()),
+				TemplateID:    templateID,
+				VersionNumber: 1,
+				Status:        domain.VersionStatusPublished,
+				Subject:       "Shared SES test",
+				BodyMJML:      "<mjml><mj-body><mj-section><mj-column><mj-text>Hello</mj-text></mj-column></mj-section></mj-body></mjml>",
+				FromName:      "Support",
+				DefaultLocale: "en",
+			}, nil
+		},
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("unexpected template id %s", id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: templateTypeID,
+				WorkspaceID:    &workspaceID,
+			}, nil
+		},
+		getTypeByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+			if id != templateTypeID {
+				t.Fatalf("unexpected type id %s", id)
+			}
+			return &domain.TemplateType{
+				ID:               templateTypeID,
+				Slug:             "shared-ses-test",
+				Name:             "Shared SES Test",
+				AdapterID:        &adapterID,
+				SenderIdentityID: &senderIdentityID,
+			}, nil
+		},
+	}
+
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				t.Fatalf("unexpected adapter id %s", id)
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				Name:            "SES Shared",
+				AdapterType:     domain.AdapterTypeSES,
+				ConfigEncrypted: []byte(`{}`),
+			}, nil
+		},
+	}
+
+	identityStore := &mockAdapterIdentityStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+			if id != senderIdentityID {
+				t.Fatalf("unexpected sender identity id %s", id)
+			}
+			return &domain.AdapterIdentity{
+				ID:             senderIdentityID,
+				AdapterID:      adapterID,
+				Identity:       "shared@example.com",
+				IdentityType:   domain.IdentityTypeEmail,
+				Status:         domain.IdentityStatusVerified,
+				SendingEnabled: true,
+			}, nil
+		},
+		getDefaultFn: func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+			return nil, domain.ErrNoDefaultIdentity
+		},
+	}
+
+	wsStore := &mockWorkspaceStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			if id != workspaceID {
+				t.Fatalf("unexpected workspace id %s", id)
+			}
+			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: "main", Name: "Main"}, nil
+		},
+	}
+
+	tenantStore := &mockTenantStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Tenant, error) {
+			if id != tenantID {
+				t.Fatalf("unexpected tenant id %s", id)
+			}
+			return &domain.Tenant{ID: tenantID, Code: "acme", Name: "Acme"}, nil
+		},
+	}
+
+	var captured *port.OutgoingEmail
+	svc := service.NewTestSendService(
+		templateStore,
+		adapterStore,
+		identityStore,
+		&mockCryptoTestSend{},
+		&mockTemplateCompiler{compileFn: func(_ context.Context, mjml string) (string, error) { return mjml, nil }},
+		service.NewVariableRenderer(),
+		func(ctx context.Context, adapter *domain.Adapter, decrypted []byte) (port.EmailSender, error) {
+			return &mockEmailSenderTestSend{
+				sendFn: func(_ context.Context, msg *port.OutgoingEmail) (string, error) {
+					captured = msg
+					return "provider-msg-id", nil
+				},
+			}, nil
+		},
+		nil,
+		tenantStore,
+		wsStore,
+	)
+
+	result, err := svc.Send(context.Background(), &service.TestSendRequest{
+		TemplateID:     templateID,
+		RecipientEmail: "recipient@example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.FromAddress != "shared@example.com" {
+		t.Fatalf("expected sender identity email, got %q", result.FromAddress)
+	}
+	if captured == nil {
+		t.Fatal("expected outgoing email to be captured")
+	}
+	if captured.From.Address != "shared@example.com" {
+		t.Fatalf("expected outgoing From address to use sender identity, got %q", captured.From.Address)
+	}
+}
+
+func TestTestSendService_FallsBackToDelegateEmailWhenNoDefaultIdentity(t *testing.T) {
+	tenantID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	templateTypeID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	templateStore := &mockTemplateStore{
+		getPublishedVersionFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateVersion, error) {
+			if id != templateID {
+				t.Fatalf("unexpected template id %s", id)
+			}
+			return &domain.TemplateVersion{
+				ID:            uuid.Must(uuid.NewV7()),
+				TemplateID:    templateID,
+				VersionNumber: 1,
+				Status:        domain.VersionStatusPublished,
+				Subject:       "Delegate fallback",
+				BodyMJML:      "<mjml><mj-body><mj-section><mj-column><mj-text>Hello</mj-text></mj-column></mj-section></mj-body></mjml>",
+				FromName:      "Support",
+				DefaultLocale: "en",
+			}, nil
+		},
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("unexpected template id %s", id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: templateTypeID,
+				WorkspaceID:    &workspaceID,
+			}, nil
+		},
+		getTypeByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+			if id != templateTypeID {
+				t.Fatalf("unexpected type id %s", id)
+			}
+			return &domain.TemplateType{
+				ID:        templateTypeID,
+				Slug:      "delegate-fallback",
+				Name:      "Delegate fallback",
+				AdapterID: &adapterID,
+			}, nil
+		},
+	}
+
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				t.Fatalf("unexpected adapter id %s", id)
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				Name:            "Gmail Shared",
+				AdapterType:     domain.AdapterTypeGmail,
+				ConfigEncrypted: []byte(`{"delegate_email":"delegate@example.com"}`),
+				ConfigMeta: map[string]string{
+					"delegate_email": "delegate@example.com",
+				},
+			}, nil
+		},
+	}
+
+	identityStore := &mockAdapterIdentityStoreSend{
+		getDefaultFn: func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+			return nil, domain.ErrNoDefaultIdentity
+		},
+	}
+
+	wsStore := &mockWorkspaceStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			if id != workspaceID {
+				t.Fatalf("unexpected workspace id %s", id)
+			}
+			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: "main", Name: "Main"}, nil
+		},
+	}
+
+	tenantStore := &mockTenantStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Tenant, error) {
+			if id != tenantID {
+				t.Fatalf("unexpected tenant id %s", id)
+			}
+			return &domain.Tenant{ID: tenantID, Code: "acme", Name: "Acme"}, nil
+		},
+	}
+
+	var captured *port.OutgoingEmail
+	svc := service.NewTestSendService(
+		templateStore,
+		adapterStore,
+		identityStore,
+		&mockCryptoTestSend{},
+		&mockTemplateCompiler{compileFn: func(_ context.Context, mjml string) (string, error) { return mjml, nil }},
+		service.NewVariableRenderer(),
+		func(ctx context.Context, adapter *domain.Adapter, decrypted []byte) (port.EmailSender, error) {
+			return &mockEmailSenderTestSend{
+				sendFn: func(_ context.Context, msg *port.OutgoingEmail) (string, error) {
+					captured = msg
+					return "provider-msg-id", nil
+				},
+			}, nil
+		},
+		nil,
+		tenantStore,
+		wsStore,
+	)
+
+	result, err := svc.Send(context.Background(), &service.TestSendRequest{
+		TemplateID:     templateID,
+		RecipientEmail: "recipient@example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.FromAddress != "delegate@example.com" {
+		t.Fatalf("expected delegate_email fallback, got %q", result.FromAddress)
+	}
+	if captured == nil {
+		t.Fatal("expected outgoing email to be captured")
+	}
+	if captured.From.Address != "delegate@example.com" {
+		t.Fatalf("expected outgoing From address to use delegate_email fallback, got %q", captured.From.Address)
 	}
 }
