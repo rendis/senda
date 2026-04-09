@@ -18,3 +18,22 @@ test("next config proxies public video thumbnails to the backend origin", () => 
     },
   ]);
 });
+
+test("next config can proxy video thumbnails to a dedicated backend origin", () => {
+  assert.deepEqual(
+    buildRewrites(
+      "https://public.example.com",
+      "https://backend.example.com",
+    ),
+    [
+      {
+        source: "/api/v1/:path*",
+        destination: "https://public.example.com/api/v1/:path*",
+      },
+      {
+        source: "/public/video-thumbnail",
+        destination: "https://backend.example.com/public/video-thumbnail",
+      },
+    ],
+  );
+});
