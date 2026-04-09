@@ -1,4 +1,7 @@
-export function buildRewrites(apiOrigin: string) {
+export function buildRewrites(
+  apiOrigin: string,
+  videoThumbnailOrigin = apiOrigin,
+) {
   return [
     {
       source: "/api/v1/:path*",
@@ -6,7 +9,7 @@ export function buildRewrites(apiOrigin: string) {
     },
     {
       source: "/public/video-thumbnail",
-      destination: `${apiOrigin}/public/video-thumbnail`,
+      destination: `${videoThumbnailOrigin}/public/video-thumbnail`,
     },
   ];
 }
