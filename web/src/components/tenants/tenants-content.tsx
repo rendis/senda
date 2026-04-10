@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FormDialog } from "@/components/shared/form-dialog";
+import { SYSTEM_WORKSPACE_LABEL } from "@/lib/system-workspace-display";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -415,7 +416,7 @@ function CreateTenantDialog({
     <FormDialog
       trigger={<span className="hidden" />}
       title="Create Tenant"
-      description="Create a new tenant and its default _system workspace."
+      description={`Create a new tenant and its default ${SYSTEM_WORKSPACE_LABEL} workspace.`}
       submitLabel="Create Tenant"
       loadingLabel="Creating..."
       submitIcon={<Plus className="h-4 w-4" />}

@@ -14,6 +14,11 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { FormDialog } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
+import {
+  SYSTEM_WORKSPACE_LABEL,
+  getWorkspaceDisplayName,
+  getWorkspaceDisplayCode,
+} from "@/lib/system-workspace-display";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,22 +154,26 @@ export function WorkspacesContent() {
     {
       accessorKey: "name",
       header: "Name",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="text-[13px]">{row.original.name}</span>
-          <ScopeIndicator
-            scope={row.original.is_system ? "system" : "workspace"}
-            label={row.original.is_system ? SYSTEM_WORKSPACE_CODE : "workspace"}
-          />
-        </div>
-      ),
+      cell: ({ row }) => {
+        const displayName = getWorkspaceDisplayName(row.original);
+
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-[13px]">{displayName}</span>
+            <ScopeIndicator
+              scope={row.original.is_system ? "system" : "workspace"}
+              label={row.original.is_system ? SYSTEM_WORKSPACE_LABEL : "workspace"}
+            />
+          </div>
+        );
+      },
     },
     {
       accessorKey: "code",
       header: "Code",
       cell: ({ row }) => (
         <span className="font-mono text-[13px] font-medium">
-          {row.original.code}
+          {getWorkspaceDisplayCode(row.original)}
         </span>
       ),
     },
@@ -174,7 +183,8 @@ export function WorkspacesContent() {
       size: 220,
       cell: ({ row }) => {
         const isProtected = row.original.is_system;
-        const protectedReason = "The _system workspace is always active";
+        const displayCode = getWorkspaceDisplayCode(row.original);
+        const protectedReason = `The ${SYSTEM_WORKSPACE_LABEL} workspace is always active`;
 
         return (
           <div className="flex items-center gap-3">
@@ -189,7 +199,7 @@ export function WorkspacesContent() {
                     type="button"
                     role="switch"
                     aria-checked={row.original.is_active}
-                    aria-label={`Toggle workspace ${row.original.code} status`}
+                    aria-label={`Toggle workspace ${displayCode} status`}
                     disabled={isProtected || updateWorkspace.isPending}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -250,7 +260,8 @@ export function WorkspacesContent() {
       enableSorting: false,
       cell: ({ row }) => {
         const isProtected = row.original.is_system;
-        const protectedReason = "The _system workspace is protected";
+        const displayCode = getWorkspaceDisplayCode(row.original);
+        const protectedReason = `The ${SYSTEM_WORKSPACE_LABEL} workspace is protected`;
 
         return (
           <div className="flex items-center justify-end gap-1">
@@ -264,7 +275,7 @@ export function WorkspacesContent() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    aria-label={`Edit workspace ${row.original.code}`}
+                    aria-label={`Edit workspace ${displayCode}`}
                     disabled={isProtected}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -289,7 +300,7 @@ export function WorkspacesContent() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-destructive"
-                    aria-label={`Delete workspace ${row.original.code}`}
+                    aria-label={`Delete workspace ${displayCode}`}
                     disabled={isProtected}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -315,7 +326,7 @@ export function WorkspacesContent() {
       <EmptyState
         icon={Layers}
         title="Not available"
-        description="Workspace management is only available from the _system workspace."
+        description={`Workspace management is only available from the ${SYSTEM_WORKSPACE_LABEL} workspace.`}
       />
     );
   }
@@ -532,7 +543,7 @@ function CreateWorkspaceDialog({
     <FormDialog
       trigger={<span className="hidden" />}
       title="Create Workspace"
-      description="Create a regular workspace for this tenant. The _system workspace remains protected."
+      description={`Create a regular workspace for this tenant. The ${SYSTEM_WORKSPACE_LABEL} workspace remains protected.`}
       submitLabel="Create Workspace"
       loadingLabel="Creating..."
       submitIcon={<Plus className="h-4 w-4" />}
