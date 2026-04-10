@@ -17,10 +17,14 @@ test("system sidebar exposes templates and injectors", () => {
 });
 
 test("user-facing workspace UI uses display helpers instead of raw _system labels", () => {
+  const helper = read("web/src/lib/system-workspace-display.ts");
   const switcher = read("web/src/components/shared/scope-switcher.tsx");
   const workspaces = read("web/src/components/workspaces/workspaces-content.tsx");
   const indicator = read("web/src/components/shared/scope-indicator.tsx");
+  const dashboard = read("web/src/components/dashboard/dashboard-content.tsx");
+  const members = read("web/src/components/members/members-content.tsx");
 
+  assert.match(helper, /SYSTEM_WORKSPACE_LABEL = "Default"/, "System workspace presentation label must be Default");
   assert.match(switcher, /getWorkspaceDisplay(Name|Code)/, "Scope switcher must use workspace display helpers");
   assert.match(workspaces, /getWorkspaceDisplayName/, "Workspace table must use display name helper");
   assert.match(workspaces, /getWorkspaceDisplayCode/, "Workspace table must use display code helper");
@@ -28,4 +32,6 @@ test("user-facing workspace UI uses display helpers instead of raw _system label
   assert.doesNotMatch(workspaces, /aria-label={`Edit workspace \$\{row\.original\.code\}`}/, "Workspace edit aria-label must not expose raw technical code");
   assert.doesNotMatch(workspaces, /aria-label={`Delete workspace \$\{row\.original\.code\}`}/, "Workspace delete aria-label must not expose raw technical code");
   assert.match(indicator, /SYSTEM_WORKSPACE_LABEL/, "Scope indicator must not expose raw _system label");
+  assert.match(dashboard, /SYSTEM_WORKSPACE_(LABEL|SCOPE_LABEL)|getWorkspaceDisplay/, "Dashboard scope summary must use system workspace display helpers");
+  assert.match(members, /SYSTEM_WORKSPACE_(LABEL|SCOPE_LABEL)|getWorkspaceDisplay/, "Members UI must not build labels from raw workspace code for the system workspace");
 });

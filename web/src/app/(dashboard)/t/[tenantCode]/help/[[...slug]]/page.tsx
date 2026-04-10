@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTenantSystemPath } from "@/lib/system-workspace-display";
 
 export default async function TenantHelpPage({
   params,
@@ -7,5 +8,5 @@ export default async function TenantHelpPage({
 }) {
   const { tenantCode, slug } = await params;
   const helpPath = slug?.length ? `/${slug.join("/")}` : "";
-  redirect(`/t/${tenantCode}/w/_system/help${helpPath}`);
+  redirect(getTenantSystemPath(tenantCode, `/help${helpPath}`));
 }

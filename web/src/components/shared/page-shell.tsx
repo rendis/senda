@@ -9,10 +9,17 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { emitOpenScopeSwitcher } from "@/lib/scope-switcher-events";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import { Fragment } from "react";
 
-/** Pattern: /t/{tenantCode}/w/_system */
-const TENANT_BREADCRUMB_RE = /^\/t\/([^/]+)\/w\/_system$/;
+function escapeRegExp(input: string) {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Pattern: /t/{tenantCode}/w/{SYSTEM_WORKSPACE_CODE} */
+const TENANT_BREADCRUMB_RE = new RegExp(
+  `^/t/([^/]+)/w/${escapeRegExp(SYSTEM_WORKSPACE_CODE)}$`,
+);
 
 interface BreadcrumbItemDef {
   label: string;

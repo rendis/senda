@@ -187,6 +187,7 @@
   },
   "scopeSwitcher": {
     "globalScope": "Global",
+    "defaultScope": "Default",
     "searchTenants": "Buscar tenants...",
     "searchWorkspaces": "Buscar workspaces...",
     "noTenantsFound": "No se encontraron tenants",

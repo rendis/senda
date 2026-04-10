@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { SettingsContent } from "@/components/settings/settings-content";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { getTenantSystemPath, getWorkspaceDisplayCode } from "@/lib/system-workspace-display";
 
 export default async function WorkspaceSettingsPage({
   params,
@@ -14,8 +15,8 @@ export default async function WorkspaceSettingsPage({
     <PageShell
       title="Settings"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        ...(isSystem ? [] : [{ label: workspaceCode }]),
+        { label: tenantCode, href: getTenantSystemPath(tenantCode) },
+        ...(isSystem ? [] : [{ label: getWorkspaceDisplayCode({ code: workspaceCode }) }]),
         { label: "Settings" },
       ]}
     >

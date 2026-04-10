@@ -29,7 +29,6 @@ import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 import { useOnScopeSwitcherOpen } from "@/lib/scope-switcher-events";
 import { SYSTEM_WORKSPACE_CODE, type Tenant, type Workspace } from "@/types/api";
 import {
-  SYSTEM_WORKSPACE_LABEL,
   getWorkspaceDisplayCode,
   getWorkspaceDisplayName,
 } from "@/lib/system-workspace-display";
@@ -89,8 +88,8 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
     level === "global"
       ? tScope("globalScope")
       : isSystemWorkspace
-        ? SYSTEM_WORKSPACE_LABEL
-        : workspaceCode ?? "Workspace";
+        ? tScope("defaultScope")
+        : getWorkspaceDisplayCode({ code: workspaceCode });
 
   const ScopeIcon =
     level === "global"

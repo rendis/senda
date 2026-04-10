@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTenantSystemPath } from "@/lib/system-workspace-display";
 
 export default async function TenantEmailDetailPage({
   params,
@@ -6,5 +7,5 @@ export default async function TenantEmailDetailPage({
   params: Promise<{ tenantCode: string; trackingId: string }>;
 }) {
   const { tenantCode, trackingId } = await params;
-  redirect(`/t/${tenantCode}/w/_system/emails/${trackingId}`);
+  redirect(getTenantSystemPath(tenantCode, `/emails/${trackingId}`));
 }

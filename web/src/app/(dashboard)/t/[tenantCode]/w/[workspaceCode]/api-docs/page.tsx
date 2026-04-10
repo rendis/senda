@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { getTenantSystemPath, getWorkspaceDisplayCode } from "@/lib/system-workspace-display";
 
 export default async function WorkspaceApiDocsPage({
   params,
@@ -16,8 +17,10 @@ export default async function WorkspaceApiDocsPage({
       title="API Docs"
       description="Reference for services using workspace API Keys"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        ...(isSystem ? [] : [{ label: workspaceCode, href: `/t/${tenantCode}/w/${workspaceCode}` }]),
+        { label: tenantCode, href: getTenantSystemPath(tenantCode) },
+        ...(isSystem
+          ? []
+          : [{ label: getWorkspaceDisplayCode({ code: workspaceCode }), href: `/t/${tenantCode}/w/${workspaceCode}` }]),
         { label: "API Docs" },
       ]}
     >

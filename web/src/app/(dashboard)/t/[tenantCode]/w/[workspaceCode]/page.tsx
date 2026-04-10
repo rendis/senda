@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { getTenantSystemPath, getWorkspaceDisplayCode } from "@/lib/system-workspace-display";
 
 export default async function WorkspaceDashboardPage({
   params,
@@ -13,10 +14,10 @@ export default async function WorkspaceDashboardPage({
   return (
     <PageShell
       title="Dashboard"
-      description={`Workspace: ${workspaceCode}`}
+      description={`Workspace: ${getWorkspaceDisplayCode({ code: workspaceCode })}`}
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        ...(isSystem ? [] : [{ label: workspaceCode }]),
+        { label: tenantCode, href: getTenantSystemPath(tenantCode) },
+        ...(isSystem ? [] : [{ label: getWorkspaceDisplayCode({ code: workspaceCode }) }]),
         { label: "Dashboard" },
       ]}
     >
