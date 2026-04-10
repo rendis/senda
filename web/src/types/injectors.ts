@@ -19,6 +19,8 @@ export interface InjectorDefinition {
   id: string;
   workspace_id?: string;
   name: string;
+  source?: "database" | "code";
+  static?: boolean;
   description?: string;
   fields: InjectorField[];
   owner_scope?: OwnerScope;

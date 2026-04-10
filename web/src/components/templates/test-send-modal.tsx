@@ -17,6 +17,7 @@ import { useInjectorList } from "@/hooks/use-injectors";
 import type { InjectorDefinition, InjectorField, InjectorFieldType } from "@/types/injectors";
 import { toast } from "sonner";
 import { getTestSendScrollableBodyClassName } from "./test-send-modal-layout";
+import { TEST_SEND_INJECTOR_HELPER_TEXT } from "./test-send-modal-copy";
 import {
   type TemplateInjectorUsage,
 } from "./test-send-injector-usage";
@@ -65,6 +66,13 @@ export function TestSendModal({
   });
   const injectorItems = useMemo(
     () => resolveVisibleTestSendInjectors(injectorList.data?.items ?? [], allowedInjectorUsage),
+    [allowedInjectorUsage, injectorList.data],
+  );
+  const hasCatalogInjectors = useMemo(
+    () =>
+      (injectorList.data?.items ?? []).some((injector) =>
+        Object.prototype.hasOwnProperty.call(allowedInjectorUsage, injector.name)
+      ),
     [allowedInjectorUsage, injectorList.data],
   );
   const activeInjectorState = injectorState ?? buildInitialInjectorState(injectorItems);
@@ -180,8 +188,7 @@ export function TestSendModal({
                 <div className="flex flex-col gap-1">
                   <Label>Injectors</Label>
                   <p className="text-xs text-muted-foreground">
-                    Leave overwriteable fields untouched to keep the runtime fallback. Locked fields
-                    always use their default value.
+                    {TEST_SEND_INJECTOR_HELPER_TEXT}
                   </p>
                 </div>
               </div>
@@ -273,7 +280,9 @@ export function TestSendModal({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  This template references injectors that are not available in this scope.
+                  {hasCatalogInjectors
+                    ? "This template only uses static injectors. The backend resolves them automatically for preview and test send."
+                    : "This template references injectors that are not available in this scope."}
                 </p>
               )}
             </div>

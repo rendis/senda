@@ -206,6 +206,7 @@ func TestTestSendService_ResolvesInjectorsWithRequestCodeAndDefaultPrecedence(t 
 	injectorMerger := resolution.NewInjectorMerger(
 		injectorStore,
 		chainResolver,
+		nil,
 		[]port.CodeInjector{
 			fixedCodeInjectorTestSend{
 				code: "student",
@@ -383,6 +384,7 @@ func TestTestSendService_ResolvesGlobalInjectorsWithRequestAndDefaultPrecedence(
 
 	injectorMerger := resolution.NewInjectorMerger(
 		injectorStore,
+		nil,
 		nil,
 		nil,
 		nil,

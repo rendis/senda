@@ -22,6 +22,32 @@ type mockInjectorStore struct {
 	getValuesFn func(ctx context.Context, defID uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error)
 }
 
+type staticCodeInjector struct {
+	code   string
+	fields []port.InjectorFieldSpec
+	values func(ctx context.Context, injCtx *port.InjectorContext) (map[string]any, error)
+}
+
+func (s staticCodeInjector) Code() string { return s.code }
+
+func (s staticCodeInjector) Resolve() (port.CodeResolveFunc, []string) {
+	return s.values, nil
+}
+
+func (s staticCodeInjector) IsCritical() bool       { return true }
+func (s staticCodeInjector) Timeout() time.Duration { return 0 }
+
+func (s staticCodeInjector) Catalog() port.InjectorCatalog {
+	return port.InjectorCatalog{
+		Code:        s.code,
+		Name:        s.code,
+		Description: "static code injector",
+		Static:      true,
+		TTL:         time.Minute,
+		Fields:      s.fields,
+	}
+}
+
 func (m *mockInjectorStore) CreateDefinition(_ context.Context, _ *domain.InjectorDefinition) error {
 	return nil
 }
@@ -138,7 +164,7 @@ func TestInjectorMerger_IncludesSystemDefinitionsAsFallback(t *testing.T) {
 		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -180,7 +206,7 @@ func TestInjectorMerger_UsesFieldDefaultOnlyWhenNoValueExists(t *testing.T) {
 
 	chain := &resolution.ResolutionChain{WorkspaceID: wsID, Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}}}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -217,7 +243,7 @@ func TestInjectorMerger_UsesMultipleFieldDefaults(t *testing.T) {
 
 	chain := &resolution.ResolutionChain{WorkspaceID: wsID, Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}}}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -259,7 +285,7 @@ func TestInjectorMerger_FieldWithNilDefault(t *testing.T) {
 
 	chain := &resolution.ResolutionChain{WorkspaceID: wsID, Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}}}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -309,7 +335,7 @@ func TestInjectorMerger_MultipleDefinitions(t *testing.T) {
 
 	chain := &resolution.ResolutionChain{WorkspaceID: wsID, Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}}}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -361,7 +387,7 @@ func TestInjectorMerger_DuplicateDefNames_WorkspaceWins(t *testing.T) {
 		Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -411,7 +437,7 @@ func TestInjectorMerger_UsesSystemInheritedValueBeforeFieldDefault(t *testing.T)
 		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -439,7 +465,7 @@ func TestInjectorMerger_StoreError(t *testing.T) {
 		WorkspaceID: wsID,
 		Scopes:      []uuid.NullUUID{{UUID: wsID, Valid: true}},
 	}, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	_, err := merger.Resolve(context.Background(), wsID)
 	if err == nil {
@@ -500,7 +526,7 @@ func TestResolveWithContext_CodeInjectorsOnly(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -535,7 +561,7 @@ func TestResolveWithContext_InitFunc(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, initFunc)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{inj}, initFunc)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -558,7 +584,7 @@ func TestResolveWithContext_NonCriticalSkipped(t *testing.T) {
 	okInj := &stubCodeInjector{code: "stable", fields: map[string]any{"ok": true}}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{failInj, okInj}, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{failInj, okInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -583,7 +609,7 @@ func TestResolveWithContext_CriticalAborts(t *testing.T) {
 	criticalInj := &stubCodeInjector{code: "must_work", critical: true, err: errors.New("db down")}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{criticalInj}, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{criticalInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -605,7 +631,7 @@ func TestResolveWithContext_DependencyOrder(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	// Register child BEFORE parent to test dependency resolution.
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{childInj, parentInj}, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{childInj, parentInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -668,7 +694,7 @@ func TestResolveWithContext_CodeOverridesDB(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -715,7 +741,7 @@ func TestResolveWithContext_MixedDBAndCode(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -758,7 +784,7 @@ func TestResolveWithContext_NoCodeInjectors_SameAsResolve(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	// No code injectors.
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	resultCtx, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -784,13 +810,13 @@ func TestHasCodeInjectors(t *testing.T) {
 	cr := newTestChainResolver(chain, nil)
 
 	// Without code injectors.
-	m1 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, nil)
+	m1 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, nil, nil)
 	if m1.HasCodeInjectors() {
 		t.Error("HasCodeInjectors should be false when no injectors/initFunc")
 	}
 
 	// With code injectors.
-	m2 := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{
+	m2 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{
 		&stubCodeInjector{code: "x", fields: map[string]any{}},
 	}, nil)
 	if !m2.HasCodeInjectors() {
@@ -798,7 +824,7 @@ func TestHasCodeInjectors(t *testing.T) {
 	}
 
 	// With only initFunc.
-	m3 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, func(_ context.Context, _ *port.InjectorContext) (any, error) {
+	m3 := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, nil, func(_ context.Context, _ *port.InjectorContext) (any, error) {
 		return nil, nil
 	})
 	if !m3.HasCodeInjectors() {
@@ -820,7 +846,7 @@ func TestResolveWithContext_InitFuncError(t *testing.T) {
 	inj := &stubCodeInjector{code: "x", fields: map[string]any{"v": 1}}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, failInit)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{inj}, failInit)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -875,7 +901,7 @@ func TestResolveWithContext_DepOnDBInjector(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -901,7 +927,7 @@ func TestResolveWithContext_DuplicateCodeInjectorCodes(t *testing.T) {
 	second := &stubCodeInjector{code: "dup", fields: map[string]any{"v": "second"}}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{first, second}, nil)
+	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, nil, []port.CodeInjector{first, second}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
@@ -953,7 +979,7 @@ func TestResolveWithContext_RequestInjectorsOverrideCodeAndDefault(t *testing.T)
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 	injCtx.SetRequestInjectors(map[string]map[string]any{
 		"student": {"name": "Request Student"},
@@ -1010,7 +1036,7 @@ func TestResolveWithContext_LockedFieldAlwaysUsesDefault(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, []port.CodeInjector{codeInj}, nil)
 	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 	injCtx.SetRequestInjectors(map[string]map[string]any{
 		"student": {"name": "Request Student"},
@@ -1077,7 +1103,7 @@ func TestResolve_UsesDefinitionsAcrossWorkspaceAndSystemChain(t *testing.T) {
 	}
 
 	cr := newTestChainResolver(chain, nil)
-	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
+	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil, nil)
 
 	result, err := merger.Resolve(context.Background(), wsID)
 	if err != nil {
@@ -1089,5 +1115,254 @@ func TestResolve_UsesDefinitionsAcrossWorkspaceAndSystemChain(t *testing.T) {
 	}
 	if got := result["workspace_only"]["name"]; got != "Workspace" {
 		t.Fatalf("workspace_only.name = %v, want Workspace", got)
+	}
+}
+
+func TestInjectorMerger_ResolveStaticPreview_ResolvesOnlyLockedAndStaticCode(t *testing.T) {
+	defID := uuid.New()
+	wsID := uuid.New()
+
+	injStore := &mockInjectorStore{
+		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{
+				{ID: defID, WorkspaceID: &wsID, Name: "brand"},
+			}, nil
+		},
+		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
+			return []*domain.InjectorField{
+				{
+					ID:                   uuid.New(),
+					InjectorDefinitionID: defID,
+					FieldName:            "locked_html",
+					FieldType:            domain.FieldTypeHTML,
+					Position:             0,
+					DefaultValue:         "<strong>Locked</strong>",
+					AllowOverwrite:       false,
+				},
+				{
+					ID:                   uuid.New(),
+					InjectorDefinitionID: defID,
+					FieldName:            "editable_name",
+					FieldType:            domain.FieldTypeText,
+					Position:             1,
+					DefaultValue:         "Visible token",
+					AllowOverwrite:       true,
+				},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			return nil, nil
+		},
+	}
+
+	chain := &resolution.ResolutionChain{WorkspaceID: wsID, Scopes: []uuid.NullUUID{{UUID: wsID, Valid: true}}}
+	cr := newTestChainResolver(chain, nil)
+	merger := resolution.NewInjectorMerger(
+		injStore,
+		cr,
+		nil,
+		[]port.CodeInjector{
+			staticCodeInjector{
+				code: "school",
+				fields: []port.InjectorFieldSpec{
+					{Name: "name", Type: domain.FieldTypeText, Description: "School name"},
+				},
+				values: func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+					return map[string]any{"name": "Acme Academy"}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	injCtx := port.NewInjectorContext(nil, "", nil, uuid.New(), wsID, domain.EnvironmentProd, "welcome")
+	result, err := merger.ResolveStaticPreview(context.Background(), &wsID, injCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := result["brand"]["locked_html"]; got != "<strong>Locked</strong>" {
+		t.Fatalf("expected locked field in preview, got %#v", got)
+	}
+	if _, ok := result["brand"]["editable_name"]; ok {
+		t.Fatal("expected editable field to remain unresolved in preview")
+	}
+	if got := result["school"]["name"]; got != "Acme Academy" {
+		t.Fatalf("expected static code injector in preview, got %#v", got)
+	}
+}
+
+func TestInjectorMerger_StaticCatalog_CachesStaticCodeInjectorByWorkspace(t *testing.T) {
+	wsID := uuid.New()
+	tenantID := uuid.New()
+	cache := newMockCache()
+	calls := 0
+
+	merger := resolution.NewInjectorMerger(
+		&mockInjectorStore{
+			listDefsFn:  func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) { return nil, nil },
+			getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) { return nil, nil },
+			getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+				return nil, nil
+			},
+		},
+		nil,
+		cache,
+		[]port.CodeInjector{
+			staticCodeInjector{
+				code: "school",
+				fields: []port.InjectorFieldSpec{
+					{Name: "name", Type: domain.FieldTypeText},
+				},
+				values: func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+					calls++
+					return map[string]any{"name": "Acme Academy"}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	workspace := &domain.Workspace{
+		ID:          wsID,
+		TenantID:    tenantID,
+		Code:        "default",
+		Name:        "Default",
+		Environment: domain.EnvironmentProd,
+	}
+
+	for range 2 {
+		defs, fieldsByDefinition, err := merger.StaticCatalog(context.Background(), workspace, "welcome")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(defs) != 1 {
+			t.Fatalf("expected one static definition, got %d", len(defs))
+		}
+		fields := fieldsByDefinition[defs[0].ID]
+		if len(fields) != 1 || fields[0].DefaultValue != "Acme Academy" {
+			t.Fatalf("expected cached field default, got %+v", fields)
+		}
+	}
+
+	if calls != 1 {
+		t.Fatalf("expected static injector resolver to run once thanks to cache, got %d", calls)
+	}
+	if cache.setCall != 1 {
+		t.Fatalf("expected one cache write, got %d", cache.setCall)
+	}
+}
+
+func TestInjectorMerger_StaticCatalog_PassesWorkspaceRefToStaticCodeInjectors(t *testing.T) {
+	wsID := uuid.New()
+	tenantID := uuid.New()
+
+	merger := resolution.NewInjectorMerger(
+		&mockInjectorStore{
+			listDefsFn:  func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) { return nil, nil },
+			getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) { return nil, nil },
+			getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+				return nil, nil
+			},
+		},
+		nil,
+		nil,
+		[]port.CodeInjector{
+			staticCodeInjector{
+				code: "workspace_profile",
+				fields: []port.InjectorFieldSpec{
+					{Name: "workspace_code", Type: domain.FieldTypeText},
+				},
+				values: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+					parts := strings.Split(injCtx.Ref(), ":")
+					workspaceCode := "unknown-workspace"
+					if len(parts) >= 2 && strings.TrimSpace(parts[1]) != "" {
+						workspaceCode = strings.TrimSpace(parts[1])
+					}
+					return map[string]any{"workspace_code": workspaceCode}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	workspace := &domain.Workspace{
+		ID:          wsID,
+		TenantID:    tenantID,
+		Code:        "default",
+		Name:        "Default",
+		Environment: domain.EnvironmentProd,
+	}
+
+	defs, fieldsByDefinition, err := merger.StaticCatalog(context.Background(), workspace, "welcome")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	fields := fieldsByDefinition[defs[0].ID]
+	if len(fields) != 1 {
+		t.Fatalf("expected one static field, got %d", len(fields))
+	}
+	if got := fields[0].DefaultValue; got != "default" {
+		t.Fatalf("expected workspace-aware ref to resolve default workspace code, got %#v", got)
+	}
+}
+
+func TestInjectorMerger_StaticCatalog_CacheVariesByTemplateType(t *testing.T) {
+	wsID := uuid.New()
+	tenantID := uuid.New()
+	cache := newMockCache()
+	calls := 0
+
+	merger := resolution.NewInjectorMerger(
+		&mockInjectorStore{
+			listDefsFn:  func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) { return nil, nil },
+			getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) { return nil, nil },
+			getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+				return nil, nil
+			},
+		},
+		nil,
+		cache,
+		[]port.CodeInjector{
+			staticCodeInjector{
+				code: "workspace_profile",
+				fields: []port.InjectorFieldSpec{
+					{Name: "template_type", Type: domain.FieldTypeText},
+				},
+				values: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+					calls++
+					return map[string]any{"template_type": injCtx.TemplateType()}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	workspace := &domain.Workspace{
+		ID:          wsID,
+		TenantID:    tenantID,
+		Code:        "default",
+		Name:        "Default",
+		Environment: domain.EnvironmentProd,
+	}
+
+	defs, fieldsByDefinition, err := merger.StaticCatalog(context.Background(), workspace, "welcome")
+	if err != nil {
+		t.Fatalf("unexpected error resolving first catalog: %v", err)
+	}
+	if got := fieldsByDefinition[defs[0].ID][0].DefaultValue; got != "welcome" {
+		t.Fatalf("expected first template type to resolve as welcome, got %#v", got)
+	}
+
+	defs, fieldsByDefinition, err = merger.StaticCatalog(context.Background(), workspace, "receipt")
+	if err != nil {
+		t.Fatalf("unexpected error resolving second catalog: %v", err)
+	}
+	if got := fieldsByDefinition[defs[0].ID][0].DefaultValue; got != "receipt" {
+		t.Fatalf("expected second template type to bypass stale cache, got %#v", got)
+	}
+	if calls != 2 {
+		t.Fatalf("expected resolver to run once per template type, got %d calls", calls)
 	}
 }

@@ -12,13 +12,14 @@ import (
 	"github.com/rendis/senda/config"
 	"github.com/rendis/senda/internal/app"
 	"github.com/rendis/senda/internal/metrics"
+	"github.com/rendis/senda/internal/port"
 )
 
 // Engine is the main entry point for running Senda as a library.
 // Create one with New or NewWithConfig, register extensions, then call Run.
 type Engine struct {
 	configPath                 string
-	injectors                  []Injector
+	injectors                  []InjectorRegistration
 	initFunc                   InitFunc
 	externalAuthMethods        []ExternalAuthMethod
 	externalWorkspaceResolvers []ExternalWorkspaceResolver
@@ -36,9 +37,12 @@ func NewWithConfig(configPath string) *Engine {
 	return &Engine{configPath: configPath}
 }
 
-// RegisterInjector adds a custom code injector. Each must have a unique Code().
-func (e *Engine) RegisterInjector(inj Injector) *Engine {
-	e.injectors = append(e.injectors, inj)
+// RegisterInjector adds a custom injector registration. Static registrations
+// are catalogable and read-only in the UI; dynamic registrations remain
+// runtime-only.
+func (e *Engine) RegisterInjector(reg InjectorRegistration) *Engine {
+	validateInjectorRegistration(reg)
+	e.injectors = append(e.injectors, reg)
 	return e
 }
 
@@ -140,11 +144,58 @@ func (e *Engine) buildExtensions() *app.Extensions {
 	if len(e.injectors) == 0 && e.initFunc == nil && len(e.externalAuthMethods) == 0 && len(e.externalWorkspaceResolvers) == 0 {
 		return nil
 	}
+	injectors := make([]port.CodeInjector, 0, len(e.injectors))
+	for _, reg := range e.injectors {
+		injectors = append(injectors, registeredInjector{registration: reg})
+	}
 	return &app.Extensions{
-		Injectors:                  e.injectors,
+		Injectors:                  injectors,
 		InitFunc:                   e.initFunc,
 		ExternalAuthMethods:        e.externalAuthMethods,
 		ExternalWorkspaceResolvers: e.externalWorkspaceResolvers,
+	}
+}
+
+type registeredInjector struct {
+	registration InjectorRegistration
+}
+
+func (r registeredInjector) displayName() string {
+	if r.registration.Name != "" {
+		return r.registration.Name
+	}
+	return r.registration.Code
+}
+func (r registeredInjector) Code() string { return r.registration.Code }
+
+func (r registeredInjector) Resolve() (port.CodeResolveFunc, []string) {
+	return r.registration.Resolve, r.registration.Dependencies
+}
+
+func (r registeredInjector) IsCritical() bool { return r.registration.Critical }
+
+func (r registeredInjector) Timeout() time.Duration { return r.registration.Timeout }
+
+func (r registeredInjector) Catalog() port.InjectorCatalog {
+	return port.InjectorCatalog{
+		Code:        r.registration.Code,
+		Name:        r.displayName(),
+		Description: r.registration.Description,
+		Static:      r.registration.Static,
+		TTL:         r.registration.TTL,
+		Fields:      r.registration.Fields,
+	}
+}
+
+func validateInjectorRegistration(reg InjectorRegistration) {
+	if reg.Code == "" {
+		panic("sdk: injector registration requires Code")
+	}
+	if reg.Resolve == nil {
+		panic("sdk: injector registration requires Resolve")
+	}
+	if reg.Static && len(reg.Fields) == 0 {
+		panic("sdk: static injector registration requires at least one field")
 	}
 }
 

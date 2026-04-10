@@ -32,7 +32,7 @@ export function resolveVisibleTestSendInjectors(
     }
 
     const filteredFields = (injector.fields ?? []).filter((field) =>
-      allowedFields.includes(field.field_name),
+      allowedFields.includes(field.field_name) && field.allow_overwrite,
     );
     if (!filteredFields.length) {
       return acc;

@@ -9,47 +9,44 @@ import (
 	"github.com/rendis/senda/sdk"
 )
 
-// testInjector is a minimal Injector implementation for compile verification.
-type testInjector struct{}
-
-func (t *testInjector) Code() string { return "test_inj" }
-func (t *testInjector) Resolve() (sdk.ResolveFunc, []string) {
-	return func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
-		return map[string]any{
-			"greeting": "Hello from code injector!",
-			"source":   injCtx.Header("X-Source"),
-		}, nil
-	}, nil
+func testInjectorRegistration() sdk.InjectorRegistration {
+	return sdk.InjectorRegistration{
+		Code: "test_inj",
+		Resolve: func(_ context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
+			return map[string]any{
+				"greeting": "Hello from code injector!",
+				"source":   injCtx.Header("X-Source"),
+			}, nil
+		},
+		Timeout: 5 * time.Second,
+	}
 }
-func (t *testInjector) IsCritical() bool        { return false }
-func (t *testInjector) Timeout() time.Duration   { return 5 * time.Second }
 
-// testDependentInjector depends on testInjector.
-type testDependentInjector struct{}
-
-func (t *testDependentInjector) Code() string { return "dependent" }
-func (t *testDependentInjector) Resolve() (sdk.ResolveFunc, []string) {
-	return func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
-		parent, _ := injCtx.GetResolved("test_inj")
-		greeting := ""
-		if parent != nil {
-			if g, ok := parent["greeting"].(string); ok {
-				greeting = g
+func dependentInjectorRegistration() sdk.InjectorRegistration {
+	return sdk.InjectorRegistration{
+		Code: "dependent",
+		Resolve: func(_ context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
+			parent, _ := injCtx.GetResolved("test_inj")
+			greeting := ""
+			if parent != nil {
+				if g, ok := parent["greeting"].(string); ok {
+					greeting = g
+				}
 			}
-		}
-		return map[string]any{
-			"derived": greeting + " (extended)",
-		}, nil
-	}, []string{"test_inj"}
+			return map[string]any{
+				"derived": greeting + " (extended)",
+			}, nil
+		},
+		Dependencies: []string{"test_inj"},
+		Critical:     true,
+	}
 }
-func (t *testDependentInjector) IsCritical() bool        { return true }
-func (t *testDependentInjector) Timeout() time.Duration   { return 0 }
 
 func TestEngineRegistration(t *testing.T) {
 	engine := sdk.New()
 
-	engine.RegisterInjector(&testInjector{})
-	engine.RegisterInjector(&testDependentInjector{})
+	engine.RegisterInjector(testInjectorRegistration())
+	engine.RegisterInjector(dependentInjectorRegistration())
 
 	engine.SetInitFunc(func(ctx context.Context, injCtx *sdk.InjectorContext) (any, error) {
 		return map[string]string{"loaded": "true"}, nil
@@ -79,9 +76,8 @@ func TestEngineRegistration(t *testing.T) {
 func TestEngineFluentAPI(t *testing.T) {
 	engine := sdk.New()
 
-	// Every method should return the same *Engine for chaining.
 	got := engine.
-		RegisterInjector(&testInjector{}).
+		RegisterInjector(testInjectorRegistration()).
 		SetInitFunc(func(_ context.Context, _ *sdk.InjectorContext) (any, error) { return nil, nil }).
 		OnStart(func(_ context.Context) error { return nil }).
 		OnShutdown(func(_ context.Context) error { return nil })
@@ -94,7 +90,6 @@ func TestEngineFluentAPI(t *testing.T) {
 func TestInjectorContext_NilHeaders(t *testing.T) {
 	ctx := sdk.NewInjectorContext(nil, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
 
-	// Should not panic.
 	if got := ctx.Header("X-Anything"); got != "" {
 		t.Errorf("Header on nil headers = %q, want empty", got)
 	}
@@ -109,12 +104,10 @@ func TestInjectorContext_HeadersCopy(t *testing.T) {
 	original := map[string]string{"Key": "value"}
 	ctx := sdk.NewInjectorContext(original, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
 
-	// Modify the returned copy.
 	copy := ctx.Headers()
 	copy["Key"] = "mutated"
 	copy["New"] = "injected"
 
-	// Original should be unchanged.
 	if ctx.Header("Key") != "value" {
 		t.Error("Headers() should return a copy, not a reference")
 	}
@@ -135,7 +128,7 @@ func TestInjectorContext_Concurrency(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		ctx.GetResolved("writer")
 		_ = ctx.InitData()
 		_ = ctx.AllResolved()
@@ -173,23 +166,19 @@ func TestInjectorContext(t *testing.T) {
 		t.Errorf("Environment() = %q, want %q", got, domain.EnvironmentProd)
 	}
 
-	// InitData starts nil.
 	if ctx.InitData() != nil {
 		t.Error("InitData() should be nil initially")
 	}
 
-	// Set and retrieve init data.
 	ctx.SetInitData("my-data")
 	if ctx.InitData() != "my-data" {
 		t.Errorf("InitData() = %v, want %q", ctx.InitData(), "my-data")
 	}
 
-	// Resolved starts empty.
 	if _, ok := ctx.GetResolved("test"); ok {
 		t.Error("GetResolved should return false for unset code")
 	}
 
-	// Set and retrieve resolved.
 	ctx.SetResolved("brand", map[string]any{"name": "Acme"})
 	fields, ok := ctx.GetResolved("brand")
 	if !ok {
@@ -199,7 +188,6 @@ func TestInjectorContext(t *testing.T) {
 		t.Errorf("GetResolved(brand)[name] = %v, want %q", fields["name"], "Acme")
 	}
 
-	// MergeDBInjectors.
 	ctx.MergeDBInjectors(map[string]map[string]any{
 		"company": {"logo": "https://logo.png"},
 	})

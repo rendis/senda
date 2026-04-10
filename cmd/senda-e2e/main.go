@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	httpmw "github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/sdk"
@@ -21,7 +20,9 @@ func main() {
 	engine := sdk.NewWithConfig(cfgPath)
 	if os.Getenv("SENDA_E2E_ENABLE_CODE_INJECTORS") == "true" {
 		slog.Info("registering e2e code injectors")
-		engine.RegisterInjector(e2eStudentInjector{})
+		for _, reg := range demoCodeInjectors() {
+			engine.RegisterInjector(reg)
+		}
 	} else {
 		slog.Warn("e2e code injectors disabled")
 	}
@@ -40,25 +41,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-type e2eStudentInjector struct{}
-
-func (e2eStudentInjector) Code() string { return "student" }
-
-func (e2eStudentInjector) Resolve() (sdk.ResolveFunc, []string) {
-	return func(_ context.Context, _ *sdk.InjectorContext) (map[string]any, error) {
-		return map[string]any{
-			"name":   "Code Student",
-			"age":    22,
-			"locked": "CODE-SHOULD-NOT-WIN",
-			"status": "code-status",
-		}, nil
-	}, nil
-}
-
-func (e2eStudentInjector) IsCritical() bool { return true }
-
-func (e2eStudentInjector) Timeout() time.Duration { return 0 }
 
 type e2eExternalAuthMethod struct {
 	token string

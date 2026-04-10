@@ -25778,6 +25778,12 @@ const docTemplate = `{
                 "owner_scope": {
                     "type": "string"
                 },
+                "source": {
+                    "type": "string"
+                },
+                "static": {
+                    "type": "boolean"
+                },
                 "updated_at": {
                     "type": "string"
                 },

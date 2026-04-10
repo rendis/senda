@@ -16,6 +16,7 @@ import (
 	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
 )
 
 // --- Mock InjectorStore ---
@@ -104,12 +105,16 @@ func (m *mockInjectorStore) GetAllValuesByDefinitions(_ context.Context, _ []uui
 // --- Helpers ---
 
 func setupInjectorTest(is port.InjectorStore, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.InjectorHandler) {
+	return setupInjectorTestWithMerger(is, ts, ws, nil)
+}
+
+func setupInjectorTestWithMerger(is port.InjectorStore, ts port.TenantStore, ws port.WorkspaceStore, merger *resolution.InjectorMerger) (*echo.Echo, *handler.InjectorHandler) {
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Scope())
 
-	h := handler.NewInjectorHandler(is, ts, ws)
+	h := handler.NewInjectorHandler(is, ts, ws, merger)
 
 	// Workspace-scoped routes.
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/injectors", h.Create)
@@ -127,6 +132,32 @@ func setupInjectorTest(is port.InjectorStore, ts port.TenantStore, ws port.Works
 	e.PUT("/api/v1/manage/global/injectors/:name/fields/:field_name", h.UpdateFieldGlobal)
 
 	return e, h
+}
+
+type staticCatalogInjector struct {
+	code   string
+	fields []port.InjectorFieldSpec
+	values func(ctx context.Context, injCtx *port.InjectorContext) (map[string]any, error)
+}
+
+func (s staticCatalogInjector) Code() string { return s.code }
+
+func (s staticCatalogInjector) Resolve() (port.CodeResolveFunc, []string) {
+	return s.values, nil
+}
+
+func (s staticCatalogInjector) IsCritical() bool       { return true }
+func (s staticCatalogInjector) Timeout() time.Duration { return 0 }
+
+func (s staticCatalogInjector) Catalog() port.InjectorCatalog {
+	return port.InjectorCatalog{
+		Code:        s.code,
+		Name:        "Static " + s.code,
+		Description: "Code-backed static injector",
+		Static:      true,
+		TTL:         time.Minute,
+		Fields:      s.fields,
+	}
 }
 
 func testTenantAndWorkspace() (*domain.Tenant, *domain.Workspace, *mockTenantStore, *mockWorkspaceStore) {
@@ -241,11 +272,81 @@ func TestInjectorHandler_List_Success(t *testing.T) {
 	}
 }
 
+func TestInjectorHandler_List_IncludesStaticCodeInjectors(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	is := &mockInjectorStore{
+		listDefinitionsInChainFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+			return []*domain.InjectorDefinition{}, nil
+		},
+	}
+
+	merger := resolution.NewInjectorMerger(
+		is,
+		nil,
+		nil,
+		[]port.CodeInjector{
+			staticCatalogInjector{
+				code: "school",
+				fields: []port.InjectorFieldSpec{
+					{Name: "footer_html", Type: domain.FieldTypeHTML, Description: "Footer"},
+				},
+				values: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+					return map[string]any{
+						"footer_html": "<strong>" + injCtx.WorkspaceID().String() + "</strong>",
+					}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	e, _ := setupInjectorTestWithMerger(is, ts, wsStore, merger)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/injectors", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.InjectorListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
+	item := resp.Items[0]
+	if item.Name != "school" {
+		t.Fatalf("expected code injector name school, got %q", item.Name)
+	}
+	if item.Source != "code" {
+		t.Fatalf("expected source code, got %q", item.Source)
+	}
+	if !item.Static {
+		t.Fatal("expected static injector response")
+	}
+	if item.OwnerScope != "global" {
+		t.Fatalf("expected owner_scope global, got %q", item.OwnerScope)
+	}
+	if len(item.Fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(item.Fields))
+	}
+	if item.Fields[0].DefaultValue != "<strong>"+ws.ID.String()+"</strong>" {
+		t.Fatalf("expected resolved default value, got %#v", item.Fields[0].DefaultValue)
+	}
+	if item.Fields[0].AllowOverwrite {
+		t.Fatal("expected static code field to be read-only")
+	}
+}
+
 func TestInjectorHandler_List_IncludeInheritedUsesResolutionChain(t *testing.T) {
 	tenant, ws, ts, wsStore := testTenantAndWorkspace()
 	systemID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}
@@ -295,7 +396,7 @@ func TestInjectorHandler_Get_ResolvesInheritedSystemInjectorInWorkspace(t *testi
 	systemID := uuid.Must(uuid.NewV7())
 	defID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}
@@ -360,11 +461,72 @@ wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ dom
 	}
 }
 
+func TestInjectorHandler_Get_StaticCodeInjectorFallback(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	is := &mockInjectorStore{
+		findDefinitionByNameFn: func(_ context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+			if name != "school" {
+				t.Fatalf("unexpected lookup %q", name)
+			}
+			if workspaceID == nil || *workspaceID != ws.ID {
+				t.Fatalf("unexpected workspace lookup %+v", workspaceID)
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	merger := resolution.NewInjectorMerger(
+		is,
+		nil,
+		nil,
+		[]port.CodeInjector{
+			staticCatalogInjector{
+				code: "school",
+				fields: []port.InjectorFieldSpec{
+					{Name: "name", Type: domain.FieldTypeText, Description: "School name"},
+				},
+				values: func(_ context.Context, _ *port.InjectorContext) (map[string]any, error) {
+					return map[string]any{"name": "Acme Academy"}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	e, _ := setupInjectorTestWithMerger(is, ts, wsStore, merger)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/injectors/school", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.InjectorDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Name != "school" {
+		t.Fatalf("expected fallback injector school, got %q", resp.Name)
+	}
+	if resp.Source != "code" {
+		t.Fatalf("expected source code, got %q", resp.Source)
+	}
+	if !resp.Static {
+		t.Fatal("expected fallback injector to be static")
+	}
+	if len(resp.Fields) != 1 || resp.Fields[0].DefaultValue != "Acme Academy" {
+		t.Fatalf("expected resolved static field, got %+v", resp.Fields)
+	}
+}
+
 func TestInjectorHandler_Get_DoesNotFallbackToGlobalInjectorInWorkspace(t *testing.T) {
 	tenant, _, ts, wsStore := testTenantAndWorkspace()
 	systemID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}

@@ -115,7 +115,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	if len(codeInjectors) > 0 || codeInitFunc != nil {
 		logger.Info("registered runtime code injector extensions", "injector_count", len(codeInjectors), "has_init_func", codeInitFunc != nil)
 	}
-	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver, codeInjectors, codeInitFunc)
+	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver, cache, codeInjectors, codeInitFunc)
 	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
 
 	// 7. Email sender (SMTP for dev/E2E, SES for production).
@@ -208,7 +208,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		ClientSecretSet: cfg.OIDC.ClientSecret != "",
 	})
 	externalIntegrationH := handler.NewExternalIntegrationHandler(configRepo, extExternalAuthMethods(ext), extExternalResolvers(ext))
-	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo)
+	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo, injectorMerger)
 	// Tracking auto-provisioner (nil if no tracking base URL) — used for deprovision on adapter delete.
 	provisioningStepRepo := postgres.NewProvisioningStepRepo(pool)
 	var trackingProvisioner *sesadapter.TrackingProvisioner
@@ -237,7 +237,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		tenantRepo,
 		wsRepo,
 	)
-	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc, sendSvc, auditRepo, cfg.Send.BatchMaxItems, cacheInvalidator)
+	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc, sendSvc, auditRepo, cfg.Send.BatchMaxItems, injectorMerger, cacheInvalidator)
 	sendH := handler.NewSendHandler(sendSvc, cfg.Send.BatchMaxItems)
 	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)
 	dataPlaneEmailH := handler.NewDataPlaneEmailHandler(emailRepo)

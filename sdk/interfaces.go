@@ -1,17 +1,45 @@
 package sdk
 
-import "github.com/rendis/senda/internal/port"
+import (
+	"time"
 
-// Injector is the interface users implement to provide custom injectable
-// values. Resolved fields merge with DB injectors and become available
-// in templates as {{ injector.CODE.field }}.
-//
-// See port.CodeInjector for the full method contract.
-type Injector = port.CodeInjector
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
+)
+
+// InjectorFieldType is the public field type enum for injector catalog fields.
+type InjectorFieldType = domain.InjectorFieldType
+
+const (
+	FieldTypeText   = domain.FieldTypeText
+	FieldTypeNumber = domain.FieldTypeNumber
+	FieldTypeBool   = domain.FieldTypeBool
+	FieldTypeImg    = domain.FieldTypeImg
+	FieldTypeURL    = domain.FieldTypeURL
+	FieldTypeHTML   = domain.FieldTypeHTML
+)
 
 // ResolveFunc executes injector logic and returns field-name → value pairs.
 // See port.CodeResolveFunc for the full signature.
 type ResolveFunc = port.CodeResolveFunc
+
+// InjectorFieldSpec describes one field exposed by a catalogable injector.
+type InjectorFieldSpec = port.InjectorFieldSpec
+
+// InjectorRegistration is the single public registration contract for
+// injectors. Static registrations are catalogable and read-only in the UI.
+type InjectorRegistration struct {
+	Code         string
+	Name         string
+	Description  string
+	Static       bool
+	TTL          time.Duration
+	Fields       []InjectorFieldSpec
+	Resolve      ResolveFunc
+	Dependencies []string
+	Critical     bool
+	Timeout      time.Duration
+}
 
 // InitFunc runs once per send request before code injectors.
 // See port.CodeInitFunc for the full signature.

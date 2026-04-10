@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +29,7 @@ type injectorFieldRule struct {
 type InjectorMerger struct {
 	store         port.InjectorStore
 	chainResolver *ChainResolver
+	cache         port.Cache
 	codeInjectors []port.CodeInjector
 	codeInitFunc  port.CodeInitFunc
 }
@@ -36,12 +38,14 @@ type InjectorMerger struct {
 func NewInjectorMerger(
 	store port.InjectorStore,
 	cr *ChainResolver,
+	cache port.Cache,
 	codeInjectors []port.CodeInjector,
 	codeInitFunc port.CodeInitFunc,
 ) *InjectorMerger {
 	return &InjectorMerger{
 		store:         store,
 		chainResolver: cr,
+		cache:         cache,
 		codeInjectors: codeInjectors,
 		codeInitFunc:  codeInitFunc,
 	}
@@ -50,6 +54,128 @@ func NewInjectorMerger(
 // HasCodeInjectors returns true if user-provided code injectors are registered.
 func (m *InjectorMerger) HasCodeInjectors() bool {
 	return len(m.codeInjectors) > 0 || m.codeInitFunc != nil
+}
+
+// StaticCatalog synthesizes UI/catalog injector definitions for static
+// code injectors, optionally resolving their effective values for a workspace.
+func (m *InjectorMerger) StaticCatalog(ctx context.Context, workspace *domain.Workspace, templateType string) ([]*domain.InjectorDefinition, map[uuid.UUID][]*domain.InjectorField, error) {
+	staticInjectors := m.staticCatalogInjectors()
+	if len(staticInjectors) == 0 {
+		return nil, map[uuid.UUID][]*domain.InjectorField{}, nil
+	}
+
+	var (
+		workspaceID  uuid.UUID
+		tenantID     uuid.UUID
+		environment  domain.Environment
+		hasWorkspace bool
+	)
+	if workspace != nil {
+		hasWorkspace = true
+		workspaceID = workspace.ID
+		tenantID = workspace.TenantID
+		environment = workspace.Environment
+	}
+
+	injCtx := port.NewInjectorContext(nil, staticCatalogInjectorRef(workspace, templateType), nil, tenantID, workspaceID, environment, templateType)
+	resolved, err := m.resolveCodeInjectors(ctx, injCtx, func(inj port.CodeInjector) bool {
+		meta, ok := injectorCatalog(inj)
+		return ok && meta.Static
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().UTC()
+	defs := make([]*domain.InjectorDefinition, 0, len(staticInjectors))
+	fieldsByDefinition := make(map[uuid.UUID][]*domain.InjectorField, len(staticInjectors))
+	for _, inj := range staticInjectors {
+		meta, _ := injectorCatalog(inj)
+		defID := syntheticCodeInjectorDefinitionID(meta.Code)
+		description := optionalString(meta.Description)
+		def := &domain.InjectorDefinition{
+			ID:          defID,
+			Name:        meta.Code,
+			Description: description,
+			Source:      "code",
+			Static:      true,
+			OwnerScope:  "global",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		defs = append(defs, def)
+
+		fieldDefs := make([]*domain.InjectorField, 0, len(meta.Fields))
+		for position, field := range meta.Fields {
+			var value any
+			if hasWorkspace {
+				value = resolved[meta.Code][field.Name]
+			}
+			fieldDefs = append(fieldDefs, &domain.InjectorField{
+				ID:                   syntheticCodeInjectorFieldID(meta.Code, field.Name),
+				InjectorDefinitionID: defID,
+				FieldName:            field.Name,
+				FieldType:            field.Type,
+				Description:          optionalString(field.Description),
+				Position:             position,
+				DefaultValue:         value,
+				AllowOverwrite:       false,
+			})
+		}
+		fieldsByDefinition[defID] = fieldDefs
+	}
+
+	return defs, fieldsByDefinition, nil
+}
+
+// ResolveStaticPreview resolves only fields that should be materialized in the
+// builder preview: DB locked fields and static code injectors.
+func (m *InjectorMerger) ResolveStaticPreview(ctx context.Context, workspaceID *uuid.UUID, injCtx *port.InjectorContext) (MergedInjectors, error) {
+	result := make(MergedInjectors)
+
+	var (
+		defaults   MergedInjectors
+		fieldRules map[string]map[string]injectorFieldRule
+		err        error
+	)
+	if workspaceID == nil {
+		defaults, fieldRules, err = m.resolveDBForScopes(ctx, []uuid.NullUUID{{}})
+	} else {
+		defaults, fieldRules, err = m.resolveDB(ctx, *workspaceID)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for injectorName, rules := range fieldRules {
+		for fieldName, rule := range rules {
+			if rule.AllowOverwrite {
+				continue
+			}
+			if result[injectorName] == nil {
+				result[injectorName] = make(map[string]any)
+			}
+			result[injectorName][fieldName] = defaults[injectorName][fieldName]
+		}
+	}
+
+	staticValues, err := m.resolveCodeInjectors(ctx, injCtx, func(inj port.CodeInjector) bool {
+		meta, ok := injectorCatalog(inj)
+		return ok && meta.Static
+	})
+	if err != nil {
+		return nil, err
+	}
+	for name, fields := range staticValues {
+		if result[name] == nil {
+			result[name] = make(map[string]any, len(fields))
+		}
+		for fieldName, value := range fields {
+			result[name][fieldName] = value
+		}
+	}
+
+	return result, nil
 }
 
 // Resolve returns only UI-defined workspace injectors with their default values.
@@ -69,29 +195,27 @@ func (m *InjectorMerger) ResolveGlobalWithContext(ctx context.Context, injCtx *p
 		return nil, err
 	}
 
-	result := cloneMergedInjectors(defaults)
-	requestValues := injCtx.RequestInjectors()
+	injCtx.MergeDBInjectors(defaults)
 
-	for injectorName, rules := range fieldRules {
-		if result[injectorName] == nil {
-			result[injectorName] = make(map[string]any, len(rules))
+	if m.codeInitFunc != nil {
+		initData, initErr := m.codeInitFunc(ctx, injCtx)
+		if initErr != nil {
+			return nil, fmt.Errorf("code init func: %w", initErr)
 		}
-
-		for fieldName, rule := range rules {
-			if !rule.AllowOverwrite {
-				result[injectorName][fieldName] = rule.DefaultValue
-				continue
-			}
-
-			if value, ok := getFieldValue(requestValues, injectorName, fieldName); ok {
-				result[injectorName][fieldName] = value
-				continue
-			}
-
-			result[injectorName][fieldName] = rule.DefaultValue
-		}
+		injCtx.SetInitData(initData)
 	}
 
+	codeValues, err := m.resolveCodeInjectors(ctx, injCtx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result := cloneMergedInjectors(defaults)
+	requestValues := injCtx.RequestInjectors()
+	applyGlobalFieldRules(result, fieldRules, requestValues, codeValues)
+	mergeCodeOnlyFields(result, fieldRules, codeValues)
+
+	injCtx.MergeDBInjectors(result)
 	return result, nil
 }
 
@@ -115,7 +239,7 @@ func (m *InjectorMerger) ResolveWithContext(ctx context.Context, workspaceID uui
 		injCtx.SetInitData(initData)
 	}
 
-	codeValues, err := m.resolveCodeInjectors(ctx, injCtx)
+	codeValues, err := m.resolveCodeInjectors(ctx, injCtx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -234,18 +358,24 @@ func (m *InjectorMerger) resolveDBForScopes(ctx context.Context, scopes []uuid.N
 	return result, fieldRules, nil
 }
 
-// resolveCodeInjectors runs all code injectors respecting dependency order.
-func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.InjectorContext) (MergedInjectors, error) {
+// resolveCodeInjectors runs code injectors respecting dependency order.
+func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.InjectorContext, filter func(port.CodeInjector) bool) (MergedInjectors, error) {
 	if len(m.codeInjectors) == 0 {
 		return nil, nil
 	}
 
 	byCode := make(map[string]port.CodeInjector, len(m.codeInjectors))
 	for _, inj := range m.codeInjectors {
+		if filter != nil && !filter(inj) {
+			continue
+		}
 		byCode[inj.Code()] = inj
 	}
+	if len(byCode) == 0 {
+		return nil, nil
+	}
 
-	resolved := make(MergedInjectors, len(m.codeInjectors))
+	resolved := make(MergedInjectors, len(byCode))
 	visited := make(map[string]bool)
 
 	var resolveOne func(code string) error
@@ -260,7 +390,7 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 			return nil
 		}
 
-		resolveFn, deps := inj.Resolve()
+		_, deps := inj.Resolve()
 		for _, dep := range deps {
 			if err := resolveOne(dep); err != nil {
 				return err
@@ -275,7 +405,7 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 		execCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		fields, err := resolveFn(execCtx, injCtx)
+		fields, err := m.resolveInjectorFields(execCtx, injCtx, inj)
 		if err != nil {
 			if inj.IsCritical() {
 				return fmt.Errorf("critical code injector %q failed: %w", code, err)
@@ -289,13 +419,96 @@ func (m *InjectorMerger) resolveCodeInjectors(ctx context.Context, injCtx *port.
 		return nil
 	}
 
-	for _, inj := range m.codeInjectors {
-		if err := resolveOne(inj.Code()); err != nil {
+	for code := range byCode {
+		if err := resolveOne(code); err != nil {
 			return nil, err
 		}
 	}
 
 	return resolved, nil
+}
+
+func (m *InjectorMerger) resolveInjectorFields(ctx context.Context, injCtx *port.InjectorContext, inj port.CodeInjector) (map[string]any, error) {
+	meta, ok := injectorCatalog(inj)
+	if ok && meta.Static && meta.TTL > 0 && m.cache != nil {
+		cacheKey := staticCodeInjectorCacheKey(injCtx.WorkspaceID(), injCtx.TemplateType(), inj.Code())
+		if data, err := m.cache.Get(ctx, cacheKey); err == nil {
+			var cached map[string]any
+			if err := json.Unmarshal(data, &cached); err == nil {
+				return cached, nil
+			}
+		}
+
+		resolveFn, _ := inj.Resolve()
+		fields, err := resolveFn(ctx, injCtx)
+		if err != nil {
+			return nil, err
+		}
+		if data, err := json.Marshal(fields); err == nil {
+			_ = m.cache.Set(ctx, cacheKey, data, meta.TTL)
+		}
+		return fields, nil
+	}
+
+	resolveFn, _ := inj.Resolve()
+	return resolveFn(ctx, injCtx)
+}
+
+func (m *InjectorMerger) staticCatalogInjectors() []port.CodeInjector {
+	result := make([]port.CodeInjector, 0, len(m.codeInjectors))
+	for _, inj := range m.codeInjectors {
+		meta, ok := injectorCatalog(inj)
+		if !ok || !meta.Static {
+			continue
+		}
+		result = append(result, inj)
+	}
+	return result
+}
+
+func injectorCatalog(inj port.CodeInjector) (port.InjectorCatalog, bool) {
+	catalogInj, ok := inj.(port.CatalogCodeInjector)
+	if !ok {
+		return port.InjectorCatalog{}, false
+	}
+	return catalogInj.Catalog(), true
+}
+
+func staticCodeInjectorCacheKey(workspaceID uuid.UUID, templateType string, code string) string {
+	if templateType == "" {
+		templateType = "_"
+	}
+	return fmt.Sprintf("code_injector_static:%s:%s:%s", workspaceID.String(), templateType, code)
+}
+
+func staticCatalogInjectorRef(workspace *domain.Workspace, templateType string) string {
+	if workspace == nil || strings.TrimSpace(workspace.Code) == "" {
+		if templateType == "" {
+			return ""
+		}
+		return "global::" + templateType
+	}
+
+	if templateType == "" {
+		templateType = "catalog"
+	}
+	return "catalog:" + workspace.Code + ":" + templateType
+}
+
+func syntheticCodeInjectorDefinitionID(code string) uuid.UUID {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte("code-injector:def:"+code))
+}
+
+func syntheticCodeInjectorFieldID(code, field string) uuid.UUID {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte("code-injector:field:"+code+":"+field))
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	v := value
+	return &v
 }
 
 func getFieldValue(values map[string]map[string]any, injectorName, fieldName string) (any, bool) {
@@ -321,6 +534,59 @@ func cloneFields(fields map[string]any) map[string]any {
 		cloned[fieldName] = value
 	}
 	return cloned
+}
+
+func applyGlobalFieldRules(
+	result MergedInjectors,
+	fieldRules map[string]map[string]injectorFieldRule,
+	requestValues MergedInjectors,
+	codeValues MergedInjectors,
+) {
+	for injectorName, rules := range fieldRules {
+		if result[injectorName] == nil {
+			result[injectorName] = make(map[string]any, len(rules))
+		}
+		for fieldName, rule := range rules {
+			result[injectorName][fieldName] = resolveGlobalFieldValue(rule, injectorName, fieldName, requestValues, codeValues)
+		}
+	}
+}
+
+func resolveGlobalFieldValue(
+	rule injectorFieldRule,
+	injectorName string,
+	fieldName string,
+	requestValues MergedInjectors,
+	codeValues MergedInjectors,
+) any {
+	if !rule.AllowOverwrite {
+		return rule.DefaultValue
+	}
+	if value, ok := getFieldValue(requestValues, injectorName, fieldName); ok {
+		return value
+	}
+	if value, ok := getFieldValue(codeValues, injectorName, fieldName); ok {
+		return value
+	}
+	return rule.DefaultValue
+}
+
+func mergeCodeOnlyFields(result MergedInjectors, fieldRules map[string]map[string]injectorFieldRule, codeValues MergedInjectors) {
+	for name, fields := range codeValues {
+		if result[name] == nil {
+			result[name] = cloneFields(fields)
+			continue
+		}
+		rules, exists := fieldRules[name]
+		if !exists {
+			continue
+		}
+		for fieldName, value := range fields {
+			if _, defined := rules[fieldName]; !defined {
+				result[name][fieldName] = value
+			}
+		}
+	}
 }
 
 type valueIndex map[uuid.UUID]map[string]map[string]*domain.InjectorValue

@@ -11,11 +11,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/pagination"
 	"github.com/rendis/senda/internal/http/request"
-	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
 	"github.com/rendis/senda/internal/service"
 	"github.com/rendis/senda/pkg/apperr"
 )
@@ -35,6 +36,7 @@ type TemplateHandler struct {
 	sendSvc             sendService
 	auditStore          port.AuditLogStore
 	batchMaxItems       int
+	injectorMerger      *resolution.InjectorMerger
 	templateInvalidator resolvedTemplateInvalidator
 }
 
@@ -48,6 +50,7 @@ func NewTemplateHandler(
 	sendSvc sendService,
 	auditStore port.AuditLogStore,
 	batchMaxItems int,
+	injectorMerger *resolution.InjectorMerger,
 	templateInvalidator resolvedTemplateInvalidator,
 ) *TemplateHandler {
 	return &TemplateHandler{
@@ -59,6 +62,7 @@ func NewTemplateHandler(
 		sendSvc:             sendSvc,
 		auditStore:          auditStore,
 		batchMaxItems:       batchMaxItems,
+		injectorMerger:      injectorMerger,
 		templateInvalidator: normalizeResolvedTemplateInvalidator(templateInvalidator),
 	}
 }
@@ -1071,10 +1075,66 @@ func (h *TemplateHandler) PreviewMJML(c *echo.Context) error {
 		c.Scheme()+"://"+c.Request().Host,
 	)
 
-	html, err := h.svc.PreviewMJML(ctx, req.MJML)
+	mjml := req.MJML
+	if h.injectorMerger != nil {
+		templateID, err := uuid.Parse(c.Param("template_id"))
+		if err == nil {
+			template, tplErr := h.store.GetTemplateByID(ctx, templateID)
+			if tplErr == nil && template != nil {
+				var (
+					workspace    *domain.Workspace
+					templateSlug string
+					injCtx       *port.InjectorContext
+					staticValues map[string]map[string]any
+				)
+				if template.WorkspaceID != nil {
+					workspace, _ = h.wsStore.GetByID(ctx, *template.WorkspaceID)
+				}
+				if tt, ttErr := h.store.GetTypeByID(ctx, template.TemplateTypeID); ttErr == nil && tt != nil {
+					templateSlug = tt.Slug
+				}
+				if workspace != nil {
+					injCtx = port.NewInjectorContext(
+						nil,
+						h.previewInjectorRef(ctx, workspace, templateSlug),
+						nil,
+						workspace.TenantID,
+						workspace.ID,
+						workspace.Environment,
+						templateSlug,
+					)
+					staticValues, err = h.injectorMerger.ResolveStaticPreview(ctx, &workspace.ID, injCtx)
+				} else {
+					injCtx = port.NewInjectorContext(nil, "global::"+templateSlug, nil, uuid.Nil, uuid.Nil, domain.EnvironmentProd, templateSlug)
+					staticValues, err = h.injectorMerger.ResolveStaticPreview(ctx, nil, injCtx)
+				}
+				if err == nil {
+					mjml = service.RenderStaticInjectorPreview(mjml, staticValues)
+				}
+			}
+		}
+	}
+
+	html, err := h.svc.PreviewMJML(ctx, mjml)
 	if err != nil {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	}
 
 	return c.JSON(http.StatusOK, response.MJMLPreviewResponse{HTML: html})
+}
+
+func (h *TemplateHandler) previewInjectorRef(ctx context.Context, workspace *domain.Workspace, templateSlug string) string {
+	if workspace == nil {
+		return "global::" + templateSlug
+	}
+	if templateSlug == "" {
+		return ""
+	}
+
+	tenant, err := h.tsStore.GetByID(ctx, workspace.TenantID)
+	if err != nil || tenant == nil || tenant.Code == "" || workspace.Code == "" {
+		return templateSlug
+	}
+
+	return tenant.Code + ":" + workspace.Code + ":" + templateSlug
 }

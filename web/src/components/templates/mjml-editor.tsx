@@ -9,6 +9,7 @@ import {
   type SyntheticEvent as ReactSyntheticEvent,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -44,8 +45,33 @@ import {
   List,
   LayoutTemplate,
   X,
+  Lock,
+  Cpu,
+  Hash,
+  ToggleRight,
+  Code2,
+  Link2,
 } from "lucide-react";
 import { TextBlockEditor, type TextBlockEditorHandle } from "./text-block-editor";
+import {
+  MetadataTokenInput,
+  type MetadataTokenInputHandle,
+} from "./metadata-token-input";
+import {
+  getTokenChipClassName,
+  getTokenChipText,
+} from "./template-token-segments";
+import {
+  decoratePreviewDocumentPlaceholders,
+  type PreviewTokenMeta,
+} from "./preview-token-badges";
+import {
+  buildInjectorTooltipSections,
+  injectorFieldTypeIconName,
+  type BuilderInjectorVariablePresentation,
+} from "./injector-variable-presentation";
+import { mjmlVarsToTiptapHtml } from "./template-variable-html";
+import { renderTextBlockToMjml } from "./text-block-mjml";
 import {
   extractOriginalThumbnailUrl,
   extractVideoThumbnail,
@@ -93,7 +119,7 @@ import {
 } from "@/components/ui/popover";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import type { InjectorDefinition } from "@/types/injectors";
+import type { InjectorDefinition, InjectorFieldType } from "@/types/injectors";
 
 const metadataSchema = z.object({
   subject: z.string().min(1, { message: "Subject is required" }),
@@ -103,6 +129,7 @@ const metadataSchema = z.object({
 });
 
 type MetadataForm = z.infer<typeof metadataSchema>;
+type TokenizableMetadataFieldKey = "subject" | "from_name";
 
 type BuilderBlockType = "text" | "button" | "image" | "divider" | "spacer" | "banner" | "video" | "list";
 
@@ -237,6 +264,13 @@ type TemplateVariable = {
   label: string;
   hint: string;
   category: "event" | "injector";
+  static?: boolean;
+  source?: "database" | "code";
+  fieldType?: InjectorFieldType;
+  fieldDescription?: string;
+  injectorDescription?: string;
+  inheritedFromSystem?: boolean;
+  ownerScope?: InjectorDefinition["owner_scope"];
 };
 
 type PreviewStageSize = { width: number; height: number };
@@ -255,8 +289,6 @@ const BLOCK_DND_MIME = "application/x-senda-block-id";
 const LIST_ITEM_DND_MIME = "application/x-senda-list-item";
 const CLIPBOARD_SEGMENTS_MIME = "application/x-senda-segments";
 const TOKEN_SEGMENT_KIND = "token";
-const TOKEN_CHIP_CLASSNAME =
-  "inline-flex items-center rounded border border-dashed border-input bg-muted px-1.5 py-0.5 text-xs align-middle select-none";
 const MIN_PREVIEW_SCALE = 0.01;
 const BANNER_MODE_FIXED = "fixed-height";
 const BANNER_MODE_FLUID = "fluid-height";
@@ -870,14 +902,15 @@ function renderSegmentsToEditorNode(editor: HTMLElement, segments: BuilderSegmen
     }
 
     const chip = doc.createElement("span");
-    chip.className = TOKEN_CHIP_CLASSNAME;
+    chip.className = getTokenChipClassName(segment.category);
     chip.contentEditable = "false";
     chip.dataset.segmentKind = TOKEN_SEGMENT_KIND;
     chip.dataset.segmentId = segment.id;
     chip.dataset.token = segment.token;
     chip.dataset.label = segment.label;
     chip.dataset.category = segment.category;
-    chip.textContent = variableToPlaceholder(segment.token);
+    chip.textContent = getTokenChipText(segment);
+    chip.title = segment.token;
     fragment.appendChild(chip);
   }
 
@@ -1226,6 +1259,28 @@ function sanitizePreviewHtml(rawHtml: string) {
   return html;
 }
 
+function InjectorFieldTypeIcon({
+  fieldType,
+}: {
+  fieldType?: InjectorFieldType;
+}) {
+  const className = "h-3.5 w-3.5 shrink-0 text-muted-foreground";
+  switch (injectorFieldTypeIconName(fieldType ?? "text")) {
+    case "hash":
+      return <Hash className={className} />;
+    case "toggle-right":
+      return <ToggleRight className={className} />;
+    case "image":
+      return <ImageIcon className={className} />;
+    case "link":
+      return <Link2 className={className} />;
+    case "code-2":
+      return <Code2 className={className} />;
+    default:
+      return <Type className={className} />;
+  }
+}
+
 function getPreviewScale(contentSize: PreviewDocumentSize, stage: PreviewStageSize) {
   const safeWidth = Math.max(1, contentSize.width);
   if (stage.width <= 0) {
@@ -1325,24 +1380,6 @@ function stripMjmlInlineTags(raw: string) {
     .replace(/<\/p\s*>/gi, "\n");
   const withoutTags = withLineBreaks.replace(/<[^>]+>/g, "");
   return decodeMjmlEntities(withoutTags).trim();
-}
-
-/** Convert {{event.x}} / {{injector.x}} in HTML to TipTap VariableToken spans */
-function mjmlVarsToTiptapHtml(html: string): string {
-  return html.replace(/\{\{([^}]+)\}\}/g, (_match, rawToken: string) => {
-    const token = normalizeVariableToken(rawToken.trim());
-    const category = guessSegmentCategory(token);
-    const label = token;
-    return `<span data-variable-token="${token}" data-category="${category}">${label}</span>`;
-  });
-}
-
-/** Convert TipTap VariableToken spans back to {{token}} placeholders for MJML */
-function tiptapHtmlToMjmlVars(html: string): string {
-  return html.replace(
-    /<span[^>]*data-variable-token="([^"]*)"[^>]*>[^<]*<\/span>/g,
-    (_match, token: string) => `{{${token}}}`,
-  );
 }
 
 function parseColumnChildToBlock(child: Element): BuilderBlock | null {
@@ -1553,11 +1590,7 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
 function renderColumnBlockToMjml(block: BuilderBlock): string {
   switch (block.type) {
     case "text": {
-      // Replace &quot; with ' so gomjml output doesn't produce unescaped "
-      // inside style="..." attributes (breaks font-family: "Courier New" etc.)
-      const inner = tiptapHtmlToMjmlVars(block.content).replace(/&quot;/g, "'").trim() || " ";
-      const alignAttr = block.align !== "left" ? ` align="${block.align}"` : "";
-      return `<mj-text${alignAttr}>${inner}</mj-text>`;
+      return renderTextBlockToMjml(block.content, block.align);
     }
     case "button":
       return `<mj-button href="${block.href || "#"}">${renderSegmentsToText(
@@ -1774,6 +1807,8 @@ export function MjmlEditor({
   );
   const [codeOverride, setCodeOverride] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedMetadataField, setSelectedMetadataField] =
+    useState<TokenizableMetadataFieldKey | null>(null);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [previewSplitMode, setPreviewSplitMode] =
     useState<PreviewSplitMode>("ratio");
@@ -1790,6 +1825,10 @@ export function MjmlEditor({
   const previewPanelWrapRef = useRef<HTMLDivElement | null>(null);
   const blockEditorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const textBlockEditorRefs = useRef<Record<string, TextBlockEditorHandle | null>>({});
+  const metadataFieldRefs = useRef<
+    Partial<Record<TokenizableMetadataFieldKey, MetadataTokenInputHandle | null>>
+  >({});
+  const metadataPanelId = useId();
   const previewStageRef = useRef<HTMLDivElement | null>(null);
   const previewStageObserverRef = useRef<ResizeObserver | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -1806,9 +1845,9 @@ export function MjmlEditor({
   } | null>(null);
 
   const {
-    register,
     getValues,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<MetadataForm>({
@@ -2015,6 +2054,34 @@ export function MjmlEditor({
   const templateVariables = useMemo(() => {
     return [...eventVariableTokens, ...injectorVariableTokens];
   }, [eventVariableTokens, injectorVariableTokens]);
+  const resolveTemplateTokenMeta = useCallback(
+    (token: string) => {
+      const normalized = normalizeVariableToken(token);
+      const variable = templateVariables.find(
+        (item) => normalizeVariableToken(item.token) === normalized,
+      );
+      if (!variable) return undefined;
+      return {
+        label: variable.label,
+        category: variable.category,
+        static: variable.static,
+        source: variable.source,
+      } satisfies PreviewTokenMeta;
+    },
+    [templateVariables],
+  );
+  const resolveMetadataTokenMeta = useCallback(
+    (token: string) => {
+      const meta = resolveTemplateTokenMeta(token);
+      if (!meta) return undefined;
+      return {
+        label: meta.label,
+        static: meta.static,
+        source: meta.source,
+      };
+    },
+    [resolveTemplateTokenMeta],
+  );
 
   const triggerPreview = useCallback(
     (code: string) => {
@@ -2103,6 +2170,13 @@ export function MjmlEditor({
             fallbackHint: t("variableHintInjector"),
           }),
           category: "injector",
+          static: injector.static || !field.allow_overwrite,
+          source: injector.source,
+          fieldType: field.field_type,
+          fieldDescription: field.description,
+          injectorDescription: injector.description,
+          inheritedFromSystem: injector.inherited_from_system,
+          ownerScope: injector.owner_scope,
         });
       }
       return acc;
@@ -2445,6 +2519,14 @@ export function MjmlEditor({
   }
 
   function handlePreviewIframeLoad(event: ReactSyntheticEvent<HTMLIFrameElement>) {
+    try {
+      const doc = event.currentTarget.contentDocument;
+      if (doc) {
+        decoratePreviewDocumentPlaceholders(doc, resolveTemplateTokenMeta);
+      }
+    } catch {
+      // Ignore preview decoration failures and preserve compiled preview HTML.
+    }
     bindIframeSizeObserver(event.currentTarget, previewObserverCleanupRef);
   }
 
@@ -2461,9 +2543,7 @@ export function MjmlEditor({
         codeMjml,
         metadataValues: [
           watchedSubject,
-          watchedPreviewText,
           watchedFromName,
-          watchedReplyTo,
         ],
       }),
     [
@@ -2471,8 +2551,6 @@ export function MjmlEditor({
       builderDocument,
       codeMjml,
       watchedFromName,
-      watchedPreviewText,
-      watchedReplyTo,
       watchedSubject,
     ],
   );
@@ -2502,6 +2580,20 @@ export function MjmlEditor({
     setCodeOverride(value);
     triggerPreview(value);
     autoSave.scheduleSave();
+  }
+
+  function handleMetadataFieldChange(field: keyof MetadataForm, value: string) {
+    setValue(field, value, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: field !== "preview_text" && field !== "reply_to",
+    });
+    autoSave.scheduleSave();
+  }
+
+  function focusMetadataField(field: TokenizableMetadataFieldKey) {
+    setSelectedMetadataField(field);
+    setSelectedBlockId(null);
   }
 
 
@@ -2807,6 +2899,7 @@ export function MjmlEditor({
     if (!targetBlock) return;
     const targetId = targetBlock.id;
 
+    setSelectedMetadataField(null);
     setSelectedBlockId(targetId);
 
     const token = normalizeVariableToken(variable.token);
@@ -2847,6 +2940,43 @@ export function MjmlEditor({
       tokenSegment,
     ]);
     updateButtonBlockSegments(targetId, nextSegments, end + 1);
+  }
+
+  function appendTemplateVariableToMetadataField(
+    field: TokenizableMetadataFieldKey,
+    variable: TemplateVariable,
+  ) {
+    if (!canEditDraft) return;
+
+    focusMetadataField(field);
+
+    const token = normalizeVariableToken(variable.token);
+    if (!token) return;
+
+    const editor = metadataFieldRefs.current[field];
+    if (editor) {
+      editor.insertVariable({
+        token,
+        label: variable.label,
+        category: variable.category,
+      });
+      return;
+    }
+
+    const currentValue = getValues(field) ?? "";
+    const prefix = currentValue && !/\s$/.test(currentValue) ? " " : "";
+    handleMetadataFieldChange(
+      field,
+      `${currentValue}${prefix}${variableToPlaceholder(token)}`,
+    );
+  }
+
+  function appendTemplateVariable(variable: TemplateVariable) {
+    if (selectedMetadataField) {
+      appendTemplateVariableToMetadataField(selectedMetadataField, variable);
+      return;
+    }
+    appendTemplateVariableToBlock(selectedBlockId ?? "", variable);
   }
 
   function handleBlockEditorTokenClick(event: ReactMouseEvent<HTMLElement>) {
@@ -3025,6 +3155,7 @@ export function MjmlEditor({
     const editor = event.currentTarget;
     editor.focus();
     placeEditorCaretFromPoint(editor, event.clientX, event.clientY);
+    setSelectedMetadataField(null);
     setSelectedBlockId(blockId);
   }
 
@@ -3050,6 +3181,7 @@ export function MjmlEditor({
       return;
     }
     insertVariableIntoSegmentEditor(blockId, editor, variable);
+    setSelectedMetadataField(null);
     setSelectedBlockId(blockId);
   }
 
@@ -3509,6 +3641,7 @@ export function MjmlEditor({
       ...builderDocument,
       blocks: nextBlocks,
     });
+    setSelectedMetadataField(null);
     setSelectedBlockId(blockId);
   }
 
@@ -3878,7 +4011,7 @@ export function MjmlEditor({
                         className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
                         draggable={editorMode === "visual"}
                         onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
-                        onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                        onClick={() => appendTemplateVariable(item)}
                         disabled={!canEditDraft}
                       >
                         <div className="font-mono text-[11px] truncate">{item.label}</div>
@@ -3952,6 +4085,17 @@ export function MjmlEditor({
                                 <div className="space-y-1.5 pl-4 mt-1">
                                   {items.map((item) => {
                                     const fieldName = item.label.split(".").slice(1).join(".");
+                                    const tooltip = buildInjectorTooltipSections({
+                                      fullLabel: item.label,
+                                      fieldLabel: fieldName,
+                                      fieldType: item.fieldType ?? "text",
+                                      fieldDescription: item.fieldDescription,
+                                      injectorDescription: item.injectorDescription,
+                                      static: item.static,
+                                      inheritedFromSystem: item.inheritedFromSystem,
+                                      ownerScope: item.ownerScope,
+                                      source: item.source,
+                                    } satisfies BuilderInjectorVariablePresentation);
                                     return (
                                       <Tooltip key={item.id}>
                                         <TooltipTrigger asChild>
@@ -3960,15 +4104,42 @@ export function MjmlEditor({
                                             className="w-full rounded-md border bg-background p-2 text-xs text-left disabled:opacity-60 disabled:cursor-not-allowed"
                                             draggable={editorMode === "visual"}
                                             onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
-                                            onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
+                                            onClick={() => appendTemplateVariable(item)}
                                             disabled={!canEditDraft}
                                           >
-                                            <div className="font-mono text-[11px] truncate">{fieldName}</div>
+                                            <div className="flex items-center gap-1.5">
+                                              <InjectorFieldTypeIcon fieldType={item.fieldType} />
+                                              <div className="font-mono text-[11px] truncate">{fieldName}</div>
+                                              {item.static ? <Lock className="h-3 w-3 shrink-0 text-amber-500" /> : null}
+                                              {item.source === "code" ? <Cpu className="h-3 w-3 shrink-0 text-fuchsia-500" /> : null}
+                                            </div>
                                           </button>
                                         </TooltipTrigger>
-                                        <TooltipContent side="right">
-                                          <p className="font-mono font-semibold text-[11px]">{item.label}</p>
-                                          {item.hint && <p className="text-[10px] opacity-80">{item.hint}</p>}
+                                        <TooltipContent side="right" className="max-w-72 space-y-2">
+                                          <div className="space-y-1">
+                                            <p className="font-mono font-semibold text-[11px]">{tooltip.name}</p>
+                                            {tooltip.description ? (
+                                              <p className="text-[10px] leading-snug text-white/90">
+                                                {tooltip.description}
+                                              </p>
+                                            ) : null}
+                                            {tooltip.injectorDescription ? (
+                                              <p className="text-[10px] leading-snug text-white/75">
+                                                {tooltip.injectorDescription}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                          <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[10px]">
+                                            {tooltip.details.map((detail) => (
+                                              <div
+                                                key={`${item.id}-${detail.label}`}
+                                                className="contents"
+                                              >
+                                                <span className="text-white/65">{detail.label}</span>
+                                                <span className="font-medium text-white">{detail.value}</span>
+                                              </div>
+                                            ))}
+                                          </div>
                                         </TooltipContent>
                                       </Tooltip>
                                     );
@@ -4100,7 +4271,10 @@ export function MjmlEditor({
                                 appendTemplateVariableToBlock(block.id, variable);
                               }
                             }}
-                            onClick={() => setSelectedBlockId(block.id)}
+                            onClick={() => {
+                              setSelectedMetadataField(null);
+                              setSelectedBlockId(block.id);
+                            }}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 flex-1">
@@ -4175,7 +4349,10 @@ export function MjmlEditor({
                                 onChange={(html, newAlign) => updateTextBlock(block.id, html, newAlign)}
                                 align={block.align}
                                 disabled={!canEditDraft}
-                                onFocus={() => setSelectedBlockId(block.id)}
+                                onFocus={() => {
+                                  setSelectedMetadataField(null);
+                                  setSelectedBlockId(block.id);
+                                }}
                               />
                             )}
 
@@ -4202,7 +4379,10 @@ export function MjmlEditor({
                                       handleBlockEditorKeyDown(block.id, event)
                                     }
                                     onClick={handleBlockEditorTokenClick}
-                                    onFocus={() => setSelectedBlockId(block.id)}
+                                    onFocus={() => {
+                                      setSelectedMetadataField(null);
+                                      setSelectedBlockId(block.id);
+                                    }}
                                     onCopy={(event) =>
                                       handleBlockEditorCopyOrCut(block.id, event, "copy")
                                     }
@@ -4362,7 +4542,10 @@ export function MjmlEditor({
                                         handleBlockEditorKeyDown(block.id, event)
                                       }
                                       onClick={handleBlockEditorTokenClick}
-                                      onFocus={() => setSelectedBlockId(block.id)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(null);
+                                        setSelectedBlockId(block.id);
+                                      }}
                                       onCopy={(event) =>
                                         handleBlockEditorCopyOrCut(block.id, event, "copy")
                                       }
@@ -4716,6 +4899,8 @@ export function MjmlEditor({
             <button
               type="button"
               className="flex items-center gap-1 w-full text-left mb-1"
+              aria-expanded={metadataOpen}
+              aria-controls={metadataPanelId}
               onClick={() => setMetadataOpen((prev) => !prev)}
             >
               {metadataOpen ? (
@@ -4726,57 +4911,99 @@ export function MjmlEditor({
               <h4 className="text-sm font-semibold">Metadata</h4>
             </button>
             {metadataOpen && (
-            <>
-            <p className="mb-3 text-xs text-muted-foreground">
+            <div id={metadataPanelId} className="space-y-3">
+            <p className="text-xs text-muted-foreground">
               Used for email headers and inbox preview in real sends.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-medium">Subject</Label>
-                <Input
-                  {...register("subject")}
-                  className="h-8 text-sm"
-                  readOnly={isReadOnlyMode}
+                <MetadataTokenInput
+                  ref={(handle) => {
+                    metadataFieldRefs.current.subject = handle;
+                  }}
+                  value={watchedSubject}
+                  onChange={(value) => handleMetadataFieldChange("subject", value)}
+                  onFocus={() => focusMetadataField("subject")}
+                  disabled={isReadOnlyMode}
+                  ariaLabel="Subject"
+                  ariaInvalid={Boolean(errors.subject)}
+                  describedBy={errors.subject ? "template-subject-error" : undefined}
+                  placeholder="Subject"
+                  resolveTokenMeta={resolveMetadataTokenMeta}
                 />
                 {errors.subject && (
-                  <span className="text-xs text-destructive">
+                  <span
+                    id="template-subject-error"
+                    className="text-xs text-destructive"
+                  >
                     {errors.subject.message}
                   </span>
                 )}
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-medium">Preview Text</Label>
+                <Label
+                  className="text-xs font-medium"
+                  htmlFor="template-preview-text"
+                >
+                  Preview Text
+                </Label>
                 <Input
-                  {...register("preview_text")}
+                  id="template-preview-text"
+                  value={watchedPreviewText ?? ""}
                   className="h-8 text-sm"
                   readOnly={isReadOnlyMode}
+                  onChange={(event) =>
+                    handleMetadataFieldChange("preview_text", event.target.value)
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-medium">From Name</Label>
-                <Input
-                  {...register("from_name")}
-                  className="h-8 text-sm"
-                  readOnly={isReadOnlyMode}
+                <MetadataTokenInput
+                  ref={(handle) => {
+                    metadataFieldRefs.current.from_name = handle;
+                  }}
+                  value={watchedFromName}
+                  onChange={(value) => handleMetadataFieldChange("from_name", value)}
+                  onFocus={() => focusMetadataField("from_name")}
+                  disabled={isReadOnlyMode}
+                  ariaLabel="From Name"
+                  ariaInvalid={Boolean(errors.from_name)}
+                  describedBy={errors.from_name ? "template-from-name-error" : undefined}
+                  placeholder="From name"
+                  resolveTokenMeta={resolveMetadataTokenMeta}
                 />
                 {errors.from_name && (
-                  <span className="text-xs text-destructive">
+                  <span
+                    id="template-from-name-error"
+                    className="text-xs text-destructive"
+                  >
                     {errors.from_name.message}
                   </span>
                 )}
               </div>
               {activeLocale === "default" && (
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs font-medium">Reply-To</Label>
+                  <Label
+                    className="text-xs font-medium"
+                    htmlFor="template-reply-to"
+                  >
+                    Reply-To
+                  </Label>
                   <Input
-                    {...register("reply_to")}
+                    id="template-reply-to"
+                    value={watchedReplyTo ?? ""}
                     className="h-8 text-sm"
                     readOnly={isReadOnlyMode}
+                    onChange={(event) =>
+                      handleMetadataFieldChange("reply_to", event.target.value)
+                    }
                   />
                 </div>
               )}
             </div>
-            </>
+            </div>
             )}
           </div>
         </div>
