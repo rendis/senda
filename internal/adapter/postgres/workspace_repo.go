@@ -26,17 +26,26 @@ func NewWorkspaceRepo(pool *pgxpool.Pool) *WorkspaceRepo {
 
 func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error {
 	row := r.pool.QueryRow(ctx,
-		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale)
-		 VALUES (@id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale)
+		`INSERT INTO workspaces (
+		    id, tenant_id, code, name, is_system, open_tracking_enabled, default_locale,
+		    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
+		)
+		 VALUES (
+		    @id, @tenant_id, @code, @name, @is_system, @open_tracking_enabled, @default_locale,
+		    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
+		)
 		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":                    ws.ID,
-			"tenant_id":             ws.TenantID,
-			"code":                  ws.Code,
-			"name":                  ws.Name,
-			"is_system":             ws.IsSystem,
-			"open_tracking_enabled": ws.OpenTrackingEnabled,
-			"default_locale":        ws.DefaultLocale,
+			"id":                              ws.ID,
+			"tenant_id":                       ws.TenantID,
+			"code":                            ws.Code,
+			"name":                            ws.Name,
+			"is_system":                       ws.IsSystem,
+			"open_tracking_enabled":           ws.OpenTrackingEnabled,
+			"default_locale":                  ws.DefaultLocale,
+			"allow_workspace_local_templates": effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalTemplates, ws.WorkspacePoliciesInitialized),
+			"allow_workspace_inherited_template_forks": effectiveWorkspacePolicyValue(ws.AllowWorkspaceInheritedTemplateForks, ws.WorkspacePoliciesInitialized),
+			"allow_workspace_local_injectors":          effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalInjectors, ws.WorkspacePoliciesInitialized),
 		},
 	)
 
@@ -46,6 +55,7 @@ func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error 
 		}
 		return fmt.Errorf("inserting workspace: %w", err)
 	}
+	ws.WorkspacePoliciesInitialized = true
 
 	return nil
 }
@@ -53,6 +63,7 @@ func (r *WorkspaceRepo) Create(ctx context.Context, ws *domain.Workspace) error 
 func (r *WorkspaceRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
+		        allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE id = @id AND deleted_at IS NULL`,
@@ -65,6 +76,7 @@ func (r *WorkspaceRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Work
 func (r *WorkspaceRepo) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
+		        allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE tenant_id = @tenant_id AND code = @code AND deleted_at IS NULL`,
@@ -77,6 +89,7 @@ func (r *WorkspaceRepo) GetByTenantAndCode(ctx context.Context, tenantID uuid.UU
 func (r *WorkspaceRepo) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
+		        allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
 		        created_at, updated_at, deleted_at
 		 FROM workspaces
 		 WHERE tenant_id = @tenant_id AND is_system = true AND deleted_at IS NULL`,
@@ -96,7 +109,9 @@ func (r *WorkspaceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, op
 	args := pgx.NamedArgs{"tenant_id": tenantID, "limit": fetchLimit}
 
 	var qb strings.Builder
-	qb.WriteString(`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale, created_at, updated_at, deleted_at FROM workspaces WHERE tenant_id = @tenant_id AND deleted_at IS NULL`)
+	qb.WriteString(`SELECT id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
+	allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
+	created_at, updated_at, deleted_at FROM workspaces WHERE tenant_id = @tenant_id AND deleted_at IS NULL`)
 
 	if afterID != nil {
 		qb.WriteString(` AND id < @after_id`)
@@ -119,6 +134,9 @@ func (r *WorkspaceRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, op
 	if err != nil {
 		return nil, "", fmt.Errorf("collecting workspaces: %w", err)
 	}
+	for _, workspace := range workspaces {
+		workspace.WorkspacePoliciesInitialized = true
+	}
 
 	var nextCursor string
 	if len(workspaces) > limit {
@@ -136,15 +154,21 @@ func (r *WorkspaceRepo) Update(ctx context.Context, ws *domain.Workspace) error 
 		     is_active = @is_active,
 		     open_tracking_enabled = @open_tracking_enabled,
 		     default_locale = @default_locale,
+		     allow_workspace_local_templates = @allow_workspace_local_templates,
+		     allow_workspace_inherited_template_forks = @allow_workspace_inherited_template_forks,
+		     allow_workspace_local_injectors = @allow_workspace_local_injectors,
 		     updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
 		 RETURNING updated_at`,
 		pgx.NamedArgs{
-			"id":                    ws.ID,
-			"name":                  ws.Name,
-			"is_active":             ws.IsActive,
-			"open_tracking_enabled": ws.OpenTrackingEnabled,
-			"default_locale":        ws.DefaultLocale,
+			"id":                              ws.ID,
+			"name":                            ws.Name,
+			"is_active":                       ws.IsActive,
+			"open_tracking_enabled":           ws.OpenTrackingEnabled,
+			"default_locale":                  ws.DefaultLocale,
+			"allow_workspace_local_templates": effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalTemplates, ws.WorkspacePoliciesInitialized),
+			"allow_workspace_inherited_template_forks": effectiveWorkspacePolicyValue(ws.AllowWorkspaceInheritedTemplateForks, ws.WorkspacePoliciesInitialized),
+			"allow_workspace_local_injectors":          effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalInjectors, ws.WorkspacePoliciesInitialized),
 		},
 	)
 
@@ -154,6 +178,7 @@ func (r *WorkspaceRepo) Update(ctx context.Context, ws *domain.Workspace) error 
 		}
 		return fmt.Errorf("updating workspace: %w", err)
 	}
+	ws.WorkspacePoliciesInitialized = true
 
 	return nil
 }
@@ -177,6 +202,7 @@ func scanWorkspace(row pgx.Row) (*domain.Workspace, error) {
 	err := row.Scan(
 		&ws.ID, &ws.TenantID, &ws.Code, &ws.Name, &ws.IsSystem, &ws.IsActive,
 		&ws.OpenTrackingEnabled, &ws.DefaultLocale,
+		&ws.AllowWorkspaceLocalTemplates, &ws.AllowWorkspaceInheritedTemplateForks, &ws.AllowWorkspaceLocalInjectors,
 		&ws.CreatedAt, &ws.UpdatedAt, &ws.DeletedAt,
 	)
 	if err != nil {
@@ -185,5 +211,13 @@ func scanWorkspace(row pgx.Row) (*domain.Workspace, error) {
 		}
 		return nil, fmt.Errorf("scanning workspace: %w", err)
 	}
+	ws.WorkspacePoliciesInitialized = true
 	return &ws, nil
+}
+
+func effectiveWorkspacePolicyValue(value bool, initialized bool) bool {
+	if initialized {
+		return value
+	}
+	return true
 }

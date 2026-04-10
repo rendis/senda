@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // InjectorHandler handles CRUD operations for injector definitions and values.
@@ -32,6 +34,15 @@ func (h *InjectorHandler) Create(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
+	}
+	if !ws.IsSystem {
+		systemWorkspace, err := resolveSystemWorkspace(c.Request().Context(), ws, h.wsStore)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !effectiveWorkspacePolicies(systemWorkspace).AllowWorkspaceLocalInjectors {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_INJECTORS_DISABLED", "workspace local injectors are disabled by tenant policy")
+		}
 	}
 
 	return h.create(c, &ws.ID)
@@ -101,7 +112,7 @@ func (h *InjectorHandler) Update(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.update(c, &ws.ID)
+	return h.update(c, ws)
 }
 
 // UpdateGlobal handles PUT /global/injectors/:name.
@@ -109,8 +120,22 @@ func (h *InjectorHandler) UpdateGlobal(c *echo.Context) error {
 	return h.update(c, nil)
 }
 
-func (h *InjectorHandler) update(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *InjectorHandler) update(c *echo.Context, workspace *domain.Workspace) error {
 	currentName := c.Param("name")
+	var workspaceID *uuid.UUID
+	if workspace != nil {
+		workspaceID = &workspace.ID
+		def, _, policies, err := h.loadWorkspaceDefinitionAccess(c.Request().Context(), workspace, currentName)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !isOwnedByCurrentWorkspace(def.WorkspaceID, workspace) {
+			return writePolicyForbidden(c, "READ_ONLY_INHERITED_INJECTOR", "inherited injectors are read-only in workspace scope")
+		}
+		if !workspace.IsSystem && !policies.AllowWorkspaceLocalInjectors {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_INJECTORS_DISABLED", "workspace local injectors are disabled by tenant policy")
+		}
+	}
 
 	var req request.UpdateInjectorRequest
 	if err := c.Bind(&req); err != nil {
@@ -170,6 +195,10 @@ func (h *InjectorHandler) ListGlobal(c *echo.Context) error {
 
 func (h *InjectorHandler) list(c *echo.Context, workspace *domain.Workspace) error {
 	ctx := c.Request().Context()
+	systemWorkspace, err := resolveSystemWorkspace(ctx, workspace, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
 
 	chain, err := h.listChain(ctx, workspace, includeInheritedInjectors(c))
 	if err != nil {
@@ -191,6 +220,9 @@ func (h *InjectorHandler) list(c *echo.Context, workspace *domain.Workspace) err
 	if err != nil {
 		return mapStoreError(c, err)
 	}
+	for _, def := range defs {
+		annotateInjectorScope(def, workspace, systemWorkspace)
+	}
 
 	return c.JSON(http.StatusOK, response.NewInjectorListResponse(defs, fieldsByDefinition))
 }
@@ -207,10 +239,16 @@ func (h *InjectorHandler) listChain(ctx context.Context, workspace *domain.Works
 
 	systemWorkspace, err := h.wsStore.GetSystemWorkspace(ctx, workspace.TenantID)
 	if err != nil {
+		if apperr.IsNotFound(err) || errorsIsNotFound(err) {
+			return chain, nil
+		}
 		return nil, err
 	}
+	if systemWorkspace != nil && systemWorkspace.ID != workspace.ID {
+		chain = append(chain, uuidToNullUUID(&systemWorkspace.ID))
+	}
 
-	return append(chain, uuidToNullUUID(&systemWorkspace.ID), uuid.NullUUID{}), nil
+	return chain, nil
 }
 
 func includeInheritedInjectors(c *echo.Context) bool {
@@ -268,7 +306,7 @@ func (h *InjectorHandler) Get(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.get(c, &ws.ID)
+	return h.get(c, ws)
 }
 
 // GetGlobal handles GET /global/injectors/:name.
@@ -276,21 +314,36 @@ func (h *InjectorHandler) GetGlobal(c *echo.Context) error {
 	return h.get(c, nil)
 }
 
-func (h *InjectorHandler) get(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *InjectorHandler) get(c *echo.Context, workspace *domain.Workspace) error {
 	name := c.Param("name")
 	ctx := c.Request().Context()
 
-	def, err := h.store.FindDefinitionByName(ctx, name, workspaceID)
+	var (
+		def             *domain.InjectorDefinition
+		systemWorkspace *domain.Workspace
+		err             error
+		chain           []uuid.NullUUID
+	)
+	if workspace == nil {
+		def, err = h.store.FindDefinitionByName(ctx, name, nil)
+		chain = []uuid.NullUUID{uuid.NullUUID{}}
+	} else {
+		def, systemWorkspace, _, err = h.loadWorkspaceDefinitionAccess(ctx, workspace, name)
+		if err == nil {
+			chain, _, err = workspaceResolutionChain(ctx, workspace, h.wsStore)
+		}
+	}
 	if err != nil {
 		return mapStoreError(c, err)
 	}
+	annotateInjectorScope(def, workspace, systemWorkspace)
 
 	fields, err := h.store.GetFieldsByDefinition(ctx, def.ID)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	values, err := h.store.GetValues(ctx, def.ID, []uuid.NullUUID{uuidToNullUUID(workspaceID)})
+	values, err := h.store.GetValues(ctx, def.ID, chain)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
@@ -304,7 +357,7 @@ func (h *InjectorHandler) Delete(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.deleteInjector(c, &ws.ID)
+	return h.deleteInjector(c, ws)
 }
 
 // DeleteGlobal handles DELETE /global/injectors/:name.
@@ -312,14 +365,28 @@ func (h *InjectorHandler) DeleteGlobal(c *echo.Context) error {
 	return h.deleteInjector(c, nil)
 }
 
-func (h *InjectorHandler) deleteInjector(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *InjectorHandler) deleteInjector(c *echo.Context, workspace *domain.Workspace) error {
 	name := c.Param("name")
-	def, err := h.store.FindDefinitionByName(c.Request().Context(), name, workspaceID)
+	if workspace == nil {
+		def, err := h.store.FindDefinitionByName(c.Request().Context(), name, nil)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if err := h.store.SoftDeleteDefinition(c.Request().Context(), def.ID); err != nil {
+			return mapStoreError(c, err)
+		}
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	def, _, policies, err := h.loadWorkspaceDefinitionAccess(c.Request().Context(), workspace, name)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	if !sameScope(def.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	if !isOwnedByCurrentWorkspace(def.WorkspaceID, workspace) {
+		return writePolicyForbidden(c, "READ_ONLY_INHERITED_INJECTOR", "inherited injectors are read-only in workspace scope")
+	}
+	if !workspace.IsSystem && !policies.AllowWorkspaceLocalInjectors {
+		return writePolicyForbidden(c, "WORKSPACE_LOCAL_INJECTORS_DISABLED", "workspace local injectors are disabled by tenant policy")
 	}
 	if err := h.store.SoftDeleteDefinition(c.Request().Context(), def.ID); err != nil {
 		return mapStoreError(c, err)
@@ -344,7 +411,7 @@ func (h *InjectorHandler) UpdateField(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.updateField(c, &ws.ID)
+	return h.updateField(c, ws)
 }
 
 // UpdateFieldGlobal handles PUT /global/injectors/:name/fields/:field_name.
@@ -352,10 +419,25 @@ func (h *InjectorHandler) UpdateFieldGlobal(c *echo.Context) error {
 	return h.updateField(c, nil)
 }
 
-func (h *InjectorHandler) updateField(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *InjectorHandler) updateField(c *echo.Context, workspace *domain.Workspace) error {
 	name := c.Param("name")
 	fieldName := c.Param("field_name")
 	ctx := c.Request().Context()
+
+	var workspaceID *uuid.UUID
+	if workspace != nil {
+		workspaceID = &workspace.ID
+		def, _, policies, err := h.loadWorkspaceDefinitionAccess(ctx, workspace, name)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !isOwnedByCurrentWorkspace(def.WorkspaceID, workspace) {
+			return writePolicyForbidden(c, "READ_ONLY_INHERITED_INJECTOR", "inherited injectors are read-only in workspace scope")
+		}
+		if !workspace.IsSystem && !policies.AllowWorkspaceLocalInjectors {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_INJECTORS_DISABLED", "workspace local injectors are disabled by tenant policy")
+		}
+	}
 
 	def, err := h.store.FindDefinitionByName(ctx, name, workspaceID)
 	if err != nil {
@@ -411,6 +493,23 @@ func (h *InjectorHandler) setValues(c *echo.Context, workspaceID *uuid.UUID) err
 	name := c.Param("name")
 	ctx := c.Request().Context()
 
+	if workspaceID != nil {
+		workspace, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		def, _, policies, err := h.loadWorkspaceDefinitionAccess(ctx, workspace, name)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !isOwnedByCurrentWorkspace(def.WorkspaceID, workspace) {
+			return writePolicyForbidden(c, "READ_ONLY_INHERITED_INJECTOR", "inherited injectors are read-only in workspace scope")
+		}
+		if !workspace.IsSystem && !policies.AllowWorkspaceLocalInjectors {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_INJECTORS_DISABLED", "workspace local injectors are disabled by tenant policy")
+		}
+	}
+
 	def, err := h.store.FindDefinitionByName(ctx, name, workspaceID)
 	if err != nil {
 		return mapStoreError(c, err)
@@ -443,6 +542,43 @@ func (h *InjectorHandler) setValues(c *echo.Context, workspaceID *uuid.UUID) err
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *InjectorHandler) loadWorkspaceDefinitionAccess(
+	ctx context.Context,
+	workspace *domain.Workspace,
+	name string,
+) (*domain.InjectorDefinition, *domain.Workspace, workspacePolicies, error) {
+	systemWorkspace, err := resolveSystemWorkspace(ctx, workspace, h.wsStore)
+	if err != nil {
+		return nil, nil, workspacePolicies{}, err
+	}
+
+	def, err := h.store.FindDefinitionByName(ctx, name, &workspace.ID)
+	if err != nil {
+		if !apperr.IsNotFound(err) && !errorsIsNotFound(err) {
+			return nil, nil, workspacePolicies{}, err
+		}
+		def = nil
+	}
+	if def == nil && systemWorkspace != nil && systemWorkspace.ID != workspace.ID {
+		def, err = h.store.FindDefinitionByName(ctx, name, &systemWorkspace.ID)
+		if err != nil {
+			if !apperr.IsNotFound(err) && !errorsIsNotFound(err) {
+				return nil, nil, workspacePolicies{}, err
+			}
+			def = nil
+		}
+	}
+	if def == nil {
+		return nil, systemWorkspace, workspacePolicies{}, apperr.NotFound("injector not found in workspace scope")
+	}
+	annotateInjectorScope(def, workspace, systemWorkspace)
+	return def, systemWorkspace, effectiveWorkspacePolicies(systemWorkspace), nil
+}
+
+func errorsIsNotFound(err error) bool {
+	return err != nil && (apperr.IsNotFound(err) || errors.Is(err, domain.ErrNotFound))
 }
 
 func isValidFieldType(ft string) bool {

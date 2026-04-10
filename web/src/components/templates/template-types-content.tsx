@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Plus,
   Search,
@@ -15,13 +16,20 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import {
+  getTemplateCatalogState,
+  getTemplateTypeManagementState,
+  resolveResourceDisplayScope,
+} from "@/lib/workspace-resource-policies";
 import { cn } from "@/lib/utils";
 import { generateSlug, nameSchema, slugSchema } from "@/lib/validations/slug";
 import { useTemplateTypes, useCreateTemplateType, useUpdateTemplateType, useDeleteTemplateType } from "@/hooks/use-template-types";
 import { useAdapterList } from "@/hooks/use-adapters";
 import { useIdentityList } from "@/hooks/use-identities";
+import { useResolvedWorkspacePolicies } from "@/hooks/use-settings";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ResourceStateBadges } from "@/components/shared/resource-state-badges";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { FormDialog } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -57,9 +65,13 @@ export function TemplateTypesContent() {
 }
 
 function TemplateTypesTable() {
+  const t = useTranslations("templateTypesPage");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const scope = useScope();
   const scopedPath = useScopedPath();
+  const workspacePolicies = useResolvedWorkspacePolicies(scope);
+  const templateCatalogState = getTemplateCatalogState(scope, workspacePolicies.data);
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useTemplateTypes(scopedPath);
   const createMutation = useCreateTemplateType(scopedPath);
@@ -107,7 +119,7 @@ function TemplateTypesTable() {
   const columns: ColumnDef<TemplateType>[] = [
     {
       accessorKey: "slug",
-      header: "SLUG",
+      header: t("columns.slug"),
       cell: ({ row }) => (
         <button
           className="font-mono text-sm font-medium text-primary hover:underline"
@@ -119,21 +131,30 @@ function TemplateTypesTable() {
     },
     {
       accessorKey: "name",
-      header: "NAME",
+      header: t("columns.name"),
       cell: ({ row }) => (
-        <span className="text-sm text-foreground">{row.original.name}</span>
+        <div className="space-y-1">
+          <span className="text-sm text-foreground">{row.original.name}</span>
+          <ResourceStateBadges
+            badges={getTemplateTypeManagementState(
+              scope,
+              row.original,
+              workspacePolicies.data,
+            ).badges}
+          />
+        </div>
       ),
     },
     {
       accessorKey: "adapter_id",
-      header: "ADAPTER",
+      header: t("columns.adapter"),
       cell: ({ row }) => {
         const aid = row.original.adapter_id;
         if (!aid) {
           return (
             <span className="inline-flex items-center gap-1 text-status-complained text-xs">
               <TriangleAlert className="h-3.5 w-3.5" />
-              No adapter
+              {t("noAdapter")}
             </span>
           );
         }
@@ -147,59 +168,79 @@ function TemplateTypesTable() {
     },
     {
       accessorKey: "scope_level",
-      header: "SCOPE",
+      header: t("columns.scope"),
       cell: ({ row }) => (
-        <ScopeIndicator scope={row.original.scope_level} />
+        <div className="flex items-center gap-2">
+          <ScopeIndicator scope={resolveResourceDisplayScope(row.original)} />
+        </div>
       ),
     },
     {
       id: "actions",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={`View templates for ${row.original.slug}`}
-                onClick={() => router.push(buildTypePath(row.original.slug))}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>View templates</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={`Edit template type ${row.original.slug}`}
-                onClick={() => setEditTarget(row.original)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Edit</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive"
-                aria-label={`Delete template type ${row.original.slug}`}
-                onClick={() => setDeleteTarget(row.original)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Delete</TooltipContent>
-          </Tooltip>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const itemState = getTemplateTypeManagementState(
+          scope,
+          row.original,
+          workspacePolicies.data,
+        );
+        const readOnlyReason =
+          row.original.owner_scope === "local"
+            ? t("localTemplateTypesDisabled")
+            : t("defaultTemplateTypesReadonly");
+
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t("viewTemplatesAria", { slug: row.original.slug })}
+                  onClick={() => router.push(buildTypePath(row.original.slug))}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("viewTemplates")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t("editTemplateTypeAria", { slug: row.original.slug })}
+                  onClick={() => itemState.canEdit && setEditTarget(row.original)}
+                  disabled={!itemState.canEdit}
+                >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{itemState.canEdit ? tCommon("edit") : readOnlyReason}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  aria-label={t("deleteTemplateTypeAria", { slug: row.original.slug })}
+                  onClick={() => itemState.canDelete && setDeleteTarget(row.original)}
+                  disabled={!itemState.canDelete}
+                >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{itemState.canDelete ? tCommon("delete") : readOnlyReason}</TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
@@ -208,7 +249,7 @@ function TemplateTypesTable() {
     try {
       const selectedAdapter = adapters.find((adapter) => adapter.id === newAdapterId);
       if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !newSenderIdentityId) {
-        toast.error("Shared SES adapters require an explicit sender identity");
+        toast.error(t("sharedSesRequiresIdentity"));
         return;
       }
       const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
@@ -218,16 +259,23 @@ function TemplateTypesTable() {
         adapter_id: newAdapterId || undefined,
         sender_identity_id: senderIdValue,
       });
-      toast.success("Template type created");
+      toast.success(t("templateTypeCreated"));
       setNewSlug("");
       setNewName("");
       setNewAdapterId("");
       setNewSenderIdentityId("");
       setSlugTouched(false);
     } catch {
-      toast.error("Failed to create template type");
+      toast.error(t("templateTypeCreateFailed"));
     }
   }
+
+  const createTemplateTypeTrigger = (
+    <Button disabled={!templateCatalogState.canCreateTemplateTypes}>
+      <Plus className="h-4 w-4 mr-2" />
+      {t("newTemplateType")}
+    </Button>
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -235,64 +283,70 @@ function TemplateTypesTable() {
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search template types..."
+            placeholder={t("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9"
           />
         </div>
-        <FormDialog
-          trigger={
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Template Type
-            </Button>
-          }
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          title="Create Template Type"
-          description="Define a new template type for this scope."
-          submitLabel="Create"
-          onSubmit={handleCreateType}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="tt-name">Name</Label>
-              <Input
-                id="tt-name"
-                placeholder="Welcome Email"
-                value={newName}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setNewName(name);
-                  if (!slugTouched) {
-                    setNewSlug(generateSlug(name));
-                  }
-                }}
+        {templateCatalogState.canCreateTemplateTypes ? (
+          <FormDialog
+            trigger={createTemplateTypeTrigger}
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            title={t("createDialog.title")}
+            description={t("createDialog.description")}
+            submitLabel={tCommon("create")}
+            onSubmit={handleCreateType}
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tt-name">{tCommon("name")}</Label>
+                <Input
+                  id="tt-name"
+                  placeholder={t("createDialog.namePlaceholder")}
+                  value={newName}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setNewName(name);
+                    if (!slugTouched) {
+                      setNewSlug(generateSlug(name));
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tt-slug">{t("slugLabel")}</Label>
+                <Input
+                  id="tt-slug"
+                  placeholder={t("createDialog.slugPlaceholder")}
+                  value={newSlug}
+                  onChange={(e) => {
+                    setNewSlug(e.target.value);
+                    setSlugTouched(true);
+                  }}
+                  className="font-mono"
+                />
+              </div>
+              <AdapterSelect
+                adapters={adapters}
+                value={newAdapterId}
+                onChange={setNewAdapterId}
+                senderIdentityId={newSenderIdentityId}
+                onSenderIdentityChange={setNewSenderIdentityId}
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="tt-slug">Slug</Label>
-              <Input
-                id="tt-slug"
-                placeholder="welcome-email"
-                value={newSlug}
-                onChange={(e) => {
-                  setNewSlug(e.target.value);
-                  setSlugTouched(true);
-                }}
-                className="font-mono"
-              />
-            </div>
-            <AdapterSelect
-              adapters={adapters}
-              value={newAdapterId}
-              onChange={setNewAdapterId}
-              senderIdentityId={newSenderIdentityId}
-              onSenderIdentityChange={setNewSenderIdentityId}
-            />
-          </div>
-        </FormDialog>
+          </FormDialog>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>{createTemplateTypeTrigger}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("localTemplateCreationDisabled")}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <DataTable
@@ -305,12 +359,17 @@ function TemplateTypesTable() {
         emptyState={
           <EmptyState
             icon={FileType}
-            title="No template types"
-            description="Create your first template type to organize your email templates."
+            title={t("empty.title")}
+            description={t("empty.description")}
             action={
-              <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCreateOpen(true)}
+                disabled={!templateCatalogState.canCreateTemplateTypes}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Create Template Type
+                {t("createDialog.title")}
               </Button>
             }
           />
@@ -329,14 +388,14 @@ function TemplateTypesTable() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Delete Template Type"
-        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={t("deleteDialog.title")}
+        description={t("deleteDialog.description", { name: deleteTarget?.name ?? "" })}
+        confirmLabel={tCommon("delete")}
         onConfirm={() => {
           if (deleteTarget) {
             deleteMutation.mutate(deleteTarget.slug, {
-              onSuccess: () => toast.success("Template type deleted"),
-              onError: () => toast.error("Failed to delete template type"),
+              onSuccess: () => toast.success(t("templateTypeDeleted")),
+              onError: () => toast.error(t("templateTypeDeleteFailed")),
             });
             setDeleteTarget(null);
           }

@@ -105,8 +105,8 @@ func TestChainResolver_RegularWorkspace(t *testing.T) {
 	if chain.TenantID != tenantID {
 		t.Errorf("TenantID = %v, want %v", chain.TenantID, tenantID)
 	}
-	if len(chain.Scopes) != 3 {
-		t.Fatalf("Scopes length = %d, want 3", len(chain.Scopes))
+	if len(chain.Scopes) != 2 {
+		t.Fatalf("Scopes length = %d, want 2", len(chain.Scopes))
 	}
 	// scope[0] = workspace
 	if !chain.Scopes[0].Valid || chain.Scopes[0].UUID != wsID {
@@ -115,10 +115,6 @@ func TestChainResolver_RegularWorkspace(t *testing.T) {
 	// scope[1] = system workspace
 	if !chain.Scopes[1].Valid || chain.Scopes[1].UUID != sysID {
 		t.Errorf("Scopes[1] = %v, want {UUID: %v, Valid: true}", chain.Scopes[1], sysID)
-	}
-	// scope[2] = global (NULL)
-	if chain.Scopes[2].Valid {
-		t.Errorf("Scopes[2].Valid = true, want false (global scope)")
 	}
 }
 
@@ -143,14 +139,11 @@ func TestChainResolver_SystemWorkspace(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(chain.Scopes) != 2 {
-		t.Fatalf("Scopes length = %d, want 2", len(chain.Scopes))
+	if len(chain.Scopes) != 1 {
+		t.Fatalf("Scopes length = %d, want 1", len(chain.Scopes))
 	}
 	if !chain.Scopes[0].Valid || chain.Scopes[0].UUID != sysID {
 		t.Errorf("Scopes[0] = %v, want {UUID: %v, Valid: true}", chain.Scopes[0], sysID)
-	}
-	if chain.Scopes[1].Valid {
-		t.Errorf("Scopes[1].Valid = true, want false (global scope)")
 	}
 	// SystemWorkspaceID should equal the workspace itself
 	if chain.SystemWorkspaceID != sysID {
@@ -170,7 +163,6 @@ func TestChainResolver_CacheHit(t *testing.T) {
 		Scopes: []uuid.NullUUID{
 			{UUID: wsID, Valid: true},
 			{UUID: sysID, Valid: true},
-			{Valid: false},
 		},
 	}
 
@@ -201,8 +193,8 @@ func TestChainResolver_CacheHit(t *testing.T) {
 	if chain.WorkspaceID != wsID {
 		t.Errorf("WorkspaceID = %v, want %v", chain.WorkspaceID, wsID)
 	}
-	if len(chain.Scopes) != 3 {
-		t.Errorf("Scopes length = %d, want 3", len(chain.Scopes))
+	if len(chain.Scopes) != 2 {
+		t.Errorf("Scopes length = %d, want 2", len(chain.Scopes))
 	}
 }
 
@@ -275,7 +267,7 @@ func TestChainResolver_CacheSetFailureStillReturns(t *testing.T) {
 	if chain.WorkspaceID != wsID {
 		t.Errorf("WorkspaceID = %v, want %v", chain.WorkspaceID, wsID)
 	}
-	if len(chain.Scopes) != 3 {
-		t.Errorf("Scopes length = %d, want 3", len(chain.Scopes))
+	if len(chain.Scopes) != 2 {
+		t.Errorf("Scopes length = %d, want 2", len(chain.Scopes))
 	}
 }

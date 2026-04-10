@@ -11,16 +11,18 @@ import (
 
 // TemplateTypeResponse is the JSON response for a template type.
 type TemplateTypeResponse struct {
-	ID               string           `json:"id"`
-	WorkspaceID      *string          `json:"workspace_id,omitempty"`
-	Slug             string           `json:"slug"`
-	Name             string           `json:"name"`
-	Description      *string          `json:"description,omitempty"`
-	AdapterID        *string          `json:"adapter_id,omitempty"`
-	SenderIdentityID *string          `json:"sender_identity_id,omitempty"`
-	VariableSchema   *json.RawMessage `json:"variable_schema,omitempty"`
-	CreatedAt        string           `json:"created_at"`
-	UpdatedAt        string           `json:"updated_at"`
+	ID                  string           `json:"id"`
+	WorkspaceID         *string          `json:"workspace_id,omitempty"`
+	Slug                string           `json:"slug"`
+	Name                string           `json:"name"`
+	Description         *string          `json:"description,omitempty"`
+	AdapterID           *string          `json:"adapter_id,omitempty"`
+	SenderIdentityID    *string          `json:"sender_identity_id,omitempty"`
+	VariableSchema      *json.RawMessage `json:"variable_schema,omitempty"`
+	OwnerScope          string           `json:"owner_scope,omitempty"`
+	InheritedFromSystem bool             `json:"inherited_from_system"`
+	CreatedAt           string           `json:"created_at"`
+	UpdatedAt           string           `json:"updated_at"`
 }
 
 // TemplateTypeListResponse is the JSON response for a paginated list of template types.
@@ -33,11 +35,13 @@ type TemplateTypeListResponse struct {
 // NewTemplateTypeResponse maps a domain TemplateType to a TemplateTypeResponse.
 func NewTemplateTypeResponse(tt *domain.TemplateType) TemplateTypeResponse {
 	resp := TemplateTypeResponse{
-		ID:        tt.ID.String(),
-		Slug:      tt.Slug,
-		Name:      tt.Name,
-		CreatedAt: formatTime(tt.CreatedAt),
-		UpdatedAt: formatTime(tt.UpdatedAt),
+		ID:                  tt.ID.String(),
+		Slug:                tt.Slug,
+		Name:                tt.Name,
+		OwnerScope:          tt.OwnerScope,
+		InheritedFromSystem: tt.InheritedFromSystem,
+		CreatedAt:           formatTime(tt.CreatedAt),
+		UpdatedAt:           formatTime(tt.UpdatedAt),
 	}
 	if tt.WorkspaceID != nil {
 		s := tt.WorkspaceID.String()
@@ -77,26 +81,37 @@ func NewTemplateTypeListResponse(types []*domain.TemplateType) TemplateTypeListR
 
 // TemplateResponse is the JSON response for a template.
 type TemplateResponse struct {
-	ID             string  `json:"id"`
-	TemplateTypeID string  `json:"template_type_id"`
-	WorkspaceID    *string `json:"workspace_id,omitempty"`
-	IsDisabled     bool    `json:"is_disabled"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
+	ID                  string  `json:"id"`
+	TemplateTypeID      string  `json:"template_type_id"`
+	WorkspaceID         *string `json:"workspace_id,omitempty"`
+	IsDisabled          bool    `json:"is_disabled"`
+	OwnerScope          string  `json:"owner_scope,omitempty"`
+	InheritedFromSystem bool    `json:"inherited_from_system"`
+	IsFork              bool    `json:"is_fork"`
+	OriginTemplateID    *string `json:"origin_template_id,omitempty"`
+	CreatedAt           string  `json:"created_at"`
+	UpdatedAt           string  `json:"updated_at"`
 }
 
 // NewTemplateResponse maps a domain Template to a TemplateResponse.
 func NewTemplateResponse(t *domain.Template) TemplateResponse {
 	resp := TemplateResponse{
-		ID:             t.ID.String(),
-		TemplateTypeID: t.TemplateTypeID.String(),
-		IsDisabled:     t.IsDisabled,
-		CreatedAt:      formatTime(t.CreatedAt),
-		UpdatedAt:      formatTime(t.UpdatedAt),
+		ID:                  t.ID.String(),
+		TemplateTypeID:      t.TemplateTypeID.String(),
+		IsDisabled:          t.IsDisabled,
+		OwnerScope:          t.OwnerScope,
+		InheritedFromSystem: t.InheritedFromSystem,
+		IsFork:              t.IsFork,
+		CreatedAt:           formatTime(t.CreatedAt),
+		UpdatedAt:           formatTime(t.UpdatedAt),
 	}
 	if t.WorkspaceID != nil {
 		s := t.WorkspaceID.String()
 		resp.WorkspaceID = &s
+	}
+	if t.OriginTemplateID != nil {
+		s := t.OriginTemplateID.String()
+		resp.OriginTemplateID = &s
 	}
 	return resp
 }

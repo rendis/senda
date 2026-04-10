@@ -195,7 +195,7 @@ func (r *InjectorRepo) ListDefinitionsInChain(ctx context.Context, chain []uuid.
 		return nil, fmt.Errorf("listing injector definitions in chain: %w", err)
 	}
 
-	defs, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.InjectorDefinition])
+	defs, err := pgx.CollectRows(rows, scanInjectorDefinitionRow)
 	if err != nil {
 		return nil, fmt.Errorf("collecting injector definitions: %w", err)
 	}
@@ -419,6 +419,15 @@ func scanInjectorDefinition(row pgx.Row) (*domain.InjectorDefinition, error) {
 			return nil, apperr.NotFound("injector definition not found")
 		}
 		return nil, fmt.Errorf("scanning injector definition: %w", err)
+	}
+	return &d, nil
+}
+
+func scanInjectorDefinitionRow(row pgx.CollectableRow) (*domain.InjectorDefinition, error) {
+	var d domain.InjectorDefinition
+	err := row.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.Description, &d.CreatedAt, &d.UpdatedAt, &d.DeletedAt)
+	if err != nil {
+		return nil, fmt.Errorf("scanning injector definition row: %w", err)
 	}
 	return &d, nil
 }

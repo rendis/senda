@@ -105,18 +105,18 @@ func newErrorChainResolver(retErr error) *resolution.ChainResolver {
 
 // --- Tests ---
 
-func TestInjectorMerger_IncludesGlobalDefinitionsAsFallback(t *testing.T) {
+func TestInjectorMerger_IncludesSystemDefinitionsAsFallback(t *testing.T) {
 	defID := uuid.New()
 	wsID := uuid.New()
 	sysID := uuid.New()
 
 	injStore := &mockInjectorStore{
 		listDefsFn: func(_ context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
-			if len(chain) != 3 {
+			if len(chain) != 2 {
 				t.Fatalf("expected full resolution chain, got %+v", chain)
 			}
 			return []*domain.InjectorDefinition{
-				{ID: defID, WorkspaceID: nil, Name: "brand"},
+				{ID: defID, WorkspaceID: &sysID, Name: "brand"},
 			}, nil
 		},
 		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
@@ -126,7 +126,7 @@ func TestInjectorMerger_IncludesGlobalDefinitionsAsFallback(t *testing.T) {
 		},
 		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
 			return []*domain.InjectorValue{
-				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "logo_url", WorkspaceID: nil, Value: `"global-logo"`},
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "logo_url", WorkspaceID: &sysID, Value: `"system-logo"`},
 			}, nil
 		},
 	}
@@ -135,7 +135,7 @@ func TestInjectorMerger_IncludesGlobalDefinitionsAsFallback(t *testing.T) {
 		WorkspaceID:       wsID,
 		SystemWorkspaceID: sysID,
 		TenantID:          uuid.New(),
-		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
+		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
@@ -145,8 +145,8 @@ func TestInjectorMerger_IncludesGlobalDefinitionsAsFallback(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := result["brand"]["logo_url"]; got != "global-logo" {
-		t.Fatalf("brand.logo_url = %v, want global-logo", got)
+	if got := result["brand"]["logo_url"]; got != "system-logo" {
+		t.Fatalf("brand.logo_url = %v, want system-logo", got)
 	}
 }
 
@@ -373,22 +373,22 @@ func TestInjectorMerger_DuplicateDefNames_WorkspaceWins(t *testing.T) {
 	}
 }
 
-func TestInjectorMerger_UsesInheritedValueBeforeFieldDefault(t *testing.T) {
-	globalDefID := uuid.New()
+func TestInjectorMerger_UsesSystemInheritedValueBeforeFieldDefault(t *testing.T) {
+	systemDefID := uuid.New()
 	wsID := uuid.New()
 	sysID := uuid.New()
 
 	injStore := &mockInjectorStore{
 		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
 			return []*domain.InjectorDefinition{
-				{ID: globalDefID, WorkspaceID: nil, Name: "brand"},
+				{ID: systemDefID, WorkspaceID: &sysID, Name: "brand"},
 			}, nil
 		},
 		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
 			return []*domain.InjectorField{
 				{
 					ID:                   uuid.New(),
-					InjectorDefinitionID: globalDefID,
+					InjectorDefinitionID: systemDefID,
 					FieldName:            "color",
 					FieldType:            domain.FieldTypeText,
 					Position:             0,
@@ -399,7 +399,7 @@ func TestInjectorMerger_UsesInheritedValueBeforeFieldDefault(t *testing.T) {
 		},
 		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
 			return []*domain.InjectorValue{
-				{ID: uuid.New(), InjectorDefinitionID: globalDefID, FieldName: "color", WorkspaceID: nil, Value: `"global-blue"`},
+				{ID: uuid.New(), InjectorDefinitionID: systemDefID, FieldName: "color", WorkspaceID: &sysID, Value: `"system-blue"`},
 			}, nil
 		},
 	}
@@ -408,7 +408,7 @@ func TestInjectorMerger_UsesInheritedValueBeforeFieldDefault(t *testing.T) {
 		WorkspaceID:       wsID,
 		SystemWorkspaceID: sysID,
 		TenantID:          uuid.New(),
-		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
+		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
@@ -418,8 +418,8 @@ func TestInjectorMerger_UsesInheritedValueBeforeFieldDefault(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := result["brand"]["color"]; got != "global-blue" {
-		t.Fatalf("brand.color = %v, want global-blue", got)
+	if got := result["brand"]["color"]; got != "system-blue" {
+		t.Fatalf("brand.color = %v, want system-blue", got)
 	}
 }
 
@@ -977,12 +977,12 @@ func TestResolveWithContext_LockedFieldAlwaysUsesDefault(t *testing.T) {
 		WorkspaceID:       wsID,
 		SystemWorkspaceID: sysID,
 		TenantID:          uuid.New(),
-		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
+		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 
 	injStore := &mockInjectorStore{
 		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
-			return []*domain.InjectorDefinition{{ID: defID, WorkspaceID: nil, Name: "student"}}, nil
+			return []*domain.InjectorDefinition{{ID: defID, WorkspaceID: &sysID, Name: "student"}}, nil
 		},
 		getFieldsFn: func(_ context.Context, _ uuid.UUID) ([]*domain.InjectorField, error) {
 			return []*domain.InjectorField{
@@ -999,7 +999,7 @@ func TestResolveWithContext_LockedFieldAlwaysUsesDefault(t *testing.T) {
 		},
 		getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
 			return []*domain.InjectorValue{
-				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", WorkspaceID: nil, Value: `"Inherited DB"`},
+				{ID: uuid.New(), InjectorDefinitionID: defID, FieldName: "name", WorkspaceID: &sysID, Value: `"Inherited DB"`},
 			}, nil
 		},
 	}
@@ -1026,8 +1026,8 @@ func TestResolveWithContext_LockedFieldAlwaysUsesDefault(t *testing.T) {
 	}
 }
 
-func TestResolve_UsesDefinitionsAcrossTheFullChain(t *testing.T) {
-	globalDefID := uuid.New()
+func TestResolve_UsesDefinitionsAcrossWorkspaceAndSystemChain(t *testing.T) {
+	systemDefID := uuid.New()
 	wsDefID := uuid.New()
 	wsID := uuid.Must(uuid.NewV7())
 	sysID := uuid.Must(uuid.NewV7())
@@ -1035,13 +1035,13 @@ func TestResolve_UsesDefinitionsAcrossTheFullChain(t *testing.T) {
 		WorkspaceID:       wsID,
 		SystemWorkspaceID: sysID,
 		TenantID:          uuid.New(),
-		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}, {Valid: false}},
+		Scopes:            []uuid.NullUUID{{UUID: wsID, Valid: true}, {UUID: sysID, Valid: true}},
 	}
 
 	injStore := &mockInjectorStore{
 		listDefsFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
 			return []*domain.InjectorDefinition{
-				{ID: globalDefID, WorkspaceID: nil, Name: "global_only"},
+				{ID: systemDefID, WorkspaceID: &sysID, Name: "system_only"},
 				{ID: wsDefID, WorkspaceID: &wsID, Name: "workspace_only"},
 			}, nil
 		},
@@ -1057,14 +1057,14 @@ func TestResolve_UsesDefinitionsAcrossTheFullChain(t *testing.T) {
 					DefaultValue:         "Workspace",
 					AllowOverwrite:       true,
 				}}, nil
-			case globalDefID:
+			case systemDefID:
 				return []*domain.InjectorField{{
 					ID:                   uuid.New(),
-					InjectorDefinitionID: globalDefID,
+					InjectorDefinitionID: systemDefID,
 					FieldName:            "name",
 					FieldType:            domain.FieldTypeText,
 					Position:             0,
-					DefaultValue:         "Global",
+					DefaultValue:         "System",
 					AllowOverwrite:       true,
 				}}, nil
 			default:
@@ -1084,8 +1084,8 @@ func TestResolve_UsesDefinitionsAcrossTheFullChain(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := result["global_only"]["name"]; got != "Global" {
-		t.Fatalf("global_only.name = %v, want Global", got)
+	if got := result["system_only"]["name"]; got != "System" {
+		t.Fatalf("system_only.name = %v, want System", got)
 	}
 	if got := result["workspace_only"]["name"]; got != "Workspace" {
 		t.Fatalf("workspace_only.name = %v, want Workspace", got)

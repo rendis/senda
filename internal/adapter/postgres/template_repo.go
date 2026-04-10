@@ -95,18 +95,6 @@ func (r *TemplateRepo) SoftDeleteType(ctx context.Context, id uuid.UUID) error {
 func (r *TemplateRepo) GetTypeBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
 	scopes, includeGlobal := splitChain(chain)
 
-	// Build an array parameter for chain priority ordering.
-	// The chain is ordered from most specific to least specific.
-	// We use array_position to pick the most specific match.
-	chainArr := make([]any, len(chain))
-	for i, entry := range chain {
-		if entry.Valid {
-			chainArr[i] = entry.UUID
-		} else {
-			chainArr[i] = nil
-		}
-	}
-
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
 		        created_at, updated_at, deleted_at
@@ -115,7 +103,11 @@ func (r *TemplateRepo) GetTypeBySlug(ctx context.Context, slug string, chain []u
 		   AND (workspace_id = ANY(@scopes) OR (@include_global::bool AND workspace_id IS NULL))
 		   AND deleted_at IS NULL
 		 ORDER BY
-		   CASE WHEN workspace_id IS NULL THEN 1 ELSE 0 END,
+		   CASE
+		     WHEN workspace_id IS NULL THEN cardinality(@scopes::uuid[]) + 1
+		     ELSE array_position(@scopes::uuid[], workspace_id)
+		   END ASC,
+		   created_at DESC,
 		   id DESC
 		 LIMIT 1`,
 		pgx.NamedArgs{
@@ -229,14 +221,16 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 
 func (r *TemplateRepo) CreateTemplate(ctx context.Context, tpl *domain.Template) error {
 	row := r.pool.QueryRow(ctx,
-		`INSERT INTO templates (id, template_type_id, workspace_id, is_disabled)
-		 VALUES (@id, @template_type_id, @workspace_id, @is_disabled)
+		`INSERT INTO templates (id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id)
+		 VALUES (@id, @template_type_id, @workspace_id, @is_disabled, @is_fork, @origin_template_id)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":               tpl.ID,
-			"template_type_id": tpl.TemplateTypeID,
-			"workspace_id":     tpl.WorkspaceID,
-			"is_disabled":      tpl.IsDisabled,
+			"id":                 tpl.ID,
+			"template_type_id":   tpl.TemplateTypeID,
+			"workspace_id":       tpl.WorkspaceID,
+			"is_disabled":        tpl.IsDisabled,
+			"is_fork":            tpl.IsFork,
+			"origin_template_id": tpl.OriginTemplateID,
 		},
 	)
 
@@ -250,9 +244,112 @@ func (r *TemplateRepo) CreateTemplate(ctx context.Context, tpl *domain.Template)
 	return nil
 }
 
+func (r *TemplateRepo) ForkTemplate(
+	ctx context.Context,
+	sourceTemplateID uuid.UUID,
+	workspaceID uuid.UUID,
+	createdBy *uuid.UUID,
+) (*domain.Template, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("beginning template fork transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	sourceTemplate, err := loadTemplateForFork(ctx, tx, sourceTemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	forked := &domain.Template{
+		ID:               uuid.Must(uuid.NewV7()),
+		TemplateTypeID:   sourceTemplate.TemplateTypeID,
+		WorkspaceID:      &workspaceID,
+		IsDisabled:       sourceTemplate.IsDisabled,
+		IsFork:           true,
+		OriginTemplateID: &sourceTemplate.ID,
+	}
+
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO templates (id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id)
+		 VALUES (@id, @template_type_id, @workspace_id, @is_disabled, @is_fork, @origin_template_id)
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":                 forked.ID,
+			"template_type_id":   forked.TemplateTypeID,
+			"workspace_id":       workspaceID,
+			"is_disabled":        forked.IsDisabled,
+			"is_fork":            forked.IsFork,
+			"origin_template_id": forked.OriginTemplateID,
+		},
+	).Scan(&forked.CreatedAt, &forked.UpdatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return nil, appErr
+		}
+		return nil, fmt.Errorf("inserting forked template: %w", err)
+	}
+
+	sourceVersions, err := listTemplateVersionsForFork(ctx, tx, sourceTemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	versionIDMap := make(map[uuid.UUID]uuid.UUID, len(sourceVersions))
+	for _, sourceVersion := range sourceVersions {
+		targetVersionID := uuid.Must(uuid.NewV7())
+		versionIDMap[sourceVersion.ID] = targetVersionID
+
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO template_versions (
+			    id, template_id, version_number, status, subject, preview_text,
+			    from_name, reply_to, body_mjml, default_locale, editor_data,
+			    created_by, published_at, archived_at
+			)
+			 VALUES (
+			    @id, @template_id, @version_number, @status, @subject, @preview_text,
+			    @from_name, @reply_to, @body_mjml, @default_locale, @editor_data,
+			    @created_by, @published_at, @archived_at
+			)`,
+			pgx.NamedArgs{
+				"id":             targetVersionID,
+				"template_id":    forked.ID,
+				"version_number": sourceVersion.VersionNumber,
+				"status":         sourceVersion.Status,
+				"subject":        sourceVersion.Subject,
+				"preview_text":   sourceVersion.PreviewText,
+				"from_name":      sourceVersion.FromName,
+				"reply_to":       sourceVersion.ReplyTo,
+				"body_mjml":      sourceVersion.BodyMJML,
+				"default_locale": sourceVersion.DefaultLocale,
+				"editor_data":    sourceVersion.EditorData,
+				"created_by":     coalesceUUID(createdBy, sourceVersion.CreatedBy),
+				"published_at":   sourceVersion.PublishedAt,
+				"archived_at":    sourceVersion.ArchivedAt,
+			},
+		); err != nil {
+			if appErr := classifyPgError(err); appErr != nil {
+				return nil, appErr
+			}
+			return nil, fmt.Errorf("copying template version during fork: %w", err)
+		}
+	}
+
+	if err := copyTemplateLocalesForFork(ctx, tx, versionIDMap); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("committing template fork: %w", err)
+	}
+
+	return forked, nil
+}
+
 func (r *TemplateRepo) GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+		`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 		 FROM templates
 		 WHERE id = @id AND deleted_at IS NULL`,
 		pgx.NamedArgs{"id": id},
@@ -274,14 +371,14 @@ func (r *TemplateRepo) GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, 
 	var row pgx.Row
 	if wsID == nil {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+			`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 			 FROM templates
 			 WHERE template_type_id = @type_id AND workspace_id IS NULL AND deleted_at IS NULL`,
 			pgx.NamedArgs{"type_id": typeID},
 		)
 	} else {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+			`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 			 FROM templates
 			 WHERE template_type_id = @type_id AND workspace_id = @workspace_id AND deleted_at IS NULL`,
 			pgx.NamedArgs{"type_id": typeID, "workspace_id": *wsID},
@@ -303,7 +400,7 @@ func (r *TemplateRepo) ListByType(ctx context.Context, typeID uuid.UUID, wsID *u
 	if wsID == nil {
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 				 FROM templates
 				 WHERE template_type_id = @type_id AND workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
 				 ORDER BY id DESC
@@ -312,7 +409,7 @@ func (r *TemplateRepo) ListByType(ctx context.Context, typeID uuid.UUID, wsID *u
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 				 FROM templates
 				 WHERE template_type_id = @type_id AND workspace_id IS NULL AND deleted_at IS NULL
 				 ORDER BY id DESC
@@ -323,7 +420,7 @@ func (r *TemplateRepo) ListByType(ctx context.Context, typeID uuid.UUID, wsID *u
 	} else {
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 				 FROM templates
 				 WHERE template_type_id = @type_id AND workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
 				 ORDER BY id DESC
@@ -332,7 +429,7 @@ func (r *TemplateRepo) ListByType(ctx context.Context, typeID uuid.UUID, wsID *u
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+				`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 				 FROM templates
 				 WHERE template_type_id = @type_id AND workspace_id = @workspace_id AND deleted_at IS NULL
 				 ORDER BY id DESC
@@ -363,13 +460,17 @@ func (r *TemplateRepo) ResolveTemplate(ctx context.Context, typeID uuid.UUID, ch
 	scopes, includeGlobal := splitChain(chain)
 
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, template_type_id, workspace_id, is_disabled, created_at, updated_at, deleted_at
+		`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
 		 FROM templates
 		 WHERE template_type_id = @type_id
 		   AND (workspace_id = ANY(@scopes) OR (@include_global::bool AND workspace_id IS NULL))
 		   AND deleted_at IS NULL
 		 ORDER BY
-		   CASE WHEN workspace_id IS NULL THEN 1 ELSE 0 END,
+		   CASE
+		     WHEN workspace_id IS NULL THEN cardinality(@scopes::uuid[]) + 1
+		     ELSE array_position(@scopes::uuid[], workspace_id)
+		   END ASC,
+		   created_at DESC,
 		   id DESC
 		 LIMIT 1`,
 		pgx.NamedArgs{
@@ -718,6 +819,93 @@ func insertClonedLocales(
 	return nil
 }
 
+func loadTemplateForFork(ctx context.Context, tx pgx.Tx, sourceTemplateID uuid.UUID) (*domain.Template, error) {
+	row := tx.QueryRow(ctx,
+		`SELECT id, template_type_id, workspace_id, is_disabled, is_fork, origin_template_id, created_at, updated_at, deleted_at
+		 FROM templates
+		 WHERE id = @id AND deleted_at IS NULL
+		 FOR UPDATE`,
+		pgx.NamedArgs{"id": sourceTemplateID},
+	)
+	return scanTemplate(row)
+}
+
+func listTemplateVersionsForFork(ctx context.Context, tx pgx.Tx, sourceTemplateID uuid.UUID) ([]*domain.TemplateVersion, error) {
+	rows, err := tx.Query(ctx,
+		`SELECT id, template_id, version_number, status, subject, preview_text,
+		        from_name, reply_to, body_mjml, default_locale,
+		        editor_data, created_by, published_at, archived_at, created_at, updated_at
+		 FROM template_versions
+		 WHERE template_id = @template_id
+		 ORDER BY version_number ASC`,
+		pgx.NamedArgs{"template_id": sourceTemplateID},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing template versions for fork: %w", err)
+	}
+
+	versions, err := pgx.CollectRows(rows, scanTemplateVersionRow)
+	if err != nil {
+		return nil, fmt.Errorf("collecting template versions for fork: %w", err)
+	}
+	return versions, nil
+}
+
+func copyTemplateLocalesForFork(ctx context.Context, tx pgx.Tx, versionIDMap map[uuid.UUID]uuid.UUID) error {
+	for sourceVersionID, targetVersionID := range versionIDMap {
+		rows, err := tx.Query(ctx,
+			`SELECT id, template_version_id, locale, subject, preview_text, from_name,
+			        body_mjml, editor_data, created_at, updated_at
+			 FROM template_version_locales
+			 WHERE template_version_id = @template_version_id
+			 ORDER BY created_at ASC`,
+			pgx.NamedArgs{"template_version_id": sourceVersionID},
+		)
+		if err != nil {
+			return fmt.Errorf("listing locales for forked template version: %w", err)
+		}
+
+		locales, err := pgx.CollectRows(rows, scanTemplateVersionLocaleRow)
+		if err != nil {
+			return fmt.Errorf("collecting locales for forked template version: %w", err)
+		}
+
+		for _, locale := range locales {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO template_version_locales (
+				    id, template_version_id, locale, subject, preview_text, from_name, body_mjml, editor_data
+				)
+				 VALUES (
+				    @id, @template_version_id, @locale, @subject, @preview_text, @from_name, @body_mjml, @editor_data
+				)`,
+				pgx.NamedArgs{
+					"id":                  uuid.Must(uuid.NewV7()),
+					"template_version_id": targetVersionID,
+					"locale":              locale.Locale,
+					"subject":             locale.Subject,
+					"preview_text":        locale.PreviewText,
+					"from_name":           locale.FromName,
+					"body_mjml":           locale.BodyMJML,
+					"editor_data":         locale.EditorData,
+				},
+			); err != nil {
+				if appErr := classifyPgError(err); appErr != nil {
+					return appErr
+				}
+				return fmt.Errorf("copying locale %s during template fork: %w", locale.Locale, err)
+			}
+		}
+	}
+	return nil
+}
+
+func coalesceUUID(preferred, fallback *uuid.UUID) *uuid.UUID {
+	if preferred != nil {
+		return preferred
+	}
+	return fallback
+}
+
 func (r *TemplateRepo) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, template_id, version_number, status, subject, preview_text,
@@ -995,7 +1183,7 @@ func scanTemplateType(row pgx.Row) (*domain.TemplateType, error) {
 func scanTemplateRow(row pgx.CollectableRow) (*domain.Template, error) {
 	var t domain.Template
 	err := row.Scan(
-		&t.ID, &t.TemplateTypeID, &t.WorkspaceID, &t.IsDisabled,
+		&t.ID, &t.TemplateTypeID, &t.WorkspaceID, &t.IsDisabled, &t.IsFork, &t.OriginTemplateID,
 		&t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
 	)
 	if err != nil {
@@ -1007,7 +1195,7 @@ func scanTemplateRow(row pgx.CollectableRow) (*domain.Template, error) {
 func scanTemplate(row pgx.Row) (*domain.Template, error) {
 	var t domain.Template
 	err := row.Scan(
-		&t.ID, &t.TemplateTypeID, &t.WorkspaceID, &t.IsDisabled,
+		&t.ID, &t.TemplateTypeID, &t.WorkspaceID, &t.IsDisabled, &t.IsFork, &t.OriginTemplateID,
 		&t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
 	)
 	if err != nil {
@@ -1017,6 +1205,21 @@ func scanTemplate(row pgx.Row) (*domain.Template, error) {
 		return nil, fmt.Errorf("scanning template: %w", err)
 	}
 	return &t, nil
+}
+
+func scanTemplateVersionRow(row pgx.CollectableRow) (*domain.TemplateVersion, error) {
+	var v domain.TemplateVersion
+	err := row.Scan(
+		&v.ID, &v.TemplateID, &v.VersionNumber, &v.Status,
+		&v.Subject, &v.PreviewText, &v.FromName,
+		&v.ReplyTo, &v.BodyMJML, &v.DefaultLocale,
+		&v.EditorData, &v.CreatedBy,
+		&v.PublishedAt, &v.ArchivedAt, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scanning template version row: %w", err)
+	}
+	return &v, nil
 }
 
 func scanTemplateVersion(row pgx.Row) (*domain.TemplateVersion, error) {

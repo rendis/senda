@@ -11005,6 +11005,108 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork": {
+            "post": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "template_id path parameter",
+                        "name": "template_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml": {
             "post": {
                 "security": [
@@ -14966,7 +15068,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "inherited_from_system": {
+                    "type": "boolean"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "owner_scope": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -15368,8 +15476,20 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "inherited_from_system": {
+                    "type": "boolean"
+                },
                 "is_disabled": {
                     "type": "boolean"
+                },
+                "is_fork": {
+                    "type": "boolean"
+                },
+                "origin_template_id": {
+                    "type": "string"
+                },
+                "owner_scope": {
+                    "type": "string"
                 },
                 "template_type_id": {
                     "type": "string"
@@ -15414,7 +15534,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "inherited_from_system": {
+                    "type": "boolean"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "owner_scope": {
                     "type": "string"
                 },
                 "sender_identity_id": {

@@ -12,17 +12,17 @@ import (
 
 const chainCacheTTL = 5 * time.Minute
 
-// ResolutionChain holds the ordered scopes for hierarchical resolution.
-// Scopes are ordered from highest priority (workspace) to lowest (global).
+// ResolutionChain holds the ordered scopes for tenant-local hierarchical resolution.
+// Scopes are ordered from highest priority (workspace) to lowest (_system).
 type ResolutionChain struct {
-	WorkspaceID       uuid.UUID        `json:"workspace_id"`
-	SystemWorkspaceID uuid.UUID        `json:"system_workspace_id"`
-	TenantID          uuid.UUID        `json:"tenant_id"`
-	Scopes            []uuid.NullUUID  `json:"scopes"`
+	WorkspaceID       uuid.UUID       `json:"workspace_id"`
+	SystemWorkspaceID uuid.UUID       `json:"system_workspace_id"`
+	TenantID          uuid.UUID       `json:"tenant_id"`
+	Scopes            []uuid.NullUUID `json:"scopes"`
 }
 
 // ChainResolver builds a ResolutionChain for a given workspace,
-// using the 3-level hierarchy: workspace → _system → global.
+// using the tenant-local hierarchy: workspace → _system.
 type ChainResolver struct {
 	workspaceStore port.WorkspaceStore
 	cache          port.Cache
@@ -64,7 +64,6 @@ func (r *ChainResolver) Resolve(ctx context.Context, workspaceID uuid.UUID) (*Re
 			TenantID:          ws.TenantID,
 			Scopes: []uuid.NullUUID{
 				{UUID: ws.ID, Valid: true},
-				{Valid: false}, // global
 			},
 		}
 	} else {
@@ -79,7 +78,6 @@ func (r *ChainResolver) Resolve(ctx context.Context, workspaceID uuid.UUID) (*Re
 			Scopes: []uuid.NullUUID{
 				{UUID: ws.ID, Valid: true},
 				{UUID: sysWS.ID, Valid: true},
-				{Valid: false}, // global
 			},
 		}
 	}

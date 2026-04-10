@@ -17,15 +17,19 @@ type Tenant struct {
 }
 
 type Workspace struct {
-	ID                  uuid.UUID
-	TenantID            uuid.UUID
-	Code                string
-	Name                string
-	IsSystem            bool
-	IsActive            bool
-	OpenTrackingEnabled bool
-	DefaultLocale       *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	DeletedAt           *time.Time
+	ID                                   uuid.UUID
+	TenantID                             uuid.UUID
+	Code                                 string
+	Name                                 string
+	IsSystem                             bool
+	IsActive                             bool
+	OpenTrackingEnabled                  bool
+	DefaultLocale                        *string
+	AllowWorkspaceLocalTemplates         bool
+	AllowWorkspaceInheritedTemplateForks bool
+	AllowWorkspaceLocalInjectors         bool
+	WorkspacePoliciesInitialized         bool
+	CreatedAt                            time.Time
+	UpdatedAt                            time.Time
+	DeletedAt                            *time.Time
 }

@@ -135,6 +135,76 @@ func TestTemplateRepo_GetTypeBySlug(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_GetTypeBySlug_PrefersEarlierScopeInChainOverUUIDOrdering(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := &domain.Tenant{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Code: "acme", Name: "Acme"}
+	if err := tenantRepo.Create(ctx, tenant); err != nil {
+		t.Fatalf("Create tenant error: %v", err)
+	}
+
+	systemWorkspace := &domain.Workspace{
+		ID:       uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+		TenantID: tenant.ID,
+		Code:     "_system",
+		Name:     "Default",
+		IsSystem: true,
+	}
+	if err := wsRepo.Create(ctx, systemWorkspace); err != nil {
+		t.Fatalf("Create system workspace error: %v", err)
+	}
+
+	localWorkspace := &domain.Workspace{
+		ID:       uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+		TenantID: tenant.ID,
+		Code:     "main",
+		Name:     "Main",
+	}
+	if err := wsRepo.Create(ctx, localWorkspace); err != nil {
+		t.Fatalf("Create local workspace error: %v", err)
+	}
+
+	systemType := &domain.TemplateType{
+		ID:             uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+		WorkspaceID:    &systemWorkspace.ID,
+		Slug:           "welcome-email",
+		Name:           "System",
+		VariableSchema: map[string]any{},
+	}
+	if err := repo.CreateType(ctx, systemType); err != nil {
+		t.Fatalf("CreateType(system) error: %v", err)
+	}
+
+	localType := &domain.TemplateType{
+		ID:             uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		WorkspaceID:    &localWorkspace.ID,
+		Slug:           "welcome-email",
+		Name:           "Local",
+		VariableSchema: map[string]any{},
+	}
+	if err := repo.CreateType(ctx, localType); err != nil {
+		t.Fatalf("CreateType(local) error: %v", err)
+	}
+
+	chain := []uuid.NullUUID{
+		{UUID: localWorkspace.ID, Valid: true},
+		{UUID: systemWorkspace.ID, Valid: true},
+		{Valid: false},
+	}
+
+	got, err := repo.GetTypeBySlug(ctx, "welcome-email", chain)
+	if err != nil {
+		t.Fatalf("GetTypeBySlug() error: %v", err)
+	}
+	if got.ID != localType.ID {
+		t.Fatalf("expected local type %s, got %s", localType.ID, got.ID)
+	}
+}
+
 func TestTemplateRepo_GetTypeBySlug_GlobalOnly(t *testing.T) {
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)
@@ -525,6 +595,83 @@ func TestTemplateRepo_ResolveTemplate(t *testing.T) {
 	}
 	if got.ID != wsTpl.ID {
 		t.Errorf("expected workspace template (most specific), got ID %s", got.ID)
+	}
+}
+
+func TestTemplateRepo_ResolveTemplate_PrefersEarlierScopeInChainOverUUIDOrdering(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := &domain.Tenant{ID: uuid.MustParse("44444444-4444-4444-4444-444444444444"), Code: "acme", Name: "Acme"}
+	if err := tenantRepo.Create(ctx, tenant); err != nil {
+		t.Fatalf("Create tenant error: %v", err)
+	}
+
+	systemWorkspace := &domain.Workspace{
+		ID:       uuid.MustParse("55555555-5555-5555-5555-555555555555"),
+		TenantID: tenant.ID,
+		Code:     "_system",
+		Name:     "Default",
+		IsSystem: true,
+	}
+	if err := wsRepo.Create(ctx, systemWorkspace); err != nil {
+		t.Fatalf("Create system workspace error: %v", err)
+	}
+
+	localWorkspace := &domain.Workspace{
+		ID:       uuid.MustParse("66666666-6666-6666-6666-666666666666"),
+		TenantID: tenant.ID,
+		Code:     "main",
+		Name:     "Main",
+	}
+	if err := wsRepo.Create(ctx, localWorkspace); err != nil {
+		t.Fatalf("Create local workspace error: %v", err)
+	}
+
+	tt := &domain.TemplateType{
+		ID:             uuid.MustParse("77777777-7777-7777-7777-777777777777"),
+		WorkspaceID:    &systemWorkspace.ID,
+		Slug:           "welcome-email",
+		Name:           "Welcome",
+		VariableSchema: map[string]any{},
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType error: %v", err)
+	}
+
+	systemTemplate := &domain.Template{
+		ID:             uuid.MustParse("ffffffff-ffff-ffff-ffff-fffffffffffe"),
+		TemplateTypeID: tt.ID,
+		WorkspaceID:    &systemWorkspace.ID,
+	}
+	if err := repo.CreateTemplate(ctx, systemTemplate); err != nil {
+		t.Fatalf("CreateTemplate(system) error: %v", err)
+	}
+
+	localTemplate := &domain.Template{
+		ID:             uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		TemplateTypeID: tt.ID,
+		WorkspaceID:    &localWorkspace.ID,
+	}
+	if err := repo.CreateTemplate(ctx, localTemplate); err != nil {
+		t.Fatalf("CreateTemplate(local) error: %v", err)
+	}
+
+	chain := []uuid.NullUUID{
+		{UUID: localWorkspace.ID, Valid: true},
+		{UUID: systemWorkspace.ID, Valid: true},
+		{Valid: false},
+	}
+
+	got, err := repo.ResolveTemplate(ctx, tt.ID, chain)
+	if err != nil {
+		t.Fatalf("ResolveTemplate() error: %v", err)
+	}
+	if got.ID != localTemplate.ID {
+		t.Fatalf("expected local template %s, got %s", localTemplate.ID, got.ID)
 	}
 }
 
@@ -923,6 +1070,142 @@ func TestTemplateRepo_CloneVersion_CopiesVersionAndLocales(t *testing.T) {
 	if gotLocales["fr"] == nil || gotLocales["fr"].Subject == nil || *gotLocales["fr"].Subject != frSubject {
 		t.Fatalf("expected fr locale to be cloned exactly")
 	}
+}
+
+func TestTemplateRepo_ForkTemplate_CopiesTemplateVersionsAndLocales(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
+
+	systemWorkspace := &domain.Workspace{
+		ID:       uuid.New(),
+		TenantID: ws.TenantID,
+		Code:     "_system",
+		Name:     "Default",
+		IsSystem: true,
+	}
+	if err := wsRepo.Create(ctx, systemWorkspace); err != nil {
+		t.Fatalf("Create system workspace error: %v", err)
+	}
+
+	tt := &domain.TemplateType{
+		ID:             uuid.New(),
+		WorkspaceID:    &systemWorkspace.ID,
+		Slug:           "welcome-email",
+		Name:           "Welcome",
+		VariableSchema: map[string]any{},
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType error: %v", err)
+	}
+
+	sourceTemplate := &domain.Template{
+		ID:             uuid.New(),
+		TemplateTypeID: tt.ID,
+		WorkspaceID:    &systemWorkspace.ID,
+		IsDisabled:     true,
+	}
+	if err := repo.CreateTemplate(ctx, sourceTemplate); err != nil {
+		t.Fatalf("CreateTemplate error: %v", err)
+	}
+
+	published := &domain.TemplateVersion{
+		ID:            uuid.New(),
+		TemplateID:    sourceTemplate.ID,
+		Status:        domain.VersionStatusDraft,
+		Subject:       "Published",
+		FromName:      "Senda",
+		BodyMJML:      "<mjml><mj-body><mj-text>published</mj-text></mj-body></mjml>",
+		DefaultLocale: "en",
+	}
+	if err := repo.CreateVersion(ctx, published); err != nil {
+		t.Fatalf("CreateVersion(published) error: %v", err)
+	}
+	if err := repo.Publish(ctx, published.ID); err != nil {
+		t.Fatalf("Publish error: %v", err)
+	}
+
+	draft := &domain.TemplateVersion{
+		ID:            uuid.New(),
+		TemplateID:    sourceTemplate.ID,
+		Status:        domain.VersionStatusDraft,
+		VersionNumber: 2,
+		Subject:       "Draft",
+		FromName:      "Senda",
+		BodyMJML:      "<mjml><mj-body><mj-text>draft</mj-text></mj-body></mjml>",
+		DefaultLocale: "en",
+	}
+	if err := repo.CreateVersion(ctx, draft); err != nil {
+		t.Fatalf("CreateVersion(draft) error: %v", err)
+	}
+
+	if err := repo.SetLocale(ctx, &domain.TemplateVersionLocale{
+		ID:                uuid.New(),
+		TemplateVersionID: draft.ID,
+		Locale:            "es",
+		Subject:           ptrValue("Hola"),
+		BodyMJML:          ptrValue("<mjml><mj-body><mj-text>hola</mj-text></mj-body></mjml>"),
+	}); err != nil {
+		t.Fatalf("SetLocale error: %v", err)
+	}
+
+	forked, err := repo.ForkTemplate(ctx, sourceTemplate.ID, ws.ID, nil)
+	if err != nil {
+		t.Fatalf("ForkTemplate() error: %v", err)
+	}
+
+	if forked.WorkspaceID == nil || *forked.WorkspaceID != ws.ID {
+		t.Fatalf("expected fork workspace %s, got %#v", ws.ID, forked.WorkspaceID)
+	}
+	if !forked.IsFork {
+		t.Fatal("expected forked template to be marked as fork")
+	}
+	if forked.OriginTemplateID == nil || *forked.OriginTemplateID != sourceTemplate.ID {
+		t.Fatalf("expected origin template %s, got %#v", sourceTemplate.ID, forked.OriginTemplateID)
+	}
+
+	versions, err := repo.ListVersions(ctx, forked.ID)
+	if err != nil {
+		t.Fatalf("ListVersions(forked) error: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Fatalf("expected 2 versions on fork, got %d", len(versions))
+	}
+
+	var gotPublished, gotDraft *domain.TemplateVersion
+	for _, version := range versions {
+		switch version.Status {
+		case domain.VersionStatusPublished:
+			gotPublished = version
+		case domain.VersionStatusDraft:
+			gotDraft = version
+		}
+	}
+
+	if gotPublished == nil || gotDraft == nil {
+		t.Fatalf("expected published and draft versions on fork, got %#v", versions)
+	}
+	if gotPublished.VersionNumber != 1 {
+		t.Fatalf("expected published version number 1, got %d", gotPublished.VersionNumber)
+	}
+	if gotDraft.VersionNumber != 2 {
+		t.Fatalf("expected draft version number 2, got %d", gotDraft.VersionNumber)
+	}
+
+	locales, err := repo.ListLocales(ctx, gotDraft.ID)
+	if err != nil {
+		t.Fatalf("ListLocales(draft) error: %v", err)
+	}
+	if len(locales) != 1 || locales[0].Locale != "es" {
+		t.Fatalf("expected spanish locale on forked draft, got %#v", locales)
+	}
+}
+
+func ptrValue[T any](value T) *T {
+	return &value
 }
 
 // --- Locale tests ---

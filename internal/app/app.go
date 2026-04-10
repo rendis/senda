@@ -200,6 +200,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	// 11. HTTP handlers.
 	tenantH := handler.NewTenantHandler(tenantRepo, wsRepo, adapterRepo)
 	workspaceH := handler.NewWorkspaceHandler(tenantRepo, wsRepo)
+	workspacePolicyH := handler.NewWorkspacePolicyHandler(tenantRepo, wsRepo)
 	memberH := handler.NewMemberHandler(memberRepo, tenantRepo, wsRepo)
 	configH := handler.NewConfigHandler(configRepo, handler.OIDCInfo{
 		DiscoveryURL:    cfg.OIDC.DiscoveryURL,
@@ -287,6 +288,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		sendahttp.WithConfigStore(configRepo),
 		sendahttp.WithTenantHandler(tenantH),
 		sendahttp.WithWorkspaceHandler(workspaceH),
+		sendahttp.WithWorkspacePolicyHandler(workspacePolicyH),
 		sendahttp.WithMemberHandler(memberH),
 		sendahttp.WithConfigHandler(configH),
 		sendahttp.WithInjectorHandler(injectorH),

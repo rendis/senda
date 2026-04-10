@@ -51,3 +51,21 @@ export function useDeleteTemplate(scopedPath: string) {
     },
   });
 }
+
+export function useForkTemplate(scopedPath: string, typeSlug: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (templateId: string) =>
+      api.post(`${scopedPath}/templates/${templateId}/fork`).json<Template>(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates", scopedPath, typeSlug] });
+      queryClient.invalidateQueries({ queryKey: ["template-type", scopedPath, typeSlug] });
+      toast.success("Default template forked into this workspace");
+    },
+    onError: () => {
+      toast.error("Failed to fork default template");
+    },
+  });
+}

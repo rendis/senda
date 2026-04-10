@@ -8,14 +8,20 @@ const { getVersionPrimaryAction } = await import(
 test("published versions expose an explicit open action instead of view semantics", () => {
   assert.deepEqual(getVersionPrimaryAction("published"), {
     icon: "file-text",
-    label: "Open version",
+    labelKey: "openVersion",
   });
 });
 
 test("draft versions keep edit semantics", () => {
   assert.deepEqual(getVersionPrimaryAction("draft"), {
     icon: "pencil",
-    label: "Edit version",
+    labelKey: "editVersion",
   });
 });
 
+test("draft versions can switch to open semantics when the template is read-only", () => {
+  assert.deepEqual(getVersionPrimaryAction("draft", "open"), {
+    icon: "file-text",
+    labelKey: "openVersion",
+  });
+});

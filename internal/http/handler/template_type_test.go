@@ -33,6 +33,7 @@ type mockTemplateStore struct {
 	getVersionByIDFn        func(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
+	updateVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
 	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
@@ -40,6 +41,7 @@ type mockTemplateStore struct {
 	listLocalesFn           func(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error)
 	deleteLocaleFn          func(ctx context.Context, versionID uuid.UUID, locale string) error
 	listTypesFn             func(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error)
+	forkTemplateFn          func(ctx context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error)
 	updateTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
 	getTemplateByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.Template, error)
 	getTypeByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
@@ -114,7 +116,10 @@ func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID 
 	}
 	return nil, nil
 }
-func (m *mockTemplateStore) UpdateVersion(_ context.Context, _ *domain.TemplateVersion) error {
+func (m *mockTemplateStore) UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error {
+	if m.updateVersionFn != nil {
+		return m.updateVersionFn(ctx, ver)
+	}
 	return nil
 }
 func (m *mockTemplateStore) Publish(ctx context.Context, versionID uuid.UUID) error {
@@ -169,6 +174,12 @@ func (m *mockTemplateStore) UpdateType(ctx context.Context, tt *domain.TemplateT
 		return m.updateTypeFn(ctx, tt)
 	}
 	return nil
+}
+func (m *mockTemplateStore) ForkTemplate(ctx context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error) {
+	if m.forkTemplateFn != nil {
+		return m.forkTemplateFn(ctx, sourceTemplateID, workspaceID, createdBy)
+	}
+	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error) {
@@ -477,10 +488,16 @@ func TestTemplateTypeHandler_Get_Success(t *testing.T) {
 
 	ttID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
-		findTypeBySlugInScopeFn: func(_ context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error) {
+		getTypeBySlugFn: func(_ context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
 			if slug == "welcome-email" {
+				if len(chain) != 1 {
+					t.Fatalf("expected 1 scope, got %d", len(chain))
+				}
+				if !chain[0].Valid || chain[0].UUID != ws.ID {
+					t.Fatalf("expected workspace scope %s, got %#v", ws.ID, chain[0])
+				}
 				return &domain.TemplateType{
-					ID: ttID, WorkspaceID: wsID, Slug: "welcome-email", Name: "Welcome",
+					ID: ttID, WorkspaceID: &ws.ID, Slug: "welcome-email", Name: "Welcome",
 				}, nil
 			}
 			return nil, domain.ErrNotFound
@@ -503,14 +520,69 @@ func TestTemplateTypeHandler_Get_Success(t *testing.T) {
 	if resp.Slug != "welcome-email" {
 		t.Fatalf("expected slug 'welcome-email', got %q", resp.Slug)
 	}
-	_ = ws // used indirectly via wsStore
+}
+
+func TestTemplateTypeHandler_Get_ResolvesInheritedSystemTypeInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWorkspace := uuid.Must(uuid.NewV7())
+	ttID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemWorkspace,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
+			if slug != "welcome-email" {
+				t.Fatalf("unexpected slug %q", slug)
+			}
+			if len(chain) != 2 {
+				t.Fatalf("expected workspace -> system chain, got %d", len(chain))
+			}
+			return &domain.TemplateType{
+				ID:          ttID,
+				WorkspaceID: &systemWorkspace,
+				Slug:        "welcome-email",
+				Name:        "Welcome",
+			}, nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateTypeResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp.OwnerScope != "system" {
+		t.Fatalf("expected owner_scope system, got %q", resp.OwnerScope)
+	}
+	if !resp.InheritedFromSystem {
+		t.Fatal("expected inherited system marker")
+	}
 }
 
 func TestTemplateTypeHandler_Get_NotFound(t *testing.T) {
 	_, _, ts, wsStore := testTenantAndWorkspace()
 
 	store := &mockTemplateStore{
-		findTypeBySlugInScopeFn: func(_ context.Context, _ string, _ *uuid.UUID) (*domain.TemplateType, error) {
+		getTypeBySlugFn: func(_ context.Context, _ string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
 			return nil, domain.ErrNotFound
 		},
 	}
@@ -561,7 +633,13 @@ func TestTemplateTypeHandler_Update_Success(t *testing.T) {
 
 	var updated *domain.TemplateType
 	store := &mockTemplateStore{
-		findTypeBySlugInScopeFn: func(_ context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error) {
+		getTypeBySlugFn: func(_ context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
+			if len(chain) != 1 {
+				t.Fatalf("expected 1 scope, got %d", len(chain))
+			}
+			if !chain[0].Valid || chain[0].UUID != ws.ID {
+				t.Fatalf("expected workspace scope %s, got %#v", ws.ID, chain[0])
+			}
 			switch slug {
 			case "welcome-email":
 				return original, nil
@@ -602,7 +680,13 @@ func TestTemplateTypeHandler_Update_InvalidSlug(t *testing.T) {
 	_, ws, ts, wsStore := testTenantAndWorkspace()
 	ttID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
-		findTypeBySlugInScopeFn: func(_ context.Context, slug string, _ *uuid.UUID) (*domain.TemplateType, error) {
+		getTypeBySlugFn: func(_ context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
+			if len(chain) != 1 {
+				t.Fatalf("expected 1 scope, got %d", len(chain))
+			}
+			if !chain[0].Valid || chain[0].UUID != ws.ID {
+				t.Fatalf("expected workspace scope %s, got %#v", ws.ID, chain[0])
+			}
 			if slug == "welcome-email" {
 				return &domain.TemplateType{ID: ttID, WorkspaceID: &ws.ID, Slug: slug, Name: "Welcome"}, nil
 			}
@@ -646,6 +730,75 @@ func TestTemplateTypeHandler_List_Success(t *testing.T) {
 	}
 	if resp.HasMore {
 		t.Fatal("expected has_more=false for empty list")
+	}
+}
+
+func TestTemplateTypeHandler_List_ExcludesGlobalTemplateTypesForWorkspace(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:        systemWorkspaceID,
+			TenantID:  tenant.ID,
+			Code:      "_system",
+			Name:      "Default",
+			IsSystem:  true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}, nil
+	}
+
+	var seenScopes []string
+	store := &mockTemplateStore{
+		listTypesFn: func(_ context.Context, wsID *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+			switch {
+			case wsID != nil && *wsID == ws.ID:
+				seenScopes = append(seenScopes, "workspace")
+				return []*domain.TemplateType{}, "", nil
+			case wsID != nil && *wsID == systemWorkspaceID:
+				seenScopes = append(seenScopes, "system")
+				return []*domain.TemplateType{
+					{ID: uuid.New(), WorkspaceID: &systemWorkspaceID, Slug: "welcome", Name: "Welcome", CreatedAt: now, UpdatedAt: now},
+				}, "", nil
+			case wsID == nil:
+				seenScopes = append(seenScopes, "global")
+				return []*domain.TemplateType{
+					{ID: uuid.New(), Slug: "global-only", Name: "Global", CreatedAt: now, UpdatedAt: now},
+				}, "", nil
+			default:
+				t.Fatalf("unexpected workspace scope %#v", wsID)
+				return nil, "", nil
+			}
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/template-types", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateTypeListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 visible template type, got %d", len(resp.Items))
+	}
+	if resp.Items[0].Slug != "welcome" {
+		t.Fatalf("expected only system template type to be visible, got %q", resp.Items[0].Slug)
+	}
+	if len(seenScopes) != 2 || seenScopes[0] != "workspace" || seenScopes[1] != "system" {
+		t.Fatalf("expected workspace and system scopes only, got %#v", seenScopes)
 	}
 }
 

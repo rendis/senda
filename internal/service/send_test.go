@@ -230,6 +230,9 @@ func (m *mockTemplateStoreSend) CreateTemplate(ctx context.Context, tpl *domain.
 	}
 	return nil
 }
+func (m *mockTemplateStoreSend) ForkTemplate(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID) (*domain.Template, error) {
+	return nil, domain.ErrNotFound
+}
 func (m *mockTemplateStoreSend) GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error) {
 	if m.getByTypeAndScopeFn != nil {
 		return m.getByTypeAndScopeFn(ctx, typeID, wsID)

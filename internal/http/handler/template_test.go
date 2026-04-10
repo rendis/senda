@@ -106,9 +106,12 @@ func setupTemplateTestWithOptions(
 	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
 
 	e.POST(base+"/templates", h.CreateTemplate)
+	e.GET(base+"/template-types/:slug/templates", h.ListByTemplateType)
+	e.POST(base+"/templates/:template_id/fork", h.ForkTemplate)
 	e.POST("/api/v1/manage/global/templates", h.CreateTemplateGlobal)
 	e.GET(base+"/templates/:template_id/versions", h.ListVersions)
 	e.POST(base+"/templates/:template_id/versions", h.CreateVersion)
+	e.PUT(base+"/templates/:template_id/versions/:version_id", h.UpdateVersion)
 	e.POST(base+"/templates/:template_id/versions/:version_id/clone", h.CloneVersion)
 	e.POST(base+"/templates/:template_id/versions/:version_id/publish", h.PublishVersion)
 	e.POST(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.SetLocale)
@@ -125,6 +128,14 @@ func setupTemplateTestWithOptions(
 	e.POST("/api/v1/manage/global/templates/:template_id/enable", h.EnableTemplateGlobal)
 
 	return e, h
+}
+
+func workspaceOwnedTemplate(templateID, workspaceID uuid.UUID) *domain.Template {
+	return &domain.Template{
+		ID:             templateID,
+		TemplateTypeID: uuid.Must(uuid.NewV7()),
+		WorkspaceID:    &workspaceID,
+	}
 }
 
 // --- Tests ---
@@ -215,6 +226,12 @@ func TestTemplateHandler_DisableTemplate_InvalidatesResolvedTemplateCache(t *tes
 	invalidatedWorkspace := uuid.Nil
 
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setDisabledFn: func(_ context.Context, gotTemplateID uuid.UUID, gotWSID *uuid.UUID, disabled bool) error {
 			if gotTemplateID != templateID {
 				t.Fatalf("expected template ID %s, got %s", templateID, gotTemplateID)
@@ -265,11 +282,17 @@ func TestTemplateHandler_CreateTemplate_InvalidTypeID(t *testing.T) {
 }
 
 func TestTemplateHandler_CreateVersion_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
 	var created *domain.TemplateVersion
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		createVersionFn: func(_ context.Context, ver *domain.TemplateVersion) error {
 			ver.VersionNumber = 1
 			created = ver
@@ -303,11 +326,18 @@ func TestTemplateHandler_CreateVersion_Success(t *testing.T) {
 }
 
 func TestTemplateHandler_CreateVersion_MissingRequired(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
-
-	e, _ := setupTemplateTest(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore)
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
+	e, _ := setupTemplateTest(&mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
+	}, &mockTemplateCompiler{}, ts, wsStore)
+
 	body := `{"preview_text":"Preview only"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -371,13 +401,285 @@ func TestTemplateHandler_ListVersions_Success(t *testing.T) {
 	}
 }
 
+func TestTemplateHandler_ListByTemplateType_ResolvesVisibleSystemTemplateInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWorkspace := uuid.Must(uuid.NewV7())
+	typeID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemWorkspace,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
+			if slug != "welcome-email" {
+				t.Fatalf("unexpected slug %q", slug)
+			}
+			if len(chain) != 2 {
+				t.Fatalf("expected 2 scopes, got %d", len(chain))
+			}
+			return &domain.TemplateType{
+				ID:          typeID,
+				WorkspaceID: &systemWorkspace,
+				Slug:        "welcome-email",
+				Name:        "Welcome",
+			}, nil
+		},
+		resolveTemplateFn: func(_ context.Context, gotTypeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error) {
+			if gotTypeID != typeID {
+				t.Fatalf("expected type id %s, got %s", typeID, gotTypeID)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: typeID,
+				WorkspaceID:    &systemWorkspace,
+			}, nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email/templates", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 visible template, got %d", len(resp.Items))
+	}
+	if !resp.Items[0].InheritedFromSystem {
+		t.Fatal("expected template to be marked as inherited from system")
+	}
+	if resp.Items[0].OwnerScope != "system" {
+		t.Fatalf("expected owner_scope system, got %q", resp.Items[0].OwnerScope)
+	}
+}
+
+func TestTemplateHandler_CreateVersion_BlocksInheritedSystemTemplateInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWorkspace := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemWorkspace,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	createCalled := false
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template id %s, got %s", templateID, id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: uuid.Must(uuid.NewV7()),
+				WorkspaceID:    &systemWorkspace,
+			}, nil
+		},
+		createVersionFn: func(_ context.Context, _ *domain.TemplateVersion) error {
+			createCalled = true
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	body := `{"subject":"Welcome","from_name":"Acme","body_mjml":"<mjml></mjml>","default_locale":"en"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if createCalled {
+		t.Fatal("expected inherited template version creation to be blocked")
+	}
+}
+
+func TestTemplateHandler_UpdateVersion_BlocksInheritedSystemTemplateInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemWorkspace := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	versionID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemWorkspace,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	updateCalled := false
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template id %s, got %s", templateID, id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: uuid.Must(uuid.NewV7()),
+				WorkspaceID:    &systemWorkspace,
+			}, nil
+		},
+		getVersionByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateVersion, error) {
+			if id != versionID {
+				t.Fatalf("expected version id %s, got %s", versionID, id)
+			}
+			return &domain.TemplateVersion{
+				ID:         versionID,
+				TemplateID: templateID,
+				Status:     domain.VersionStatusDraft,
+			}, nil
+		},
+		updateVersionFn: func(_ context.Context, _ *domain.TemplateVersion) error {
+			updateCalled = true
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	body := `{"subject":"Updated subject"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updateCalled {
+		t.Fatal("expected inherited template version updates to be blocked")
+	}
+}
+
+func TestTemplateHandler_ForkTemplate_Success(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	templateID := uuid.Must(uuid.NewV7())
+	forkedTemplateID := uuid.Must(uuid.NewV7())
+	systemWorkspace := uuid.Must(uuid.NewV7())
+	invalidatedWorkspace := uuid.Nil
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemWorkspace,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template %s, got %s", templateID, id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: uuid.Must(uuid.NewV7()),
+				WorkspaceID:    &systemWorkspace,
+			}, nil
+		},
+		forkTemplateFn: func(_ context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error) {
+			if sourceTemplateID != templateID {
+				t.Fatalf("expected source template %s, got %s", templateID, sourceTemplateID)
+			}
+			if workspaceID != ws.ID {
+				t.Fatalf("expected workspace %s, got %s", ws.ID, workspaceID)
+			}
+			if createdBy != nil {
+				t.Fatalf("expected nil createdBy in handler test, got %s", *createdBy)
+			}
+			return &domain.Template{
+				ID:               forkedTemplateID,
+				TemplateTypeID:   uuid.Must(uuid.NewV7()),
+				WorkspaceID:      &workspaceID,
+				IsFork:           true,
+				OriginTemplateID: &sourceTemplateID,
+			}, nil
+		},
+	}
+
+	e, _ := setupTemplateTestWithInvalidator(store, &mockTemplateCompiler{}, ts, wsStore, &mockResolvedTemplateInvalidator{
+		invalidateResolvedTemplatesFn: func(_ context.Context, workspaceID uuid.UUID) {
+			invalidatedWorkspace = workspaceID
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/fork", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if !resp.IsFork {
+		t.Fatal("expected response template to be marked as fork")
+	}
+	if resp.OriginTemplateID == nil || *resp.OriginTemplateID != templateID.String() {
+		t.Fatalf("expected origin template %s, got %#v", templateID, resp.OriginTemplateID)
+	}
+	if invalidatedWorkspace != ws.ID {
+		t.Fatalf("expected resolved template cache invalidation for workspace %s, got %s", ws.ID, invalidatedWorkspace)
+	}
+}
+
 func TestTemplateHandler_PublishVersion_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	versionID := uuid.Must(uuid.NewV7())
 	templateID := uuid.Must(uuid.NewV7())
 	var publishedID uuid.UUID
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		publishFn: func(_ context.Context, id uuid.UUID) error {
 			publishedID = id
 			return nil
@@ -399,11 +701,18 @@ func TestTemplateHandler_PublishVersion_Success(t *testing.T) {
 }
 
 func TestTemplateHandler_PublishVersion_InvalidVersionID(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
-
-	e, _ := setupTemplateTest(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore)
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
+	e, _ := setupTemplateTest(&mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
+	}, &mockTemplateCompiler{}, ts, wsStore)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/bad-id/publish", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -414,9 +723,16 @@ func TestTemplateHandler_PublishVersion_InvalidVersionID(t *testing.T) {
 }
 
 func TestTemplateHandler_PublishVersion_NotFound(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
+	templateID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		publishFn: func(_ context.Context, _ uuid.UUID) error {
 			return domain.ErrNotFound
 		},
@@ -424,7 +740,6 @@ func TestTemplateHandler_PublishVersion_NotFound(t *testing.T) {
 
 	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
 
-	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/publish", nil)
 	rec := httptest.NewRecorder()
@@ -531,6 +846,12 @@ func TestTemplateHandler_DisableTemplate_Success(t *testing.T) {
 	)
 
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setDisabledFn: func(_ context.Context, id uuid.UUID, scope *uuid.UUID, disabled bool) error {
 			gotTemplateID = id
 			gotScope = scope
@@ -570,6 +891,12 @@ func TestTemplateHandler_DisableTemplate_WithoutInvalidator(t *testing.T) {
 	)
 
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setDisabledFn: func(_ context.Context, id uuid.UUID, scope *uuid.UUID, disabled bool) error {
 			gotTemplateID = id
 			gotScope = scope
@@ -599,11 +926,17 @@ func TestTemplateHandler_DisableTemplate_WithoutInvalidator(t *testing.T) {
 }
 
 func TestTemplateHandler_EnableTemplate_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
 	var gotDisabled bool
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setDisabledFn: func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, disabled bool) error {
 			gotDisabled = disabled
 			return nil
@@ -649,10 +982,17 @@ func TestTemplateHandler_DisableTemplateGlobal_Success(t *testing.T) {
 }
 
 func TestTemplateHandler_SetLocale_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	var set *domain.TemplateVersionLocale
+	templateID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setLocaleFn: func(_ context.Context, loc *domain.TemplateVersionLocale) error {
 			set = loc
 			return nil
@@ -661,7 +1001,6 @@ func TestTemplateHandler_SetLocale_Success(t *testing.T) {
 
 	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
 
-	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 	body := `{"subject":"Bienvenido","preview_text":"Hola!"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/locales/es", strings.NewReader(body))
@@ -684,9 +1023,16 @@ func TestTemplateHandler_SetLocale_Success(t *testing.T) {
 }
 
 func TestTemplateHandler_UpdateLocale_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
+	templateID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		setLocaleFn: func(_ context.Context, _ *domain.TemplateVersionLocale) error {
 			return nil
 		},
@@ -694,7 +1040,6 @@ func TestTemplateHandler_UpdateLocale_Success(t *testing.T) {
 
 	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
 
-	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 	body := `{"subject":"Updated Subject"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/locales/fr", strings.NewReader(body))
@@ -772,11 +1117,18 @@ func TestTemplateHandler_GetLocale_NotFound(t *testing.T) {
 }
 
 func TestTemplateHandler_DeleteLocale_Success(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
-
-	e, _ := setupTemplateTest(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore)
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
+	e, _ := setupTemplateTest(&mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
+	}, &mockTemplateCompiler{}, ts, wsStore)
+
 	versionID := uuid.Must(uuid.NewV7())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/locales/es", nil)
 	rec := httptest.NewRecorder()
@@ -788,16 +1140,22 @@ func TestTemplateHandler_DeleteLocale_Success(t *testing.T) {
 }
 
 func TestTemplateHandler_DeleteLocale_NotFound(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
+	templateID := uuid.Must(uuid.NewV7())
 	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
 		deleteLocaleFn: func(_ context.Context, _ uuid.UUID, _ string) error {
 			return domain.ErrNotFound
 		},
 	}
 	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
 
-	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/locales/zh", nil)
 	rec := httptest.NewRecorder()
@@ -905,11 +1263,18 @@ func TestTemplateHandler_PreviewMJML_CompilerError(t *testing.T) {
 }
 
 func TestTemplateHandler_SetLocale_InvalidVersionID(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
-
-	e, _ := setupTemplateTest(&mockTemplateStore{}, &mockTemplateCompiler{}, ts, wsStore)
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	templateID := uuid.Must(uuid.NewV7())
+	e, _ := setupTemplateTest(&mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return workspaceOwnedTemplate(templateID, ws.ID), nil
+		},
+	}, &mockTemplateCompiler{}, ts, wsStore)
+
 	body := `{"subject":"Test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/not-valid/locales/en", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

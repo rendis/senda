@@ -158,7 +158,7 @@ func TestTestSendService_ResolvesInjectorsWithRequestCodeAndDefaultPrecedence(t 
 	injectorDefinitionID := uuid.Must(uuid.NewV7())
 	injectorStore := &mockInjectorStoreSend{
 		listDefinitionsInChainFn: func(_ context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
-			if len(chain) != 3 || !chain[0].Valid || chain[0].UUID != workspaceID {
+			if len(chain) != 2 || !chain[0].Valid || chain[0].UUID != workspaceID {
 				t.Fatalf("unexpected chain %+v", chain)
 			}
 			return []*domain.InjectorDefinition{

@@ -1,3 +1,5 @@
+import type { OwnerScope } from "@/types/api";
+
 /** Injector field type */
 export type InjectorFieldType = "text" | "number" | "bool" | "img" | "url" | "html";
 
@@ -19,6 +21,8 @@ export interface InjectorDefinition {
   name: string;
   description?: string;
   fields: InjectorField[];
+  owner_scope?: OwnerScope;
+  inherited_from_system?: boolean;
   created_at: string;
   updated_at: string;
 }

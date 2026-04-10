@@ -42,6 +42,16 @@ func (s *TemplateService) CreateTemplate(ctx context.Context, templateTypeID uui
 	return tpl, nil
 }
 
+// ForkTemplate clones a visible inherited template into the target workspace while preserving its functional type identity.
+func (s *TemplateService) ForkTemplate(
+	ctx context.Context,
+	sourceTemplateID uuid.UUID,
+	workspaceID uuid.UUID,
+	createdBy *uuid.UUID,
+) (*domain.Template, error) {
+	return s.store.ForkTemplate(ctx, sourceTemplateID, workspaceID, createdBy)
+}
+
 // ListByType returns templates for a given template type and scope.
 func (s *TemplateService) ListByType(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.Template, string, error) {
 	return s.store.ListByType(ctx, typeID, wsID, opts)

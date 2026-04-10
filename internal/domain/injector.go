@@ -18,13 +18,15 @@ const (
 )
 
 type InjectorDefinition struct {
-	ID          uuid.UUID
-	WorkspaceID *uuid.UUID // nil = global
-	Name        string
-	Description *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   *time.Time
+	ID                  uuid.UUID
+	WorkspaceID         *uuid.UUID // nil = global
+	Name                string
+	Description         *string
+	OwnerScope          string
+	InheritedFromSystem bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           *time.Time
 }
 
 type InjectorField struct {

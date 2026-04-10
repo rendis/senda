@@ -5,6 +5,13 @@ export interface SystemSettings {
   alerts: AlertSettings;
 }
 
+/** Tenant-local workspace policies configured from the _system workspace */
+export interface WorkspacePolicies {
+  allow_workspace_local_templates: boolean;
+  allow_workspace_inherited_template_forks: boolean;
+  allow_workspace_local_injectors: boolean;
+}
+
 export interface OidcSettings {
   discovery_url: string;
   client_id: string;
@@ -27,3 +34,5 @@ export interface UpdateSettingsRequest {
   email_defaults?: Partial<EmailDefaultSettings>;
   alerts?: Partial<AlertSettings>;
 }
+
+export type UpdateWorkspacePoliciesRequest = Partial<WorkspacePolicies>;

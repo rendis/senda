@@ -813,7 +813,11 @@ components:
                     type: array
                 id:
                     type: string
+                inherited_from_system:
+                    type: boolean
                 name:
+                    type: string
+                owner_scope:
                     type: string
                 updated_at:
                     type: string
@@ -1074,8 +1078,16 @@ components:
                     type: string
                 id:
                     type: string
+                inherited_from_system:
+                    type: boolean
                 is_disabled:
                     type: boolean
+                is_fork:
+                    type: boolean
+                origin_template_id:
+                    type: string
+                owner_scope:
+                    type: string
                 template_type_id:
                     type: string
                 updated_at:
@@ -1104,7 +1116,11 @@ components:
                     type: string
                 id:
                     type: string
+                inherited_from_system:
+                    type: boolean
                 name:
+                    type: string
+                owner_scope:
                     type: string
                 sender_identity_id:
                     type: string
@@ -10527,6 +10543,90 @@ paths:
             security:
                 - ManagementBearer: []
             summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/enable
+            tags:
+                - templates
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork:
+        post:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: template_id path parameter
+                  in: path
+                  name: template_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork
             tags:
                 - templates
     /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml:

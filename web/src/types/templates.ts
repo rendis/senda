@@ -1,4 +1,4 @@
-import type { TemplateVersionStatus, ScopeLevel } from "./api";
+import type { OwnerScope, ScopeLevel, TemplateVersionStatus } from "./api";
 
 /** Template type (e.g., "welcome", "invoice") */
 export interface TemplateType {
@@ -8,7 +8,9 @@ export interface TemplateType {
   adapter_id?: string;
   sender_identity_id?: string;
   variable_schema?: Record<string, unknown>;
-  scope_level: ScopeLevel;
+  scope_level?: ScopeLevel;
+  owner_scope?: OwnerScope;
+  inherited_from_system?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -18,7 +20,11 @@ export interface Template {
   id: string;
   template_type_id: string;
   is_disabled: boolean;
-  scope_level: ScopeLevel;
+  scope_level?: ScopeLevel;
+  owner_scope?: OwnerScope;
+  inherited_from_system?: boolean;
+  is_fork?: boolean;
+  origin_template_id?: string;
   created_at: string;
   updated_at: string;
 }
