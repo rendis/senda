@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
+import { cloneTemplateVersion } from "@/lib/clone-template-version";
+import { parseTemplateVersionMutationResponse } from "@/lib/template-version-response";
 import type {
   TemplateVersion,
   TemplateLocale,
@@ -68,6 +70,21 @@ export function useCreateTemplateVersion(
   });
 }
 
+export function useCloneVersion(scopedPath: string, templateId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (versionId: string) =>
+      cloneTemplateVersion(api, scopedPath, templateId, versionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],
+      });
+    },
+  });
+}
+
 export function useSaveTemplateVersion(
   scopedPath: string,
   templateId: string,
@@ -108,7 +125,7 @@ export function usePublishVersion(
         .post(
           `${scopedPath}/templates/${templateId}/versions/${versionId}/publish`
         )
-        .json<TemplateVersion>(),
+        .then(parseTemplateVersionMutationResponse<TemplateVersion>),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QK_TEMPLATE_VERSIONS, scopedPath, templateId],

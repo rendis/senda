@@ -460,7 +460,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 					ws.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatus, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				}
 			}
-				if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
+			if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.GET("/adapters/:id/identities", s.identityHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities", s.identityHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.POST("/adapters/:id/identities/sync", s.identityHandler.Sync, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
@@ -486,6 +486,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 				ws.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/versions/:version_id/clone", s.templateHandler.CloneVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions/:version_id/locales", s.templateHandler.ListLocales, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
@@ -577,7 +578,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 					global.GET("/adapters/:id/provisioning-status", s.adapterSetupHandler.ProvisioningStatusGlobal)
 				}
 			}
-				if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
+			if s.identityHandler != nil { //nolint:dupl // repeated route group pattern
 				global.GET("/adapters/:id/identities", s.identityHandler.ListGlobal)
 				global.POST("/adapters/:id/identities", s.identityHandler.CreateGlobal)
 				global.POST("/adapters/:id/identities/sync", s.identityHandler.SyncGlobal)
@@ -602,6 +603,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 				global.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion)
 				global.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion)
 				global.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion)
+				global.POST("/templates/:template_id/versions/:version_id/clone", s.templateHandler.CloneVersionGlobal)
 				global.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion)
 				// Locale CRUD.
 				global.GET("/templates/:template_id/versions/:version_id/locales", s.templateHandler.ListLocales)

@@ -40,6 +40,9 @@ func (m *mockTemplateStore) SetDisabled(_ context.Context, _ uuid.UUID, _ *uuid.
 func (m *mockTemplateStore) CreateVersion(_ context.Context, _ *domain.TemplateVersion) error {
 	return nil
 }
+func (m *mockTemplateStore) CloneVersion(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID) (*domain.TemplateVersion, error) {
+	return nil, nil
+}
 func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
 	return nil, nil
 }
@@ -57,7 +60,7 @@ func (m *mockTemplateStore) GetLatestVersion(_ context.Context, _ uuid.UUID) (*d
 	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStore) SoftDeleteTemplate(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error  { return nil }
+func (m *mockTemplateStore) DeleteDraftVersion(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockTemplateStore) SetLocale(_ context.Context, _ *domain.TemplateVersionLocale) error {
 	return nil
 }
@@ -77,7 +80,7 @@ func (m *mockTemplateStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.Li
 	return nil, "", nil
 }
 func (m *mockTemplateStore) UpdateType(_ context.Context, _ *domain.TemplateType) error { return nil }
-func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error              { return nil }
+func (m *mockTemplateStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error        { return nil }
 func (m *mockTemplateStore) GetTemplateByID(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
 	return nil, domain.ErrNotFound
 }

@@ -522,6 +522,148 @@ func (r *TemplateRepo) CreateVersion(ctx context.Context, ver *domain.TemplateVe
 	return nil
 }
 
+func (r *TemplateRepo) CloneVersion(
+	ctx context.Context,
+	templateID, sourceVersionID uuid.UUID,
+	createdBy *uuid.UUID,
+) (*domain.TemplateVersion, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var lockedTemplateID uuid.UUID
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM templates WHERE id = @template_id FOR UPDATE`,
+		pgx.NamedArgs{"template_id": templateID},
+	).Scan(&lockedTemplateID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.NotFound("template %s not found", templateID)
+		}
+		return nil, fmt.Errorf("locking template for version clone: %w", err)
+	}
+
+	sourceVersionRow := tx.QueryRow(ctx,
+		`SELECT id, template_id, version_number, status, subject, preview_text,
+		        from_name, reply_to, body_mjml, default_locale,
+		        editor_data, created_by, published_at, archived_at, created_at, updated_at
+		 FROM template_versions
+		 WHERE id = @source_version_id AND template_id = @template_id`,
+		pgx.NamedArgs{
+			"source_version_id": sourceVersionID,
+			"template_id":       templateID,
+		},
+	)
+	sourceVersion, err := scanTemplateVersion(sourceVersionRow)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceLocaleRows, err := tx.Query(ctx,
+		`SELECT id, template_version_id, locale, subject, preview_text, from_name,
+		        body_mjml, editor_data, created_at, updated_at
+		 FROM template_version_locales
+		 WHERE template_version_id = @source_version_id
+		 ORDER BY created_at ASC`,
+		pgx.NamedArgs{"source_version_id": sourceVersionID},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing source locales for clone: %w", err)
+	}
+
+	sourceLocales, err := pgx.CollectRows(sourceLocaleRows, scanTemplateVersionLocaleRow)
+	if err != nil {
+		return nil, fmt.Errorf("collecting source locales for clone: %w", err)
+	}
+
+	var versionNumber int
+	if err := tx.QueryRow(ctx,
+		`SELECT COALESCE(MAX(version_number), 0) + 1
+		 FROM template_versions
+		 WHERE template_id = @template_id`,
+		pgx.NamedArgs{"template_id": templateID},
+	).Scan(&versionNumber); err != nil {
+		return nil, fmt.Errorf("calculating cloned version number: %w", err)
+	}
+
+	cloned := &domain.TemplateVersion{
+		ID:            uuid.Must(uuid.NewV7()),
+		TemplateID:    templateID,
+		VersionNumber: versionNumber,
+		Status:        domain.VersionStatusDraft,
+		Subject:       sourceVersion.Subject,
+		PreviewText:   sourceVersion.PreviewText,
+		FromName:      sourceVersion.FromName,
+		ReplyTo:       sourceVersion.ReplyTo,
+		BodyMJML:      sourceVersion.BodyMJML,
+		DefaultLocale: sourceVersion.DefaultLocale,
+		EditorData:    sourceVersion.EditorData,
+		CreatedBy:     createdBy,
+	}
+
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO template_versions (id, template_id, version_number, status, subject, preview_text,
+		                                from_name, reply_to, body_mjml, default_locale,
+		                                editor_data, created_by)
+		 VALUES (@id, @template_id, @version_number, @status, @subject, @preview_text,
+		         @from_name, @reply_to, @body_mjml, @default_locale,
+		         @editor_data, @created_by)
+		 RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"id":             cloned.ID,
+			"template_id":    cloned.TemplateID,
+			"version_number": cloned.VersionNumber,
+			"status":         cloned.Status,
+			"subject":        cloned.Subject,
+			"preview_text":   cloned.PreviewText,
+			"from_name":      cloned.FromName,
+			"reply_to":       cloned.ReplyTo,
+			"body_mjml":      cloned.BodyMJML,
+			"default_locale": cloned.DefaultLocale,
+			"editor_data":    cloned.EditorData,
+			"created_by":     cloned.CreatedBy,
+		},
+	).Scan(&cloned.CreatedAt, &cloned.UpdatedAt); err != nil {
+		if appErr := classifyPgError(err); appErr != nil {
+			return nil, appErr
+		}
+		return nil, fmt.Errorf("inserting cloned template version: %w", err)
+	}
+
+	for _, sourceLocale := range sourceLocales {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO template_version_locales (id, template_version_id, locale, subject, preview_text,
+			                                       from_name, body_mjml, editor_data)
+			 VALUES (@id, @template_version_id, @locale, @subject, @preview_text,
+			         @from_name, @body_mjml, @editor_data)`,
+			pgx.NamedArgs{
+				"id":                  uuid.Must(uuid.NewV7()),
+				"template_version_id": cloned.ID,
+				"locale":              sourceLocale.Locale,
+				"subject":             sourceLocale.Subject,
+				"preview_text":        sourceLocale.PreviewText,
+				"from_name":           sourceLocale.FromName,
+				"body_mjml":           sourceLocale.BodyMJML,
+				"editor_data":         sourceLocale.EditorData,
+			},
+		); err != nil {
+			if appErr := classifyPgError(err); appErr != nil {
+				return nil, appErr
+			}
+			return nil, fmt.Errorf("inserting cloned template locale %s: %w", sourceLocale.Locale, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("committing cloned template version: %w", err)
+	}
+
+	return cloned, nil
+}
+
 func (r *TemplateRepo) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT id, template_id, version_number, status, subject, preview_text,

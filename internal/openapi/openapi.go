@@ -556,6 +556,8 @@ func routeSuccessType(route Route) string {
 		return "response.TemplateVersionListResponse"
 	case strings.HasSuffix(normalized, "/versions") && route.Method == "POST":
 		return "response.TemplateVersionResponse"
+	case strings.HasSuffix(normalized, "/versions/{version_id}/clone") && route.Method == "POST":
+		return "response.TemplateVersionResponse"
 	case strings.Contains(normalized, "/versions/{version_id}") && route.Method == "GET" && !strings.Contains(normalized, "/locales/"):
 		return "response.TemplateVersionResponse"
 	case strings.Contains(normalized, "/versions/{version_id}") && route.Method == "PUT" && !strings.Contains(normalized, "/locales/"):

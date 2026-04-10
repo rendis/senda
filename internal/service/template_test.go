@@ -25,12 +25,15 @@ type mockTemplateStore struct {
 	getTemplateByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.Template, error)
 	getTypeByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
+	cloneVersionFn          func(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error)
+	getVersionByIDFn        func(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
 	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	listLocalesFn           func(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error)
 }
 
 func (m *mockTemplateStore) CreateType(ctx context.Context, tt *domain.TemplateType) error {
@@ -81,7 +84,16 @@ func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.Templ
 	}
 	return nil
 }
-func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+func (m *mockTemplateStore) CloneVersion(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
+	if m.cloneVersionFn != nil {
+		return m.cloneVersionFn(ctx, templateID, sourceVersionID, createdBy)
+	}
+	return nil, nil
+}
+func (m *mockTemplateStore) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
+	if m.getVersionByIDFn != nil {
+		return m.getVersionByIDFn(ctx, versionID)
+	}
 	return nil, nil
 }
 func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
@@ -122,7 +134,10 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 	}
 	return nil, nil
 }
-func (m *mockTemplateStore) ListLocales(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+func (m *mockTemplateStore) ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+	if m.listLocalesFn != nil {
+		return m.listLocalesFn(ctx, versionID)
+	}
 	return nil, nil
 }
 func (m *mockTemplateStore) DeleteLocale(_ context.Context, _ uuid.UUID, _ string) error {
@@ -381,6 +396,99 @@ func TestTemplateService_PublishVersion_Error(t *testing.T) {
 	err := svc.PublishVersion(context.Background(), uuid.Must(uuid.NewV7()))
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestTemplateService_CloneVersion_Success(t *testing.T) {
+	workspaceID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	sourceVersionID := uuid.Must(uuid.NewV7())
+	clonedVersionID := uuid.Must(uuid.NewV7())
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return &domain.Template{ID: templateID, WorkspaceID: &workspaceID}, nil
+		},
+		getVersionByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateVersion, error) {
+			if id != sourceVersionID {
+				t.Fatalf("expected source version ID %s, got %s", sourceVersionID, id)
+			}
+			return &domain.TemplateVersion{ID: sourceVersionID, TemplateID: templateID, Status: domain.VersionStatusPublished}, nil
+		},
+		cloneVersionFn: func(_ context.Context, gotTemplateID, gotSourceVersionID uuid.UUID, _ *uuid.UUID) (*domain.TemplateVersion, error) {
+			if gotTemplateID != templateID {
+				t.Fatalf("expected clone template ID %s, got %s", templateID, gotTemplateID)
+			}
+			if gotSourceVersionID != sourceVersionID {
+				t.Fatalf("expected clone source version ID %s, got %s", sourceVersionID, gotSourceVersionID)
+			}
+			return &domain.TemplateVersion{
+				ID:            clonedVersionID,
+				TemplateID:    templateID,
+				VersionNumber: 3,
+				Status:        domain.VersionStatusDraft,
+				Subject:       "Cloned",
+			}, nil
+		},
+	}
+
+	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
+
+	cloned, err := svc.CloneVersion(context.Background(), templateID, sourceVersionID, &workspaceID, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cloned.ID != clonedVersionID {
+		t.Fatalf("expected cloned version ID %s, got %s", clonedVersionID, cloned.ID)
+	}
+	if cloned.Status != domain.VersionStatusDraft {
+		t.Fatalf("expected draft clone, got %s", cloned.Status)
+	}
+}
+
+func TestTemplateService_CloneVersion_WorkspaceMismatch(t *testing.T) {
+	workspaceID := uuid.Must(uuid.NewV7())
+	otherWorkspaceID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	sourceVersionID := uuid.Must(uuid.NewV7())
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+			return &domain.Template{ID: templateID, WorkspaceID: &otherWorkspaceID}, nil
+		},
+	}
+
+	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
+
+	_, err := svc.CloneVersion(context.Background(), templateID, sourceVersionID, &workspaceID, nil)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for workspace mismatch, got %v", err)
+	}
+}
+
+func TestTemplateService_CloneVersion_SourceVersionMismatch(t *testing.T) {
+	workspaceID := uuid.Must(uuid.NewV7())
+	templateID := uuid.Must(uuid.NewV7())
+	otherTemplateID := uuid.Must(uuid.NewV7())
+	sourceVersionID := uuid.Must(uuid.NewV7())
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+			return &domain.Template{ID: templateID, WorkspaceID: &workspaceID}, nil
+		},
+		getVersionByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+			return &domain.TemplateVersion{ID: sourceVersionID, TemplateID: otherTemplateID}, nil
+		},
+	}
+
+	svc := service.NewTemplateService(store, &mockTemplateCompiler{})
+
+	_, err := svc.CloneVersion(context.Background(), templateID, sourceVersionID, &workspaceID, nil)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for source/template mismatch, got %v", err)
 	}
 }
 

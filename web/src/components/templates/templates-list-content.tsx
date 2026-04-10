@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter, useParams } from "next/navigation";
-import { Plus, FileText, Pencil, Send, Trash2 } from "lucide-react";
+import { Plus, FileText, Pencil, Send, Trash2, Copy } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { useTemplateType } from "@/hooks/use-template-types";
 import {
   useTemplateVersions,
   useCreateTemplateVersion,
+  useCloneVersion,
   usePublishVersion,
   useDeleteVersion,
 } from "@/hooks/use-template-version";
@@ -65,6 +66,7 @@ export function TemplatesListContent() {
   const api = useApi();
   const createTemplate = useCreateTemplate(scopedPath);
   const createVersion = useCreateTemplateVersion(scopedPath, templateId);
+  const cloneVersion = useCloneVersion(scopedPath, templateId);
   const deleteVersion = useDeleteVersion(scopedPath, templateId);
 
   const [deleteVersionTarget, setDeleteVersionTarget] = useState<TemplateVersion | null>(null);
@@ -213,6 +215,28 @@ export function TemplatesListContent() {
               <TooltipContent>Publish</TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={cloneVersion.isPending}
+                onClick={() =>
+                  cloneVersion.mutate(row.original.id, {
+                    onSuccess: () =>
+                      toast.success(
+                        `Version ${row.original.version_number} cloned as draft`
+                      ),
+                    onError: () => toast.error("Failed to clone version"),
+                  })
+                }
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clone</TooltipContent>
+          </Tooltip>
           {row.original.status === "draft" && (
             <Tooltip>
               <TooltipTrigger asChild>
