@@ -26,6 +26,10 @@ import {
   useRemoveMemberRole,
 } from "@/hooks/use-members-mgmt";
 import { useScope } from "@/hooks/use-scope";
+import {
+  SYSTEM_WORKSPACE_SCOPE_LABEL,
+  isSystemWorkspaceCode,
+} from "@/lib/system-workspace-display";
 import type { MemberWithRoles, MemberRoleDetail } from "@/types/members-ext";
 import type { Role, ScopeLevel } from "@/types/api";
 
@@ -53,7 +57,10 @@ function allowedRolesForScope(scopeLevel: ScopeLevel): Role[] {
 function scopeLabel(scopeLevel: ScopeLevel, tenantCode?: string, workspaceCode?: string): string {
   switch (scopeLevel) {
     case "workspace":
-      return workspaceCode ? `workspace "${workspaceCode}"` : "this workspace";
+      if (!workspaceCode) return "this workspace";
+      return isSystemWorkspaceCode(workspaceCode)
+        ? `the ${SYSTEM_WORKSPACE_SCOPE_LABEL}`
+        : `workspace "${workspaceCode}"`;
     case "global":
     default:
       return "global scope";

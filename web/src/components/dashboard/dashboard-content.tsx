@@ -5,6 +5,10 @@ import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { Mail, Send, CheckCircle, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import {
+  SYSTEM_WORKSPACE_SCOPE_LABEL,
+  getWorkspaceDisplayCode,
+} from "@/lib/system-workspace-display";
 import { useDashboardStats, type DateRange } from "@/hooks/use-dashboard-stats";
 import { MetricCard, MetricCardSkeleton } from "@/components/shared/metric-card";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
@@ -38,8 +42,8 @@ export function DashboardContent() {
   const scopeLabel =
     scope.level === "workspace"
       ? scope.workspaceCode === SYSTEM_WORKSPACE_CODE
-        ? `Tenant: ${scope.tenantCode}`
-        : `Workspace: ${scope.workspaceCode}`
+        ? SYSTEM_WORKSPACE_SCOPE_LABEL
+        : `Workspace: ${getWorkspaceDisplayCode({ code: scope.workspaceCode })}`
       : "All tenants and workspaces";
 
   const rangeLabel = range === "7d" ? "vs last 7 days" : "vs last 30 days";

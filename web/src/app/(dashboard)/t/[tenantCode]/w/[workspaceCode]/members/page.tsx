@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { MembersContent } from "@/components/members/members-content";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { getTenantSystemPath, getWorkspaceDisplayCode } from "@/lib/system-workspace-display";
 
 export default async function WorkspaceMembersPage({
   params,
@@ -15,8 +16,8 @@ export default async function WorkspaceMembersPage({
       title="Members"
       description="Manage team members and their roles"
       breadcrumbs={[
-        { label: tenantCode, href: `/t/${tenantCode}/w/_system` },
-        ...(isSystem ? [] : [{ label: workspaceCode }]),
+        { label: tenantCode, href: getTenantSystemPath(tenantCode) },
+        ...(isSystem ? [] : [{ label: getWorkspaceDisplayCode({ code: workspaceCode }) }]),
         { label: "Members" },
       ]}
     >

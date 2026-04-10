@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTenantSystemPath } from "@/lib/system-workspace-display";
 
 export default async function TenantWebhooksPage({
   params,
@@ -6,5 +7,5 @@ export default async function TenantWebhooksPage({
   params: Promise<{ tenantCode: string }>;
 }) {
   const { tenantCode } = await params;
-  redirect(`/t/${tenantCode}/w/_system/webhooks`);
+  redirect(getTenantSystemPath(tenantCode, "/webhooks"));
 }

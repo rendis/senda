@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTenantSystemPath } from "@/lib/system-workspace-display";
 
 export default async function TenantTemplatesPage({
   params,
@@ -6,5 +7,5 @@ export default async function TenantTemplatesPage({
   params: Promise<{ tenantCode: string }>;
 }) {
   const { tenantCode } = await params;
-  redirect(`/t/${tenantCode}/w/_system/templates`);
+  redirect(getTenantSystemPath(tenantCode, "/templates"));
 }

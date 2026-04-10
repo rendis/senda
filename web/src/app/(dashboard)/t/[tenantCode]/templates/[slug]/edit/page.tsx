@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTenantSystemPath } from "@/lib/system-workspace-display";
 
 export default async function TenantTemplateEditPage({
   params,
@@ -6,5 +7,5 @@ export default async function TenantTemplateEditPage({
   params: Promise<{ tenantCode: string; slug: string }>;
 }) {
   const { tenantCode, slug } = await params;
-  redirect(`/t/${tenantCode}/w/_system/templates/${slug}/edit`);
+  redirect(getTenantSystemPath(tenantCode, `/templates/${slug}/edit`));
 }

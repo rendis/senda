@@ -1,11 +1,17 @@
-export const SYSTEM_WORKSPACE_LABEL = "System";
-const INTERNAL_SYSTEM_WORKSPACE_CODE = "_system";
+import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+
+export const SYSTEM_WORKSPACE_LABEL = "Default";
+export const SYSTEM_WORKSPACE_SCOPE_LABEL = "Default scope";
+
+export function isSystemWorkspaceCode(code?: string | null) {
+  return code === SYSTEM_WORKSPACE_CODE;
+}
 
 export function isSystemWorkspaceLike(input: {
   code?: string | null;
   is_system?: boolean | null;
 }) {
-  return Boolean(input.is_system) || input.code === INTERNAL_SYSTEM_WORKSPACE_CODE;
+  return Boolean(input.is_system) || isSystemWorkspaceCode(input.code);
 }
 
 export function getWorkspaceDisplayName(input: {
@@ -29,4 +35,8 @@ export function getWorkspaceDisplayCode(input: {
   }
 
   return input.code || "";
+}
+
+export function getTenantSystemPath(tenantCode: string, suffix = "") {
+  return `/t/${tenantCode}/w/${SYSTEM_WORKSPACE_CODE}${suffix}`;
 }

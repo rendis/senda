@@ -16,6 +16,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import {
   SYSTEM_WORKSPACE_LABEL,
+  SYSTEM_WORKSPACE_SCOPE_LABEL,
   getWorkspaceDisplayName,
   getWorkspaceDisplayCode,
 } from "@/lib/system-workspace-display";
@@ -184,7 +185,7 @@ export function WorkspacesContent() {
       cell: ({ row }) => {
         const isProtected = row.original.is_system;
         const displayCode = getWorkspaceDisplayCode(row.original);
-        const protectedReason = `The ${SYSTEM_WORKSPACE_LABEL} workspace is always active`;
+        const protectedReason = `The ${SYSTEM_WORKSPACE_SCOPE_LABEL} is always active`;
 
         return (
           <div className="flex items-center gap-3">
@@ -261,7 +262,7 @@ export function WorkspacesContent() {
       cell: ({ row }) => {
         const isProtected = row.original.is_system;
         const displayCode = getWorkspaceDisplayCode(row.original);
-        const protectedReason = `The ${SYSTEM_WORKSPACE_LABEL} workspace is protected`;
+        const protectedReason = `The ${SYSTEM_WORKSPACE_SCOPE_LABEL} is protected`;
 
         return (
           <div className="flex items-center justify-end gap-1">
@@ -326,7 +327,7 @@ export function WorkspacesContent() {
       <EmptyState
         icon={Layers}
         title="Not available"
-        description={`Workspace management is only available from the ${SYSTEM_WORKSPACE_LABEL} workspace.`}
+        description={`Workspace management is only available from the ${SYSTEM_WORKSPACE_SCOPE_LABEL}.`}
       />
     );
   }
@@ -543,7 +544,7 @@ function CreateWorkspaceDialog({
     <FormDialog
       trigger={<span className="hidden" />}
       title="Create Workspace"
-      description={`Create a regular workspace for this tenant. The ${SYSTEM_WORKSPACE_LABEL} workspace remains protected.`}
+      description={`Create a regular workspace for this tenant. The ${SYSTEM_WORKSPACE_SCOPE_LABEL} remains protected.`}
       submitLabel="Create Workspace"
       loadingLabel="Creating..."
       submitIcon={<Plus className="h-4 w-4" />}
