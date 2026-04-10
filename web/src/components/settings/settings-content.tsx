@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { type UseFormRegisterReturn, useForm } from "react-hook-form";
 import { Save, ShieldAlert } from "lucide-react";
@@ -16,6 +16,7 @@ import {
   useUpdateSettings,
   useUpdateWorkspacePolicies,
 } from "@/hooks/use-settings";
+import { ExternalIntegrationsSection } from "@/components/settings/external-integrations-section";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,9 @@ import { ThemeSelector } from "@/components/shared/theme-selector";
 import type {
   UpdateSettingsRequest,
   UpdateWorkspacePoliciesRequest,
+  ExternalIntegrationsSettings,
 } from "@/types/settings";
+import { normalizeExternalIntegrationSettings } from "@/lib/external-integration-profiles";
 import { useTranslations } from "next-intl";
 
 interface SettingsFormValues {
@@ -116,6 +119,10 @@ function GlobalSettingsContent({
   const isLoading = useMinimumLoading(rawLoading);
   const updateSettings = useUpdateSettings();
   const { register, handleSubmit, reset } = useForm<SettingsFormValues>();
+  const [externalIntegrations, setExternalIntegrations] =
+    useState<ExternalIntegrationsSettings>(
+      normalizeExternalIntegrationSettings(data?.external_integrations),
+    );
 
   useEffect(() => {
     if (data) {
@@ -126,6 +133,10 @@ function GlobalSettingsContent({
         bounce_threshold_percent: data.alerts.bounce_threshold_percent,
         complaint_threshold_percent: data.alerts.complaint_threshold_percent,
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate local external profile form state from server data
+      setExternalIntegrations(
+        normalizeExternalIntegrationSettings(data.external_integrations),
+      );
     }
   }, [data, reset]);
 
@@ -151,6 +162,9 @@ function GlobalSettingsContent({
       alerts: {
         bounce_threshold_percent: Number(values.bounce_threshold_percent),
         complaint_threshold_percent: Number(values.complaint_threshold_percent),
+      },
+      external_integrations: {
+        profiles: externalIntegrations.profiles,
       },
     };
 
@@ -219,6 +233,11 @@ function GlobalSettingsContent({
           </div>
         </div>
       </SettingsSection>
+
+      <ExternalIntegrationsSection
+        value={externalIntegrations}
+        onChange={setExternalIntegrations}
+      />
 
       {/* Alerts Section */}
       <SettingsSection title={tSettings("global.alertsTitle")}>

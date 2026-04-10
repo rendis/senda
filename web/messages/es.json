@@ -212,6 +212,20 @@
     "tenant": "Tenant",
     "workspace": "Workspace"
   },
+  "externalBuilderPage": {
+    "title": "Builder externo",
+    "description": "Una versión simplificada del builder para integraciones externas.",
+    "profileLabel": "Perfil",
+    "readOnlyBadge": "Fallback solo lectura",
+    "readOnlyFallbackTitle": "Fallback solo lectura activo",
+    "readOnlyFallbackDescription": "El backend resolvió el workspace Default del tenant, por lo que editar, publicar y enviar pruebas está deshabilitado.",
+    "loadingAccessState": "Validando acceso externo…",
+    "testSendDisabledByPermissions": "Los permisos de la integración externa deshabilitaron el envío de pruebas en esta sesión.",
+    "accessDenied": {
+      "title": "Acceso denegado",
+      "description": "Esta sesión del builder embebido no está autorizada para acceder al workspace solicitado."
+    }
+  },
   "settingsPage": {
     "accessDenied": {
       "title": "Acceso denegado",
@@ -219,6 +233,60 @@
     },
     "saveChanges": "Guardar cambios",
     "saving": "Guardando...",
+    "externalIntegrations": {
+      "title": "Perfiles de integración externa",
+      "description": "Define pares nombrados de auth/resolver, origins permitidos, headers permitidos y capacidades para acceso a API y builder embebido.",
+      "addProfile": "Agregar perfil",
+      "empty": {
+        "title": "Aún no hay perfiles externos",
+        "description": "Crea un perfil para que apps externas apunten a un auth method y resolver validados."
+      },
+      "profileTitle": "Perfil {index}",
+      "profileDescription": "Configura la identidad del perfil y sus puntos de autorización.",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "removeProfile": "Eliminar",
+      "slugLabel": "Slug",
+      "nameLabel": "Nombre",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "Descripción corta y legible",
+      "authMethodLabel": "Auth method",
+      "authMethodPlaceholder": "Selecciona o escribe el auth method",
+      "resolverLabel": "Resolver",
+      "resolverPlaceholder": "Selecciona o escribe el resolver",
+      "allowedOriginsLabel": "Origins permitidos",
+      "allowedOriginsPlaceholder": "https://app.ejemplo.com",
+      "allowedHeadersLabel": "Headers permitidos",
+      "allowedHeadersPlaceholder": "x-tenant-code",
+      "requiredHeadersLabel": "Headers requeridos",
+      "requiredHeadersPlaceholder": "x-tenant-code",
+      "capabilitiesLabel": "Capacidades",
+      "registeredAuthMethods": "Auth methods registrados",
+      "registeredResolvers": "Resolvers registrados",
+      "noAuthMethods": "Aún no hay auth methods registrados.",
+      "noResolvers": "Aún no hay resolvers registrados.",
+      "methodFallbackDescription": "Ingresa un nombre de método registrado.",
+      "capabilityLabels": {
+        "list_templates": "Listar templates",
+        "view_versions": "Ver versiones",
+        "edit_versions": "Editar versiones",
+        "publish_versions": "Publicar versiones",
+        "test_send": "Enviar prueba",
+        "builder_access": "Acceso al builder",
+        "metadata_access": "Acceso al metadata",
+        "locale_access": "Acceso a locales"
+      },
+      "capabilityDescriptions": {
+        "list_templates": "Permite listar el catálogo en la UI externa.",
+        "view_versions": "Permite navegar versiones en solo lectura.",
+        "edit_versions": "Permite editar borradores en el builder embebido.",
+        "publish_versions": "Permite publicar una versión.",
+        "test_send": "Permite enviar un email de prueba.",
+        "builder_access": "Permite abrir la shell embebida del builder.",
+        "metadata_access": "Permite editar los paneles de metadata del template.",
+        "locale_access": "Permite editar variantes por idioma."
+      }
+    },
     "global": {
       "loadErrorTitle": "No se pudo cargar la configuración",
       "loadErrorDescription": "No fue posible recuperar la configuración del sistema. Es posible que no tengas permisos de superadmin.",

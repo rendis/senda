@@ -475,3 +475,87 @@ func TestWorkspaceRepo_ListByTenant_IsolatesTenants(t *testing.T) {
 		t.Errorf("expected 0 workspaces for tenant2, got %d", len(results))
 	}
 }
+
+func TestWorkspaceRepo_ExistsActiveByTenantCode(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	repo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+	otherTenant := createTestTenant(ctx, t, tenantRepo)
+
+	active := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "main", Name: "Main"}
+	inactive := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "paused", Name: "Paused"}
+	deleted := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "deleted", Name: "Deleted"}
+	otherTenantWS := &domain.Workspace{ID: uuid.New(), TenantID: otherTenant.ID, Code: "foreign", Name: "Foreign"}
+
+	for _, ws := range []*domain.Workspace{active, inactive, deleted, otherTenantWS} {
+		if err := repo.Create(ctx, ws); err != nil {
+			t.Fatalf("Create(%s) error: %v", ws.Code, err)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE workspaces SET is_active = false WHERE id = $1`, inactive.ID); err != nil {
+		t.Fatalf("deactivating workspace: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE workspaces SET deleted_at = now() WHERE id = $1`, deleted.ID); err != nil {
+		t.Fatalf("soft-deleting workspace: %v", err)
+	}
+
+	got, err := repo.ExistsActiveByTenantCode(ctx, tenant.Code, []string{"main", "paused", "deleted", "missing", "main", "foreign"})
+	if err != nil {
+		t.Fatalf("ExistsActiveByTenantCode() error: %v", err)
+	}
+
+	want := map[string]bool{
+		"main":    true,
+		"paused":  false,
+		"deleted": false,
+		"missing": false,
+		"foreign": false,
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d entries, got %d: %#v", len(want), len(got), got)
+	}
+	for code, wantExists := range want {
+		if got[code] != wantExists {
+			t.Errorf("code %q => %v, want %v", code, got[code], wantExists)
+		}
+	}
+}
+
+func TestWorkspaceRepo_ExistsActiveByTenantCode_EmptyInput(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewWorkspaceRepo(pool)
+
+	got, err := repo.ExistsActiveByTenantCode(ctx, "tenant-does-not-matter", nil)
+	if err != nil {
+		t.Fatalf("ExistsActiveByTenantCode() error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty result, got %#v", got)
+	}
+}
+
+func TestWorkspaceRepo_HasActiveExistenceLookupIndex(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+
+	var indexDef string
+	err := pool.QueryRow(ctx, `
+		SELECT indexdef
+		FROM pg_indexes
+		WHERE schemaname = 'public'
+		  AND tablename = 'workspaces'
+		  AND indexname = 'idx_workspaces_active_code_lookup'`).Scan(&indexDef)
+	if err != nil {
+		t.Fatalf("querying index metadata: %v", err)
+	}
+
+	if indexDef == "" {
+		t.Fatal("expected idx_workspaces_active_code_lookup index definition")
+	}
+}

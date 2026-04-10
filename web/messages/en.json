@@ -212,6 +212,20 @@
     "tenant": "Tenant",
     "workspace": "Workspace"
   },
+  "externalBuilderPage": {
+    "title": "External Builder",
+    "description": "A simplified embedded builder for external integrations.",
+    "profileLabel": "Profile",
+    "readOnlyBadge": "Read-only fallback",
+    "readOnlyFallbackTitle": "Read-only fallback active",
+    "readOnlyFallbackDescription": "The backend resolved the tenant Default workspace, so editing, publishing, and test sends are disabled.",
+    "loadingAccessState": "Validating external access…",
+    "testSendDisabledByPermissions": "External integration permissions disabled test sends for this session.",
+    "accessDenied": {
+      "title": "Access denied",
+      "description": "This embedded builder session is not authorized to access the requested workspace."
+    }
+  },
   "settingsPage": {
     "accessDenied": {
       "title": "Access denied",
@@ -219,6 +233,60 @@
     },
     "saveChanges": "Save Changes",
     "saving": "Saving...",
+    "externalIntegrations": {
+      "title": "External integration profiles",
+      "description": "Define named auth/resolver pairs, allowed origins, allowed headers, and feature capabilities for embeddable builder and read-only API access.",
+      "addProfile": "Add profile",
+      "empty": {
+        "title": "No external profiles yet",
+        "description": "Create a profile so external apps can target a validated auth method and workspace resolver."
+      },
+      "profileTitle": "Profile {index}",
+      "profileDescription": "Configure the integration profile identity and authorization seams.",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "removeProfile": "Remove",
+      "slugLabel": "Slug",
+      "nameLabel": "Name",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Short human-friendly description",
+      "authMethodLabel": "Auth method",
+      "authMethodPlaceholder": "Select or type auth method",
+      "resolverLabel": "Resolver",
+      "resolverPlaceholder": "Select or type resolver",
+      "allowedOriginsLabel": "Allowed origins",
+      "allowedOriginsPlaceholder": "https://app.example.com",
+      "allowedHeadersLabel": "Allowed headers",
+      "allowedHeadersPlaceholder": "x-tenant-code",
+      "requiredHeadersLabel": "Required headers",
+      "requiredHeadersPlaceholder": "x-tenant-code",
+      "capabilitiesLabel": "Capabilities",
+      "registeredAuthMethods": "Registered auth methods",
+      "registeredResolvers": "Registered resolvers",
+      "noAuthMethods": "No auth methods registered yet.",
+      "noResolvers": "No resolvers registered yet.",
+      "methodFallbackDescription": "Enter a registered method name.",
+      "capabilityLabels": {
+        "list_templates": "List templates",
+        "view_versions": "View versions",
+        "edit_versions": "Edit versions",
+        "publish_versions": "Publish versions",
+        "test_send": "Test send",
+        "builder_access": "Builder access",
+        "metadata_access": "Metadata access",
+        "locale_access": "Locale access"
+      },
+      "capabilityDescriptions": {
+        "list_templates": "Allow catalog listing in the external UI.",
+        "view_versions": "Allow read-only version browsing.",
+        "edit_versions": "Allow draft editing in the embedded builder.",
+        "publish_versions": "Allow publishing a version.",
+        "test_send": "Allow test email sending.",
+        "builder_access": "Allow opening the embedded builder shell.",
+        "metadata_access": "Allow editing template metadata panels.",
+        "locale_access": "Allow editing locale variants."
+      }
+    },
     "global": {
       "loadErrorTitle": "Failed to load settings",
       "loadErrorDescription": "Could not retrieve system settings. You may not have superadmin permissions.",

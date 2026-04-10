@@ -207,6 +207,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		ClientID:        cfg.OIDC.ClientID,
 		ClientSecretSet: cfg.OIDC.ClientSecret != "",
 	})
+	externalIntegrationH := handler.NewExternalIntegrationHandler(configRepo, extExternalAuthMethods(ext), extExternalResolvers(ext))
 	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo)
 	// Tracking auto-provisioner (nil if no tracking base URL) — used for deprovision on adapter delete.
 	provisioningStepRepo := postgres.NewProvisioningStepRepo(pool)
@@ -291,6 +292,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		sendahttp.WithWorkspacePolicyHandler(workspacePolicyH),
 		sendahttp.WithMemberHandler(memberH),
 		sendahttp.WithConfigHandler(configH),
+		sendahttp.WithExternalIntegrationHandler(externalIntegrationH),
 		sendahttp.WithInjectorHandler(injectorH),
 		sendahttp.WithAdapterHandler(adapterH),
 		sendahttp.WithIdentityHandler(identityH),
@@ -319,6 +321,20 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		Pool:        pool,
 		cache:       cache,
 	}, nil
+}
+
+func extExternalAuthMethods(ext *Extensions) []port.ExternalAuthMethod {
+	if ext == nil {
+		return nil
+	}
+	return ext.ExternalAuthMethods
+}
+
+func extExternalResolvers(ext *Extensions) []port.ExternalWorkspaceResolver {
+	if ext == nil {
+		return nil
+	}
+	return ext.ExternalWorkspaceResolvers
 }
 
 // Close gracefully shuts down app resources.

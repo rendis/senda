@@ -2,10 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
+import { useParams } from "next/navigation";
 import {
   canManageSystemWorkspacePolicies,
   isWorkspaceScope,
 } from "@/lib/workspace-resource-policies";
+import { resolveWorkspacePoliciesPathFromParams } from "@/lib/external-api-context";
 import { type ScopeContext } from "@/types/api";
 import type {
   SystemSettings,
@@ -84,11 +86,21 @@ export function useUpdateWorkspacePolicies(
 }
 
 export function useResolvedWorkspacePolicies(scope: ScopeContext) {
-  const query = useWorkspacePolicies(
-    scope.tenantCode,
-    scope.workspaceCode,
-    isWorkspaceScope(scope),
-  );
+  const params = useParams<{
+    profileSlug?: string;
+    tenantCode?: string;
+    workspaceCode?: string;
+  }>();
+  const policiesPath = resolveWorkspacePoliciesPathFromParams(params);
+  const api = useApi();
+  const ready = useApiReady();
+
+  const query = useQuery({
+    queryKey: ["workspace-policies", policiesPath],
+    queryFn: () => api.get(policiesPath!).json<WorkspacePolicies>(),
+    enabled: ready && isWorkspaceScope(scope) && !!policiesPath,
+    retry: false,
+  });
 
   return {
     ...query,

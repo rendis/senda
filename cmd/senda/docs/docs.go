@@ -14132,6 +14132,90 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_rendis_senda_internal_http_request.ExternalIntegrationCapabilitiesUpdate": {
+            "type": "object",
+            "properties": {
+                "builder_access": {
+                    "type": "boolean"
+                },
+                "edit_versions": {
+                    "type": "boolean"
+                },
+                "list_templates": {
+                    "type": "boolean"
+                },
+                "locale_access": {
+                    "type": "boolean"
+                },
+                "metadata_access": {
+                    "type": "boolean"
+                },
+                "publish_versions": {
+                    "type": "boolean"
+                },
+                "test_send": {
+                    "type": "boolean"
+                },
+                "view_versions": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_request.ExternalIntegrationProfileUpdate": {
+            "type": "object",
+            "properties": {
+                "allowed_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "auth_method_name": {
+                    "type": "string"
+                },
+                "capabilities": {
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.ExternalIntegrationCapabilitiesUpdate"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "resolver_name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_request.ExternalIntegrationsUpdate": {
+            "type": "object",
+            "properties": {
+                "profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.ExternalIntegrationProfileUpdate"
+                    }
+                }
+            }
+        },
         "github_com_rendis_senda_internal_http_request.InjectorFieldValue": {
             "type": "object",
             "properties": {
@@ -14335,6 +14419,9 @@ const docTemplate = `{
                 },
                 "email_defaults": {
                     "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate"
+                },
+                "external_integrations": {
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_request.ExternalIntegrationsUpdate"
                 }
             }
         },
@@ -14648,6 +14735,9 @@ const docTemplate = `{
                 },
                 "email_defaults": {
                     "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse"
+                },
+                "external_integrations": {
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.ExternalIntegrationsConfigResponse"
                 },
                 "oidc": {
                     "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.OIDCConfigResponse"
@@ -15047,6 +15137,90 @@ const docTemplate = `{
                 },
                 "workspace_id": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_response.ExternalIntegrationCapabilitiesResponse": {
+            "type": "object",
+            "properties": {
+                "builder_access": {
+                    "type": "boolean"
+                },
+                "edit_versions": {
+                    "type": "boolean"
+                },
+                "list_templates": {
+                    "type": "boolean"
+                },
+                "locale_access": {
+                    "type": "boolean"
+                },
+                "metadata_access": {
+                    "type": "boolean"
+                },
+                "publish_versions": {
+                    "type": "boolean"
+                },
+                "test_send": {
+                    "type": "boolean"
+                },
+                "view_versions": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_response.ExternalIntegrationProfileResponse": {
+            "type": "object",
+            "properties": {
+                "allowed_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "auth_method_name": {
+                    "type": "string"
+                },
+                "capabilities": {
+                    "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.ExternalIntegrationCapabilitiesResponse"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "resolver_name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_rendis_senda_internal_http_response.ExternalIntegrationsConfigResponse": {
+            "type": "object",
+            "properties": {
+                "profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_rendis_senda_internal_http_response.ExternalIntegrationProfileResponse"
+                    }
                 }
             }
         },

@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import type { ScopeContext, ScopeLevel } from "@/types/api";
+import { resolveScopedPathFromParams } from "@/lib/external-api-context";
 
 /**
  * Extract scope context from URL params.
@@ -13,6 +14,7 @@ import type { ScopeContext, ScopeLevel } from "@/types/api";
  */
 export function useScope(): ScopeContext {
   const params = useParams<{
+    profileSlug?: string;
     tenantCode?: string;
     workspaceCode?: string;
   }>();
@@ -36,14 +38,11 @@ export function useScope(): ScopeContext {
  * Build the management API base path for the current scope.
  */
 export function useScopedPath(): string {
-  const { level, tenantCode, workspaceCode } = useScope();
+  const params = useParams<{
+    profileSlug?: string;
+    tenantCode?: string;
+    workspaceCode?: string;
+  }>();
 
-  switch (level) {
-    case "global":
-      return "manage/global";
-    case "tenant":
-      return `manage/tenants/${tenantCode}`;
-    case "workspace":
-      return `manage/tenants/${tenantCode}/workspaces/${workspaceCode}`;
-  }
+  return resolveScopedPathFromParams(params);
 }

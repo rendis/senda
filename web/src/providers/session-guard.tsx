@@ -4,7 +4,10 @@ import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { startFederatedLogout } from "@/lib/logout";
-import { shouldTriggerFederatedLogout } from "@/providers/session-guard-policy";
+import {
+  shouldRedirectUnauthenticatedToLogin,
+  shouldTriggerFederatedLogout,
+} from "@/providers/session-guard-policy";
 
 /**
  * SessionGuard watches for expired/invalid sessions and redirects to login.
@@ -38,7 +41,14 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
   // 3. Handle tab visibility change (user returns to tab after long absence).
   useEffect(() => {
     function handlePageShow(event: PageTransitionEvent) {
-      if (event.persisted && status === "unauthenticated") {
+      if (
+        event.persisted &&
+        shouldRedirectUnauthenticatedToLogin({
+          pathname,
+          status,
+          alreadyTriggered: logoutTriggered.current,
+        })
+      ) {
         window.location.replace("/login");
       }
     }
@@ -46,8 +56,11 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
     function handleVisibilityChange() {
       if (
         document.visibilityState === "visible" &&
-        status === "unauthenticated" &&
-        !logoutTriggered.current
+        shouldRedirectUnauthenticatedToLogin({
+          pathname,
+          status,
+          alreadyTriggered: logoutTriggered.current,
+        })
       ) {
         window.location.replace("/login");
       }
@@ -60,7 +73,7 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pageshow", handlePageShow);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [status]);
+  }, [pathname, status]);
 
   return <>{children}</>;
 }

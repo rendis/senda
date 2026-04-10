@@ -13,6 +13,7 @@ import (
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
 	"github.com/rendis/senda/internal/http/request"
+	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
@@ -397,7 +398,7 @@ func (h *TemplateHandler) TestSend(c *echo.Context) error {
 		Variables:      req.Variables,
 		Injectors:      req.Injectors,
 		Locale:         req.Locale,
-		Headers:        firstHeaderValues(c.Request().Header),
+		Headers:        headersForTemplateTestSend(c),
 	})
 	if err != nil {
 		return mapTestSendError(c, err)
@@ -532,6 +533,17 @@ func firstHeaderValues(header http.Header) map[string]string {
 		}
 	}
 	return headers
+}
+
+func headersForTemplateTestSend(c *echo.Context) map[string]string {
+	if _, ok := c.Get(middleware.ContextKeyExternalIntegrationProfile).(domain.ExternalIntegrationProfile); ok {
+		return middleware.ExternalAllowedHeaders(c)
+	}
+
+	if headers := middleware.ExternalAllowedHeaders(c); len(headers) > 0 {
+		return headers
+	}
+	return firstHeaderValues(c.Request().Header)
 }
 
 func (h *TemplateHandler) effectiveBatchMaxItems() int {

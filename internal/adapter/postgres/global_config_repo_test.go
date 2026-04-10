@@ -61,13 +61,13 @@ func TestGlobalConfigRepo_Upsert(t *testing.T) {
 
 	// Modify values
 	updated := &domain.GlobalConfig{
-		DefaultRetryCount:             5,
-		RetryBackoffBaseSeconds:       120,
-		LogRetentionDays:              180,
-		BounceAlertThresholdPercent:   10.0,
+		DefaultRetryCount:              5,
+		RetryBackoffBaseSeconds:        120,
+		LogRetentionDays:               180,
+		BounceAlertThresholdPercent:    10.0,
 		ComplaintAlertThresholdPercent: 0.5,
-		DomainRecheckIntervalHours:    48,
-		OnboardingCompleted:           true,
+		DomainRecheckIntervalHours:     48,
+		OnboardingCompleted:            true,
 	}
 
 	if err := repo.Upsert(ctx, updated); err != nil {
@@ -113,13 +113,13 @@ func TestGlobalConfigRepo_Upsert_PartialUpdate(t *testing.T) {
 
 	// Only change one field, rest should be overwritten with the values we pass
 	cfg := &domain.GlobalConfig{
-		DefaultRetryCount:             10,
-		RetryBackoffBaseSeconds:       60,
-		LogRetentionDays:              365,
-		BounceAlertThresholdPercent:   5.0,
+		DefaultRetryCount:              10,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               365,
+		BounceAlertThresholdPercent:    5.0,
 		ComplaintAlertThresholdPercent: 0.1,
-		DomainRecheckIntervalHours:    24,
-		OnboardingCompleted:           false,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
 	}
 
 	if err := repo.Upsert(ctx, cfg); err != nil {
@@ -137,5 +137,54 @@ func TestGlobalConfigRepo_Upsert_PartialUpdate(t *testing.T) {
 	// Other fields should match what we passed
 	if got.RetryBackoffBaseSeconds != 60 {
 		t.Errorf("RetryBackoffBaseSeconds: want 60, got %d", got.RetryBackoffBaseSeconds)
+	}
+}
+
+func TestGlobalConfigRepo_ExternalIntegrationsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewGlobalConfigRepo(pool)
+
+	cfg := &domain.GlobalConfig{
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               365,
+		BounceAlertThresholdPercent:    5.0,
+		ComplaintAlertThresholdPercent: 0.1,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
+		ExternalIntegrations: []domain.ExternalIntegrationProfile{
+			{
+				Slug:            "partner-portal",
+				Name:            "Partner Portal",
+				Description:     "Integration for partner-facing UI",
+				Enabled:         true,
+				AuthMethodName:  "signed-headers",
+				ResolverName:    "tenant-workspace-resolver",
+				AllowedOrigins:  []string{"https://app.example.com"},
+				AllowedHeaders:  []string{"x-tenant-code"},
+				RequiredHeaders: []string{"x-tenant-code"},
+			},
+		},
+	}
+
+	if err := repo.Upsert(ctx, cfg); err != nil {
+		t.Fatalf("Upsert() error: %v", err)
+	}
+
+	got, err := repo.Get(ctx)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+
+	if len(got.ExternalIntegrations) != 1 {
+		t.Fatalf("expected 1 external integration profile, got %d", len(got.ExternalIntegrations))
+	}
+	profile := got.ExternalIntegrations[0]
+	if profile.Slug != "partner-portal" {
+		t.Fatalf("expected slug partner-portal, got %q", profile.Slug)
+	}
+	if len(profile.AllowedHeaders) != 1 || profile.AllowedHeaders[0] != "x-tenant-code" {
+		t.Fatalf("expected normalized allowed headers, got %#v", profile.AllowedHeaders)
 	}
 }

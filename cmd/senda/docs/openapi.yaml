@@ -199,6 +199,61 @@ components:
                 max_retries:
                     type: integer
             type: object
+        github_com_rendis_senda_internal_http_request.ExternalIntegrationCapabilitiesUpdate:
+            properties:
+                builder_access:
+                    type: boolean
+                edit_versions:
+                    type: boolean
+                list_templates:
+                    type: boolean
+                locale_access:
+                    type: boolean
+                metadata_access:
+                    type: boolean
+                publish_versions:
+                    type: boolean
+                test_send:
+                    type: boolean
+                view_versions:
+                    type: boolean
+            type: object
+        github_com_rendis_senda_internal_http_request.ExternalIntegrationProfileUpdate:
+            properties:
+                allowed_headers:
+                    items:
+                        type: string
+                    type: array
+                allowed_origins:
+                    items:
+                        type: string
+                    type: array
+                auth_method_name:
+                    type: string
+                capabilities:
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.ExternalIntegrationCapabilitiesUpdate'
+                description:
+                    type: string
+                enabled:
+                    type: boolean
+                name:
+                    type: string
+                required_headers:
+                    items:
+                        type: string
+                    type: array
+                resolver_name:
+                    type: string
+                slug:
+                    type: string
+            type: object
+        github_com_rendis_senda_internal_http_request.ExternalIntegrationsUpdate:
+            properties:
+                profiles:
+                    items:
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.ExternalIntegrationProfileUpdate'
+                    type: array
+            type: object
         github_com_rendis_senda_internal_http_request.InjectorFieldValue:
             properties:
                 field_name:
@@ -333,6 +388,8 @@ components:
                     $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.DomainUpdate'
                 email_defaults:
                     $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.EmailDefaultsUpdate'
+                external_integrations:
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_request.ExternalIntegrationsUpdate'
             type: object
         github_com_rendis_senda_internal_http_request.UpdateInjectorFieldRequest:
             properties:
@@ -538,6 +595,8 @@ components:
                     $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.DomainConfigResponse'
                 email_defaults:
                     $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.EmailDefaultsConfigResponse'
+                external_integrations:
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.ExternalIntegrationsConfigResponse'
                 oidc:
                     $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.OIDCConfigResponse'
             type: object
@@ -800,6 +859,61 @@ components:
                     type: string
                 workspace_id:
                     type: string
+            type: object
+        github_com_rendis_senda_internal_http_response.ExternalIntegrationCapabilitiesResponse:
+            properties:
+                builder_access:
+                    type: boolean
+                edit_versions:
+                    type: boolean
+                list_templates:
+                    type: boolean
+                locale_access:
+                    type: boolean
+                metadata_access:
+                    type: boolean
+                publish_versions:
+                    type: boolean
+                test_send:
+                    type: boolean
+                view_versions:
+                    type: boolean
+            type: object
+        github_com_rendis_senda_internal_http_response.ExternalIntegrationProfileResponse:
+            properties:
+                allowed_headers:
+                    items:
+                        type: string
+                    type: array
+                allowed_origins:
+                    items:
+                        type: string
+                    type: array
+                auth_method_name:
+                    type: string
+                capabilities:
+                    $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.ExternalIntegrationCapabilitiesResponse'
+                description:
+                    type: string
+                enabled:
+                    type: boolean
+                name:
+                    type: string
+                required_headers:
+                    items:
+                        type: string
+                    type: array
+                resolver_name:
+                    type: string
+                slug:
+                    type: string
+            type: object
+        github_com_rendis_senda_internal_http_response.ExternalIntegrationsConfigResponse:
+            properties:
+                profiles:
+                    items:
+                        $ref: '#/components/schemas/github_com_rendis_senda_internal_http_response.ExternalIntegrationProfileResponse'
+                    type: array
             type: object
         github_com_rendis_senda_internal_http_response.InjectorDetailResponse:
             properties:

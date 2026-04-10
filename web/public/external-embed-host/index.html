@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>External Embed Host</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+      .layout { display: grid; gap: 20px; }
+      .card { background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+      iframe { width: 100%; height: 900px; border: 1px solid #94a3b8; border-radius: 12px; background: white; }
+      code, pre { background: #0f172a; color: #e2e8f0; padding: 10px; border-radius: 8px; overflow: auto; }
+      .ok { color: #166534; font-weight: 600; }
+      .err { color: #b91c1c; font-weight: 600; }
+      .muted { color: #475569; }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <section class="card">
+        <h1>External Embed Host</h1>
+        <p class="muted">Simula una app externa que consume la API externa y monta el builder en un iframe.</p>
+        <div id="meta"></div>
+      </section>
+      <section class="card">
+        <h2>API fetch</h2>
+        <p id="api-status">Pending…</p>
+        <pre id="api-result"></pre>
+      </section>
+      <section class="card">
+        <h2>Builder iframe</h2>
+        <p id="iframe-status">Pending…</p>
+        <iframe id="builder-frame" title="External Builder"></iframe>
+      </section>
+    </div>
+    <script>
+      const qs = new URLSearchParams(window.location.search);
+      const frontendBase = qs.get('frontend');
+      const backendBase = qs.get('backend');
+      const profile = qs.get('profile') || 'partner-portal';
+      const tenant = qs.get('tenant') || 'test-corp';
+      const workspace = qs.get('workspace') || 'main';
+      const slug = qs.get('slug') || 'welcome-email';
+      const templateId = qs.get('templateId') || '';
+      const versionId = qs.get('versionId') || '';
+      const token = qs.get('token') || '';
+      const fallback = qs.get('fallback') || '';
+      const requiredHeader = qs.get('tenantHeader') !== '0';
+      const fetchMode = qs.get('fetch') || 'templates';
+      const badHeader = qs.get('badHeader') || '';
+
+      const meta = document.getElementById('meta');
+      const apiStatus = document.getElementById('api-status');
+      const apiResult = document.getElementById('api-result');
+      const iframeStatus = document.getElementById('iframe-status');
+      const iframe = document.getElementById('builder-frame');
+
+      meta.textContent = JSON.stringify({ frontendBase, backendBase, profile, tenant, workspace, slug, templateId, versionId, token, fallback, fetchMode }, null, 2);
+
+      function externalApiUrl() {
+        if (fetchMode === 'version' && templateId && versionId) {
+          return `${backendBase}/api/v1/external/${profile}/tenants/${tenant}/workspaces/${workspace}/templates/${templateId}/versions/${versionId}`;
+        }
+        return `${backendBase}/api/v1/external/${profile}/tenants/${tenant}/workspaces/${workspace}/template-types/${slug}/templates`;
+      }
+
+      async function runFetch() {
+        if (!backendBase) {
+          apiStatus.textContent = 'Missing backend query param';
+          apiStatus.className = 'err';
+          return;
+        }
+        const headers = { 'x-senda-external-token': token };
+        if (requiredHeader) headers['x-tenant-code'] = badHeader || tenant;
+        try {
+          const resp = await fetch(externalApiUrl(), { headers });
+          const text = await resp.text();
+          apiStatus.textContent = `HTTP ${resp.status}`;
+          apiStatus.className = resp.ok ? 'ok' : 'err';
+          apiResult.textContent = text;
+        } catch (error) {
+          apiStatus.textContent = `FETCH ERROR: ${error}`;
+          apiStatus.className = 'err';
+          apiResult.textContent = String(error?.stack || error);
+        }
+      }
+
+      function mountIframe() {
+        if (!frontendBase) {
+          iframeStatus.textContent = 'Missing frontend query param';
+          iframeStatus.className = 'err';
+          return;
+        }
+        const iframeUrl = new URL(`${frontendBase}/embed/${profile}/t/${tenant}/w/${workspace}/templates/${slug}/edit`);
+        if (templateId) iframeUrl.searchParams.set('templateId', templateId);
+        if (versionId) iframeUrl.searchParams.set('versionId', versionId);
+        if (token) iframeUrl.searchParams.set('token', token);
+        if (fallback) iframeUrl.searchParams.set('fallback', fallback);
+        iframe.addEventListener('load', () => {
+          iframeStatus.textContent = `loaded: ${iframe.src}`;
+          iframeStatus.className = 'ok';
+        }, { once: true });
+        iframe.src = iframeUrl.toString();
+      }
+
+      runFetch();
+      mountIframe();
+    </script>
+  </body>
+</html>

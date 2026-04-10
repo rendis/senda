@@ -71,6 +71,7 @@ func (r *GlobalConfigRepo) Upsert(ctx context.Context, cfg *domain.GlobalConfig)
 		{"complaint.alert_threshold_percent", cfg.ComplaintAlertThresholdPercent},
 		{"domain.recheck_interval_hours", cfg.DomainRecheckIntervalHours},
 		{"onboarding.completed", cfg.OnboardingCompleted},
+		{"external.integrations", cfg.ExternalIntegrations},
 	}
 
 	for _, e := range entries {
@@ -112,6 +113,8 @@ func mapConfigValue(cfg *domain.GlobalConfig, key string, value json.RawMessage)
 		return json.Unmarshal(value, &cfg.DomainRecheckIntervalHours)
 	case "onboarding.completed":
 		return json.Unmarshal(value, &cfg.OnboardingCompleted)
+	case "external.integrations":
+		return json.Unmarshal(value, &cfg.ExternalIntegrations)
 	default:
 		// Unknown keys (e.g. oidc.*) are intentionally ignored.
 		return nil
