@@ -168,7 +168,7 @@ func TestWorkspaceRepo_GetByTenantAndCode(t *testing.T) {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByTenantAndCode(ctx, tenant.ID, "tc-lookup")
+	got, err := repo.GetByTenantAndCode(ctx, tenant.ID, "tc-lookup", domain.EnvironmentProd)
 	if err != nil {
 		t.Fatalf("GetByTenantAndCode() error: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestWorkspaceRepo_GetByTenantAndCode_NotFound(t *testing.T) {
 	pool := setupTestDB(ctx, t)
 	repo := pgadapter.NewWorkspaceRepo(pool)
 
-	_, err := repo.GetByTenantAndCode(ctx, uuid.New(), "nonexistent")
+	_, err := repo.GetByTenantAndCode(ctx, uuid.New(), "nonexistent", domain.EnvironmentProd)
 	if err == nil {
 		t.Fatal("expected not found error")
 	}
@@ -212,7 +212,7 @@ func TestWorkspaceRepo_GetSystemWorkspace(t *testing.T) {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetSystemWorkspace(ctx, tenant.ID)
+	got, err := repo.GetSystemWorkspace(ctx, tenant.ID, domain.EnvironmentProd)
 	if err != nil {
 		t.Fatalf("GetSystemWorkspace() error: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestWorkspaceRepo_GetSystemWorkspace_NotFound(t *testing.T) {
 	pool := setupTestDB(ctx, t)
 	repo := pgadapter.NewWorkspaceRepo(pool)
 
-	_, err := repo.GetSystemWorkspace(ctx, uuid.New())
+	_, err := repo.GetSystemWorkspace(ctx, uuid.New(), domain.EnvironmentProd)
 	if err == nil {
 		t.Fatal("expected not found error")
 	}
@@ -383,7 +383,7 @@ func TestWorkspaceRepo_ListByTenant(t *testing.T) {
 	}
 
 	// First page
-	page1, cursor1, err := repo.ListByTenant(ctx, tenant.ID, port.ListOptions{Limit: 3})
+	page1, cursor1, err := repo.ListByTenant(ctx, tenant.ID, domain.EnvironmentProd, port.ListOptions{Limit: 3})
 	if err != nil {
 		t.Fatalf("ListByTenant(page1) error: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestWorkspaceRepo_ListByTenant(t *testing.T) {
 	}
 
 	// Second page
-	page2, cursor2, err := repo.ListByTenant(ctx, tenant.ID, port.ListOptions{Limit: 3, Cursor: cursor1})
+	page2, cursor2, err := repo.ListByTenant(ctx, tenant.ID, domain.EnvironmentProd, port.ListOptions{Limit: 3, Cursor: cursor1})
 	if err != nil {
 		t.Fatalf("ListByTenant(page2) error: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestWorkspaceRepo_ListByTenant_SoftDeletedExcluded(t *testing.T) {
 		t.Fatalf("SoftDelete() error: %v", err)
 	}
 
-	results, _, err := repo.ListByTenant(ctx, tenant.ID, port.ListOptions{})
+	results, _, err := repo.ListByTenant(ctx, tenant.ID, domain.EnvironmentProd, port.ListOptions{})
 	if err != nil {
 		t.Fatalf("ListByTenant() error: %v", err)
 	}
@@ -467,7 +467,7 @@ func TestWorkspaceRepo_ListByTenant_IsolatesTenants(t *testing.T) {
 	}
 
 	// List for tenant2 should be empty
-	results, _, err := repo.ListByTenant(ctx, tenant2.ID, port.ListOptions{})
+	results, _, err := repo.ListByTenant(ctx, tenant2.ID, domain.EnvironmentProd, port.ListOptions{})
 	if err != nil {
 		t.Fatalf("ListByTenant() error: %v", err)
 	}
@@ -503,7 +503,7 @@ func TestWorkspaceRepo_ExistsActiveByTenantCode(t *testing.T) {
 		t.Fatalf("soft-deleting workspace: %v", err)
 	}
 
-	got, err := repo.ExistsActiveByTenantCode(ctx, tenant.Code, []string{"main", "paused", "deleted", "missing", "main", "foreign"})
+	got, err := repo.ExistsActiveByTenantCode(ctx, tenant.Code, []string{"main", "paused", "deleted", "missing", "main", "foreign"}, domain.EnvironmentProd)
 	if err != nil {
 		t.Fatalf("ExistsActiveByTenantCode() error: %v", err)
 	}
@@ -531,7 +531,7 @@ func TestWorkspaceRepo_ExistsActiveByTenantCode_EmptyInput(t *testing.T) {
 	pool := setupTestDB(ctx, t)
 	repo := pgadapter.NewWorkspaceRepo(pool)
 
-	got, err := repo.ExistsActiveByTenantCode(ctx, "tenant-does-not-matter", nil)
+	got, err := repo.ExistsActiveByTenantCode(ctx, "tenant-does-not-matter", nil, domain.EnvironmentProd)
 	if err != nil {
 		t.Fatalf("ExistsActiveByTenantCode() error: %v", err)
 	}

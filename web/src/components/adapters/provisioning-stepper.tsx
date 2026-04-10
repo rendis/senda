@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import {
   useProvisioningStatus,
   useAutoProvision,
@@ -125,7 +126,10 @@ export function ProvisioningStepper({
   // Build frontend navigation path for help links.
   const navBase =
     scope.level === "workspace"
-      ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}`
+      ? applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}`,
+          scope.environment,
+        )
       : "/global";
 
   const { data: statusData, isLoading } = useProvisioningStatus(

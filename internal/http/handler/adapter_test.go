@@ -346,7 +346,7 @@ func TestAdapterHandler_GetWorkspaceAccess_SystemScope(t *testing.T) {
 	workspaceBID := uuid.Must(uuid.NewV7())
 	adapterID := uuid.Must(uuid.NewV7())
 
-	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID == tenant.ID && code == "_system" {
 			return &domain.Workspace{
 				ID:       systemWSID,
@@ -358,7 +358,7 @@ func TestAdapterHandler_GetWorkspaceAccess_SystemScope(t *testing.T) {
 		}
 		return nil, domain.ErrNotFound
 	}
-	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 		if tenantID != tenant.ID {
 			return nil, "", domain.ErrNotFound
 		}
@@ -428,7 +428,7 @@ func TestAdapterHandler_UpdateWorkspaceAccess_WritesAudit(t *testing.T) {
 	systemWS := &domain.Workspace{ID: systemWSID, TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
 	workspaceA := &domain.Workspace{ID: workspaceAID, TenantID: tenant.ID, Code: "alpha", Name: "Alpha"}
 
-	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			return nil, domain.ErrNotFound
 		}
@@ -441,7 +441,7 @@ func TestAdapterHandler_UpdateWorkspaceAccess_WritesAudit(t *testing.T) {
 			return nil, domain.ErrNotFound
 		}
 	}
-	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 		if tenantID != tenant.ID {
 			return nil, "", domain.ErrNotFound
 		}

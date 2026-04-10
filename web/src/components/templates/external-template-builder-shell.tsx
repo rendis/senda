@@ -37,7 +37,7 @@ export function ExternalTemplateBuilderShell({
       ? `external/${profileSlug}/tenants/${scope.tenantCode}/workspaces/${scope.workspaceCode}/session`
       : null;
   const sessionQuery = useQuery({
-    queryKey: ["external-builder-session", sessionPath],
+    queryKey: ["external-builder-session", sessionPath, scope.environment],
     queryFn: () => api.get(sessionPath!).json<ExternalEmbedSessionState>(),
     enabled: apiReady && !!sessionPath,
     retry: false,
@@ -66,6 +66,16 @@ export function ExternalTemplateBuilderShell({
               </h1>
               <Badge variant="outline">{profileSlug}</Badge>
               <Badge variant="secondary">{templateSlug}</Badge>
+              <Badge
+                variant="outline"
+                className={
+                  scope.environment === "test"
+                    ? "border-amber-500/60 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+                    : "border-emerald-500/60 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                }
+              >
+                {(scope.environment ?? "prod").toUpperCase()}
+              </Badge>
               <ScopeIndicator
                 scope={viewState.readOnly ? "system" : "workspace"}
                 label={viewState.workspaceLabel}

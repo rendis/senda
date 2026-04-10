@@ -224,6 +224,10 @@ func setupTemplateTypeTest(store port.TemplateStore, ts port.TenantStore, ws por
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types", h.List)
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Get)
 	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Update)
+	e.POST("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/template-types", h.Create)
+	e.GET("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/template-types", h.List)
+	e.GET("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Get)
+	e.PUT("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/template-types/:slug", h.Update)
 
 	// Global routes.
 	e.POST("/api/v1/manage/global/template-types", h.CreateGlobal)
@@ -277,6 +281,66 @@ func TestTemplateTypeHandler_Create_Success(t *testing.T) {
 	}
 	if resp.Slug != "welcome-email" {
 		t.Fatalf("expected slug 'welcome-email' in response, got %q", resp.Slug)
+	}
+}
+
+func TestTemplateTypeHandler_Update_AllowsClearingTestRecipientOverride(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ws.Environment = domain.EnvironmentTest
+
+	var updated *domain.TemplateType
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			if slug != "welcome-email" {
+				return nil, domain.ErrNotFound
+			}
+			mode := domain.TestRecipientModeAppend
+			return &domain.TemplateType{
+				ID:                     uuid.Must(uuid.NewV7()),
+				WorkspaceID:            &ws.ID,
+				Slug:                   slug,
+				Name:                   "Welcome Email",
+				TestRecipientMode:      &mode,
+				TestRecipientAddresses: []string{"qa@example.com"},
+				CreatedAt:              time.Now().UTC(),
+				UpdatedAt:              time.Now().UTC(),
+			}, nil
+		},
+		findTypeBySlugInScopeFn: func(_ context.Context, slug string, _ *uuid.UUID) (*domain.TemplateType, error) {
+			if slug == "welcome-email" {
+				return nil, domain.ErrNotFound
+			}
+			return nil, domain.ErrNotFound
+		},
+		updateTypeFn: func(_ context.Context, tt *domain.TemplateType) error {
+			updated = tt
+			return nil
+		},
+	}
+
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{"test_recipient_mode":"","test_recipient_addresses":[]}`
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/manage/environments/test/tenants/acme/workspaces/default/template-types/welcome-email",
+		strings.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil {
+		t.Fatal("expected template type to be updated")
+	}
+	if updated.TestRecipientMode != nil {
+		t.Fatalf("expected test recipient mode to be cleared, got %v", *updated.TestRecipientMode)
+	}
+	if len(updated.TestRecipientAddresses) != 0 {
+		t.Fatalf("expected test recipient addresses to be cleared, got %v", updated.TestRecipientAddresses)
 	}
 }
 
@@ -527,7 +591,7 @@ func TestTemplateTypeHandler_Get_ResolvesInheritedSystemTypeInWorkspace(t *testi
 	systemWorkspace := uuid.Must(uuid.NewV7())
 	ttID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -738,7 +802,7 @@ func TestTemplateTypeHandler_List_ExcludesGlobalTemplateTypesForWorkspace(t *tes
 	systemWorkspaceID := uuid.Must(uuid.NewV7())
 	now := time.Now().UTC()
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}

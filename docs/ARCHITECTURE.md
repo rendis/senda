@@ -1,382 +1,141 @@
+
 # Senda Architecture
 
-> Email orchestration platform. Go + PostgreSQL. No Redis. Hexagonal architecture.
-
----
-
-## 1. System Overview
-
-Senda is a multi-tenant email orchestration platform built on a **3-level hierarchy**:
-
-```
-Global -> Tenant -> Workspace
-```
-
-Each level inherits configuration from its parent through a resolution chain. Templates, injectors, and adapters resolve upward until a match is found.
-
-**UI scope model:** The "Tenant" UI scope is the `_system` workspace (`/t/{code}/w/_system`). See `docs/specs/DESIGN_BRIEF.md` §3.2-3.4 for navigation flow and sidebar visibility matrix.
-
-**Stack:** Go 1.25+, PostgreSQL 16 + pg_cron, Echo v5, River (queue), pgx v5, gomjml, golang-migrate.
-
-On the web side, Senda uses Next.js 16 + React 19 with shared semantic theme tokens and a
-single branding asset (`web/public/senda-logo.svg`) applied consistently across public pages,
-dashboard chrome, and the editor shell.
-
----
-
-## 2. Hexagonal Architecture
-
-The codebase follows Ports & Adapters. The domain layer has **zero infrastructure dependencies**.
-
-```mermaid
-graph LR
-    subgraph Edge["Edge (HTTP)"]
-        H[Echo Handlers]
-        MW[Middleware Chain]
-    end
-
-    subgraph Adapters["Adapters (infra)"]
-        PG[PostgreSQL Stores]
-        RV[River Workers]
-        SES[SES Adapter]
-        GM[Gmail Adapter]
-        PGC[PG UNLOGGED Cache]
-        CR[AES-256-GCM Crypto]
-        RL[PL/pgSQL Rate Limiter]
-    end
-
-    subgraph Ports["Ports (interfaces)"]
-        ST[(Stores)]
-        JQ[JobQueue]
-        ES[EmailSender]
-        TC[TemplateCompiler]
-        OV[OIDCVerifier]
-        CA[Cache]
-        CY[Crypto]
-        RT[RateLimiter]
-    end
-
-    subgraph Domain["Domain (pure)"]
-        EN[Entities]
-        VO[Value Objects]
-        SV[Services]
-        RE[Resolution Engine]
-    end
-
-    H --> MW --> SV
-    SV --> ST & JQ & ES & TC & OV & CA & CY & RT
-    PG -.implements.-> ST
-    RV -.implements.-> JQ
-    SES -.implements.-> ES
-    GM -.implements.-> ES
-    PGC -.implements.-> CA
-    CR -.implements.-> CY
-    RL -.implements.-> RT
-```
-
-**Layer rules:**
-
-- `internal/domain/` -- entities and value objects. No imports from other internal packages.
-- `internal/port/` -- interfaces. Depends only on domain.
-- `internal/service/` -- orchestration. Depends on domain + ports.
-- `internal/resolution/` -- resolution engine. Depends on domain + ports.
-- `internal/adapter/` -- infrastructure implementations. Implements ports.
-- `internal/http/` -- HTTP handlers and middleware. Depends on services.
-
----
-
-## 3. Domain Entities
-
-### Hierarchy & Access
+Senda is a PostgreSQL-first email orchestration platform with hierarchical resolution, environment-aware workspaces, and a public embedding SDK.
 
-| Entity         | Description                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| **Tenant**     | Top-level organization                                                                      |
-| **Workspace**  | Isolated environment within a tenant (+ a `_system` workspace per tenant for defaults)      |
-| **Member**     | Human user linked via OIDC                                                                  |
-| **MemberRole** | 5 roles:`Superadmin`, `TenantAdmin`, `WorkspaceAdmin`, `WorkspaceEditor`, `WorkspaceViewer` |
-| **APIKey**     | Machine credential. Prefix `senda_live_`, stored as SHA-256 hash                            |
+## Core topology
 
-### Email Infrastructure
+Senda has four surfaces:
 
-| Entity                    | Description                                                   |
-| ------------------------- | ------------------------------------------------------------- |
-| **Adapter**               | Provider connection (SES, Gmail)                              |
-| **AdapterIdentity**       | Email/domain identity. States:`verified`, `pending`, `failed` |
-| **TemplateType**          | Slug-addressable category with an assigned adapter            |
-| **Template**              | Belongs to a template type                                    |
-| **TemplateVersion**       | Lifecycle:`Draft` -> `Published` -> `Archived`                |
-| **TemplateVersionLocale** | Localized content for a version                               |
+1. **Management plane** — OIDC + RBAC for admin and content operations
+2. **Data plane** — workspace API keys for send/query
+3. **External integration surface** — embeddable builder/editor APIs with custom auth/resolver seams
+4. **SDK surface** — Go extension points for embedders
 
-### Operations
+## Layering
 
-| Entity                                       | Description                                                                                                                                |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **InjectorDefinition**                       | Scoped variable definition (workspace,\_system, or global)                                                                                 |
-| **InjectorField**                            | Individual field within a definition                                                                                                       |
-| **InjectorValue**                            | Field-level value; merged across scopes (highest priority wins)                                                                            |
-| **Email**                                    | Send record. States:`Queued` -> `Processing` -> `Sent` -> `Delivered` -> `Opened` -> `Bounced` -> `Complained` -> `Failed` -> `Suppressed` |
-| **EmailEvent**                               | State transition log                                                                                                                       |
-| **Webhook**                                  | Outbound webhook. HMAC-SHA256 signed, supports wildcard events                                                                             |
-| **SuppressionGlobal / SuppressionWorkspace** | Suppression entries. Reasons:`HardBounce`, `Complaint`, `Manual`                                                                           |
-| **AuditLog**                                 | Immutable record. Actions:`Create`, `Update`, `Delete`, `Publish`, `Archive`, `Disable`, `Enable`, `Revoke`, `Invite`, `RemoveRole`        |
-| **GlobalConfig**                             | System-wide configuration                                                                                                                  |
-| **ProviderEvent**                            | Raw inbound event from email providers                                                                                                     |
+- `internal/domain/` — pure domain model and environment/policy types
+- `internal/port/` — contracts for stores, senders, and public extension seams
+- `internal/service/` — business orchestration
+- `internal/resolution/` — scope, injector, and template resolution
+- `internal/adapter/` — Postgres, River, SES, Gmail, SMTP, MJML, crypto, cache
+- `internal/http/` — handlers and middleware
+- `sdk/` — public aliases and engine builder for embedders
 
----
+## Domain entities
 
-## 4. Port Interfaces
+### Hierarchy and auth
 
-All in `internal/port/`. Services depend only on these interfaces.
+| Entity | Purpose |
+| --- | --- |
+| `Tenant` | top-level organization |
+| `Workspace` | operational unit inside a tenant |
+| `_system` workspace | tenant-wide defaults and selective sharing control point |
+| `Member` / `MemberRole` | OIDC-backed human access and RBAC |
+| `APIKey` | machine credential for one workspace environment |
 
-**Storage ports:**
-`TenantStore`, `WorkspaceStore`, `InjectorStore`, `TemplateStore`, `EmailStore`, `MemberStore`, `SuppressionStore`, `AdapterStore`, `AdapterIdentityStore`, `WebhookStore`, `APIKeyStore`, `AuditLogStore`, `GlobalConfigStore`, `DashboardStore`
-
-**Infrastructure ports:**
-`JobQueue` (EnqueueSend, EnqueueWebhook), `EmailSender` (Send, Name, HealthCheck), `TemplateCompiler`, `VariableRenderer`, `OIDCVerifier`, `Cache`, `Crypto`, `RateLimiter`, `IdentityProvider`
-
----
-
-## 5. Services
-
-| Service               | Responsibility                                                                                                               |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **SendService**       | Full send pipeline: validate -> resolve template -> resolve adapter -> check suppression -> compile -> rate limit -> enqueue |
-| **TemplateService**   | Template/version/locale CRUD with lifecycle transitions                                                                      |
-| **EventProcessor**    | Processes provider callbacks (bounces, complaints, deliveries, opens) and updates email state                                |
-| **WebhookService**    | Fire-and-forget webhook dispatch to registered endpoints                                                                     |
-| **APIKeyService**     | Generate, validate, revoke API keys                                                                                          |
-| **IdentityService**   | Sync provider identities, manage default sender addresses                                                                    |
-| **OnboardingService** | Guided tenant/workspace/adapter setup flow                                                                                   |
-
----
-
-## 6. Resolution Engine
-
-Located in `internal/resolution/`. Resolves configuration by walking the scope chain upward.
-
-```mermaid
-flowchart TD
-    REQ[Send Request with template_type slug + locale]
-    CR[ChainResolver]
-    TR[TemplateResolver]
-    IM[InjectorMerger]
-    AR[AdapterResolver]
-    OUT[Resolved: Template + Adapter + Injectors]
-
-    REQ --> CR
-    CR -->|"scope chain: workspace -> _system -> global"| TR
-    TR -->|"locale fallback: es-CO -> es -> default"| IM
-    IM -->|"field-level merge, highest priority wins"| AR
-    AR -->|"adapter assigned to template_type"| OUT
-
-    subgraph Cache TTLs
-        C1["ChainResolver: 5 min"]
-        C2["AdapterResolver: 10 min"]
-    end
-```
-
-### ChainResolver
-
-Builds the scope chain for a given workspace: `[workspace] -> [_system workspace] -> [global]`. Cached for 5 minutes.
-
-### TemplateResolver
-
-Walks the chain to find a published template matching the requested type slug. Applies locale fallback: specific locale (e.g., `es-CO`) -> language (e.g., `es`) -> default locale.
-
-### InjectorMerger
-
-Collects injector definitions from all scopes in the chain. Merges at field level -- values from the most specific scope (workspace) override less specific ones (global).
-
-### AdapterResolver
-
-Resolves which adapter handles the send. Adapters are assigned per **template type**, not per workspace or template. Cached for 10 minutes.
-
-Regular workspaces can use:
-
-- adapters they own directly;
-- Gmail adapters granted from the tenant `_system` workspace;
-- SES adapters granted from the tenant `_system` workspace **only** through explicitly shared email identities.
-
-When a workspace uses a shared SES adapter, the resolved template type must carry a `sender_identity_id` that was granted to that workspace. That keeps send attribution, logs, and dashboard breakdown tied to the effective workspace + sender identity, even when the underlying adapter is shared.
+### Messaging model
 
----
+| Entity | Purpose |
+| --- | --- |
+| `Adapter` | provider configuration |
+| `AdapterIdentity` | provider identity (email/domain) |
+| `TemplateType` | slug-addressable sending category |
+| `Template` | concrete content holder for a template type |
+| `TemplateVersion` | draft/published/archive version |
+| `TemplateVersionLocale` | locale-specific override |
+| `Email` / `EmailEvent` | send state and event history |
+| `Webhook` | outbound notification target |
 
-## 7. Send Pipeline
+## Environment model
 
-Full sequence from API call to delivery confirmation:
+Each logical workspace exists as two operational environments:
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Handler as HTTP Handler
-    participant Send as SendService
-    participant Res as Resolution Engine
-    participant Sup as SuppressionStore
-    participant Comp as TemplateCompiler
-    participant RL as RateLimiter
-    participant JQ as JobQueue (River)
-    participant SW as SendWorker
-    participant Provider as Email Provider
-    participant EP as EventProcessor
-    participant WH as WebhookService
+- `prod`
+- `test`
 
-    Client->>Handler: POST /api/v1/emails/send
-    Handler->>Send: Send(ctx, request)
-    Send->>Res: Resolve template + adapter + injectors
-    Res-->>Send: ResolvedContext
-    Send->>Sup: Check suppression (global + workspace)
-    Sup-->>Send: Not suppressed
-    Send->>Comp: Compile MJML -> HTML with injectors
-    Comp-->>Send: Compiled HTML
-    Send->>RL: Check rate limit
-    RL-->>Send: Allowed
-    Send->>JQ: EnqueueSend(emailID, payload)
-    Send-->>Handler: Email{status: Queued}
-    Handler-->>Client: 202 Accepted
+Environment affects:
 
-    Note over SW: Async (River worker)
-    SW->>JQ: Poll for jobs
-    JQ-->>SW: SendJob
-    SW->>Provider: Send email via adapter
-    Provider-->>SW: MessageID
-    SW->>SW: Update email status -> Sent
+- API key generation (`senda_prod_...`, `senda_test_...`)
+- management routing (`/manage/environments/:environment/...`)
+- external integration requests (`X-Senda-Environment`)
+- runtime safety controls in test
+- runtime reset availability in test
 
-    Note over Provider: Later (webhook/SNS)
-    Provider->>EP: Delivery/bounce/complaint event
-    EP->>EP: Update email status
-    EP->>WH: Fire webhooks for event
-    WH->>Client: POST to registered webhook URL
-```
+## Resolution and inheritance
 
----
+Resolution is scope-aware:
 
-## 8. Background Workers
+`workspace -> tenant _system -> global`
 
-River-based, running inside the Go process with PostgreSQL as the backing store. No external broker.
+Three important states:
 
-```mermaid
-flowchart LR
-    subgraph Enqueue
-        S1[SendService] -->|EnqueueSend| Q[(river_job table)]
-        S2[WebhookService] -->|EnqueueWebhook| Q
-    end
+- **owned**
+- **inherited**
+- **shared**
 
-    subgraph Workers
-        Q -->|poll| SW[SendWorker<br/>max 50 concurrent]
-        Q -->|poll| WW[WebhookWorker<br/>max 20 concurrent]
-    end
+Selective sharing rules:
 
-    subgraph Execute
-        SW -->|Send via adapter| P[Email Provider]
-        WW -->|POST + HMAC-SHA256| WE[Webhook Endpoint]
-    end
+- Gmail sharing is adapter-level from `_system`
+- SES sharing is email-identity-level from `_system`
+- shared child-workspace resources are read-only
+- template forks create local ownership from inherited resources
+- exact version cloning copies a version and all locales into a new draft
 
-    subgraph Lifecycle
-        SW -->|success| ACK[Ack / Complete]
-        SW -->|failure| RETRY_S[Retry with backoff]
-        WW -->|success| ACK
-        WW -->|4xx/5xx| RETRY_W[Retry up to 6 attempts]
-    end
-```
-
-**SendWorker:** 50 max concurrent workers. Picks up enqueued email jobs, resolves the adapter, calls `EmailSender.Send()`, and updates email status.
-
-**WebhookWorker:** 20 max concurrent workers. Delivers webhook payloads to registered URLs with HMAC-SHA256 signatures. Retries up to 6 times on failure.
-
----
-
-## 9. Authentication
-
-Dual-auth model:
-
-| Channel         | Mechanism       | Usage                            |
-| --------------- | --------------- | -------------------------------- |
-| Human users     | OIDC (Keycloak) | Dashboard, admin operations      |
-| Machine clients | API Keys        | Programmatic sends, integrations |
-
-**API Keys** use the `senda_live_` prefix. The raw key is shown once at creation; only the SHA-256 hash is stored. Validation compares hashes.
-
-**RBAC** is enforced at the middleware layer based on `MemberRole`. Each endpoint declares its minimum required role.
-
----
-
-## 10. Infrastructure Decisions
-
-### PostgreSQL-Only Stack (No Redis)
-
-| Concern           | Solution                                                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Cache**         | PG UNLOGGED table (`internal/adapter/pgcache/`). Fast writes, acceptable durability tradeoff since cache is reconstructible. |
-| **Rate limiting** | PL/pgSQL token bucket function (`internal/adapter/postgres/rate_limiter.go`). Atomic operations within the database.         |
-| **Job queue**     | River. Go-native worker framework backed by PostgreSQL. Jobs are transactional with the rest of the application state.       |
-| **Partitioning**  | `emails` and `audit_logs` tables partitioned by month. Managed by pg_cron.                                                   |
-
-### Encryption
-
-AES-256-GCM with HKDF key derivation. Salt: `senda-v1`, info: `senda-aes-256-gcm`. Used for adapter credentials and sensitive configuration.
-
-### Data Patterns
-
-- **UUIDs v7** -- time-ordered, used as primary keys and cursor-based pagination tokens.
-- **Soft delete** -- `deleted_at` column on all mutable entities. No physical deletes.
-- **Cursor-based pagination** -- no OFFSET queries. UUIDv7 natural ordering serves as the cursor.
-- **24 SQL migrations** -- managed by golang-migrate, applied in order.
-
----
-
-## 11. ADR Log
-
-### ADR-0001: Provider-Managed Email Authentication
-
-**Decision:** SPF, DKIM, and DMARC configuration is handled by the email provider (SES, Gmail), not by Senda.
-
-**Rationale:** Senda orchestrates sends through provider adapters. DNS record management is provider-specific and outside the application's domain. Adapter identities track verification status (`verified`, `pending`, `failed`) but the actual DNS setup is the provider's responsibility.
-
----
-
-## 12. Non-Negotiable Decisions
-
-1. **No Redis** -- PG UNLOGGED for cache, PL/pgSQL for rate limiting.
-2. **Adapter per template_type** -- not per workspace or template.
-3. **Resolution chain** -- workspace -> \_system workspace -> global.
-4. **River for job queue** -- Go + PG native, no external broker.
-5. **OIDC for humans, API Keys for machines** -- dual auth.
-6. **Hexagonal architecture** -- ports define contracts, adapters implement.
-7. **UUIDs v7** -- time-ordered, non-sequential.
-8. **Partitioned tables** -- emails and audit_logs by month.
-9. **Soft delete** -- `deleted_at` column, never physical delete.
-10. **Cursor-based pagination** -- no offset, UUIDv7 as cursor.
-
----
-
-## 13. Directory Structure
-
-```
-senda/
-  cmd/
-    api/              # HTTP server entry point
-    systemtest/       # System test harness
-  internal/
-    domain/           # Entities, value objects (zero deps)
-    port/             # Interface definitions
-    service/          # Business orchestration
-    resolution/       # Chain, template, adapter, injector resolvers
-    adapter/
-      postgres/       # Store implementations + rate limiter
-      pgcache/        # PG UNLOGGED cache
-      ses/            # AWS SES email sender
-      gmail/          # Gmail email sender
-      river/          # SendWorker, WebhookWorker
-      crypto/         # AES-256-GCM encryption
-      keycloak/       # OIDC adapter
-    http/
-      handler/        # Echo route handlers
-      middleware/      # Auth, RBAC, rate limit, logging
-      server.go       # Echo setup and DI wiring
-  migrations/         # SQL migration files (001..024)
-  docker/             # Docker Compose + Keycloak config
-  docs/               # Specs, Postman collection, this file
-  stories/            # Implementation stories (HT-01..HT-37)
-  test/               # System and integration tests
-```
+## External integration architecture
+
+External builder/editor access is profile-driven.
+
+A global external integration profile binds:
+
+- auth method name
+- workspace resolver name
+- allowed origins
+- allowed/required headers
+- capability flags
+
+Runtime pipeline:
+
+1. load profile
+2. validate headers and environment
+3. authenticate with registered auth method
+4. resolve workspace with registered workspace resolver
+5. enforce effective permissions on external routes
+
+## Public SDK architecture
+
+The public SDK is intentionally narrow.
+
+Supported extension points:
+
+- code injectors
+- one per-request init function
+- external auth methods
+- external workspace resolvers
+- startup hooks
+- shutdown hooks
+
+Not exposed through the SDK:
+
+- provider adapter registration
+- internal stores
+- internal queue/cache/crypto wiring
+- internal HTTP middleware composition
+
+## Auth model
+
+| Plane | Auth |
+| --- | --- |
+| Management | OIDC bearer token |
+| Data plane | workspace API key |
+| External integration | custom profile-driven auth + `X-Senda-Environment` |
+
+RBAC applies to management routes. External integration permissions are profile/auth-result driven rather than normal RBAC roles.
+
+## Infrastructure decisions
+
+- PostgreSQL is the system-of-record and operational backbone.
+- River provides PG-backed background jobs.
+- Cache uses PostgreSQL-backed mechanisms rather than Redis.
+- Encryption uses AES-256-GCM with HKDF-derived keys.
+- Soft delete and cursor-based pagination are standard patterns across the app.

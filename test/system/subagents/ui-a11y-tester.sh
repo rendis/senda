@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd go
@@ -244,7 +245,7 @@ load_runtime_env
 seed_keycloak_users
 seed_rbac_memberships
 
-go run "$ROOT_DIR/cmd/systemtest" matrix \
+systemtest matrix \
   --manifest "$ROOT_DIR/test/system/screen-manifest.json" \
   --format tsv \
   --out "$MATRIX_TSV"
@@ -259,7 +260,7 @@ echo -e "route\tscope\trole\tlocale\tviewport\tstatus\tcritical\tserious\tmanual
 max_cases="${A11Y_MAX_CASES:-0}"
 case_count=0
 
-while IFS=$'\t' read -r route route_slug scope role locale viewport critical pencil_frame_id preconditions actions assertions; do
+while IFS=$'\t' read -r route route_slug scope role locale viewport _critical _pencil_frame_id _preconditions _actions _assertions; do
   if [[ "$route" == "route" ]]; then
     continue
   fi

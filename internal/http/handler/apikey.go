@@ -63,7 +63,7 @@ func (h *APIKeyHandler) Create(c *echo.Context) error {
 		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 	}
 
-	fullKey, key, err := h.svc.Generate(c.Request().Context(), ws.ID, req.Name, member.ID)
+	fullKey, key, err := h.svc.Generate(c.Request().Context(), ws.ID, ws.Environment, req.Name, member.ID)
 	if err != nil {
 		return mapStoreError(c, err)
 	}

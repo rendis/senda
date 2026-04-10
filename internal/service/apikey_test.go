@@ -77,14 +77,14 @@ func TestAPIKeyService_Generate_Success(t *testing.T) {
 
 	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	fullKey, key, err := svc.Generate(context.Background(), wsID, "My API Key", memberID)
+	fullKey, key, err := svc.Generate(context.Background(), wsID, domain.EnvironmentProd, "My API Key", memberID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Full key format: "senda_live_" + 32 hex chars = 43 chars total
-	if !strings.HasPrefix(fullKey, "senda_live_") {
-		t.Fatalf("expected prefix 'senda_live_', got %q", fullKey)
+	// Full key format: "senda_prod_" + 32 hex chars = 43 chars total
+	if !strings.HasPrefix(fullKey, "senda_prod_") {
+		t.Fatalf("expected prefix 'senda_prod_', got %q", fullKey)
 	}
 	if len(fullKey) != 43 {
 		t.Fatalf("expected key length 43, got %d", len(fullKey))
@@ -101,9 +101,8 @@ func TestAPIKeyService_Generate_Success(t *testing.T) {
 		t.Fatalf("expected created_by %s, got %s", memberID, key.CreatedBy)
 	}
 
-	// KeyPrefix = literal "senda_live" per TECH_SPEC.
-	if key.KeyPrefix != "senda_live" {
-		t.Fatalf("expected prefix %q, got %q", "senda_live", key.KeyPrefix)
+	if key.KeyPrefix != "senda_prod" {
+		t.Fatalf("expected prefix %q, got %q", "senda_prod", key.KeyPrefix)
 	}
 
 	// KeyHint = last 8 chars of full key.
@@ -134,7 +133,7 @@ func TestAPIKeyService_Generate_StoreError(t *testing.T) {
 
 	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	_, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), "key", uuid.Must(uuid.NewV7()))
+	_, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), domain.EnvironmentProd, "key", uuid.Must(uuid.NewV7()))
 	if !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
 	}
@@ -144,12 +143,12 @@ func TestAPIKeyService_Generate_UniqueKeys(t *testing.T) {
 	store := &mockAPIKeyStore{}
 	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	key1, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), "k1", uuid.Must(uuid.NewV7()))
+	key1, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), domain.EnvironmentProd, "k1", uuid.Must(uuid.NewV7()))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	key2, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), "k2", uuid.Must(uuid.NewV7()))
+	key2, _, err := svc.Generate(context.Background(), uuid.Must(uuid.NewV7()), domain.EnvironmentProd, "k2", uuid.Must(uuid.NewV7()))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,7 +172,7 @@ func TestAPIKeyService_Validate_Success(t *testing.T) {
 	}
 
 	svc := service.NewAPIKeyService(store, "test-pepper")
-	fullKey, _, err := svc.Generate(context.Background(), wsID, "test", uuid.Must(uuid.NewV7()))
+	fullKey, _, err := svc.Generate(context.Background(), wsID, domain.EnvironmentProd, "test", uuid.Must(uuid.NewV7()))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +214,7 @@ func TestAPIKeyService_Validate_NotFound(t *testing.T) {
 
 	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	_, err := svc.Validate(context.Background(), "senda_live_deadbeefdeadbeefdeadbeefdeadbeef")
+	_, err := svc.Validate(context.Background(), "senda_prod_deadbeefdeadbeefdeadbeefdeadbeef")
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -234,7 +233,7 @@ func TestAPIKeyService_Validate_Revoked(t *testing.T) {
 
 	svc := service.NewAPIKeyService(store, "test-pepper")
 
-	_, err := svc.Validate(context.Background(), "senda_live_deadbeefdeadbeefdeadbeefdeadbeef")
+	_, err := svc.Validate(context.Background(), "senda_prod_deadbeefdeadbeefdeadbeefdeadbeef")
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for revoked key, got %v", err)
 	}

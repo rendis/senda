@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rendis/senda/internal/domain"
 )
 
 // CodeInjector is the interface for user-provided code injectors
@@ -55,6 +56,7 @@ type InjectorContext struct {
 	// Resolved by Senda's resolution engine.
 	tenantID     uuid.UUID
 	workspaceID  uuid.UUID
+	environment  domain.Environment
 	templateType string
 
 	// Merged values from DB + code injectors already resolved.
@@ -67,6 +69,7 @@ func NewInjectorContext(
 	ref string,
 	variables map[string]any,
 	tenantID, workspaceID uuid.UUID,
+	environment domain.Environment,
 	templateType string,
 ) *InjectorContext {
 	return &InjectorContext{
@@ -75,6 +78,7 @@ func NewInjectorContext(
 		variables:    variables,
 		tenantID:     tenantID,
 		workspaceID:  workspaceID,
+		environment:  environment,
 		templateType: templateType,
 		resolved:     make(map[string]map[string]any),
 	}
@@ -130,6 +134,9 @@ func (c *InjectorContext) TenantID() uuid.UUID { return c.tenantID }
 
 // WorkspaceID returns the resolved workspace UUID.
 func (c *InjectorContext) WorkspaceID() uuid.UUID { return c.workspaceID }
+
+// Environment returns the resolved workspace environment.
+func (c *InjectorContext) Environment() domain.Environment { return c.environment }
 
 // TemplateType returns the resolved template type slug.
 func (c *InjectorContext) TemplateType() string { return c.templateType }

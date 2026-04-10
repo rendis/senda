@@ -43,39 +43,48 @@ func (m *mockTenantStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error  
 func (m *mockTenantStoreSend) Purge(_ context.Context, _ uuid.UUID) error       { return nil }
 
 type mockWorkspaceStoreSend struct {
-	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
+	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
 	getByIDFn            func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
-	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
-	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error)
+	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error)
+	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error)
 }
 
 func (m *mockWorkspaceStoreSend) Create(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStoreSend) CreateLogicalPair(_ context.Context, _ *domain.Workspace, _ *domain.Workspace) error {
+	return nil
+}
 func (m *mockWorkspaceStoreSend) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockWorkspaceStoreSend) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreSend) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getByTenantAndCodeFn != nil {
-		return m.getByTenantAndCodeFn(ctx, tenantID, code)
+		return m.getByTenantAndCodeFn(ctx, tenantID, code, environment)
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockWorkspaceStoreSend) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreSend) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getSystemWorkspaceFn != nil {
-		return m.getSystemWorkspaceFn(ctx, tenantID)
+		return m.getSystemWorkspaceFn(ctx, tenantID, environment)
 	}
 	return nil, domain.ErrNotFound
 }
-func (m *mockWorkspaceStoreSend) ListByTenant(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStoreSend) ListByTenant(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error) {
 	if m.listByTenantFn != nil {
-		return m.listByTenantFn(ctx, tenantID, opts)
+		return m.listByTenantFn(ctx, tenantID, environment, opts)
 	}
 	return nil, "", nil
 }
+func (m *mockWorkspaceStoreSend) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+	return nil
+}
 func (m *mockWorkspaceStoreSend) Update(_ context.Context, _ *domain.Workspace) error { return nil }
-func (m *mockWorkspaceStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
+func (m *mockWorkspaceStoreSend) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+func (m *mockWorkspaceStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
 type mockEmailStoreSend struct {
 	createFn   func(ctx context.Context, email *domain.Email) error
@@ -100,6 +109,7 @@ func (m *mockEmailStoreSend) GetByTrackingID(_ context.Context, _ string) (*doma
 func (m *mockEmailStoreSend) GetByProviderMessageID(_ context.Context, _ string) (*domain.Email, error) {
 	return nil, nil
 }
+func (m *mockEmailStoreSend) PurgeWorkspaceRuntime(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockEmailStoreSend) UpdateStatus(_ context.Context, _ uuid.UUID, _, _ domain.EmailStatus) error {
 	return nil
 }
@@ -517,21 +527,50 @@ func newSendFixture() *sendTestFixture {
 	}
 
 	f.wsStore = &mockWorkspaceStoreSend{
-		getByTenantAndCodeFn: func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tenantID == f.tenantID && code == "acme" {
-				return &domain.Workspace{ID: f.workspaceID, TenantID: f.tenantID, Code: "acme", Name: "Acme"}, nil
+				return &domain.Workspace{
+					ID:          f.workspaceID,
+					TenantID:    f.tenantID,
+					Code:        "acme",
+					Name:        "Acme",
+					Environment: domain.EnvironmentProd,
+				}, nil
 			}
 			return nil, domain.ErrNotFound
 		},
 		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
 			if id == f.workspaceID {
-				return &domain.Workspace{ID: f.workspaceID, TenantID: f.tenantID, Code: "acme", Name: "Acme"}, nil
+				return &domain.Workspace{
+					ID:          f.workspaceID,
+					TenantID:    f.tenantID,
+					Code:        "acme",
+					Name:        "Acme",
+					Environment: domain.EnvironmentProd,
+				}, nil
+			}
+			if id == f.sysWSID {
+				return &domain.Workspace{
+					ID:          f.sysWSID,
+					TenantID:    f.tenantID,
+					Code:        "_system",
+					Name:        "System",
+					IsSystem:    true,
+					Environment: domain.EnvironmentProd,
+				}, nil
 			}
 			return nil, domain.ErrNotFound
 		},
-		getSystemWorkspaceFn: func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspaceFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			if tenantID == f.tenantID {
-				return &domain.Workspace{ID: f.sysWSID, TenantID: f.tenantID, Code: "_system", Name: "System", IsSystem: true}, nil
+				return &domain.Workspace{
+					ID:          f.sysWSID,
+					TenantID:    f.tenantID,
+					Code:        "_system",
+					Name:        "System",
+					IsSystem:    true,
+					Environment: domain.EnvironmentProd,
+				}, nil
 			}
 			return nil, domain.ErrNotFound
 		},
@@ -888,7 +927,7 @@ func TestSendService_TenantNotFound(t *testing.T) {
 
 func TestSendService_WorkspaceNotFound(t *testing.T) {
 	f := newSendFixture()
-	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 		return nil, domain.ErrNotFound
 	}
 
@@ -1456,10 +1495,33 @@ func TestSendService_QueuedEvent_MultipleRecipients(t *testing.T) {
 
 func TestSendService_ScopeMismatch(t *testing.T) {
 	f := newSendFixture()
+	otherWorkspaceID := uuid.Must(uuid.NewV7())
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		switch id {
+		case f.workspaceID:
+			return &domain.Workspace{
+				ID:          f.workspaceID,
+				TenantID:    f.tenantID,
+				Code:        "acme",
+				Name:        "Acme",
+				Environment: domain.EnvironmentProd,
+			}, nil
+		case otherWorkspaceID:
+			return &domain.Workspace{
+				ID:          otherWorkspaceID,
+				TenantID:    f.tenantID,
+				Code:        "other",
+				Name:        "Other",
+				Environment: domain.EnvironmentProd,
+			}, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
 	svc := f.buildService()
 
 	req := f.happyRequest()
-	req.AuthWorkspaceID = uuid.Must(uuid.NewV7())
+	req.AuthWorkspaceID = otherWorkspaceID
 
 	_, err := svc.Send(context.Background(), req)
 	if err == nil {
@@ -1485,7 +1547,7 @@ func TestSendService_ScopeMatch(t *testing.T) {
 
 func TestSendService_SystemWorkspaceBlocked(t *testing.T) {
 	f := newSendFixture()
-	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID == f.tenantID && code == "_system" {
 			return &domain.Workspace{
 				ID:       f.sysWSID,
@@ -1509,6 +1571,213 @@ func TestSendService_SystemWorkspaceBlocked(t *testing.T) {
 	}
 	if !errors.Is(err, domain.ErrSystemWorkspaceBlocked) {
 		t.Fatalf("expected ErrSystemWorkspaceBlocked, got %v", err)
+	}
+}
+
+func TestSendService_TestEnvironmentWorkspaceRecipientPolicyReplace(t *testing.T) {
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+		if tenantID == f.tenantID && code == "acme" && environment == domain.EnvironmentTest {
+			return &domain.Workspace{
+				ID:                     f.workspaceID,
+				TenantID:               f.tenantID,
+				Code:                   "acme",
+				Name:                   "Acme",
+				Environment:            domain.EnvironmentTest,
+				TestRecipientMode:      domain.TestRecipientModeReplace,
+				TestRecipientAddresses: []string{"qa@example.com"},
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		if id == f.workspaceID {
+			return &domain.Workspace{
+				ID:          f.workspaceID,
+				TenantID:    f.tenantID,
+				Code:        "acme",
+				Name:        "Acme",
+				Environment: domain.EnvironmentTest,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.AuthWorkspaceID = f.workspaceID
+	req.To = []string{"real.user@example.com"}
+	req.CC = []string{"cc@example.com"}
+	req.BCC = []string{"bcc@example.com"}
+
+	resp, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp.TrackingIDs) != 1 {
+		t.Fatalf("expected 1 tracking entry, got %d", len(resp.TrackingIDs))
+	}
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 persisted email, got %d", len(f.emailStore.emails))
+	}
+	if got := f.emailStore.emails[0].RecipientEmail; got != "qa@example.com" {
+		t.Fatalf("expected replaced recipient qa@example.com, got %s", got)
+	}
+	if len(f.emailStore.emails[0].CC) != 0 || len(f.emailStore.emails[0].BCC) != 0 {
+		t.Fatalf("expected replace mode to clear CC/BCC, got CC=%v BCC=%v", f.emailStore.emails[0].CC, f.emailStore.emails[0].BCC)
+	}
+}
+
+func TestSendService_TestEnvironmentWorkspaceRecipientPolicyAppend(t *testing.T) {
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+		if tenantID == f.tenantID && code == "acme" && environment == domain.EnvironmentTest {
+			return &domain.Workspace{
+				ID:                     f.workspaceID,
+				TenantID:               f.tenantID,
+				Code:                   "acme",
+				Name:                   "Acme",
+				Environment:            domain.EnvironmentTest,
+				TestRecipientMode:      domain.TestRecipientModeAppend,
+				TestRecipientAddresses: []string{"qa@example.com"},
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		if id == f.workspaceID {
+			return &domain.Workspace{
+				ID:          f.workspaceID,
+				TenantID:    f.tenantID,
+				Code:        "acme",
+				Name:        "Acme",
+				Environment: domain.EnvironmentTest,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.AuthWorkspaceID = f.workspaceID
+	req.To = []string{"real.user@example.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(f.emailStore.emails) != 2 {
+		t.Fatalf("expected 2 persisted emails, got %d", len(f.emailStore.emails))
+	}
+	if got := f.emailStore.emails[0].RecipientEmail; got != "real.user@example.com" {
+		t.Fatalf("expected original recipient first, got %s", got)
+	}
+	if got := f.emailStore.emails[1].RecipientEmail; got != "qa@example.com" {
+		t.Fatalf("expected appended recipient qa@example.com, got %s", got)
+	}
+}
+
+func TestSendService_TestEnvironmentTemplateTypeRecipientPolicyOverride(t *testing.T) {
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+		if tenantID == f.tenantID && code == "acme" && environment == domain.EnvironmentTest {
+			return &domain.Workspace{
+				ID:                     f.workspaceID,
+				TenantID:               f.tenantID,
+				Code:                   "acme",
+				Name:                   "Acme",
+				Environment:            domain.EnvironmentTest,
+				TestRecipientMode:      domain.TestRecipientModeAppend,
+				TestRecipientAddresses: []string{"workspace@example.com"},
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		if id == f.workspaceID {
+			return &domain.Workspace{
+				ID:          f.workspaceID,
+				TenantID:    f.tenantID,
+				Code:        "acme",
+				Name:        "Acme",
+				Environment: domain.EnvironmentTest,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	f.templateStore.getTypeBySlugFn = func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+		if slug == "welcome" {
+			overrideMode := domain.TestRecipientModeReplace
+			return &domain.TemplateType{
+				ID:                     f.typeID,
+				Slug:                   "welcome",
+				Name:                   "Welcome Email",
+				AdapterID:              &f.adapterID,
+				TestRecipientMode:      &overrideMode,
+				TestRecipientAddresses: []string{"template@example.com"},
+			}, nil
+		}
+		return nil, domain.ErrTemplateTypeNotFound
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.AuthWorkspaceID = f.workspaceID
+	req.To = []string{"real.user@example.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(f.emailStore.emails) != 1 {
+		t.Fatalf("expected 1 persisted email, got %d", len(f.emailStore.emails))
+	}
+	if got := f.emailStore.emails[0].RecipientEmail; got != "template@example.com" {
+		t.Fatalf("expected template override recipient, got %s", got)
+	}
+}
+
+func TestSendService_TestEnvironmentWithoutConfiguredPolicyFailsClosed(t *testing.T) {
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+		if tenantID == f.tenantID && code == "acme" && environment == domain.EnvironmentTest {
+			return &domain.Workspace{
+				ID:                f.workspaceID,
+				TenantID:          f.tenantID,
+				Code:              "acme",
+				Name:              "Acme",
+				Environment:       domain.EnvironmentTest,
+				TestRecipientMode: domain.TestRecipientModeReplace,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	f.wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		if id == f.workspaceID {
+			return &domain.Workspace{
+				ID:          f.workspaceID,
+				TenantID:    f.tenantID,
+				Code:        "acme",
+				Name:        "Acme",
+				Environment: domain.EnvironmentTest,
+			}, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	svc := f.buildService()
+	req := f.happyRequest()
+	req.AuthWorkspaceID = f.workspaceID
+	req.To = []string{"real.user@example.com"}
+	req.CC = []string{"cc@example.com"}
+	req.BCC = []string{"bcc@example.com"}
+
+	_, err := svc.Send(context.Background(), req)
+	if !errors.Is(err, domain.ErrTestRecipientPolicyUnconfigured) {
+		t.Fatalf("expected ErrTestRecipientPolicyUnconfigured, got %v", err)
+	}
+	if len(f.emailStore.emails) != 0 {
+		t.Fatalf("expected no persisted emails when policy is missing, got %d", len(f.emailStore.emails))
 	}
 }
 

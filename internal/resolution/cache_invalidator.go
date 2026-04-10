@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/port"
 )
 
@@ -44,15 +45,17 @@ func (c *CacheInvalidator) InvalidateDomainValidation(ctx context.Context, works
 // workspaces belonging to a tenant. If listing workspaces fails, it falls back
 // to a global invalidation so stale data is never served.
 func (c *CacheInvalidator) InvalidateTenantWorkspaces(ctx context.Context, tenantID uuid.UUID) {
-	workspaces, _, err := c.workspaceStore.ListByTenant(ctx, tenantID, port.ListOptions{Limit: 1000})
-	if err != nil {
-		slog.Error("failed to list workspaces for cache invalidation, falling back to global",
-			"tenant_id", tenantID, "error", err)
-		c.InvalidateGlobal(ctx)
-		return
-	}
-	for _, ws := range workspaces {
-		c.InvalidateWorkspace(ctx, ws.ID)
+	for _, environment := range domain.Environments() {
+		workspaces, _, err := c.workspaceStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{Limit: 1000})
+		if err != nil {
+			slog.Error("failed to list workspaces for cache invalidation, falling back to global",
+				"tenant_id", tenantID, "environment", environment, "error", err)
+			c.InvalidateGlobal(ctx)
+			return
+		}
+		for _, ws := range workspaces {
+			c.InvalidateWorkspace(ctx, ws.ID)
+		}
 	}
 }
 

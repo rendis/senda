@@ -123,6 +123,7 @@ func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, send
 // Work processes a single email send job.
 func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) error { //nolint:gocognit,gocyclo,funlen // multi-step email send pipeline
 	args := job.Args
+	recoveringProcessingSend := false
 
 	// 1. Fetch email by tracking ID.
 	email, err := w.emailStore.GetByTrackingID(ctx, args.TrackingID)
@@ -141,13 +142,14 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		}
 		return nil
 	}
-	// If processing with no provider ID, the worker crashed between Send() and SetProviderMessageID.
-	// A recent timestamp means another worker may still be in-flight; an old one is definitely stuck.
+	// If processing with no provider ID, the worker may have crashed before completing
+	// the send pipeline. For recent timestamps we resume the delivery attempt; for
+	// stale ones we still fail permanently to avoid endlessly retrying ambiguous sends.
 	if email.Status == domain.StatusProcessing && (email.ProviderMessageID == nil || *email.ProviderMessageID == "") {
 		if time.Since(email.UpdatedAt) > staleProcessingThreshold {
 			return w.failPermanently(ctx, email, fmt.Errorf("send: email stuck in processing, likely crashed during send"))
 		}
-		return goriver.JobCancel(fmt.Errorf("send: email %s is processing (no provider ID, recently started — deferring)", email.ID))
+		recoveringProcessingSend = true
 	}
 
 	// 2. Rate limiter check (before status transition so email stays "queued" if denied).
@@ -162,21 +164,23 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 
 	// 3. Mark as processing + add event.
 	now := time.Now().UTC()
-	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusProcessing, domain.StatusQueued); err != nil {
-		if errors.Is(err, domain.ErrStatusConflict) {
-			return goriver.JobCancel(fmt.Errorf("send: email %s already claimed (status conflict)", email.ID))
+	if !recoveringProcessingSend {
+		if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusProcessing, domain.StatusQueued); err != nil {
+			if errors.Is(err, domain.ErrStatusConflict) {
+				return goriver.JobCancel(fmt.Errorf("send: email %s already claimed (status conflict)", email.ID))
+			}
+			return fmt.Errorf("send: update status to processing: %w", err)
 		}
-		return fmt.Errorf("send: update status to processing: %w", err)
-	}
-	email.Status = domain.StatusProcessing // Update in-memory state for downstream callers (failPermanently)
-	if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
-		ID:         uuid.Must(uuid.NewV7()),
-		EmailID:    email.ID,
-		EventType:  domain.EventTypeProcessing,
-		OccurredAt: now,
-		CreatedAt:  now,
-	}); err != nil {
-		slog.Error("send_worker: failed to add processing event", append(emailLogAttrs(email), "error", err)...)
+		email.Status = domain.StatusProcessing // Update in-memory state for downstream callers (failPermanently)
+		if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
+			ID:         uuid.Must(uuid.NewV7()),
+			EmailID:    email.ID,
+			EventType:  domain.EventTypeProcessing,
+			OccurredAt: now,
+			CreatedAt:  now,
+		}); err != nil {
+			slog.Error("send_worker: failed to add processing event", append(emailLogAttrs(email), "error", err)...)
+		}
 	}
 
 	// 4. Render MJML body with variables.

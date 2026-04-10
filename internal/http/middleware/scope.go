@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/labstack/echo/v5"
+	"github.com/rendis/senda/internal/domain"
 )
 
 const (
@@ -23,6 +24,11 @@ func Scope() echo.MiddlewareFunc {
 			}
 			if wc := c.Param("workspace_code"); wc != "" {
 				c.Set(ContextKeyWorkspaceCode, wc)
+			}
+			if rawEnvironment := c.Param("environment"); rawEnvironment != "" {
+				if environment, err := domain.ParseEnvironment(rawEnvironment); err == nil {
+					c.Set(ContextKeyEnvironment, environment)
+				}
 			}
 
 			return next(c)

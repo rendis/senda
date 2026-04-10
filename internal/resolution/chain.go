@@ -67,7 +67,7 @@ func (r *ChainResolver) Resolve(ctx context.Context, workspaceID uuid.UUID) (*Re
 			},
 		}
 	} else {
-		sysWS, err := r.workspaceStore.GetSystemWorkspace(ctx, ws.TenantID)
+		sysWS, err := r.workspaceStore.GetSystemWorkspace(ctx, ws.TenantID, ws.Environment)
 		if err != nil {
 			return nil, err
 		}

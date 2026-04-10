@@ -14,7 +14,7 @@ import (
 // API key authentication bypasses RBAC (API keys are workspace-scoped, data-plane only).
 // OIDC authentication checks the member's roles against the required minimum role
 // within the resolved tenant/workspace scope.
-func RequireRole(minRole domain.Role, tenantStore port.TenantStore, wsStore port.WorkspaceStore) echo.MiddlewareFunc {
+func RequireRole(minRole domain.Role, tenantStore port.TenantStore, wsStore port.WorkspaceStore) echo.MiddlewareFunc { //nolint:gocognit // auth type, tenant, and workspace scope resolution branch by design
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			authType, _ := c.Get(ContextKeyAuthType).(string)
@@ -49,7 +49,11 @@ func RequireRole(minRole domain.Role, tenantStore port.TenantStore, wsStore port
 			// Resolve workspace ID from workspace_code if present.
 			var workspaceID *uuid.UUID
 			if wc, _ := c.Get(ContextKeyWorkspaceCode).(string); wc != "" && tenantID != nil {
-				ws, err := wsStore.GetByTenantAndCode(ctx, *tenantID, wc)
+				environment, _ := c.Get(ContextKeyEnvironment).(domain.Environment)
+				if !environment.Valid() {
+					environment = domain.EnvironmentProd
+				}
+				ws, err := wsStore.GetByTenantAndCode(ctx, *tenantID, wc, environment)
 				if err != nil {
 					return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", "invalid workspace")
 				}

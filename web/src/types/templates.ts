@@ -8,6 +8,8 @@ export interface TemplateType {
   adapter_id?: string;
   sender_identity_id?: string;
   variable_schema?: Record<string, unknown>;
+  test_recipient_mode?: "replace" | "append";
+  test_recipient_addresses?: string[];
   scope_level?: ScopeLevel;
   owner_scope?: OwnerScope;
   inherited_from_system?: boolean;

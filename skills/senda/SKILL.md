@@ -1,318 +1,214 @@
 ---
 name: senda
 description: >-
-  Interact with the Senda email orchestration API via MCP tools.
-  Manage tenants, workspaces, members, email adapters, templates,
-  injectors, webhooks, API keys, and send emails.
-  Trigger: When working with senda, email orchestration, email templates,
-  email sending, or managing email provider adapters.
+  Operate and extend the Senda email orchestration platform via MCP and the Go SDK.
+  Use this skill when working with tenants, workspaces, templates, injectors, adapters,
+  external integrations, API keys, or when embedding Senda as a library from another repo.
 allowed-tools:
   - mcp__senda__*
 ---
 
-# Senda MCP
+# Senda
 
-MCP integration for Senda — a multi-tenant email orchestration platform with MJML templates, provider abstraction (SES, Gmail, SMTP), RBAC, audit trails, and webhooks.
+Operational skill for agents working with **Senda** as a product API **and** as an embeddable Go library.
 
-Uses [mcp-openapi-proxy](https://github.com/rendis/mcp-openapi-proxy) to auto-generate MCP tools from the OpenAPI spec. Each API endpoint becomes a callable tool.
+This skill is intentionally self-contained. Do not depend on repo docs to understand the platform.
+If you need deeper detail, load the bundled references from this skill package.
 
-**Repository**: https://github.com/rendis/senda
-**Install proxy**: `go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest`
+## What Senda is
 
-## Setup
+Senda is a multi-tenant email orchestration platform with four operational surfaces:
 
-### Claude Code
+1. **Management plane** — OIDC-authenticated CRUD for tenants, workspaces, templates, injectors, adapters, API keys, policies, and configuration.
+2. **Data plane** — workspace-scoped sending and email query using raw API keys.
+3. **External integration surface** — embeddable builder/editor APIs protected by custom auth methods and workspace resolvers.
+4. **Go SDK / embedder mode** — register code injectors, per-request init, external auth methods, external workspace resolvers, and lifecycle hooks.
 
-The project includes `.mcp.json` — Claude Code auto-detects it. No manual setup needed.
+## Use this skill when
 
-```bash
-make dev          # Start API on port 8081 (docker-compose: postgres + keycloak + senda)
-# MCP auto-configured via .mcp.json
-```
+- operating Senda through MCP tools
+- creating or managing tenants, workspaces, templates, template versions, adapters, injectors, API keys, webhooks, or members
+- sending emails or querying delivery/event history
+- working with workspace environments `prod` / `test`
+- integrating an external builder or portal against Senda
+- embedding Senda in another Go repo and registering extensions
 
-Verify: `claude mcp list` → should show `senda` connected.
+## Mental model
 
-### OpenAI Codex
+### Scope hierarchy
 
-Edit `~/.codex/config.toml`:
+Resolution is hierarchical:
 
-```toml
-[mcp_servers.senda]
-command = "mcp-openapi-proxy"
-args = []
+`global -> tenant -> tenant _system workspace -> workspace`
 
-[mcp_servers.senda.env]
-MCP_SPEC = "https://raw.githubusercontent.com/rendis/senda/main/cmd/senda/docs/openapi.yaml"
-MCP_BASE_URL = "<your-api-url>"
-MCP_TOOL_PREFIX = "senda"
-```
+Key rules:
 
-### Gemini CLI
+- `_system` is a special workspace owned by a tenant and used for tenant-wide defaults and selective sharing.
+- Regular workspaces can inherit from `_system` and global.
+- Resolution is generally **workspace > _system > global**.
+- Shared resources are not the same as owned resources. Track whether something is owned, inherited, or shared.
 
-Edit `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
+For the detailed inheritance and sharing rules, load:
+- `references/resolution-and-inheritance.md`
 
-```json
-{
-  "mcpServers": {
-    "senda": {
-      "command": "mcp-openapi-proxy",
-      "args": [],
-      "env": {
-        "MCP_SPEC": "https://raw.githubusercontent.com/rendis/senda/main/cmd/senda/docs/openapi.yaml",
-        "MCP_BASE_URL": "<your-api-url>",
-        "MCP_TOOL_PREFIX": "senda"
-      }
-    }
-  }
-}
-```
+### Environment model
 
-### OIDC Authentication (production)
+Each logical workspace has two operational environments:
 
-```bash
-mcp-openapi-proxy login     # browser-based OIDC PKCE login
-mcp-openapi-proxy status    # check auth status
-mcp-openapi-proxy logout    # clear stored tokens
-```
+- `prod`
+- `test`
 
-## Available MCP Tools
+The environment is not a label; it changes runtime behavior and routing.
 
-Tool naming: `senda_{method}_{path}`. Use `senda_list_endpoints` to discover all.
+Key rules:
 
-### Key Tools
+- Do **not** put the environment into the send `ref`.
+- Management routes can be shared or environment-scoped.
+- Data-plane environment is determined by the API key prefix.
+- External integration environment is provided explicitly through `X-Senda-Environment`.
+- `test` has isolated runtime state and recipient safety controls.
 
-| Tool | Purpose |
-|------|---------|
-| `senda_get_health` | Health check |
-| `senda_post_api_v1_send` | Send an email (async, 202) |
-| `senda_get_api_v1_emails` | List sent emails |
-| `senda_get_api_v1_onboarding_status` | Check if onboarding needed |
-| `senda_post_api_v1_onboarding_setup` | Run first-time setup |
-| `senda_post_api_v1_manage_tenants` | Create tenant |
-| `senda_get_api_v1_manage_tenants` | List tenants |
-| `senda_post_api_v1_manage_tenants_tc_workspaces` | Create workspace |
-| `senda_get_api_v1_manage_members` | List members |
-| `senda_post_api_v1_manage_members` | Create member |
-| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters` | Create email adapter |
-| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates` | Create template |
-| `senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys` | Create API key |
+For the detailed model, load:
+- `references/environment-model.md`
 
-## Quick Start Workflow
+## Golden rules
 
-```
-1. senda_get_api_v1_onboarding_status       → check if setup needed
-2. senda_post_api_v1_onboarding_setup       → create tenant + member (first time)
-3. senda_get_api_v1_manage_tenants          → list tenants
-4. senda_post_api_v1_manage_tenants_tc_workspaces  → create workspace
-5. senda_post_api_v1_manage_tenants_tc_workspaces_wc_adapters  → add email provider
-6. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_workspace_access  → grant a Gmail adapter from tenant `_system` to selected workspaces (optional)
-7. senda_put_api_v1_manage_tenants_tc_workspaces_wc_adapters_id_identities_identity_id_workspace_access → grant an SES email identity from tenant `_system` to selected workspaces (optional)
-8. senda_post_api_v1_manage_tenants_tc_workspaces_wc_templates → create template
-9. senda_post_api_v1_manage_tenants_tc_workspaces_wc_api_keys  → create API key
-10. senda_post_api_v1_send                   → send email with API key
-11. senda_get_api_v1_emails                  → check delivery status
-```
+- **Use only the environment-aware raw API key prefixes** `senda_prod_` and `senda_test_`.
+- **Never infer environment from workspace code or name.** Use the route/header/token source of truth.
+- **Never put environment into `ref`.** `ref` stays `tenant:workspace:templateType`.
+- **Always distinguish shared routes from environment-scoped routes.**
+- **Treat `_system` as a special control workspace**, not a normal business workspace.
+- **Use `X-Senda-Environment` for external integration requests.**
+- **Runtime reset is test-only.** It is available only on the management environment-scoped test surface.
+- **Test recipient policies are test-only.** Do not assume they exist in prod.
 
-## API Groups
+## MCP operating playbooks
 
-### Public (no auth)
+### 1) Discover what exists
 
-- `GET /health` — health check
-- `GET /healthz` — full health (pinger)
-- `GET /metrics` — Prometheus metrics
-- `GET /t/o/{tracking_id}` — email open-tracking pixel
-- `GET /public/video-thumbnail` — video thumbnail composite
-- `GET /api/v1/onboarding/status` — check setup status
+Start with endpoint discovery, then inspect or call only the relevant endpoints.
 
-### Data Plane (WorkspaceAPIKeyBearer)
+Typical sequence:
 
-Auth: `Authorization: Bearer senda_live_...` (workspace API key)
+1. `senda_list_endpoints`
+2. `senda_describe_endpoint`
+3. `senda_call_endpoint`
 
-- `POST /api/v1/send` — send email (202 Accepted, async)
-- `GET /api/v1/emails` — list emails (cursor pagination)
-- `GET /api/v1/emails/{tracking_id}` — get email details
-- `GET /api/v1/emails/{tracking_id}/events` — get email events
-- `GET /api/v1/emails/export` — export emails (CSV/JSON)
+### 2) Choose the right plane
 
-### Webhooks Inbound (no auth, SNS signature)
+- **Management plane** — humans/admin workflows, OIDC auth, CRUD, configuration, environment-scoped workspace operations.
+- **Data plane** — send/query with `Authorization: Bearer senda_prod_...` or `senda_test_...`.
+- **External integration surface** — `/api/v1/external/:profile_slug/...`, custom auth + workspace resolver, header `X-Senda-Environment` required.
 
-- `POST /api/v1/webhooks/ses/inbound` — SES/SNS event ingestion
+### 3) Common MCP flows
 
-### Management API (ManagementBearer — OIDC JWT)
+Load this reference when you need ready-to-run workflows:
+- `references/mcp-workflows.md`
 
-Auth: `Authorization: Bearer <keycloak-jwt>`
+That reference covers:
 
-All routes under `/api/v1/manage/` require OIDC JWT + role-based access.
+- onboarding
+- tenant/workspace CRUD
+- environment-scoped workspace operations
+- API key creation and usage
+- send + send batch + email query
+- external bootstrap/session and builder flows
+- config and external integration profile management
 
-#### Tenants (Superadmin)
-- `POST/GET /api/v1/manage/tenants`
-- `GET/PUT/DELETE /api/v1/manage/tenants/{tenant_code}`
+## SDK / embedder playbook
 
-#### Workspaces (TenantAdmin+)
-- `POST/GET /api/v1/manage/tenants/{tc}/workspaces`
-- `GET/PUT/DELETE /api/v1/manage/tenants/{tc}/workspaces/{wc}`
+Use the Go SDK when another repo needs to run Senda and add business-specific behavior.
 
-#### Members (Superadmin)
-- `GET/POST /api/v1/manage/members`
-- `GET /api/v1/manage/members/{id}`
-- `POST /api/v1/manage/members/{id}/roles`
-- `DELETE /api/v1/manage/members/{id}/roles/{role_id}`
-
-#### Workspace Resources (under `.../workspaces/{wc}/`)
-
-| Resource | Create | List | Get | Update | Delete | Test |
-|----------|--------|------|-----|--------|--------|------|
-| Adapters | POST | GET | GET /{id} | PUT /{id} | DELETE /{id} | POST /{id}/test |
-| Adapter Identities | POST | GET | — | — | DELETE /{id} | — |
-| Templates | POST | GET | GET /{id} | — | — | POST /{id}/test-send |
-| Template Versions | POST | GET | GET /{vid} | PUT /{vid} | — | POST /{vid}/publish |
-| Template Locales | POST | GET | GET /{loc} | PUT /{loc} | DELETE /{loc} | — |
-| Template Types | POST | GET | GET /{slug} | — | — | — |
-| Injectors | POST | GET | GET /{name} | PUT /{name}/values | — | — |
-| API Keys | POST | GET | — | — | DELETE /{id} | — |
-| Webhooks | POST | GET | GET /{id} | PUT /{id} | DELETE /{id} | POST /{id}/test |
-| Emails | — | GET | GET /{tid} | — | — | — |
-| Suppression | POST | GET /{email} | — | — | DELETE /{email} | — |
-| Audit Log | — | GET | — | — | — | — |
-| Dashboard Stats | — | GET | — | — | — | — |
-
-#### Shared adapters from tenant `_system`
-
-- `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/workspace-access`
-  - only valid when `{wc}` resolves to the tenant `_system` workspace
-  - manages **Gmail adapter** visibility by workspace
-- `GET/PUT /api/v1/manage/tenants/{tc}/workspaces/{wc}/adapters/{id}/identities/{identity_id}/workspace-access`
-  - only valid when `{wc}` resolves to the tenant `_system` workspace
-  - manages **SES email identity** visibility by workspace
-  - SES identities of type `domain` are **not** shareable
-- Regular workspaces list both owned adapters and visible shared adapters; shared entries are **read-only**
-- For template types in a child workspace:
-  - shared Gmail adapters can be selected directly
-  - shared SES adapters require `sender_identity_id`
-  - that `sender_identity_id` must be an **email identity granted to that workspace**
-
-#### Global Scope (Superadmin, under `/api/v1/manage/global/`)
-Same resources as workspace-scoped but for system-wide configuration.
-
-#### Config (Superadmin)
-- `GET/PUT /api/v1/manage/config`
-
-#### Current User
-- `GET /api/v1/members/me` — get authenticated member profile (OIDC only)
-
-## Auth Schemes
-
-| Scheme | Type | Format | Used by |
-|--------|------|--------|---------|
-| ManagementBearer | HTTP Bearer | JWT from OIDC (Keycloak) | Management API (`/api/v1/manage/*`) |
-| WorkspaceAPIKeyBearer | HTTP Bearer | `senda_live_...` | Data Plane (`/api/v1/send`, `/api/v1/emails`) |
-
-## RBAC Roles
-
-| Role | Scope | Access |
-|------|-------|--------|
-| Superadmin | Global | All operations, tenant/member management, global config |
-| TenantAdmin | Tenant | Workspace CRUD, tenant settings |
-| WorkspaceAdmin | Workspace | Adapters, API keys, webhooks, template publish, suppression |
-| WorkspaceEditor | Workspace | Template versions/locales, injector values, test-send |
-| WorkspaceViewer | Workspace | Read-only access to all workspace resources |
-
-## Go SDK (for embedders)
-
-Senda can be embedded as a library via the `sdk` package:
+### Engine entry point
 
 ```go
-import "github.com/rendis/senda/sdk"
-
-engine := sdk.NewWithConfig("config.yaml")
-engine.RegisterInjector(&MyInjector{})      // custom template variables
-engine.SetInitFunc(myInit)                   // per-request init
-engine.OnStart(func(ctx context.Context) error { return nil })
-engine.OnShutdown(func(ctx context.Context) error { return nil })
-engine.Run()
+engine := sdk.NewWithConfig("settings/config.yaml")
 ```
 
-### Injector Interface
+Then register extensions before `Run()`.
 
-```go
-type Injector interface {
-    Code() string                                           // unique name
-    Resolve() (ResolveFunc, []string)                       // resolver + dependencies
-    IsCritical() bool                                       // true = failure aborts send
-    Timeout() time.Duration                                 // max resolution time (0 = 30s)
-}
-type ResolveFunc func(ctx context.Context, injCtx *InjectorContext) (map[string]any, error)
-```
+### Public registration points
 
-Templates access injected values as `{{ injector.CODE.fieldName }}`.
+| Method | What it registers | Multiplicity | When it runs |
+|---|---|---:|---|
+| `RegisterInjector(...)` | Code injector | many | during send resolution |
+| `SetInitFunc(...)` | Per-request init function | one (last wins) | before code injectors |
+| `RegisterExternalAuthMethod(...)` | External integration auth method | many | on external integration requests |
+| `RegisterExternalWorkspaceResolver(...)` | External workspace resolver | many | after external auth succeeds |
+| `OnStart(...)` | Startup hook | many | after bootstrap, before serving |
+| `OnShutdown(...)` | Shutdown hook | many | during shutdown, reverse order |
+| `Run()` | Starts Senda | one | blocks until shutdown |
 
-## Key Configuration
+### Operational guidance
 
-| Config | Env Var | Required | Purpose |
-|--------|---------|----------|---------|
-| Database URL | `SENDA_DATABASE_URL` | Yes | PostgreSQL 16 connection |
-| Master Key | `SENDA_MASTER_KEY` | Yes | AES-256-GCM encryption (32+ chars) |
-| OIDC Discovery | `SENDA_OIDC_DISCOVERY_URL` | Yes | Keycloak .well-known URL |
-| OIDC Client ID | `SENDA_OIDC_CLIENT_ID` | Yes | OIDC client identifier |
-| OIDC Client Secret | `SENDA_OIDC_CLIENT_SECRET` | Yes | OIDC client secret |
-| Port | `SENDA_PORT` | No | HTTP port (default: 8080) |
-| Log Level | `SENDA_LOG_LEVEL` | No | debug, info, warn, error |
-| Environment | `SENDA_ENVIRONMENT` | No | production, development |
+- `InitFunc` is for per-request shared context.
+- `Injector` is for code-provided template fields.
+- `ExternalAuthMethod` validates an external request and returns normalized permissions/context.
+- `ExternalWorkspaceResolver` maps that normalized request to a workspace or read-only fallback.
+- `OnStart` / `OnShutdown` are for infrastructure lifecycle, not request logic.
 
-## SES Adapter Lifecycle
+Load this reference when implementing or reviewing embedder code:
+- `references/sdk-extension-points.md`
 
-### Provisioning Flow (6 steps)
+## Real execution flows
 
-Auto-provisions SES tracking resources when `SENDA_TRACKING_BASE_URL` is set.
-Tracked in `adapter_provisioning_steps` table. Each step is idempotent.
+### Send flow
 
-| Step | Name | AWS Operation |
-|------|------|---------------|
-| 1 | create_configuration_set | ses:CreateConfigurationSet |
-| 2 | create_sns_topic | sns:CreateTopic |
-| 3 | create_event_destination | ses:CreateConfigurationSetEventDestination |
-| 4 | subscribe_webhook | sns:Subscribe (HTTPS) |
-| 5 | save_configuration | DB only (persist config set name) |
-| 6 | verify_subscription | sns:GetSubscriptionAttributes (polling, 15s timeout) |
+1. request enters the send pipeline
+2. tenant/workspace/template type are resolved
+3. `InjectorContext` is created
+4. DB injectors are resolved and seeded
+5. `InitFunc` runs once
+6. code injectors run in dependency order
+7. values merge with precedence rules
+8. template renders and dispatch continues
 
-Resource naming:
-- ConfigSet: `senda-{id[:8]}`
-- Topic: `senda-ses-events-{id[:8]}`
-- EventDest: `senda-events` (fixed)
-- Webhook: `{baseURL}/api/v1/webhooks/ses/inbound`
+### External integration flow
 
-### Deprovision Flow (4 steps)
+1. external profile loads by slug
+2. required headers and `X-Senda-Environment` are validated
+3. registered auth method authenticates
+4. registered workspace resolver returns effective workspace or read-only fallback
+5. effective permissions are computed
+6. the request proceeds against the external builder surface
 
-Executes on adapter soft-delete (SES type only). Best-effort -- failure does not block deletion.
-Tracked in same `adapter_provisioning_steps` table with `deprov_` prefix.
+### Resolution flow
 
-| Step | Name | AWS Operation |
-|------|------|---------------|
-| 10 | deprov_unsubscribe_webhook | sns:Unsubscribe |
-| 11 | deprov_delete_event_destination | ses:DeleteConfigurationSetEventDestination |
-| 12 | deprov_delete_sns_topic | sns:DeleteTopic |
-| 13 | deprov_delete_configuration_set | ses:DeleteConfigurationSet |
+1. workspace scope is checked first
+2. tenant `_system` fallback is checked next
+3. global fallback is checked last
+4. shared/default/forked resources participate according to their own rules
 
-### AWS IAM Permissions (full lifecycle)
+For detailed flow explanations, load:
+- `references/external-integration-flow.md`
+- `references/resolution-and-inheritance.md`
 
-**Sending (required)**:
-- `ses:SendEmail`, `ses:SendRawEmail` -- Send emails
-- `ses:ListEmailIdentities` -- Sync verified sender identities
-- `ses:GetAccount` -- Check sandbox/production status
+## Public contracts you must understand
 
-**Event Tracking Provisioning (required if `SENDA_TRACKING_BASE_URL` set)**:
-- `ses:CreateConfigurationSet` -- Create tracking ConfigSet
-- `ses:CreateConfigurationSetEventDestination` -- Link ConfigSet to SNS
-- `ses:ListConfigurationSets` -- List existing ConfigSets
-- `sns:CreateTopic` -- Create SNS Topic
-- `sns:Subscribe` -- Subscribe webhook
-- `sns:GetSubscriptionAttributes` -- Verify subscription confirmed
-- `sns:ListTopics` -- List existing Topics
+These are the primary public contracts for agents and embedders:
 
-**Cleanup on Adapter Deletion (recommended)**:
-- `ses:DeleteConfigurationSet` -- Remove ConfigSet on adapter delete
-- `ses:DeleteConfigurationSetEventDestination` -- Remove EventDest on adapter delete
-- `sns:Unsubscribe` -- Cancel subscription on adapter delete
-- `sns:DeleteTopic` -- Remove Topic on adapter delete
+- `sdk.Engine`
+- `sdk.Injector`
+- `sdk.ResolveFunc`
+- `sdk.InitFunc`
+- `sdk.ExternalAuthMethod`
+- `sdk.ExternalWorkspaceResolver`
+- `sdk.ExternalIntegrationRequest`
+- `sdk.ExternalAuthResult`
+- `sdk.ExternalWorkspaceResolution`
+- `sdk.InjectorContext`
 
-Permissions validated by `ValidateCredentials()` (`validator.go`) -- cleanup checks are non-blocking.
+Important runtime facts:
+
+- `InjectorContext.Environment()` tells injectors/init whether the request is in `prod` or `test`.
+- `ExternalIntegrationRequest.Environment` is the normalized environment from the external request.
+- Data plane uses API key prefix as environment selector.
+- Management plane uses route path for environment-scoped workspace operations.
+
+## Which reference to load next
+
+- **Need exact MCP workflows or endpoint usage** → `references/mcp-workflows.md`
+- **Need to register SDK functions or understand interfaces** → `references/sdk-extension-points.md`
+- **Need to understand `prod/test` behavior** → `references/environment-model.md`
+- **Need external embed/bootstrap/session/auth/resolver details** → `references/external-integration-flow.md`
+- **Need `_system`, sharing, defaults, forks, inheritance** → `references/resolution-and-inheritance.md`

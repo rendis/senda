@@ -850,10 +850,10 @@ func TestS10_CryptographicValidation(t *testing.T) {
 		if resp.StatusCode == http.StatusCreated {
 			body := ReadResponseBody(t, resp)
 
-			// Server uses "senda_live_" prefix for API keys
+			// Server now uses explicit environment prefixes for API keys.
 			require.True(t,
-				strings.Contains(body, "senda_live_") || strings.Contains(body, "senda_test_"),
-				"API key should have senda_live_ or senda_test_ prefix, got: %s", body)
+				strings.Contains(body, "senda_prod_") || strings.Contains(body, "senda_test_"),
+				"API key should have senda_prod_ or senda_test_ prefix, got: %s", body)
 		}
 	})
 

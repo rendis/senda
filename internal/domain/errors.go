@@ -9,6 +9,7 @@ var (
 	ErrForbidden              = errors.New("forbidden")
 	ErrWorkspaceScopeMismatch = errors.New("workspace scope mismatch")
 	ErrSystemWorkspaceBlocked = errors.New("system workspace cannot be used for send")
+	ErrTestRecipientPolicyUnconfigured = errors.New("test recipient policy is unconfigured")
 	ErrNoAdapterConfigured    = errors.New("no adapter configured")
 	ErrInvalidRef             = errors.New("invalid template reference")
 	ErrSuppressed             = errors.New("recipient is suppressed")

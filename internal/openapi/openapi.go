@@ -64,6 +64,8 @@ func RegisteredRoutes() ([]Route, error) {
 		sendahttp.WithDashboardHandler(&handler.DashboardHandler{}),
 		sendahttp.WithTrackingHandler(&handler.TrackingHandler{}),
 		sendahttp.WithMediaHandler(&handler.MediaHandler{}),
+		sendahttp.WithWorkspacePolicyHandler(&handler.WorkspacePolicyHandler{}),
+		sendahttp.WithExternalIntegrationHandler(&handler.ExternalIntegrationHandler{}),
 	)
 
 	routes := srv.Echo().Router().Routes()
@@ -132,6 +134,7 @@ func GenerateSwagDocsContent(routes []Route) string {
 	buf.WriteString("type DocHealthResponse struct {\n\tStatus string `json:\"status\"`\n\tError string `json:\"error,omitempty\"`\n}\n\n")
 	buf.WriteString("type DocStatusResponse struct {\n\tStatus string `json:\"status\"`\n}\n\n")
 	buf.WriteString("type DocTemplateLocaleListResponse struct {\n\tItems []response.TemplateVersionLocaleResponse `json:\"items\"`\n}\n\n")
+	buf.WriteString("type DocWorkspacePolicyResponse struct {\n\tAllowWorkspaceLocalTemplates bool `json:\"allow_workspace_local_templates\"`\n\tAllowWorkspaceInheritedTemplateForks bool `json:\"allow_workspace_inherited_template_forks\"`\n\tAllowWorkspaceLocalInjectors bool `json:\"allow_workspace_local_injectors\"`\n}\n\n")
 	writef := func(format string, args ...any) {
 		_, _ = fmt.Fprintf(&buf, format, args...)
 	}
@@ -270,8 +273,22 @@ func routeParameters(route Route) []operationParam {
 			operationParam{Name: "limit", In: "query", Type: "integer", Required: false, Description: "Page size"},
 		)
 	}
+	if routeRequiresExternalEnvironmentHeader(route) {
+		params = append(params, operationParam{
+			Name:        "X-Senda-Environment",
+			In:          "header",
+			Type:        "string",
+			Required:    true,
+			Description: "External integration environment selector (`prod` or `test`)",
+		})
+	}
 
 	return params
+}
+
+func routeRequiresExternalEnvironmentHeader(route Route) bool {
+	normalized := NormalizeEchoPath(route.Path)
+	return strings.HasPrefix(normalized, "/api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}")
 }
 
 func routeSupportsCursor(route Route) bool {
@@ -312,6 +329,8 @@ func routeTag(route Route) string {
 		return "health"
 	case strings.HasPrefix(normalized, "/t/o/"):
 		return "tracking"
+	case strings.HasPrefix(normalized, "/api/v1/external/"):
+		return "external"
 	case normalized == "/public/video-thumbnail":
 		return "media"
 	case normalized == "/api/v1/send", normalized == "/api/v1/send/batch":
@@ -418,6 +437,11 @@ func routeRequestType(route Route) string {
 		if route.Method == "PUT" {
 			return "request.UpdateConfigRequest"
 		}
+	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies",
+		"/api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies":
+		if route.Method == "PUT" {
+			return "request.UpdateWorkspacePolicyRequest"
+		}
 	}
 
 	switch {
@@ -479,6 +503,11 @@ func routeSuccessType(route Route) string {
 		return "response.ConfigResponse"
 	case "/api/v1/members/me":
 		return "response.MemberWithRolesResponse"
+	case "/api/v1/external/{profile_slug}/bootstrap",
+		"/api/v1/external/{profile_slug}/environments/{environment}/bootstrap":
+		return "response.ExternalIntegrationBootstrapResponse"
+	case "/api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/session":
+		return "response.ExternalIntegrationSessionResponse"
 	case "/api/v1/manage/tenants":
 		if route.Method == "GET" {
 			return "response.TenantListResponse"
@@ -497,6 +526,9 @@ func routeSuccessType(route Route) string {
 		}
 	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}":
 		return "response.WorkspaceResponse"
+	case "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies",
+		"/api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies":
+		return "DocWorkspacePolicyResponse"
 	case "/api/v1/manage/members":
 		if route.Method == "GET" {
 			return "response.MemberListResponse"
@@ -721,8 +753,8 @@ func PatchSecuritySchemes(doc *openapi3.T) {
 		Value: &openapi3.SecurityScheme{
 			Type:         "http",
 			Scheme:       "bearer",
-			BearerFormat: "senda_live",
-			Description:  "Workspace-scoped API key sent as Authorization: Bearer senda_live_...",
+			BearerFormat: "senda_prod|senda_test",
+			Description:  "Workspace-scoped API key sent as Authorization: Bearer senda_prod_... or senda_test_....",
 		},
 	}
 }

@@ -138,7 +138,7 @@ func TestTestSendService_ResolvesInjectorsWithRequestCodeAndDefaultPrecedence(t 
 			}
 			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: "main", Name: "Main"}, nil
 		},
-		getSystemWorkspaceFn: func(_ context.Context, gotTenantID uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspaceFn: func(_ context.Context, gotTenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			if gotTenantID != tenantID {
 				t.Fatalf("unexpected tenant id %s", gotTenantID)
 			}

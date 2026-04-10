@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/port"
 )
 
@@ -18,12 +19,24 @@ func resolveWorkspace(c *echo.Context, ts port.TenantStore, ws port.WorkspaceSto
 		return nil, err
 	}
 
-	workspace, err := ws.GetByTenantAndCode(ctx, tenant.ID, wsCode)
+	workspace, err := ws.GetByTenantAndCode(ctx, tenant.ID, wsCode, requestEnvironment(c))
 	if err != nil {
 		return nil, err
 	}
 
 	return workspace, nil
+}
+
+func requestEnvironment(c *echo.Context) domain.Environment {
+	if rawEnvironment := c.Param("environment"); rawEnvironment != "" {
+		if environment, err := domain.ParseEnvironment(rawEnvironment); err == nil {
+			return environment
+		}
+	}
+	if environment, ok := c.Get(middleware.ContextKeyEnvironment).(domain.Environment); ok && environment.Valid() {
+		return environment
+	}
+	return domain.EnvironmentProd
 }
 
 // resolveTenant looks up a tenant by :tenant_code path param.

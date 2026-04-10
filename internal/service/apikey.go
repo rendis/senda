@@ -28,10 +28,10 @@ func NewAPIKeyService(store port.APIKeyStore, pepper string) *APIKeyService {
 
 // Generate creates a new API key for a workspace.
 // Returns the full key (only shown once) and the persisted domain.APIKey.
-// Format: "senda_live_" + 32 random hex chars = 43 chars total.
-// Storage: SHA-256(fullKey) as KeyHash, first 8 hex chars as KeyPrefix, last 8 chars as KeyHint.
-func (s *APIKeyService) Generate(ctx context.Context, workspaceID uuid.UUID, name string, createdBy uuid.UUID) (string, *domain.APIKey, error) {
-	fullKey, err := generateKey()
+// Format: "senda_<environment>_" + 32 random hex chars.
+// Storage: HMAC-SHA256(fullKey) as KeyHash, persisted prefix metadata as "senda_<environment>", last 8 chars as KeyHint.
+func (s *APIKeyService) Generate(ctx context.Context, workspaceID uuid.UUID, environment domain.Environment, name string, createdBy uuid.UUID) (string, *domain.APIKey, error) {
+	fullKey, err := generateKey(environment)
 	if err != nil {
 		return "", nil, err
 	}
@@ -42,7 +42,7 @@ func (s *APIKeyService) Generate(ctx context.Context, workspaceID uuid.UUID, nam
 		WorkspaceID: workspaceID,
 		Name:        name,
 		KeyHash:     hashKeyHMAC(fullKey, s.pepper),
-		KeyPrefix:   "senda_live",
+		KeyPrefix:   environment.APIKeyPrefix(),
 		KeyHint:     fullKey[len(fullKey)-8:],
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
@@ -96,12 +96,15 @@ func (s *APIKeyService) ListByWorkspace(ctx context.Context, workspaceID uuid.UU
 	return s.store.ListByWorkspace(ctx, workspaceID, opts)
 }
 
-func generateKey() (string, error) {
+func generateKey(environment domain.Environment) (string, error) {
+	if !environment.Valid() {
+		environment = domain.EnvironmentProd
+	}
 	b := make([]byte, 16) // 16 bytes = 32 hex chars
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return "senda_live_" + hex.EncodeToString(b), nil
+	return environment.APIKeyTokenPrefix() + hex.EncodeToString(b), nil
 }
 
 // hashKeyHMAC computes HMAC-SHA256 of the key using the given pepper.

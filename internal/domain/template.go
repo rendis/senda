@@ -23,6 +23,8 @@ type TemplateType struct {
 	AdapterID           *uuid.UUID     // nil = not configured yet
 	SenderIdentityID    *uuid.UUID     // nil = use adapter default
 	VariableSchema      map[string]any // JSON Schema for event variables
+	TestRecipientMode   *TestRecipientMode
+	TestRecipientAddresses []string
 	OwnerScope          string
 	InheritedFromSystem bool
 	CreatedAt           time.Time

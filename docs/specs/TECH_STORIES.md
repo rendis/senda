@@ -836,8 +836,8 @@
 
 **Deliverables:**
 - `internal/service/apikey.go` — `APIKeyService`
-  - `Generate(ctx, workspaceID, name, createdBy)` → `{key: "senda_live_xxx...", id, key_hint}` (key visible only once)
-  - Key format: `senda_live_` + 32 random hex chars
+  - `Generate(ctx, workspaceID, environment, name, createdBy)` → `{key: "senda_prod_xxx..." | "senda_test_xxx...", id, key_hint}` (key visible only once)
+  - Key format: `senda_prod_` or `senda_test_` + 32 random hex chars
   - Storage: SHA-256 hash of the key, last 8 chars as hint
   - `Validate(ctx, rawKey)` → `(APIKey, error)`
   - `Revoke(ctx, keyID)` → soft revoke (set `revoked_at`)

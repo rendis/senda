@@ -39,7 +39,7 @@ func TestWorkspacePolicyHandler_Get_SystemWorkspaceSuccess(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
 			}
@@ -99,7 +99,7 @@ func TestWorkspacePolicyHandler_Get_WorkspaceReturnsSystemPolicies(t *testing.T)
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
 			}
@@ -116,7 +116,7 @@ func TestWorkspacePolicyHandler_Get_WorkspaceReturnsSystemPolicies(t *testing.T)
 				UpdatedAt: now,
 			}, nil
 		},
-		getSystemWorkspaceFn: func(_ context.Context, tid uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspaceFn: func(_ context.Context, tid uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
 			}
@@ -187,7 +187,7 @@ func TestWorkspacePolicyHandler_Update_SystemWorkspaceSuccess(t *testing.T) {
 
 	var updated *domain.Workspace
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID || code != "_system" {
 				t.Fatalf("unexpected lookup %s %q", tid, code)
 			}
@@ -237,7 +237,7 @@ func TestWorkspacePolicyHandler_Update_RejectsNonSystemWorkspace(t *testing.T) {
 
 	var updateCalled bool
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{
 				ID:        uuid.New(),
 				TenantID:  tid,

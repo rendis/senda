@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 import { useOnScopeSwitcherOpen } from "@/lib/scope-switcher-events";
 import { SYSTEM_WORKSPACE_CODE, type Tenant, type Workspace } from "@/types/api";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import {
   getWorkspaceDisplayCode,
   getWorkspaceDisplayName,
@@ -44,7 +45,7 @@ type ViewMode = "tenants" | "workspaces";
 export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { level, tenantCode, workspaceCode } = useScope();
+  const { level, tenantCode, workspaceCode, environment } = useScope();
   const tScope = useTranslations("scopeSwitcher");
 
   // View state
@@ -106,11 +107,14 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
         : "text-scope-workspace";
 
   function navigateTo(path: string) {
-    if (WORKSPACE_PATH_RE.test(path)) {
-      setLastWorkspacePath(path);
+    const nextPath = WORKSPACE_PATH_RE.test(path)
+      ? applyEnvironmentSearchParam(path, environment)
+      : path;
+    if (WORKSPACE_PATH_RE.test(nextPath)) {
+      setLastWorkspacePath(nextPath);
     }
     setOpen(false);
-    router.push(path);
+    router.push(nextPath);
   }
 
   function handleTenantClick(tenant: Tenant) {

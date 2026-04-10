@@ -34,6 +34,8 @@ const (
 	// ContextKeyExternalIntegrationAllowedHeaders stores the explicit profile-allowed
 	// headers captured from the incoming request for downstream use.
 	ContextKeyExternalIntegrationAllowedHeaders = "external_integration_allowed_headers"
+
+	ExternalIntegrationEnvironmentHeader = "X-Senda-Environment"
 )
 
 // ExternalAction identifies the capability required by a given external route.
@@ -69,6 +71,9 @@ func ExternalIntegration(h ExternalIntegrationResolverStore) echo.MiddlewareFunc
 		return func(c *echo.Context) error {
 			profile, err := loadExternalProfileForRequest(c, h)
 			if err != nil || responseCommitted(c) {
+				return err
+			}
+			if err := validateExternalEnvironment(c); err != nil || responseCommitted(c) {
 				return err
 			}
 			if err := validateExternalRequiredHeaders(c, profile); err != nil || responseCommitted(c) {
@@ -136,8 +141,10 @@ func resolveExternalDependencies(c *echo.Context, h ExternalIntegrationResolverS
 }
 
 func newExternalIntegrationRequest(c *echo.Context, profile domain.ExternalIntegrationProfile) *port.ExternalIntegrationRequest {
+	environment, _ := domain.ParseEnvironment(c.Request().Header.Get(ExternalIntegrationEnvironmentHeader))
 	reqCtx := &port.ExternalIntegrationRequest{
 		ProfileSlug: profile.Slug,
+		Environment: environment,
 		TenantCode:  c.Param("tenant_code"),
 		Token:       externalIntegrationToken(c),
 		Headers:     collectAllowedHeaders(c.Request().Header, profile.AllowedHeaders),
@@ -202,10 +209,22 @@ func applyExternalIntegrationContext(c *echo.Context, profile domain.ExternalInt
 	c.Set(ContextKeyExternalIntegrationReadOnly, readOnly)
 	c.Set(ContextKeyExternalIntegrationEffectiveWorkspaceCode, effectiveWorkspaceCode)
 	c.Set(ContextKeyExternalIntegrationAllowedHeaders, cloneStringMap(reqCtx.Headers))
+	c.Set(ContextKeyEnvironment, reqCtx.Environment)
 	c.Set(ContextKeyTenantCode, reqCtx.TenantCode)
 	c.Set(ContextKeyWorkspaceCode, effectiveWorkspaceCode)
 
 	patchExternalWorkspaceParam(c, effectiveWorkspaceCode)
+}
+
+func validateExternalEnvironment(c *echo.Context) error {
+	environmentHeader := c.Request().Header.Get(ExternalIntegrationEnvironmentHeader)
+	if strings.TrimSpace(environmentHeader) == "" {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "missing required header X-Senda-Environment")
+	}
+	if _, err := domain.ParseEnvironment(environmentHeader); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid X-Senda-Environment header")
+	}
+	return nil
 }
 
 func mapExternalProfileLoadError(c *echo.Context, err error) error {

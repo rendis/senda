@@ -170,7 +170,9 @@ func TestCRUD_Workspace_StatusAndSystemProtection(t *testing.T) {
 	require.True(t, created.IsActive)
 
 	t.Run("deactivate_and_reactivate", func(t *testing.T) {
-		resp := c.Put(tenantPath()+"/workspaces/"+code, map[string]any{
+		prodWorkspacePath := managementEnvironmentWorkspacePath("prod", TenantCode, code)
+
+		resp := c.Put(prodWorkspacePath, map[string]any{
 			"name":      "Toggle Workspace Disabled",
 			"is_active": false,
 		})
@@ -185,7 +187,7 @@ func TestCRUD_Workspace_StatusAndSystemProtection(t *testing.T) {
 		require.Equal(t, "Toggle Workspace Disabled", updated.Name)
 		require.False(t, updated.IsActive)
 
-		getResp := c.Get(tenantPath() + "/workspaces/" + code)
+		getResp := c.Get(prodWorkspacePath)
 		defer getResp.Body.Close()
 		RequireStatus(t, getResp, http.StatusOK)
 
@@ -195,7 +197,7 @@ func TestCRUD_Workspace_StatusAndSystemProtection(t *testing.T) {
 		ParseJSONResponse(t, getResp, &fetched)
 		require.False(t, fetched.IsActive)
 
-		reactivateResp := c.Put(tenantPath()+"/workspaces/"+code, map[string]any{
+		reactivateResp := c.Put(prodWorkspacePath, map[string]any{
 			"name":      "Toggle Workspace Active",
 			"is_active": true,
 		})
@@ -210,7 +212,7 @@ func TestCRUD_Workspace_StatusAndSystemProtection(t *testing.T) {
 	})
 
 	t.Run("system_workspace_is_protected", func(t *testing.T) {
-		resp := c.Put(tenantPath()+"/workspaces/_system", map[string]any{
+		resp := c.Put(managementEnvironmentWorkspacePath("prod", TenantCode, "_system"), map[string]any{
 			"name":      "Should Fail",
 			"is_active": false,
 		})
@@ -911,11 +913,12 @@ func TestCRUD_Members(t *testing.T) {
 
 	var memberID string
 	email := fmt.Sprintf("member-%d@test.example.com", time.Now().UnixNano()%100000)
+	createMember := func(t *testing.T, displayName string) string {
+		t.Helper()
 
-	t.Run("create", func(t *testing.T) {
 		resp := c.Post(mgmtPath()+"/members", map[string]interface{}{
 			"email":        email,
-			"display_name": "E2E Test Member",
+			"display_name": displayName,
 		})
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusCreated)
@@ -924,17 +927,39 @@ func TestCRUD_Members(t *testing.T) {
 			ID string `json:"id"`
 		}
 		ParseJSONResponse(t, resp, &body)
-		memberID = body.ID
-		require.NotEmpty(t, memberID)
+		require.NotEmpty(t, body.ID)
+		return body.ID
+	}
+
+	t.Run("create", func(t *testing.T) {
+		memberID = createMember(t, "E2E Test Member")
 	})
 
-	t.Run("create_duplicate", func(t *testing.T) {
+	t.Run("create_duplicate_reuses_existing_member", func(t *testing.T) {
+		if memberID == "" {
+			memberID = createMember(t, "E2E Test Member")
+		}
+
 		resp := c.Post(mgmtPath()+"/members", map[string]interface{}{
 			"email":        email,
 			"display_name": "Duplicate",
 		})
 		defer resp.Body.Close()
-		RequireStatus(t, resp, http.StatusConflict)
+
+		RequireStatus(t, resp, http.StatusCreated)
+
+		var body struct {
+			ID          string  `json:"id"`
+			Email       string  `json:"email"`
+			DisplayName *string `json:"display_name"`
+			Roles       []any   `json:"roles"`
+		}
+		ParseJSONResponse(t, resp, &body)
+		require.Equal(t, memberID, body.ID)
+		require.Equal(t, email, body.Email)
+		require.NotNil(t, body.DisplayName)
+		require.Equal(t, "E2E Test Member", *body.DisplayName)
+		require.Empty(t, body.Roles)
 	})
 
 	t.Run("list", func(t *testing.T) {

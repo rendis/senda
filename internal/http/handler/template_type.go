@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -108,6 +109,11 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspace *domain.Workspac
 		}
 	}
 
+	testRecipientMode, testRecipientAddresses, policyFieldErrors := parseTemplateTypeTestRecipientPolicyForCreate(workspace, req)
+	if len(policyFieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", policyFieldErrors...)
+	}
+
 	var workspaceID *uuid.UUID
 	if workspace != nil {
 		workspaceID = &workspace.ID
@@ -119,7 +125,18 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspace *domain.Workspac
 		}
 	}
 
-	tt, err := h.svc.Create(c.Request().Context(), req.Slug, req.Name, req.Description, adapterID, senderIdentityID, variableSchema, workspaceID)
+	tt, err := h.svc.Create(
+		c.Request().Context(),
+		req.Slug,
+		req.Name,
+		req.Description,
+		adapterID,
+		senderIdentityID,
+		variableSchema,
+		testRecipientMode,
+		testRecipientAddresses,
+		workspaceID,
+	)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
@@ -219,7 +236,7 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspac
 	}
 
 	previousSlug := tt.Slug
-	if field, err := applyTemplateTypeUpdateRequest(tt, req); err != nil {
+	if field, err := applyTemplateTypeUpdateRequest(tt, req, workspace); err != nil {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid "+field)
 	}
 
@@ -285,7 +302,7 @@ func validateTemplateTypeUpdateRequest(req request.UpdateTemplateTypeRequest) []
 	return fieldErrors
 }
 
-func applyTemplateTypeUpdateRequest(tt *domain.TemplateType, req request.UpdateTemplateTypeRequest) (string, error) {
+func applyTemplateTypeUpdateRequest(tt *domain.TemplateType, req request.UpdateTemplateTypeRequest, workspace *domain.Workspace) (string, error) { //nolint:gocognit // request patching mixes optional field updates with environment-aware validation
 	if req.Slug != nil {
 		tt.Slug = *req.Slug
 	}
@@ -315,7 +332,68 @@ func applyTemplateTypeUpdateRequest(tt *domain.TemplateType, req request.UpdateT
 			tt.SenderIdentityID = senderIdentityID
 		}
 	}
+	if req.TestRecipientMode != nil || req.TestRecipientAddresses != nil {
+		if workspace == nil || workspace.Environment != domain.EnvironmentTest {
+			return "test_recipient_mode", domain.ErrValidation
+		}
+		if req.TestRecipientMode != nil {
+			trimmed := strings.TrimSpace(*req.TestRecipientMode)
+			if trimmed == "" {
+				tt.TestRecipientMode = nil
+			} else {
+				mode := domain.TestRecipientMode(trimmed)
+				if !mode.Valid() {
+					return "test_recipient_mode", domain.ErrValidation
+				}
+				tt.TestRecipientMode = &mode
+			}
+		}
+		if req.TestRecipientAddresses != nil {
+			if len(*req.TestRecipientAddresses) == 0 {
+				tt.TestRecipientAddresses = nil
+				return "", nil
+			}
+			addresses := domain.NormalizeRecipientAddresses(*req.TestRecipientAddresses)
+			if err := domain.ValidateRecipientAddresses(addresses); err != nil {
+				return "test_recipient_addresses", err
+			}
+			tt.TestRecipientAddresses = addresses
+		}
+	}
 	return "", nil
+}
+
+func parseTemplateTypeTestRecipientPolicyForCreate(
+	workspace *domain.Workspace,
+	req request.CreateTemplateTypeRequest,
+) (*domain.TestRecipientMode, []string, []response.FieldError) {
+	if req.TestRecipientMode == nil && len(req.TestRecipientAddresses) == 0 {
+		return nil, nil, nil
+	}
+	if workspace == nil || workspace.Environment != domain.EnvironmentTest {
+		return nil, nil, []response.FieldError{
+			{Field: "test_recipient_mode", Message: "is only supported in the test environment"},
+		}
+	}
+
+	mode := domain.TestRecipientModeReplace
+	if req.TestRecipientMode != nil {
+		mode = domain.TestRecipientMode(strings.TrimSpace(*req.TestRecipientMode))
+		if !mode.Valid() {
+			return nil, nil, []response.FieldError{
+				{Field: "test_recipient_mode", Message: "must be replace or append"},
+			}
+		}
+	}
+
+	addresses := domain.NormalizeRecipientAddresses(req.TestRecipientAddresses)
+	if err := domain.ValidateRecipientAddresses(addresses); err != nil {
+		return nil, nil, []response.FieldError{
+			{Field: "test_recipient_addresses", Message: "must contain valid email addresses"},
+		}
+	}
+
+	return &mode, addresses, nil
 }
 
 func workspaceIDFor(workspace *domain.Workspace) *uuid.UUID {

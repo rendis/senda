@@ -1,26 +1,45 @@
 import { PageShell } from "@/components/shared/page-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 import { getTenantSystemPath, getWorkspaceDisplayCode } from "@/lib/system-workspace-display";
 
 export default async function WorkspaceApiDocsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenantCode: string; workspaceCode: string }>;
+  searchParams: Promise<{ environment?: string }>;
 }) {
   const { tenantCode, workspaceCode } = await params;
+  const { environment } = await searchParams;
   const isSystem = workspaceCode === SYSTEM_WORKSPACE_CODE;
-  const referenceHref = `/t/${tenantCode}/w/${workspaceCode}/api-docs/reference`;
+  const referenceHref = applyEnvironmentSearchParam(
+    `/t/${tenantCode}/w/${workspaceCode}/api-docs/reference`,
+    environment,
+  );
 
   return (
     <PageShell
       title="API Docs"
       description="Reference for services using workspace API Keys"
       breadcrumbs={[
-        { label: tenantCode, href: getTenantSystemPath(tenantCode) },
+        {
+          label: tenantCode,
+          href: applyEnvironmentSearchParam(
+            getTenantSystemPath(tenantCode),
+            environment,
+          ),
+        },
         ...(isSystem
           ? []
-          : [{ label: getWorkspaceDisplayCode({ code: workspaceCode }), href: `/t/${tenantCode}/w/${workspaceCode}` }]),
+          : [{
+              label: getWorkspaceDisplayCode({ code: workspaceCode }),
+              href: applyEnvironmentSearchParam(
+                `/t/${tenantCode}/w/${workspaceCode}`,
+                environment,
+              ),
+            }]),
         { label: "API Docs" },
       ]}
     >

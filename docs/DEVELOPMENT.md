@@ -1,318 +1,155 @@
+
 # Senda Development Guide
 
 ## Prerequisites
 
-| Tool                    | Version | Required                                          |
-| ----------------------- | ------- | ------------------------------------------------- |
-| Docker + Docker Compose | Latest  | Yes                                               |
-| Go                      | 1.25+   | Yes                                               |
-| Node.js                 | 25.x    | Yes (frontend, aligned with `web/.nvmrc`)         |
-| Make                    | Any     | Yes                                               |
-| golang-migrate CLI      | Latest  | Optional (migrations run on app start by default) |
+- Docker
+- Go 1.25+
+- Node 25.x (aligned with `web/.nvmrc`)
+- Make
+- Corepack (recommended for `pnpm`)
 
-## First-Time Setup
+## First-time setup
 
 ```bash
 git clone https://github.com/rendis/senda.git
 cd senda
-make dev          # starts senda + postgres + keycloak + mailpit
-# wait ~30s for keycloak health check
-curl localhost:8081/health  # verify backend
+make dev
+curl http://localhost:8081/health
 ```
 
-`make dev` brings up the full development stack via Docker Compose: the Senda API server with hot reload, PostgreSQL 16 with pg_cron, Keycloak as the OIDC provider, and Mailpit as the local email sink.
+`make dev` starts the local stack: Senda API, PostgreSQL, Keycloak, and Mailpit.
 
-## Backend Development
+## Frontend development
 
-- **Module:** `github.com/rendis/senda`
-- **Go version:** 1.25.1
-- **Hot reload:** Provided by [Air](https://github.com/air-verse/air) via `docker/Dockerfile.dev`
-- **Auto-rebuild:** Code changes under `internal/` trigger automatic rebuild inside the container
-
-The dev container mounts the project root as a volume, so any file change in `internal/`, `cmd/`, or `pkg/` is picked up by Air and triggers a rebuild + restart of the server process.
-
-No local Go installation is strictly required for backend work (everything runs inside Docker), but having Go installed locally is recommended for IDE support, running tests outside Docker, and using `go vet`/`golangci-lint`.
-
-## Frontend Development
+Use `pnpm` only.
 
 ```bash
 corepack enable
 (cd web && corepack install)
 pnpm --dir web install
-pnpm --dir web dev          # starts on localhost:3000
+pnpm --dir web dev
 ```
 
-- **Framework:** Next.js 16
-- **UI:** React 19, TypeScript 5, Tailwind v4
-- **API proxy:** All `/api/v1/*` requests are proxied to the backend (configured in `next.config.ts` rewrites)
-- **Environment:** Copy `web/.env.local.example` to `web/.env.local` and configure:
+Useful frontend checks:
 
-| Variable                  | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `NEXT_PUBLIC_API_URL`     | Backend API base URL (default:`http://localhost:8081`) |
-| `AUTH_SECRET`             | Auth.js session encryption secret                      |
-| `AUTH_OIDC_ISSUER`        | OIDC issuer URL (Keycloak)                             |
-| `AUTH_OIDC_CLIENT_ID`     | OIDC client ID                                         |
-| `AUTH_OIDC_CLIENT_SECRET` | OIDC client secret                                     |
+```bash
+pnpm --dir web typecheck
+pnpm --dir web lint -- --max-warnings=0
+```
 
-### Frontend UX, theme, and branding
+The standard local validation flow does **not** require a local `next build`.
 
-- **Theme modes:** `light`, `dark`, `system`
-- **Default:** `system` (follows browser / OS preference)
-- **Persistence:** local browser storage via `next-themes`
-- **Controls available in:** public pages (`/login`, `/access-denied`, `/onboarding`), dashboard user menu, and `/global/settings`
-- **Editor:** Monaco follows the resolved light/dark theme automatically
-- **Brand asset:** `web/public/senda-logo.svg` is the current canonical logo and favicon source
+## Backend development
 
-If you add a new public asset that must load before authentication, make sure it is exempted
-in `web/src/proxy.ts`; otherwise Auth.js middleware can redirect the request before the asset
-is served.
+Senda is a Go monorepo with the public module:
 
-## Database
+`github.com/rendis/senda`
 
-- **Engine:** PostgreSQL 16 + pg_cron extension
-- **Auto-migrate:** Migrations run automatically on application start (config: `migrate_on_start: true`)
-- **Manual migration:**
-  ```bash
-  make migrate-up     # apply all pending migrations
-  make migrate-down   # rollback last migration
-  ```
-- **Direct connection:**
-  ```bash
-  psql postgres://senda:senda@localhost:5435/senda
-  ```
-- **Migrations directory:** `/migrations/` (37 migration versions / 74 SQL files including `up` + `down`)
-- **Migration tool:** [golang-migrate](https://github.com/golang-migrate/migrate)
+Useful areas:
 
-## Docker Compose Stacks
+- `sdk/` — public SDK
+- `internal/domain/` — domain model
+- `internal/port/` — contracts and extension seams
+- `internal/service/` — business logic
+- `internal/resolution/` — inheritance and injector resolution
+- `internal/http/` — routes, handlers, middleware
 
-The project provides two Docker Compose configurations for different purposes:
+## Dev services
 
-| Aspect       | Dev (`docker-compose.yml`) | E2E (`docker-compose.e2e.yml`) |
-| ------------ | -------------------------- | ------------------------------ |
-| Senda port   | 8081                       | 8090                           |
-| PG port      | 5435                       | 5436                           |
-| Mailpit SMTP | 1026                       | 2025                           |
-| Mailpit UI   | 8026                       | 9025                           |
-| OIDC mode    | `oidc`                     | `dual` (OIDC + test JWT)       |
-| Hot reload   | Yes (Air)                  | No (compiled binary)           |
+| Service | URL / Port |
+| --- | --- |
+| API | `http://localhost:8081` |
+| Keycloak | `http://localhost:9090` |
+| Mailpit UI | `http://localhost:8026` |
+| PostgreSQL | `localhost:5435` |
+| Frontend | `http://localhost:3000` |
 
-The E2E stack uses `dual` auth mode so tests can authenticate with both real OIDC tokens and lightweight test JWTs for speed and determinism.
+## Keycloak test users
 
-## Makefile Reference
-
-All 27 available targets:
-
-### Development
-
-| Target           | Description                                                              |
-| ---------------- | ------------------------------------------------------------------------ |
-| `make dev`       | Start the full development stack (senda + postgres + keycloak + mailpit) |
-| `make dev-down`  | Stop the development stack                                               |
-| `make dev-clean` | Stop and remove all dev containers, volumes, and networks                |
-
-### Build
-
-| Target       | Description            |
-| ------------ | ---------------------- |
-| `make build` | Build the Senda binary |
-
-### Testing
-
-| Target                    | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `make ci-backend-pr`      | Run the fast Docker-free GitHub PR backend gate locally |
-| `make ci-backend-main`    | Run the fast Docker-free main backend gate locally      |
-| `make ci-frontend`        | Run the GitHub frontend gate locally                    |
-| `make ci-pr`              | Run the combined PR gate (backend + frontend)           |
-| `make ci-main`            | Run the combined main/systemic fast gate (no Docker)    |
-| `make test`               | Run unit tests with race detector                       |
-| `make test-integration`   | Run integration tests (TestContainers)                  |
-| `make test-e2e`           | Start E2E stack, run deterministic gate, stop stack     |
-| `make test-e2e-run`       | Run E2E tests (assumes stack is already up)             |
-| `make test-e2e-full`      | Start E2E stack, run full E2E suite, stop stack         |
-| `make test-e2e-full-run`  | Run full E2E suite (assumes stack is already up)        |
-| `make test-e2e-core`      | Start E2E stack, run core E2E tests, stop stack         |
-| `make test-e2e-core-run`  | Run core E2E tests (assumes stack is already up)        |
-| `make test-e2e-chaos`     | Start E2E stack, run chaos/resilience tests, stop stack |
-| `make test-e2e-chaos-run` | Run chaos tests (assumes stack is already up)           |
-| `make test-e2e-ses`       | Run only the SES lifecycle + signed SNS replay suite    |
-| `make test-e2e-up`        | No-op (E2E harness is self-managed by Testcontainers)  |
-| `make test-e2e-down`      | No-op (E2E harness is self-managed by Testcontainers)  |
-
-### System Tests
-
-| Target                          | Description                                                 |
-| ------------------------------- | ----------------------------------------------------------- |
-| `make system-validate-manifest` | Validate the system test manifest                           |
-| `make system-matrix`            | Run the system test matrix                                  |
-| `make system-pr`                | Run PR-level system tests (API contract + UI flow; visual opt-in) |
-| `make system-nightly`           | Run full nightly system test suite (visual opt-in)         |
-| `make system-down`              | Stop system test infrastructure                             |
-
-GitHub runs the lightweight backend/frontend gates automatically on pull requests. Heavy workflows such as `system-pr`, `system-nightly`, and `chaos-e2e` are manual in GitHub (`workflow_dispatch`) and should be triggered intentionally when you need deeper coverage.
-
-### Database
-
-| Target              | Description                           |
-| ------------------- | ------------------------------------- |
-| `make migrate-up`   | Apply all pending database migrations |
-| `make migrate-down` | Rollback the last database migration  |
-
-### Quality
-
-| Target                  | Description                                       |
-| ----------------------- | ------------------------------------------------- |
-| `make lint`             | Run golangci-lint                                 |
-| `make install-githooks` | Configure the versioned pre-push gate enforcement |
-
-`make install-githooks` installs a pre-push hook that runs `make ci-pr` only. Required validation gates are Docker-free; if you want deeper local coverage, run `make test-integration` and/or `make test-e2e` explicitly.
-
-### Cleanup
-
-| Target       | Description                                |
-| ------------ | ------------------------------------------ |
-| `make clean` | Remove build artifacts and temporary files |
-
-### Help
-
-| Target      | Description                                  |
-| ----------- | -------------------------------------------- |
-| `make help` | Show all available targets with descriptions |
-
-## Dev Services Access
-
-| Service                | URL                   | Credentials       |
-| ---------------------- | --------------------- | ----------------- |
-| Senda API              | http://localhost:8081 | --                |
-| Keycloak Admin Console | http://localhost:9090 | `admin` / `admin` |
-| Mailpit UI             | http://localhost:8026 | --                |
-| PostgreSQL             | `localhost:5435`      | `senda` / `senda` |
-
-## Keycloak Test Users
-
-The development Keycloak realm (`senda`) is pre-configured with the following test users:
-
-| Email                      | Password           | Role            |
-| -------------------------- | ------------------ | --------------- |
-| admin@senda.dev            | `admin`            | Superadmin      |
-| tenant-admin@senda.dev     | `tenant-admin`     | TenantAdmin     |
-| workspace-admin@senda.dev  | `workspace-admin`  | WorkspaceAdmin  |
+| Email | Password | Role |
+| --- | --- | --- |
+| admin@senda.dev | `admin` | Superadmin |
+| tenant-admin@senda.dev | `tenant-admin` | TenantAdmin |
+| workspace-admin@senda.dev | `workspace-admin` | WorkspaceAdmin |
 | workspace-editor@senda.dev | `workspace-editor` | WorkspaceEditor |
 | workspace-viewer@senda.dev | `workspace-viewer` | WorkspaceViewer |
 
-These users cover all RBAC roles in the system. The Keycloak realm configuration lives in `docker/keycloak/realm-senda.json`.
+## Make targets
 
-## Testing Guide
+### Development
 
-### Unit Tests
+- `make dev`
+- `make dev-down`
+- `make dev-clean`
 
-```bash
-make test
-```
+### Validation
 
-Runs `go test -race ./...`. Tests use manual mocks (no mock frameworks). All unit tests live alongside the code they test (e.g., `handler_test.go` next to `handler.go`).
+- `make test`
+- `make test-integration`
+- `make test-e2e`
+- `make test-e2e-full`
+- `make test-e2e-core`
+- `make test-e2e-chaos`
+- `make test-e2e-ses`
+- `make ci-backend-pr`
+- `make ci-frontend`
+- `make ci-pr`
+- `make ci-main`
+- `make lint`
+- `make vet`
 
-### Integration Tests
+### System tests
 
-```bash
-make test-integration
-```
+- `make system-validate-manifest`
+- `make system-matrix`
+- `make system-pr`
+- `make system-nightly`
+- `make system-down`
 
-Uses [TestContainers](https://golang.testcontainers.org/) to spin up real PostgreSQL instances. Integration test files are tagged with `//go:build integration` so they do not run during `make test`.
+### Database and helpers
 
-### E2E Tests
+- `make migrate-up`
+- `make migrate-down`
+- `make install-githooks`
+- `make clean`
+- `make help`
+
+## Environment-aware testing
+
+Senda now includes environment-aware runtime flows. When validating changes that touch workspace environment behavior, cover at least one of these:
+
+- `make test-e2e`
+- `make test-e2e-chaos` for crash/recovery or cross-layer runtime behavior
+- `make system-pr` for browser/API validation
+
+The system harness includes a dedicated environment-mode stage:
+
+- `test/system/subagents/ui-environment-mode-tester.sh`
+
+## E2E notes
+
+The deterministic and chaos E2E suites use self-managed Testcontainers harnesses. Prefer the Make targets over manual stack management.
+
+Useful suites:
 
 ```bash
 make test-e2e
-```
-
-Runs the deterministic E2E gate on a self-managed Testcontainers harness. Use `make test-e2e-run` if you already have an external stack running and exported via the harness env report.
-
-### SES-specific E2E coverage
-
-If you want to validate only the SES lifecycle flows, run:
-
-```bash
+make test-e2e-chaos
 make test-e2e-ses
 ```
 
-This suite is clone-friendly and self-contained. It bootstraps:
+## SDK / external integration development
 
-- PostgreSQL
-- Senda app
-- MiniStack
-- the `aws-sim` bridge
+When working on embedding or external integrations, verify against these source-of-truth files:
 
-And it verifies:
+- `sdk/engine.go`
+- `sdk/interfaces.go`
+- `internal/port/code_injector.go`
+- `internal/port/external_integration.go`
+- `internal/http/server.go`
+- `internal/http/middleware/external_integration.go`
 
-- SES auto-provisioning
-- sender identity sync + default identity setup
-- real send through the SES adapter path
-- SES/SNS delivery, bounce, and complaint events
-- deprovision when deleting the adapter
-- a separate signed SNS replay path for webhook signature verification
+## Migrations and data model
 
-### E2E Chaos Tests
-
-```bash
-make test-e2e-chaos
-```
-
-Non-blocking resilience and chaos tests. These exercise failure modes (network partitions, provider timeouts, concurrent mutations) and are not part of the main gate.
-
-### System Tests
-
-```bash
-make system-pr       # PR gate: API contract + UI flow + visual regression
-make system-nightly  # Full nightly suite
-```
-
-System tests cover end-to-end API contracts, UI flows, accessibility, and optional visual regression.
-The PR gate runs a subset for fast feedback; the nightly suite runs the complete matrix. Visual
-diff is opt-in:
-
-```bash
-SYSTEM_UI_VISUAL=1 make system-pr
-SYSTEM_UI_VISUAL=1 make system-nightly
-```
-
-## Troubleshooting
-
-### Port Conflicts
-
-If default ports collide with other services on your machine, override them with environment variables:
-
-```bash
-SENDA_PORT=8082 SENDA_PG_PORT=5437 KEYCLOAK_PORT=9091 make dev
-```
-
-### Keycloak Slow Start
-
-Keycloak has a 30-second health check start period configured in Docker Compose. This is normal. If `make dev` appears to hang, wait for the health check to pass. You can monitor progress with:
-
-```bash
-docker compose logs -f keycloak
-```
-
-### Migration Dirty State
-
-If a migration fails mid-way, the schema_migrations table may be left in a dirty state. Fix it by forcing the version:
-
-```bash
-migrate -database "postgres://senda:senda@localhost:5435/senda?sslmode=disable" \
-        -path migrations force <version>
-```
-
-Replace `<version>` with the last successfully applied migration version number.
-
-### PostgreSQL Not Ready
-
-If the application fails to connect to PostgreSQL on startup:
-
-```bash
-docker compose logs postgres    # check container health
-docker compose ps               # verify container is running
-```
-
-PostgreSQL has a health check configured. If the container shows as `unhealthy`, check disk space and available memory.
+Database migrations live in `migrations/`. Do not hardcode migration counts in docs or tooling; rely on the directory contents.

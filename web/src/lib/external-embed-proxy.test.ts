@@ -12,12 +12,16 @@ import {
 } from "./external-embed-proxy.ts";
 
 const EMBED_PATH = "/embed/partner-portal/t/acme/w/marketing/templates/newsletter/edit";
+const EMBED_TEST_PATH =
+  "/embed/partner-portal/environments/test/t/acme/w/marketing/templates/newsletter/edit";
 const BACKEND_ORIGIN = "https://backend.example.com";
 const HOST_ORIGIN = "https://host.example.com";
 const SELF_ANCESTOR = "'self'";
 const NONE_ANCESTOR = "'none'";
 const BOOTSTRAP_URL =
   "https://backend.example.com/api/v1/external/partner-portal/bootstrap";
+const TEST_BOOTSTRAP_URL =
+  "https://backend.example.com/api/v1/external/partner-portal/environments/test/bootstrap";
 const ROUTE_CONTEXT: ProxyRouteContext = {
   params: Promise.resolve({}),
 };
@@ -35,6 +39,14 @@ test("buildExternalBootstrapUrl targets the profile bootstrap endpoint", () => {
     url?.toString(),
     BOOTSTRAP_URL,
   );
+});
+
+test("buildExternalBootstrapUrl targets the environment bootstrap endpoint when embed path declares it", () => {
+  const request = mockEmbedRequest(EMBED_TEST_PATH);
+
+  const url = buildExternalBootstrapUrl(request, BACKEND_ORIGIN);
+
+  assert.equal(url?.toString(), TEST_BOOTSTRAP_URL);
 });
 
 test("normalizeFrameAncestors falls back to none when empty", () => {

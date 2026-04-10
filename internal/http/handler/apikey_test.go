@@ -143,8 +143,8 @@ func TestAPIKeyHandler_Create_Success(t *testing.T) {
 	if !ok || key == "" {
 		t.Fatal("response must contain 'key' field")
 	}
-	if !strings.HasPrefix(key, "senda_live_") {
-		t.Fatalf("expected key prefix 'senda_live_', got %q", key)
+	if !strings.HasPrefix(key, "senda_prod_") {
+		t.Fatalf("expected key prefix 'senda_prod_', got %q", key)
 	}
 	if resp["hint"] == nil || resp["hint"] == "" {
 		t.Fatal("response must contain 'hint' field")

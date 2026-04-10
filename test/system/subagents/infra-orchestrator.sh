@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 ACTION="${1:-up}"
@@ -11,7 +12,7 @@ require_cmd curl
 require_cmd jq
 
 stack_cmd() {
-  go run "$ROOT_DIR/cmd/systemtest" stack "$@"
+  systemtest stack "$@"
 }
 
 health_check() {

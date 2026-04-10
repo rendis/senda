@@ -232,7 +232,7 @@ func NewSendService(
 // 1. Parse ref → 2. Resolve tenant/workspace → 3. Resolve template →
 // 4. Merge injectors → 5. Resolve adapter → 6. Resolve from_email →
 // 7. Render fields → 8. Create emails → 9. Enqueue jobs
-func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse, error) { //nolint:gocognit,funlen // multi-step email send orchestration pipeline
+func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse, error) { //nolint:gocognit,gocyclo,funlen // multi-step email send orchestration pipeline
 	// 1. Parse addressing ref (tenant:workspace:templateType)
 	ref, err := domain.ParseRef(req.Ref)
 	if err != nil {
@@ -245,7 +245,19 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	ws, err := s.wsStore.GetByTenantAndCode(ctx, tenant.ID, ref.WorkspaceCode)
+	environment := domain.EnvironmentProd
+	if req.AuthWorkspaceID != uuid.Nil {
+		authWorkspace, err := s.wsStore.GetByID(ctx, req.AuthWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		environment = authWorkspace.Environment
+		if !environment.Valid() {
+			environment = domain.EnvironmentProd
+		}
+	}
+
+	ws, err := s.wsStore.GetByTenantAndCode(ctx, tenant.ID, ref.WorkspaceCode, environment)
 	if err != nil {
 		return nil, err
 	}
@@ -280,6 +292,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		req.Ref,
 		req.Variables,
 		tenant.ID, ws.ID,
+		ws.Environment,
 		ref.TemplateType,
 	)
 	injCtx.SetRequestInjectors(req.Injectors)
@@ -335,18 +348,23 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	var failCount int
 	var lastErr error
 
-	// Filter CC and BCC through suppression before the recipient loop so that
-	// each email record only carries addresses that are not suppressed.
-	filteredCC, err := s.filterSuppressed(ctx, ws.ID, req.CC)
-	if err != nil {
-		return nil, err
-	}
-	filteredBCC, err := s.filterSuppressed(ctx, ws.ID, req.BCC)
+	effectiveTo, effectiveCC, effectiveBCC, err := applyTestRecipientPolicy(ws, resolved.TemplateType, req.To, req.CC, req.BCC)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, recipient := range req.To {
+	// Filter CC and BCC through suppression before the recipient loop so that
+	// each email record only carries addresses that are not suppressed.
+	filteredCC, err := s.filterSuppressed(ctx, ws.ID, effectiveCC)
+	if err != nil {
+		return nil, err
+	}
+	filteredBCC, err := s.filterSuppressed(ctx, ws.ID, effectiveBCC)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, recipient := range effectiveTo {
 		// Check suppression
 		suppressed, reason, err := s.suppression.IsSuppressed(ctx, ws.ID, recipient)
 		if err != nil {
@@ -432,7 +450,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	}
 
 	// If ALL recipients failed, return the last error.
-	if failCount == len(req.To) {
+	if failCount == len(effectiveTo) {
 		return nil, fmt.Errorf("all recipients failed: %w", lastErr)
 	}
 
@@ -449,6 +467,42 @@ func effectiveSendSource(source SendSource) SendSource {
 		source.Type = domain.EmailSourceTypeDataPlaneAPIKey
 	}
 	return source
+}
+
+func applyTestRecipientPolicy(
+	ws *domain.Workspace,
+	templateType *domain.TemplateType,
+	to []string,
+	cc []string,
+	bcc []string,
+) ([]string, []string, []string, error) {
+	if ws == nil || ws.Environment != domain.EnvironmentTest {
+		return to, cc, bcc, nil
+	}
+
+	mode := ws.TestRecipientMode
+	if !mode.Valid() {
+		mode = domain.TestRecipientModeReplace
+	}
+	recipients := domain.NormalizeRecipientAddresses(ws.TestRecipientAddresses)
+
+	if templateType != nil && templateType.TestRecipientMode != nil && templateType.TestRecipientMode.Valid() {
+		mode = *templateType.TestRecipientMode
+		recipients = domain.NormalizeRecipientAddresses(templateType.TestRecipientAddresses)
+	}
+
+	if len(recipients) == 0 {
+		return nil, nil, nil, domain.ErrTestRecipientPolicyUnconfigured
+	}
+
+	switch mode {
+	case domain.TestRecipientModeAppend:
+		return append(domain.NormalizeRecipientAddresses(to), recipients...), cc, bcc, nil
+	case domain.TestRecipientModeReplace:
+		fallthrough
+	default:
+		return recipients, nil, nil, nil
+	}
 }
 
 // resolveFromEmail gets the from_email. If senderIdentityID is set, uses that specific identity;

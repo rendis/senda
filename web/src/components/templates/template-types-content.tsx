@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { z } from "zod";
 import {
   Plus,
   Search,
@@ -22,6 +23,7 @@ import {
   resolveResourceDisplayScope,
 } from "@/lib/workspace-resource-policies";
 import { cn } from "@/lib/utils";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { generateSlug, nameSchema, slugSchema } from "@/lib/validations/slug";
 import { useTemplateTypes, useCreateTemplateType, useUpdateTemplateType, useDeleteTemplateType } from "@/hooks/use-template-types";
 import { useAdapterList } from "@/hooks/use-adapters";
@@ -54,11 +56,32 @@ import { toast } from "sonner";
 
 const SENDER_DEFAULT = "__default__";
 const SENDER_NONE = "__none__";
+const TEST_RECIPIENT_INHERIT = "__inherit__";
 const SLUG_WARNING_LINES = [
   "Integraciones que usan el ref actual pueden dejar de resolver.",
   "Links o bookmarks al template type actual pueden quedar obsoletos.",
   "El historial y los filtros por slug pueden quedar divididos entre el valor viejo y el nuevo.",
 ] as const;
+const emailAddressSchema = z.email("Enter a valid email address");
+
+function parseRecipientAddressesInput(value: string): {
+  addresses: string[];
+  invalid: string[];
+} {
+  const parts = value
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const invalid = parts.filter(
+    (item) => !emailAddressSchema.safeParse(item).success,
+  );
+
+  return {
+    addresses: Array.from(new Set(parts)),
+    invalid,
+  };
+}
 
 export function TemplateTypesContent() {
   return <TemplateTypesTable />;
@@ -70,6 +93,7 @@ function TemplateTypesTable() {
   const router = useRouter();
   const scope = useScope();
   const scopedPath = useScopedPath();
+  const isTestEnvironment = scope.environment === "test";
   const workspacePolicies = useResolvedWorkspacePolicies(scope);
   const templateCatalogState = getTemplateCatalogState(scope, workspacePolicies.data);
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
@@ -89,6 +113,10 @@ function TemplateTypesTable() {
   const [newName, setNewName] = useState("");
   const [newAdapterId, setNewAdapterId] = useState("");
   const [newSenderIdentityId, setNewSenderIdentityId] = useState("");
+  const [newTestRecipientMode, setNewTestRecipientMode] =
+    useState<string>(TEST_RECIPIENT_INHERIT);
+  const [newTestRecipientAddresses, setNewTestRecipientAddresses] =
+    useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [editTarget, setEditTarget] = useState<TemplateType | null>(null);
 
@@ -112,7 +140,10 @@ function TemplateTypesTable() {
       case "global":
         return `/global/templates/${slug}`;
       default:
-        return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`;
+        return applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`,
+          scope.environment,
+        );
     }
   }
 
@@ -253,17 +284,35 @@ function TemplateTypesTable() {
         return;
       }
       const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
-      await createMutation.mutateAsync({
+      const payload: Parameters<typeof createMutation.mutateAsync>[0] = {
         slug: newSlug.trim(),
         name: newName.trim(),
         adapter_id: newAdapterId || undefined,
         sender_identity_id: senderIdValue,
-      });
+      };
+
+      if (isTestEnvironment && newTestRecipientMode !== TEST_RECIPIENT_INHERIT) {
+        const parsed = parseRecipientAddressesInput(newTestRecipientAddresses);
+        if (parsed.invalid.length > 0) {
+          toast.error(`Invalid addresses: ${parsed.invalid.join(", ")}`);
+          return;
+        }
+        if (parsed.addresses.length === 0) {
+          toast.error("Provide at least one safe recipient for the override.");
+          return;
+        }
+        payload.test_recipient_mode = newTestRecipientMode as "replace" | "append";
+        payload.test_recipient_addresses = parsed.addresses;
+      }
+
+      await createMutation.mutateAsync(payload);
       toast.success(t("templateTypeCreated"));
       setNewSlug("");
       setNewName("");
       setNewAdapterId("");
       setNewSenderIdentityId("");
+      setNewTestRecipientMode(TEST_RECIPIENT_INHERIT);
+      setNewTestRecipientAddresses("");
       setSlugTouched(false);
     } catch {
       toast.error(t("templateTypeCreateFailed"));
@@ -335,6 +384,60 @@ function TemplateTypesTable() {
                 senderIdentityId={newSenderIdentityId}
                 onSenderIdentityChange={setNewSenderIdentityId}
               />
+              {isTestEnvironment ? (
+                <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-amber-950 dark:text-amber-100">
+                        Test recipient override
+                      </p>
+                      <p className="text-xs text-amber-800/90 dark:text-amber-200/90">
+                        Leave this unset to inherit the workspace-level safe recipients. Use append with caution.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Override mode</Label>
+                      <Select
+                        value={newTestRecipientMode}
+                        onValueChange={setNewTestRecipientMode}
+                      >
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={TEST_RECIPIENT_INHERIT}>
+                            Inherit workspace default
+                          </SelectItem>
+                          <SelectItem value="replace">Replace recipients</SelectItem>
+                          <SelectItem value="append">Append safe recipients</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {newTestRecipientMode !== TEST_RECIPIENT_INHERIT ? (
+                      <div className="space-y-2">
+                        <Label>Safe recipients</Label>
+                        <textarea
+                          rows={4}
+                          value={newTestRecipientAddresses}
+                          onChange={(event) =>
+                            setNewTestRecipientAddresses(event.target.value)
+                          }
+                          placeholder={"qa@example.com\napprover@example.com"}
+                          className="flex min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none ring-ring/10 transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-4"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Separate addresses with new lines, commas, or semicolons.
+                        </p>
+                        {newTestRecipientMode === "append" ? (
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            Warning: append preserves original recipients and adds these addresses.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </FormDialog>
         ) : (
@@ -417,6 +520,7 @@ function EditTemplateTypeDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const scope = useScope();
   const scopedPath = useScopedPath();
   const updateMutation = useUpdateTemplateType(scopedPath, templateType.slug);
   const shouldReduceMotion = useReducedMotion();
@@ -425,6 +529,13 @@ function EditTemplateTypeDialog({
   const [slug, setSlug] = useState(templateType.slug);
   const [adapterId, setAdapterId] = useState(templateType.adapter_id ?? "");
   const [senderIdentityId, setSenderIdentityId] = useState(templateType.sender_identity_id ?? "");
+  const [testRecipientMode, setTestRecipientMode] = useState<string>(
+    templateType.test_recipient_mode ?? TEST_RECIPIENT_INHERIT,
+  );
+  const [testRecipientAddresses, setTestRecipientAddresses] = useState(
+    templateType.test_recipient_addresses?.join("\n") ?? "",
+  );
+  const isTestEnvironment = scope.environment === "test";
 
   const originalSlug = templateType.slug;
   const slugDirty = slug !== originalSlug;
@@ -456,12 +567,31 @@ function EditTemplateTypeDialog({
         return true;
       }
       const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
-      await updateMutation.mutateAsync({
+      const payload: Parameters<typeof updateMutation.mutateAsync>[0] = {
         name: name.trim(),
         slug: slug.trim(),
         adapter_id: adapterId || undefined,
         sender_identity_id: senderIdValue || undefined,
-      });
+      };
+      if (isTestEnvironment) {
+        if (testRecipientMode === TEST_RECIPIENT_INHERIT) {
+          payload.test_recipient_mode = "";
+          payload.test_recipient_addresses = [];
+        } else {
+          const parsed = parseRecipientAddressesInput(testRecipientAddresses);
+          if (parsed.invalid.length > 0) {
+            toast.error(`Invalid addresses: ${parsed.invalid.join(", ")}`);
+            return true;
+          }
+          if (parsed.addresses.length === 0) {
+            toast.error("Provide at least one safe recipient for the override.");
+            return true;
+          }
+          payload.test_recipient_mode = testRecipientMode as "replace" | "append";
+          payload.test_recipient_addresses = parsed.addresses;
+        }
+      }
+      await updateMutation.mutateAsync(payload);
       toast.success("Template type updated");
     } catch {
       toast.error("Failed to update");
@@ -572,6 +702,57 @@ function EditTemplateTypeDialog({
           senderIdentityId={senderIdentityId}
           onSenderIdentityChange={setSenderIdentityId}
         />
+        {isTestEnvironment ? (
+          <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+            <div className="space-y-3">
+              <div>
+                <p className="font-medium text-amber-950 dark:text-amber-100">
+                  Test recipient override
+                </p>
+                <p className="text-xs text-amber-800/90 dark:text-amber-200/90">
+                  Choose inherit to use the workspace default safe recipients. Replace is the recommended override mode.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Override mode</Label>
+                <Select value={testRecipientMode} onValueChange={setTestRecipientMode}>
+                  <SelectTrigger className="w-full bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TEST_RECIPIENT_INHERIT}>
+                      Inherit workspace default
+                    </SelectItem>
+                    <SelectItem value="replace">Replace recipients</SelectItem>
+                    <SelectItem value="append">Append safe recipients</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {testRecipientMode !== TEST_RECIPIENT_INHERIT ? (
+                <div className="space-y-2">
+                  <Label>Safe recipients</Label>
+                  <textarea
+                    rows={4}
+                    value={testRecipientAddresses}
+                    onChange={(event) =>
+                      setTestRecipientAddresses(event.target.value)
+                    }
+                    placeholder={"qa@example.com\napprover@example.com"}
+                    className="flex min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none ring-ring/10 transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-4"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Separate addresses with new lines, commas, or semicolons.
+                  </p>
+                  {testRecipientMode === "append" ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Warning: append preserves original recipients and adds these addresses.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </FormDialog>
   );

@@ -38,6 +38,12 @@ type DocTemplateLocaleListResponse struct {
 	Items []response.TemplateVersionLocaleResponse `json:"items"`
 }
 
+type DocWorkspacePolicyResponse struct {
+	AllowWorkspaceLocalTemplates bool `json:"allow_workspace_local_templates"`
+	AllowWorkspaceInheritedTemplateForks bool `json:"allow_workspace_inherited_template_forks"`
+	AllowWorkspaceLocalInjectors bool `json:"allow_workspace_local_injectors"`
+}
+
 // doc_get_api_v1_emails auto-generated route documentation.
 // @Summary      GET /api/v1/emails
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -110,6 +116,439 @@ func doc_get_api_v1_emails_tracking_id_events() {}
 // @Router       /api/v1/emails/export [get]
 func doc_get_api_v1_emails_export() {}
 
+// doc_get_api_v1_external_profile_slug_bootstrap auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/bootstrap
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Success      200  {object}  response.ExternalIntegrationBootstrapResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/bootstrap [get]
+func doc_get_api_v1_external_profile_slug_bootstrap() {}
+
+// doc_get_api_v1_external_profile_slug_environments_environment_bootstrap auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/environments/{environment}/bootstrap
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        environment  path  string  true  "environment path parameter"
+// @Success      200  {object}  response.ExternalIntegrationBootstrapResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/environments/{environment}/bootstrap [get]
+func doc_get_api_v1_external_profile_slug_environments_environment_bootstrap() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_injectors auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.InjectorListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_injectors() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.InjectorDetailResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_policies auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/policies
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/policies [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_policies() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_session auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/session
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.ExternalIntegrationSessionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/session [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_session() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateTypeListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateTypeResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types_slug_templates auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}/templates
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}/templates [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_template_types_slug_templates() {}
+
+// doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml auto-generated route documentation.
+// @Summary      POST /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Accept       json
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Param        body  body  request.MJMLPreviewRequest  true  "Request body"
+// @Success      200  {object}  response.MJMLPreviewResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml [post]
+func doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml() {}
+
+// doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send auto-generated route documentation.
+// @Summary      POST /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send [post]
+func doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateVersionListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_put_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      PUT /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Accept       json
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Param        body  body  request.CreateVersionRequest  true  "Request body"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [put]
+func doc_put_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales() {}
+
+// doc_delete_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      DELETE /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [delete]
+func doc_delete_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      200  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [get]
+func doc_get_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      POST /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Accept       json
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Param        body  body  request.SetLocaleRequest  true  "Request body"
+// @Success      201  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [post]
+func doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_put_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      PUT /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Accept       json
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Param        body  body  request.SetLocaleRequest  true  "Request body"
+// @Success      200  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [put]
+func doc_put_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_publish auto-generated route documentation.
+// @Summary      POST /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/publish
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         external
+// @Produce      json
+// @Param        profile_slug  path  string  true  "profile_slug path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        X-Senda-Environment  header  string  true  "External integration environment selector (`prod` or `test`)"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/publish [post]
+func doc_post_api_v1_external_profile_slug_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_publish() {}
+
 // doc_get_api_v1_manage_config auto-generated route documentation.
 // @Summary      GET /api/v1/manage/config
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -145,6 +584,1778 @@ func doc_get_api_v1_manage_config() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/config [put]
 func doc_put_api_v1_manage_config() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.AdapterListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateAdapterRequest  true  "Request body"
+// @Success      201  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        body  body  request.UpdateAdapterRequest  true  "Request body"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_auto_provision_tracking auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/auto-provision-tracking
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/auto-provision-tracking [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_auto_provision_tracking() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        body  body  request.CreateManualIdentityRequest  true  "Request body"
+// @Success      201  {object}  response.AdapterIdentityResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_set_default auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/set-default
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/set-default [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_set_default() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        identity_id  path  string  true  "identity_id path parameter"
+// @Param        body  body  request.UpdateAdapterRequest  true  "Request body"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/{identity_id}/workspace-access [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_identity_id_workspace_access() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_sync auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/sync
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapter-identities
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/identities/sync [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_identities_sync() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_provisioning_status auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/provisioning-status
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/provisioning-status [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_provisioning_status() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_setup_guide auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/setup-guide
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/setup-guide [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_setup_guide() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_test auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/test
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/test [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_test() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        body  body  request.UpdateAdapterRequest  true  "Request body"
+// @Success      200  {object}  response.AdapterResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/{id}/workspace-access [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_id_workspace_access() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_validate_ses auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         adapters
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/adapters/validate-ses [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_adapters_validate_ses() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         api-keys
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.APIKeyListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         api-keys
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateAPIKeyRequest  true  "Request body"
+// @Success      201  {object}  response.APIKeyCreatedResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         api-keys
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/api-keys/{id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_api_keys_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_audit_log auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/audit-log
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         audit
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.AuditLogListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/audit-log [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_audit_log() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_dashboard_stats auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/dashboard-stats
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         dashboard
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Success      200  {object}  response.DashboardStatsResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/dashboard-stats [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_dashboard_stats() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.EmailListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails_tracking_id auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails/{tracking_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        tracking_id  path  string  true  "tracking_id path parameter"
+// @Success      200  {object}  response.EmailDetailResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails/{tracking_id} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails_tracking_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails_tracking_id_events auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails/{tracking_id}/events
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        tracking_id  path  string  true  "tracking_id path parameter"
+// @Success      200  {object}  response.EmailEventResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/emails/{tracking_id}/events [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_emails_tracking_id_events() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Success      200  {object}  response.InjectorListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateInjectorRequest  true  "Request body"
+// @Success      201  {object}  response.InjectorDetailResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Success      200  {object}  response.InjectorDetailResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name_fields_field_name auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        field_name  path  string  true  "field_name path parameter"
+// @Param        body  body  request.UpdateInjectorFieldRequest  true  "Request body"
+// @Success      200  {object}  response.InjectorFieldResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/fields/{field_name} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name_fields_field_name() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name_values auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/values
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         injectors
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        name  path  string  true  "name path parameter"
+// @Param        body  body  request.SetInjectorValuesRequest  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/injectors/{name}/values [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_injectors_name_values() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      201  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      201  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles_role_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles/{role_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        role_id  path  string  true  "role_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles/{role_id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles_role_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_policies auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Success      200  {object}  DocWorkspacePolicyResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_policies() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_policies auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.UpdateWorkspacePolicyRequest  true  "Request body"
+// @Success      200  {object}  DocWorkspacePolicyResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_policies() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_runtime_reset auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/runtime/reset
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/runtime/reset [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_runtime_reset() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         suppression
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.AddSuppressionRequest  true  "Request body"
+// @Success      201  {object}  response.SuppressionWorkspaceResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression_email auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression/{email}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         suppression
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        email  path  string  true  "email path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression/{email} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression_email() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression_email auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression/{email}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         suppression
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        email  path  string  true  "email path parameter"
+// @Success      204  {object}  response.SuppressionCheckResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/suppression/{email} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_suppression_email() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.TemplateTypeListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateTemplateTypeRequest  true  "Request body"
+// @Success      201  {object}  response.TemplateTypeResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Success      200  {object}  response.TemplateTypeResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug_templates auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}/templates
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         template-types
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        slug  path  string  true  "slug path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.TemplateListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/template-types/{slug}/templates [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_template_types_slug_templates() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateTemplateRequest  true  "Request body"
+// @Success      201  {object}  response.TemplateResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send_config auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/bulk-send-config [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_bulk_send_config() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_disable auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/disable [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_disable() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_enable auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/enable
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/enable [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_enable() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_fork auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_fork() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  request.MJMLPreviewRequest  true  "Request body"
+// @Success      200  {object}  response.MJMLPreviewResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Success      200  {object}  response.TemplateVersionListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  request.CreateVersionRequest  true  "Request body"
+// @Success      201  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        body  body  request.CreateVersionRequest  true  "Request body"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_clone auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/clone
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      201  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/clone [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_clone() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      200  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Success      200  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        body  body  request.SetLocaleRequest  true  "Request body"
+// @Success      201  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Param        locale  path  string  true  "locale path parameter"
+// @Param        body  body  request.SetLocaleRequest  true  "Request body"
+// @Success      200  {object}  response.TemplateVersionLocaleResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales/{locale} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales_locale() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_publish auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/publish
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/publish [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_publish() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        cursor  query  string  false  "Pagination cursor"
+// @Param        limit  query  integer  false  "Page size"
+// @Success      200  {object}  response.WebhookListResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.CreateWebhookRequest  true  "Request body"
+// @Success      201  {object}  response.WebhookCreatedResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks() {}
+
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id} [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id() {}
+
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  response.WebhookResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id} [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id}
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Param        body  body  request.UpdateWebhookRequest  true  "Request body"
+// @Success      200  {object}  response.WebhookResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id} [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id() {}
+
+// doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id_test auto-generated route documentation.
+// @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id}/test
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         webhooks
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        id  path  string  true  "id path parameter"
+// @Success      200  {object}  DocStatusResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/webhooks/{id}/test [post]
+func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_webhooks_id_test() {}
 
 // doc_get_api_v1_manage_global_adapters auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/adapters
@@ -2233,6 +4444,46 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_member
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles/{role_id} [delete]
 func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles_role_id() {}
+
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_policies auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Success      200  {object}  DocWorkspacePolicyResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_policies() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_policies auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        body  body  request.UpdateWorkspacePolicyRequest  true  "Request body"
+// @Success      200  {object}  DocWorkspacePolicyResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/policies [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_policies() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_suppression auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/suppression

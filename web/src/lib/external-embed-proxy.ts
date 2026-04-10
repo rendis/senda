@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server.js";
-import { isExternalEmbedPath } from "./external-api-context.ts";
+import {
+  extractEnvironmentFromEmbedPath,
+  isExternalEmbedPath,
+} from "./external-api-context.ts";
 
 export type FetchLike = typeof fetch;
 export interface ProxyRouteContext {
@@ -24,7 +27,21 @@ export function buildExternalBootstrapUrl(
     return null;
   }
 
-  return new URL(`/api/v1/external/${segments[1]}/bootstrap`, backendOrigin);
+  if (segments[2] === "environments" && segments[3]) {
+    const environment = extractEnvironmentFromEmbedPath(request.nextUrl.pathname);
+    return new URL(
+      `/api/v1/external/${segments[1]}/environments/${environment}/bootstrap`,
+      backendOrigin,
+    );
+  }
+
+  const environment = extractEnvironmentFromEmbedPath(request.nextUrl.pathname);
+  return environment === "prod"
+    ? new URL(`/api/v1/external/${segments[1]}/bootstrap`, backendOrigin)
+    : new URL(
+        `/api/v1/external/${segments[1]}/environments/${environment}/bootstrap`,
+        backendOrigin,
+      );
 }
 
 export function normalizeFrameAncestors(

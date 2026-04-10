@@ -188,7 +188,7 @@ func (s *TestSendService) resolveInjectors(
 		return nil, nil
 	}
 	if workspaceID == nil {
-		injCtx := port.NewInjectorContext(req.Headers, "global::"+templateTypeSlug, req.Variables, uuid.Nil, uuid.Nil, templateTypeSlug)
+		injCtx := port.NewInjectorContext(req.Headers, "global::"+templateTypeSlug, req.Variables, uuid.Nil, uuid.Nil, domain.EnvironmentProd, templateTypeSlug)
 		injCtx.SetRequestInjectors(req.Injectors)
 		injectors, err := s.injectorMerger.ResolveGlobalWithContext(ctx, injCtx)
 		if err != nil {
@@ -212,7 +212,7 @@ func (s *TestSendService) resolveInjectors(
 	}
 
 	ref := fmt.Sprintf("%s:%s:%s", tenant.Code, workspace.Code, templateTypeSlug)
-	injCtx := port.NewInjectorContext(req.Headers, ref, req.Variables, tenant.ID, workspace.ID, templateTypeSlug)
+	injCtx := port.NewInjectorContext(req.Headers, ref, req.Variables, tenant.ID, workspace.ID, workspace.Environment, templateTypeSlug)
 	injCtx.SetRequestInjectors(req.Injectors)
 
 	injectors, err := s.injectorMerger.ResolveWithContext(ctx, workspace.ID, injCtx)

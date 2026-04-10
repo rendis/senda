@@ -14,7 +14,7 @@
 
 ## 1. Product Summary
 
-Senda is an open-source transactional email orchestration platform. The dashboard lets administrators manage a 3-level hierarchy (Global → Tenant → Workspace), configure email templates with inheritance, manage domains, email-sending adapters, and monitor the full lifecycle of every email.
+Senda is an open-source transactional email orchestration platform. The dashboard lets administrators manage a hierarchical scope model (Global → Tenant → `_system` → Workspace), configure email templates with inheritance, manage domains, email-sending adapters, and monitor the full lifecycle of every email.
 
 **Dashboard audience:** Technical and semi-technical administrators at companies that manage multiple brands/regions/customers. This is not a consumer product — it is an internal operations tool.
 
@@ -628,7 +628,7 @@ Field: logo (type: img)
 - [Generate]
 - Modal: "Your API Key has been generated. Copy it now — it will never be shown again."
   ```
-  senda_live_a3f8b9c2d4e5f6a7b8c9d0e1f2a3b4c5
+  senda_prod_a3f8b9c2d4e5f6a7b8c9d0e1f2a3b4c5
   ```
   [Copy] [Close]
 

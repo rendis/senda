@@ -313,7 +313,11 @@ function WorkspacePolicySettingsContent({
   const scope = useScope();
   const { data, isLoading: rawLoading, error } = useResolvedWorkspacePolicies(scope);
   const isLoading = useMinimumLoading(rawLoading);
-  const updatePolicies = useUpdateWorkspacePolicies(scope.tenantCode);
+  const updatePolicies = useUpdateWorkspacePolicies(
+    scope.tenantCode,
+    scope.workspaceCode,
+    scope.environment,
+  );
   const { register, getValues, reset } = useForm<WorkspacePolicyFormValues>();
 
   useEffect(() => {

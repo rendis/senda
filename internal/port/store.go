@@ -23,11 +23,14 @@ type TenantStore interface {
 // WorkspaceStore manages workspace persistence.
 type WorkspaceStore interface {
 	Create(ctx context.Context, ws *domain.Workspace) error
+	CreateLogicalPair(ctx context.Context, prod *domain.Workspace, test *domain.Workspace) error
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
-	GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
-	GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
-	ListByTenant(ctx context.Context, tenantID uuid.UUID, opts ListOptions) ([]*domain.Workspace, string, error)
+	GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
+	GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error)
+	ListByTenant(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts ListOptions) ([]*domain.Workspace, string, error)
+	UpdateShared(ctx context.Context, tenantID uuid.UUID, currentCode, nextCode, nextName string) error
 	Update(ctx context.Context, ws *domain.Workspace) error
+	SoftDeleteLogical(ctx context.Context, tenantID uuid.UUID, code string) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -35,7 +38,7 @@ type WorkspaceStore interface {
 type WorkspaceExistenceStore interface {
 	// ExistsActiveByTenantCode returns a dense map where each requested workspace code is present
 	// and mapped to true only when the workspace exists for the tenant, is active, and is not soft-deleted.
-	ExistsActiveByTenantCode(ctx context.Context, tenantCode string, workspaceCodes []string) (map[string]bool, error)
+	ExistsActiveByTenantCode(ctx context.Context, tenantCode string, workspaceCodes []string, environment domain.Environment) (map[string]bool, error)
 }
 
 // InjectorStore manages injector persistence.
@@ -118,6 +121,7 @@ type EmailStore interface {
 	CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error
 	GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error)
 	GetByProviderMessageID(ctx context.Context, providerMessageID string) (*domain.Email, error)
+	PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	UpdateRetry(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
 	SetProviderMessageID(ctx context.Context, id uuid.UUID, providerMessageID string) error

@@ -19,6 +19,8 @@ type TemplateTypeResponse struct {
 	AdapterID           *string          `json:"adapter_id,omitempty"`
 	SenderIdentityID    *string          `json:"sender_identity_id,omitempty"`
 	VariableSchema      *json.RawMessage `json:"variable_schema,omitempty"`
+	TestRecipientMode   *string          `json:"test_recipient_mode,omitempty"`
+	TestRecipientAddresses []string      `json:"test_recipient_addresses,omitempty"`
 	OwnerScope          string           `json:"owner_scope,omitempty"`
 	InheritedFromSystem bool             `json:"inherited_from_system"`
 	CreatedAt           string           `json:"created_at"`
@@ -64,6 +66,13 @@ func NewTemplateTypeResponse(tt *domain.TemplateType) TemplateTypeResponse {
 			rm := json.RawMessage(raw)
 			resp.VariableSchema = &rm
 		}
+	}
+	if tt.TestRecipientMode != nil {
+		mode := string(*tt.TestRecipientMode)
+		resp.TestRecipientMode = &mode
+	}
+	if len(tt.TestRecipientAddresses) > 0 {
+		resp.TestRecipientAddresses = append([]string(nil), tt.TestRecipientAddresses...)
 	}
 	return resp
 }

@@ -163,19 +163,32 @@ func (m *mockWorkspaceStoreOnb) Create(ctx context.Context, ws *domain.Workspace
 	}
 	return nil
 }
+func (m *mockWorkspaceStoreOnb) CreateLogicalPair(ctx context.Context, prod *domain.Workspace, test *domain.Workspace) error {
+	if m.createFn != nil {
+		if err := m.createFn(ctx, prod); err != nil {
+			return err
+		}
+		return m.createFn(ctx, test)
+	}
+	return nil
+}
 func (m *mockWorkspaceStoreOnb) GetByID(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnb) GetByTenantAndCode(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreOnb) GetByTenantAndCode(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnb) GetSystemWorkspace(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreOnb) GetSystemWorkspace(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnb) ListByTenant(_ context.Context, _ uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStoreOnb) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 	return nil, "", nil
 }
+func (m *mockWorkspaceStoreOnb) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
 func (m *mockWorkspaceStoreOnb) Update(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStoreOnb) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockWorkspaceStoreOnb) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
 
 type mockAuditStoreOnb struct{}

@@ -576,7 +576,7 @@ CREATE TABLE api_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    UUID NOT NULL REFERENCES workspaces(id),
 
-    -- senda_live_<random> — only live keys (test access is via dashboard/OIDC)
+    -- senda_prod_<random> / senda_test_<random> — environment-aware workspace API keys
     key_prefix      VARCHAR(20) NOT NULL DEFAULT 'senda_live',
     key_hash        VARCHAR(128) NOT NULL,  -- SHA-256 hex
     key_hint        VARCHAR(8) NOT NULL,    -- last 8 chars for identification
@@ -3468,7 +3468,7 @@ Request
 package middleware
 
 // AuthMiddleware supports two authentication modes:
-// 1. API Key (Bearer senda_live_*) → workspace-scoped
+// 1. API Key (Bearer senda_prod_* or senda_test_*) → workspace-environment scoped
 // 2. OIDC JWT (Bearer eyJ*) → member with roles
 func AuthMiddleware(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifier OIDCVerifier) echo.MiddlewareFunc {
     return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -3478,7 +3478,7 @@ func AuthMiddleware(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, 
                 return echo.NewHTTPError(401, "missing authorization")
             }
 
-            if strings.HasPrefix(token, "senda_live_") {
+            if strings.HasPrefix(token, "senda_prod_") || strings.HasPrefix(token, "senda_test_") {
                 // API Key auth
                 hash := sha256Hex(token)
                 apiKey, err := apiKeyStore.GetByHash(c.Request().Context(), hash)

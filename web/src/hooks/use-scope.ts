@@ -1,8 +1,9 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import type { ScopeContext, ScopeLevel } from "@/types/api";
 import { resolveScopedPathFromParams } from "@/lib/external-api-context";
+import { normalizeEnvironment } from "@/lib/environment-mode";
 
 /**
  * Extract scope context from URL params.
@@ -15,9 +16,11 @@ import { resolveScopedPathFromParams } from "@/lib/external-api-context";
 export function useScope(): ScopeContext {
   const params = useParams<{
     profileSlug?: string;
+    environment?: string;
     tenantCode?: string;
     workspaceCode?: string;
   }>();
+  const searchParams = useSearchParams();
 
   let level: ScopeLevel = "global";
 
@@ -29,8 +32,12 @@ export function useScope(): ScopeContext {
 
   return {
     level,
+    profileSlug: params.profileSlug,
     tenantCode: params.tenantCode,
     workspaceCode: params.workspaceCode,
+    environment: normalizeEnvironment(
+      params.environment ?? searchParams.get("environment"),
+    ),
   };
 }
 
@@ -38,11 +45,5 @@ export function useScope(): ScopeContext {
  * Build the management API base path for the current scope.
  */
 export function useScopedPath(): string {
-  const params = useParams<{
-    profileSlug?: string;
-    tenantCode?: string;
-    workspaceCode?: string;
-  }>();
-
-  return resolveScopedPathFromParams(params);
+  return resolveScopedPathFromParams(useScope());
 }

@@ -203,7 +203,7 @@ func (s *AdapterAccessService) ReplaceAdapterWorkspaceAccess(ctx context.Context
 	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || adapter.AdapterType != domain.AdapterTypeGmail {
 		return fmt.Errorf("%w: only system-owned gmail adapters can be shared", domain.ErrValidation)
 	}
-	validTargets, err := s.validWorkspaceTargets(ctx, systemWorkspace.TenantID, workspaceIDs)
+	validTargets, err := s.validWorkspaceTargets(ctx, systemWorkspace.TenantID, workspaceEnvironment(systemWorkspace), workspaceIDs)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (s *AdapterAccessService) ReplaceIdentityWorkspaceAccess(ctx context.Contex
 	if identity.AdapterID != adapterID || identity.IdentityType != domain.IdentityTypeEmail {
 		return fmt.Errorf("%w: only email identities can be shared", domain.ErrValidation)
 	}
-	validTargets, err := s.validWorkspaceTargets(ctx, systemWorkspace.TenantID, workspaceIDs)
+	validTargets, err := s.validWorkspaceTargets(ctx, systemWorkspace.TenantID, workspaceEnvironment(systemWorkspace), workspaceIDs)
 	if err != nil {
 		return err
 	}
@@ -274,7 +274,7 @@ func (s *AdapterAccessService) ListAdapterWorkspaceAccess(ctx context.Context, s
 	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || adapter.AdapterType != domain.AdapterTypeGmail {
 		return nil, fmt.Errorf("%w: only system-owned gmail adapters can be shared", domain.ErrValidation)
 	}
-	return s.listWorkspaceAccess(ctx, systemWorkspace.TenantID, func() ([]uuid.UUID, error) {
+	return s.listWorkspaceAccess(ctx, systemWorkspace.TenantID, workspaceEnvironment(systemWorkspace), func() ([]uuid.UUID, error) {
 		return s.adapterGrants.ListAdapterWorkspaceGrants(ctx, adapterID)
 	})
 }
@@ -298,7 +298,7 @@ func (s *AdapterAccessService) ListIdentityWorkspaceAccess(ctx context.Context, 
 	if identity.AdapterID != adapterID || identity.IdentityType != domain.IdentityTypeEmail {
 		return nil, fmt.Errorf("%w: only email identities can be shared", domain.ErrValidation)
 	}
-	return s.listWorkspaceAccess(ctx, systemWorkspace.TenantID, func() ([]uuid.UUID, error) {
+	return s.listWorkspaceAccess(ctx, systemWorkspace.TenantID, workspaceEnvironment(systemWorkspace), func() ([]uuid.UUID, error) {
 		return s.identityGrants.ListIdentityWorkspaceGrants(ctx, identityID)
 	})
 }
@@ -325,11 +325,18 @@ func (s *AdapterAccessService) validateSenderIdentity(ctx context.Context, adapt
 	return nil
 }
 
-func (s *AdapterAccessService) validWorkspaceTargets(ctx context.Context, tenantID uuid.UUID, requested []uuid.UUID) ([]uuid.UUID, error) {
+func workspaceEnvironment(workspace *domain.Workspace) domain.Environment {
+	if workspace != nil && workspace.Environment.Valid() {
+		return workspace.Environment
+	}
+	return domain.EnvironmentProd
+}
+
+func (s *AdapterAccessService) validWorkspaceTargets(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, requested []uuid.UUID) ([]uuid.UUID, error) {
 	if len(requested) == 0 {
 		return nil, nil
 	}
-	workspaces, _, err := s.workspaceStore.ListByTenant(ctx, tenantID, port.ListOptions{Limit: 1000})
+	workspaces, _, err := s.workspaceStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{Limit: 1000})
 	if err != nil {
 		return nil, err
 	}
@@ -355,8 +362,8 @@ func (s *AdapterAccessService) validWorkspaceTargets(ctx context.Context, tenant
 	return result, nil
 }
 
-func (s *AdapterAccessService) listWorkspaceAccess(ctx context.Context, tenantID uuid.UUID, loadGrants func() ([]uuid.UUID, error)) ([]WorkspaceAccessGrant, error) {
-	workspaces, _, err := s.workspaceStore.ListByTenant(ctx, tenantID, port.ListOptions{Limit: 1000})
+func (s *AdapterAccessService) listWorkspaceAccess(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, loadGrants func() ([]uuid.UUID, error)) ([]WorkspaceAccessGrant, error) {
+	workspaces, _, err := s.workspaceStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{Limit: 1000})
 	if err != nil {
 		return nil, err
 	}

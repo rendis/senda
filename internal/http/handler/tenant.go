@@ -66,12 +66,15 @@ func (h *TenantHandler) Create(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	// Create the _system workspace for the new tenant.
-	sysWS := &domain.Workspace{
+	// Create the _system logical workspace pair for the new tenant.
+	logicalWorkspaceID := uuid.Must(uuid.NewV7())
+	sysWSProd := &domain.Workspace{
 		ID:                                   uuid.Must(uuid.NewV7()),
+		LogicalWorkspaceID:                   logicalWorkspaceID,
 		TenantID:                             tenant.ID,
 		Code:                                 "_system",
 		Name:                                 "System",
+		Environment:                          domain.EnvironmentProd,
 		IsSystem:                             true,
 		IsActive:                             true,
 		AllowWorkspaceLocalTemplates:         true,
@@ -81,7 +84,23 @@ func (h *TenantHandler) Create(c *echo.Context) error {
 		CreatedAt:                            now,
 		UpdatedAt:                            now,
 	}
-	if err := h.wsStore.Create(ctx, sysWS); err != nil {
+	sysWSTest := &domain.Workspace{
+		ID:                                   uuid.Must(uuid.NewV7()),
+		LogicalWorkspaceID:                   logicalWorkspaceID,
+		TenantID:                             tenant.ID,
+		Code:                                 "_system",
+		Name:                                 "System",
+		Environment:                          domain.EnvironmentTest,
+		IsSystem:                             true,
+		IsActive:                             true,
+		AllowWorkspaceLocalTemplates:         true,
+		AllowWorkspaceInheritedTemplateForks: true,
+		AllowWorkspaceLocalInjectors:         true,
+		WorkspacePoliciesInitialized:         true,
+		CreatedAt:                            now,
+		UpdatedAt:                            now,
+	}
+	if err := h.wsStore.CreateLogicalPair(ctx, sysWSProd, sysWSTest); err != nil {
 		return mapStoreError(c, err)
 	}
 
@@ -203,49 +222,51 @@ const tenantDeleteBlockedReasonTemplate = "Delete disabled: tenant still has act
 // deletion. This is intentionally simple as a short-term safety guard, but it
 // has an N+1 access pattern. If this path becomes hot, replace it with a
 // dedicated store/service query such as "has active SES adapters by tenant".
-func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.UUID) (string, error) {
+func (h *TenantHandler) deleteBlockedReason(ctx context.Context, tenantID uuid.UUID) (string, error) { //nolint:gocognit // tenant-wide SES guard scans paginated workspaces across both environments
 	if h.adapterStore == nil {
 		return "", nil
 	}
 
-	workspaceCursor := ""
-	for {
-		workspaces, nextCursor, err := h.wsStore.ListByTenant(ctx, tenantID, port.ListOptions{
-			Cursor: workspaceCursor,
-			Limit:  100,
-		})
-		if err != nil {
-			return "", err
-		}
-
-		for _, ws := range workspaces {
-			adapterCursor := ""
-			for {
-				page, err := h.adapterStore.ListByWorkspace(ctx, &ws.ID, port.ListOptions{
-					Cursor: adapterCursor,
-					Limit:  100,
-				})
-				if err != nil {
-					return "", err
-				}
-
-				for _, adapter := range page.Items {
-					if adapter.AdapterType == domain.AdapterTypeSES {
-						return deleteBlockedReasonMessage(adapter.Name, ws.Code), nil
-					}
-				}
-
-				if !page.HasMore || page.NextCursor == "" {
-					break
-				}
-				adapterCursor = page.NextCursor
+	for _, environment := range domain.Environments() {
+		workspaceCursor := ""
+		for {
+			workspaces, nextCursor, err := h.wsStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{
+				Cursor: workspaceCursor,
+				Limit:  100,
+			})
+			if err != nil {
+				return "", err
 			}
-		}
 
-		if nextCursor == "" {
-			break
+			for _, ws := range workspaces {
+				adapterCursor := ""
+				for {
+					page, err := h.adapterStore.ListByWorkspace(ctx, &ws.ID, port.ListOptions{
+						Cursor: adapterCursor,
+						Limit:  100,
+					})
+					if err != nil {
+						return "", err
+					}
+
+					for _, adapter := range page.Items {
+						if adapter.AdapterType == domain.AdapterTypeSES {
+							return deleteBlockedReasonMessage(adapter.Name, ws.Code), nil
+						}
+					}
+
+					if !page.HasMore || page.NextCursor == "" {
+						break
+					}
+					adapterCursor = page.NextCursor
+				}
+			}
+
+			if nextCursor == "" {
+				break
+			}
+			workspaceCursor = nextCursor
 		}
-		workspaceCursor = nextCursor
 	}
 
 	return "", nil

@@ -2,13 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
-import { useParams } from "next/navigation";
 import {
   canManageSystemWorkspacePolicies,
   isWorkspaceScope,
 } from "@/lib/workspace-resource-policies";
 import { resolveWorkspacePoliciesPathFromParams } from "@/lib/external-api-context";
-import { type ScopeContext } from "@/types/api";
+import { type Environment, type ScopeContext } from "@/types/api";
+import { normalizeEnvironment } from "@/lib/environment-mode";
+import { useScope } from "@/hooks/use-scope";
 import type {
   SystemSettings,
   UpdateSettingsRequest,
@@ -16,8 +17,12 @@ import type {
   WorkspacePolicies,
 } from "@/types/settings";
 
-function buildWorkspacePoliciesPath(tenantCode: string, workspaceCode: string) {
-  return `manage/tenants/${tenantCode}/workspaces/${workspaceCode}/policies`;
+function buildWorkspacePoliciesPath(
+  tenantCode: string,
+  workspaceCode: string,
+  environment?: Environment,
+) {
+  return `manage/environments/${normalizeEnvironment(environment)}/tenants/${tenantCode}/workspaces/${workspaceCode}/policies`;
 }
 
 export function useSettings() {
@@ -47,16 +52,17 @@ export function useUpdateSettings() {
 export function useWorkspacePolicies(
   tenantCode?: string,
   workspaceCode?: string,
+  environment?: Environment,
   enabled = true,
 ) {
   const api = useApi();
   const ready = useApiReady();
 
   return useQuery({
-    queryKey: ["workspace-policies", tenantCode, workspaceCode],
+    queryKey: ["workspace-policies", tenantCode, workspaceCode, environment],
     queryFn: () =>
       api
-        .get(buildWorkspacePoliciesPath(tenantCode!, workspaceCode!))
+        .get(buildWorkspacePoliciesPath(tenantCode!, workspaceCode!, environment))
         .json<WorkspacePolicies>(),
     enabled: ready && enabled && !!tenantCode && !!workspaceCode,
     retry: false,
@@ -66,6 +72,7 @@ export function useWorkspacePolicies(
 export function useUpdateWorkspacePolicies(
   tenantCode?: string,
   workspaceCode = "_system",
+  environment?: Environment,
 ) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -73,30 +80,29 @@ export function useUpdateWorkspacePolicies(
   return useMutation({
     mutationFn: (data: UpdateWorkspacePoliciesRequest) =>
       api
-        .put(buildWorkspacePoliciesPath(tenantCode!, workspaceCode), {
+        .put(buildWorkspacePoliciesPath(tenantCode!, workspaceCode, environment), {
           json: data,
         })
         .json<WorkspacePolicies>(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["workspace-policies", tenantCode, workspaceCode],
+        queryKey: ["workspace-policies", tenantCode, workspaceCode, environment],
       });
     },
   });
 }
 
 export function useResolvedWorkspacePolicies(scope: ScopeContext) {
-  const params = useParams<{
-    profileSlug?: string;
-    tenantCode?: string;
-    workspaceCode?: string;
-  }>();
-  const policiesPath = resolveWorkspacePoliciesPathFromParams(params);
+  const resolvedScope = useScope();
+  const policiesPath = resolveWorkspacePoliciesPathFromParams({
+    ...resolvedScope,
+    ...scope,
+  });
   const api = useApi();
   const ready = useApiReady();
 
   const query = useQuery({
-    queryKey: ["workspace-policies", policiesPath],
+    queryKey: ["workspace-policies", policiesPath, resolvedScope.environment],
     queryFn: () => api.get(policiesPath!).json<WorkspacePolicies>(),
     enabled: ready && isWorkspaceScope(scope) && !!policiesPath,
     retry: false,

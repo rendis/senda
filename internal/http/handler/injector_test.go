@@ -146,7 +146,7 @@ func testTenantAndWorkspace() (*domain.Tenant, *domain.Workspace, *mockTenantSto
 		},
 	}
 	wsStore := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid == tenantID && code == ws.Code {
 				return ws, nil
 			}
@@ -245,7 +245,7 @@ func TestInjectorHandler_List_IncludeInheritedUsesResolutionChain(t *testing.T) 
 	tenant, ws, ts, wsStore := testTenantAndWorkspace()
 	systemID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}
@@ -295,7 +295,7 @@ func TestInjectorHandler_Get_ResolvesInheritedSystemInjectorInWorkspace(t *testi
 	systemID := uuid.Must(uuid.NewV7())
 	defID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}
@@ -364,7 +364,7 @@ func TestInjectorHandler_Get_DoesNotFallbackToGlobalInjectorInWorkspace(t *testi
 	tenant, _, ts, wsStore := testTenantAndWorkspace()
 	systemID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("unexpected tenant id %s", tenantID)
 		}

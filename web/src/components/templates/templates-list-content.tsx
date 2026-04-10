@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Plus, FileText, Pencil, Send, Trash2, Copy, GitFork, Lock } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import {
   getTemplateCatalogState,
   getTemplateManagementState,
@@ -102,7 +103,10 @@ export function TemplatesListContent() {
       case "global":
         return `/global/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
       default:
-        return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`;
+        return applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}/edit?templateId=${tplId}&versionId=${versionId}`,
+          scope.environment,
+        );
     }
   }
 

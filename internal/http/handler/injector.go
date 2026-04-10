@@ -237,7 +237,7 @@ func (h *InjectorHandler) listChain(ctx context.Context, workspace *domain.Works
 		return chain, nil
 	}
 
-	systemWorkspace, err := h.wsStore.GetSystemWorkspace(ctx, workspace.TenantID)
+	systemWorkspace, err := h.wsStore.GetSystemWorkspace(ctx, workspace.TenantID, workspace.Environment)
 	if err != nil {
 		if apperr.IsNotFound(err) || errorsIsNotFound(err) {
 			return chain, nil
