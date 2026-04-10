@@ -7,6 +7,7 @@ import type {
 } from "@/types/injectors";
 
 export interface InjectorFormFieldEntry {
+  form_id: string;
   field_name: string;
   field_type: InjectorFieldType;
   description: string;
@@ -22,6 +23,7 @@ export interface InjectorFormValues {
 
 export function emptyInjectorFormField(): InjectorFormFieldEntry {
   return {
+    form_id: crypto.randomUUID(),
     field_name: "",
     field_type: "text",
     description: "",
@@ -44,6 +46,7 @@ export function injectorDefinitionToFormValues(
   const fields = [...injector.fields]
     .sort((left, right) => left.position - right.position)
     .map((field) => ({
+      form_id: crypto.randomUUID(),
       field_name: field.field_name,
       field_type: field.field_type,
       description: field.description ?? "",
