@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 MODE="${1:-pr}"
 SYSTEM_UI_VISUAL="${SYSTEM_UI_VISUAL:-0}"
 SYSTEM_UI_FLOW="${SYSTEM_UI_FLOW:-}"
@@ -119,6 +119,10 @@ run_ui_adapter_sharing_stage() {
   run_stage "ui-adapter-sharing" "$ROOT_DIR/test/system/subagents/ui-adapter-sharing-tester.sh"
 }
 
+run_ui_environment_mode_stage() {
+  run_stage "ui-environment-mode" "$ROOT_DIR/test/system/subagents/ui-environment-mode-tester.sh"
+}
+
 run_ui_a11y_stage() {
   if [[ "$SYSTEM_UI_A11Y" != "1" ]]; then
     skip_stage \
@@ -157,12 +161,12 @@ cleanup() {
     any_failed=1
   fi
 
-  go run "$ROOT_DIR/cmd/systemtest" junit \
+  systemtest junit \
     --results "$STAGE_RESULTS" \
     --suite "system-tests-${MODE}" \
     --out "$ARTIFACT_DIR/functional-junit.xml" >/dev/null 2>&1 || true
 
-  go run "$ROOT_DIR/cmd/systemtest" run-result \
+  systemtest run-result \
     --results "$STAGE_RESULTS" \
     --mode "$MODE" \
     --artifact-dir "$ARTIFACT_DIR" \
@@ -171,12 +175,12 @@ cleanup() {
 
 trap cleanup EXIT
 
-go run "$ROOT_DIR/cmd/systemtest" validate-manifest \
+systemtest validate-manifest \
   --manifest "$ROOT_DIR/test/system/screen-manifest.json" \
   --baseline-map "$ROOT_DIR/test/system/visual-baseline-map.json" \
   --app-dir "$ROOT_DIR/web/src/app"
 
-go run "$ROOT_DIR/cmd/systemtest" matrix \
+systemtest matrix \
   --manifest "$ROOT_DIR/test/system/screen-manifest.json" \
   --format csv \
   --out "$ARTIFACT_DIR/coverage-matrix.csv"
@@ -200,6 +204,7 @@ if [[ "$MODE" == "nightly" ]]; then
   run_ui_adapter_sharing_stage
   run_visual_stage
   run_ui_a11y_stage
+  run_ui_environment_mode_stage
   run_security_chaos_stage
 else
   run_ui_flow_stage
@@ -211,6 +216,7 @@ else
   run_visual_stage
   skip_stage "ui-a11y" "nightly-only"
   run_stage "api-contract" "$ROOT_DIR/test/system/subagents/api-contract-tester.sh"
+  run_ui_environment_mode_stage
   skip_stage "security-chaos" "nightly-only"
 fi
 

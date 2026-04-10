@@ -406,6 +406,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 	if s.externalIntegrationHandler != nil {
 		external := s.echo.Group("/api/v1/external/:profile_slug")
 		external.GET("/bootstrap", s.externalIntegrationHandler.Bootstrap)
+		external.GET("/environments/:environment/bootstrap", s.externalIntegrationHandler.Bootstrap)
 
 		if s.templateTypeHandler != nil || s.templateHandler != nil || s.injectorHandler != nil {
 			externalScoped := external.Group("/tenants/:tenant_code/workspaces/:workspace_code")
@@ -468,6 +469,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			mgmt.GET("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			mgmt.PUT("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			mgmt.DELETE("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.SoftDelete, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			mgmt.GET("/environments/:environment/tenants/:tenant_code/workspaces", s.workspaceHandler.List, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 		}
 		if s.workspacePolicyHandler != nil {
 			mgmt.GET("/tenants/:tenant_code/workspaces/:workspace_code/policies", s.workspacePolicyHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -501,10 +503,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			mgmt.PUT("/config", s.configHandler.Update, middleware.RequireRole(domain.RoleSuperadmin, s.tenantStore, s.wsStore))
 		}
 
-		// Workspace-scoped resources.
-		{
-			ws := mgmt.Group("/tenants/:tenant_code/workspaces/:workspace_code")
-
+		registerWorkspaceScopedRoutes := func(ws *echo.Group) {
 			if s.injectorHandler != nil { //nolint:dupl // repeated route group pattern
 				ws.POST("/injectors", s.injectorHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 				ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -622,6 +621,29 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			if s.dashboardHandler != nil {
 				ws.GET("/dashboard-stats", s.dashboardHandler.Stats, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 			}
+		}
+
+		// Workspace-scoped resources.
+		{
+			ws := mgmt.Group("/tenants/:tenant_code/workspaces/:workspace_code")
+			registerWorkspaceScopedRoutes(ws)
+		}
+
+		// Environment-scoped workspace resources.
+		{
+			envWS := mgmt.Group("/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code")
+
+			if s.workspaceHandler != nil {
+				envWS.GET("", s.workspaceHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				envWS.PUT("", s.workspaceHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				envWS.POST("/runtime/reset", s.workspaceHandler.ResetRuntime, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+			}
+			if s.workspacePolicyHandler != nil {
+				envWS.GET("/policies", s.workspacePolicyHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+				envWS.PUT("/policies", s.workspacePolicyHandler.Update, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+			}
+
+			registerWorkspaceScopedRoutes(envWS)
 		}
 
 		// Global resources (superadmin only).

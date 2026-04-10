@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements a 3-level hierarchy (Global → Tenant → Workspace) with inheritance chain resolution for templates, injectors, and adapters.
+Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements hierarchical resolution across Global → Tenant → `_system` → Workspace, supports operational workspace environments `prod|test`, and exposes management, data-plane, external integration, and SDK embedding surfaces.
 
 - **Module:** `github.com/rendis/senda`
 - **Backend:** Go 1.25+ / PostgreSQL 16 + pg_cron / Echo v5 / River (PG-native queue) / pgx v5 / gomjml / golang-migrate
@@ -16,8 +16,8 @@ Senda is an open-source email orchestration platform built with Go + PostgreSQL 
 ### Key Paths
 
 ```
-sdk/                    PUBLIC SDK — Engine, Injector interface, InjectorContext, InitFunc
-                        Users `go get` this to extend Senda as a library.
+sdk/                    PUBLIC SDK — Engine, Injector interface, InjectorContext, InitFunc,
+                        ExternalAuthMethod, ExternalWorkspaceResolver. Users `go get` this to extend Senda as a library.
 cmd/senda/              Entry point (uses sdk.NewWithConfig + engine.Run)
 internal/
   domain/               Entities, value objects, domain errors
@@ -34,11 +34,11 @@ internal/
     mjml/               MJML -> HTML compiler (gomjml)
     crypto/             AES-256-GCM encryption (HKDF)
   http/
-    handler/            HTTP handlers (26+)
-    middleware/          Auth, RBAC, scope, logger, metrics, recovery, requestid
+    handler/            HTTP handlers for management, data plane, external integrations, and onboarding
+    middleware/         Auth, RBAC, scope, external integration, logger, metrics, recovery, requestid
   app/                  Bootstrap + DI wiring + Extensions bridge
 pkg/                    apperr (error mapping), slug (validation), tracking (ID gen)
-migrations/             24 SQL migrations (golang-migrate)
+migrations/             SQL migrations (golang-migrate)
 config/                 YAML config + env overrides (SENDA_* prefix)
 web/src/                Frontend app (Next.js App Router)
 ```
@@ -231,7 +231,7 @@ Documentation lives in `docs/`:
 | --- | --- | --- |
 | `docs/ARCHITECTURE.md` | Hexagonal layer diagrams, domain entities, port interfaces, resolution engine flow (chain → template → injector → adapter), send pipeline sequence, River workers, cache/rate-limit/encryption infrastructure, ADR summary | Understanding system design or adding new adapters/services |
 | `docs/API.md` | All endpoints (health, data-plane, management, global), auth schemes (OIDC + API Key), RBAC roles, error codes, pagination (cursor-based), curl examples, webhook events + HMAC signatures | Building handlers, integrations, or debugging API calls |
-| `docs/DEVELOPMENT.md` | First-time setup, Docker stacks (dev vs e2e comparison), all 27 Makefile targets, frontend npm scripts, DB migrations, Keycloak test users/credentials, service URLs/ports, testing guide (unit → system), troubleshooting | First session, env setup, or when something breaks |
+| `docs/DEVELOPMENT.md` | First-time setup, Docker stacks, current Make targets, frontend `pnpm` workflow, testing guide (unit → system), environment-aware validation, troubleshooting | First session, env setup, or when something breaks |
 | `docs/DEPLOYMENT.md` | Production Dockerfile, required/optional env vars, PG + pg_cron setup, OIDC provider config, email provider setup (SES/Gmail/SMTP), health endpoints, reverse proxy examples, docker run example | Deploying to production |
 | `docs/specs/PRD_v5.md` | Product requirements, user stories, business rules, scope hierarchy rules | Understanding "why" and "what" |
 | `docs/specs/TECH_SPEC_v1.md` | Complete technical spec (~5000 lines): SQL schema (16+ tables), migrations, folder structure, port interfaces, domain models, resolution engine, send flow, middleware, API contract, workers, config, Docker, observability, PG cache, rate limiting | **Primary reference for implementation** |
@@ -240,9 +240,9 @@ Documentation lives in `docs/`:
 | `docs/specs/SECURITY_CHECKLIST.md` | OWASP Top 10 mapping, AES-256-GCM encryption spec, auth requirements, API key security model | Security-sensitive code |
 | `docs/specs/DESIGN_BRIEF.md` | UX/UI screens, component specs, responsive breakpoints, Design System tokens | Frontend implementation |
 | `docs/specs/ADR-0001-...md` | **Why no DKIM/SPF/DMARC in app** — provider-managed email auth decision, consequences for send flow and identity validation | When questioning email auth approach |
-| `docs/extensibility-guide.md` | SDK extension guide: Engine, Injectors, InitFunc, InjectorContext, lifecycle hooks, merge flow, consumer project structure, troubleshooting | Extending Senda as a Go library |
-| `skills/senda/SKILL.md` | MCP tool reference, API groups, auth schemes, RBAC, SES lifecycle (provision + deprovision), AWS permission matrix | Working with Senda API via MCP, or understanding SES adapter lifecycle |
-| `docs/postman/` | Postman collection (116KB, all endpoints) + local/staging environments | API testing and exploration |
+| `docs/extensibility-guide.md` | SDK extension guide: Engine, injectors, InitFunc, external auth methods, workspace resolvers, InjectorContext, environment propagation, lifecycle hooks | Extending Senda as a Go library |
+| `skills/senda/SKILL.md` | Self-contained agent bundle for MCP operation, SDK embedding, environments, resolution, external integrations, and conventions; see bundled `references/` for detail | Working with Senda from another repo or through MCP without relying on external docs |
+| `docs/postman/` | Postman collection + local/staging environments | API testing and exploration |
 
 ### UI/UX Design — Pencil MCP (MANDATORY)
 
@@ -628,7 +628,7 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 2. **Adapter assigned per template_type** — not per workspace or template
 3. **Resolution chain** via scope hierarchy (workspace → _system → global)
 4. **River** for job queue (Go + PG native, no external broker)
-5. **OIDC for humans, API Keys for machines** — dual auth. Keys are SHA-256 hashed, workspace-scoped, raw shown once at creation. Blast radius of a compromised key = 1 workspace (data-plane only, no management access)
+5. **OIDC for humans, API Keys for machines** — dual auth. Keys are hashed at rest, workspace-environment scoped, raw shown once at creation, and use `senda_prod_` / `senda_test_` prefixes. Blast radius of a compromised key = 1 workspace environment (data-plane only, no management access)
 6. **Hexagonal architecture** — ports define contracts, adapters implement
 7. **UUIDs v7** — time-ordered, non-sequential
 8. **Partitioned tables** — emails and audit_logs by month
@@ -636,7 +636,7 @@ These are non-negotiable decisions documented in TECH_SPEC v1.4:
 10. **Cursor-based pagination** — no offset, UUIDv7 as cursor
 11. **Provider-managed email auth** — SPF/DKIM/DMARC are the provider's responsibility (SES/Gmail), NOT the app. Senda validates sender capability via adapter identities (sync from provider + default identity). No DKIM signing, no DNS record management in app code. See [ADR-0001](docs/specs/ADR-0001-provider-managed-email-auth.md)
 12. **No app-level email address validation** — `from_email` is verified by the provider's identity system. If an identity isn't verified, the provider rejects the send. Senda tracks identity status (`verified`/`pending`/`failed`) via `AdapterIdentity` but doesn't duplicate provider checks
-13. **SDK extensibility model** — Senda exposes a public `sdk/` package. Users extend via code injectors (implement `sdk.Injector`), init functions (`sdk.InitFunc`), and lifecycle hooks (`OnStart`/`OnShutdown`). Built-in adapters (SES, Gmail, SMTP, PG stores, River, cache, crypto) stay internal, managed by YAML config. The `sdk.Engine` wraps `internal/app.Bootstrap` with an extensions bridge. Code injectors resolve alongside DB injectors in the `InjectorMerger`; on name collision, code wins with a warning. Pattern follows pdf-forge/doc-assembly SDK model.
+13. **SDK extensibility model** — Senda exposes a public `sdk/` package. Users extend via code injectors (`sdk.Injector`), init functions (`sdk.InitFunc`), external auth methods, external workspace resolvers, and lifecycle hooks (`OnStart`/`OnShutdown`). Built-in adapters, stores, River, cache, crypto, and middleware stay internal and config-driven. `sdk.Engine` wraps `internal/app.Bootstrap` with an extensions bridge, and environment is propagated through `InjectorContext` and `ExternalIntegrationRequest`.
 14. **SES adapter lifecycle** — Provision (6 steps) and Deprovision (4 steps), both tracked in `adapter_provisioning_steps`. Delete permissions validated at creation. Full reference in `skills/senda/SKILL.md` "SES Adapter Lifecycle" and `docs/DEPLOYMENT.md`.
 
 ---
@@ -712,8 +712,8 @@ my-senda-app/
 |             | `make test-e2e-core-run`        | E2E core gate (assumes stack running)                     |
 |             | `make test-e2e-chaos`           | Chaos E2E suite (starts stack, stops)                     |
 |             | `make test-e2e-chaos-run`       | Chaos E2E suite (assumes stack running)                   |
-|             | `make test-e2e-up`              | Start E2E stack with --wait                               |
-|             | `make test-e2e-down`            | Stop E2E stack + remove volumes                           |
+|             | `make test-e2e-up`              | No-op (Testcontainers harness is self-managed)            |
+|             | `make test-e2e-down`            | No-op (Testcontainers harness is self-managed)            |
 | **System**  | `make system-validate-manifest` | Validate screen manifest vs app routes                    |
 |             | `make system-matrix`            | Generate system coverage matrix CSV                       |
 |             | `make system-pr`                | PR system gate (functional + UI + visual)                 |

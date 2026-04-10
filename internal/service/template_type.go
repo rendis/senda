@@ -25,7 +25,18 @@ func NewTemplateTypeService(store port.TemplateTypeStore) *TemplateTypeService {
 }
 
 // Create creates a new template type scoped to a workspace (or global if wsID is nil).
-func (s *TemplateTypeService) Create(ctx context.Context, slug, name string, description *string, adapterID, senderIdentityID *uuid.UUID, variableSchema map[string]any, wsID *uuid.UUID) (*domain.TemplateType, error) {
+func (s *TemplateTypeService) Create(
+	ctx context.Context,
+	slug string,
+	name string,
+	description *string,
+	adapterID *uuid.UUID,
+	senderIdentityID *uuid.UUID,
+	variableSchema map[string]any,
+	testRecipientMode *domain.TestRecipientMode,
+	testRecipientAddresses []string,
+	wsID *uuid.UUID,
+) (*domain.TemplateType, error) {
 	existing, err := s.store.FindTypeBySlugInScope(ctx, slug, wsID)
 	if err != nil && !isNotFoundErr(err) {
 		return nil, err
@@ -44,6 +55,8 @@ func (s *TemplateTypeService) Create(ctx context.Context, slug, name string, des
 		AdapterID:        adapterID,
 		SenderIdentityID: senderIdentityID,
 		VariableSchema:   variableSchema,
+		TestRecipientMode: testRecipientMode,
+		TestRecipientAddresses: append([]string(nil), testRecipientAddresses...),
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}

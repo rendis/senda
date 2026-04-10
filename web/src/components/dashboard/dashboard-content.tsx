@@ -5,6 +5,7 @@ import { useMinimumLoading } from "@/hooks/use-minimum-loading";
 import { Mail, Send, CheckCircle, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import {
   SYSTEM_WORKSPACE_SCOPE_LABEL,
   getWorkspaceDisplayCode,
@@ -51,12 +52,18 @@ export function DashboardContent() {
   // Build "View all" hrefs based on scope
   const auditHref =
     scope.level === "workspace"
-      ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}/audit`
+      ? applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}/audit`,
+          scope.environment,
+        )
       : undefined;
 
   const emailsHref =
     scope.level === "workspace"
-      ? `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails`
+      ? applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails`,
+          scope.environment,
+        )
       : undefined;
 
   // Loading state

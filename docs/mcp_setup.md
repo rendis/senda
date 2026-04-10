@@ -1,8 +1,9 @@
+
 # Senda MCP Setup
 
-Connect AI agents to the Senda email orchestration API using [mcp-openapi-proxy](https://github.com/rendis/mcp-openapi-proxy).
+Connect agents to Senda through the OpenAPI-backed `senda` MCP server.
 
-## Prerequisites
+## Prerequisite
 
 ```bash
 go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest
@@ -10,16 +11,14 @@ go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest
 
 ## Claude Code
 
-Auto-detected from `.mcp.json` in repo root. No manual setup needed.
+`.mcp.json` in the repo root is the source of truth.
 
 ```bash
-make dev                    # start senda (port 8081)
-claude mcp list             # verify "senda" connected
+make dev
+claude mcp list
 ```
 
 ## OpenAI Codex
-
-Edit `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.senda]
@@ -33,8 +32,6 @@ MCP_TOOL_PREFIX = "senda"
 ```
 
 ## Gemini CLI
-
-Edit `.gemini/settings.json` (project) or `~/.gemini/settings.json` (global):
 
 ```json
 {
@@ -52,32 +49,45 @@ Edit `.gemini/settings.json` (project) or `~/.gemini/settings.json` (global):
 }
 ```
 
-## Production (OIDC)
+## Authentication
 
-Add OIDC config to env:
+### Management plane
 
-```
-MCP_OIDC_ISSUER=https://auth.tether.education/auth/realms/tether-team
-MCP_OIDC_CLIENT_ID=senda-web
-MCP_AUTH_PROFILE=senda
-```
-
-Then authenticate:
+Use OIDC login for `/api/v1/manage/...` and member-profile operations.
 
 ```bash
-mcp-openapi-proxy login     # browser-based OIDC PKCE
-mcp-openapi-proxy status    # check token
-mcp-openapi-proxy logout    # clear tokens
+mcp-openapi-proxy login
+mcp-openapi-proxy status
 ```
 
-## Environment Variables
+### Data plane
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `MCP_SPEC` | OpenAPI spec URL or file path | (required) |
-| `MCP_BASE_URL` | API base URL | (required) |
-| `MCP_TOOL_PREFIX` | Tool name prefix | `senda` |
-| `MCP_AUTH_TOKEN` | Static bearer token (dev) | — |
-| `MCP_OIDC_ISSUER` | OIDC provider URL | — |
-| `MCP_OIDC_CLIENT_ID` | OIDC client ID | — |
-| `MCP_AUTH_PROFILE` | Token storage namespace | `senda` |
+Export a raw workspace API key, for example:
+
+```bash
+export MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN="senda_prod_..."
+```
+
+or
+
+```bash
+export MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN="senda_test_..."
+```
+
+### External integration surface
+
+When calling external integration endpoints, include:
+
+```http
+X-Senda-Environment: prod|test
+```
+
+and whatever token/headers the configured external auth method expects.
+
+## Recommended workflow
+
+1. discover endpoints with `senda_list_endpoints`
+2. inspect one endpoint with `senda_describe_endpoint`
+3. call it with `senda_call_endpoint`
+
+Use the bundled skill `skills/senda/` for operational guidance and workflows.

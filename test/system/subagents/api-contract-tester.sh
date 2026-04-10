@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd go
@@ -29,6 +30,16 @@ SHARED_SES_NAME="${SHARED_SES_NAME:-API Contract Shared SES}"
 SHARED_SES_DOMAIN="${SHARED_SES_DOMAIN:-api-contract.shared-mail.test}"
 SHARED_SES_DEFAULT_EMAIL="${SHARED_SES_DEFAULT_EMAIL:-default@${SHARED_SES_DOMAIN}}"
 SHARED_SES_TEMP_EMAIL="${SHARED_SES_TEMP_EMAIL:-shared-sender@${SHARED_SES_DOMAIN}}"
+ENV_FIXTURE_SUFFIX="$(basename "$ARTIFACT_DIR" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | cut -c1-10)"
+ENV_FIXTURE_WORKSPACE_CODE="${ENV_FIXTURE_WORKSPACE_CODE:-api-env-${ENV_FIXTURE_SUFFIX}}"
+ENV_FIXTURE_WORKSPACE_NAME="${ENV_FIXTURE_WORKSPACE_NAME:-API Environment Fixture}"
+ENV_FIXTURE_TEST_RECIPIENT_A="${ENV_FIXTURE_TEST_RECIPIENT_A:-api-env-${ENV_FIXTURE_SUFFIX}@test.example.com}"
+ENV_FIXTURE_TEST_RECIPIENT_B="${ENV_FIXTURE_TEST_RECIPIENT_B:-api-env-review-${ENV_FIXTURE_SUFFIX}@test.example.com}"
+ENV_FIXTURE_PROD_KEY_NAME="${ENV_FIXTURE_PROD_KEY_NAME:-API Contract Prod Environment Key}"
+ENV_FIXTURE_TEST_KEY_NAME="${ENV_FIXTURE_TEST_KEY_NAME:-API Contract Test Environment Key}"
+EXTERNAL_PROFILE_SLUG="${EXTERNAL_PROFILE_SLUG:-partner-portal}"
+EXTERNAL_PROFILE_TOKEN="${EXTERNAL_PROFILE_TOKEN:-external-e2e-token}"
+WORKSPACE_CODE="${WORKSPACE_CODE:-${SYSTEM_WORKSPACE_CODE:-main}}"
 
 run_repo_tests_without_system_env() {
   local target="$1"
@@ -93,6 +104,57 @@ bootstrap_api_status() {
 
 bootstrap_api_get() {
   bootstrap_api_expect "200" GET "$1"
+}
+
+bootstrap_api_request_with_headers() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  shift 3 || true
+
+  local curl_args=(
+    -sS
+    -w $'\n%{http_code}'
+    -X "$method"
+    "$SENDA_BASE_URL$path"
+    -H "Authorization: Bearer $E2E_BOOTSTRAP_TOKEN"
+  )
+
+  local header
+  for header in "$@"; do
+    curl_args+=(-H "$header")
+  done
+
+  if [[ -n "$body" ]]; then
+    curl_args+=(-H 'Content-Type: application/json' --data "$body")
+  fi
+
+  curl "${curl_args[@]}"
+}
+
+external_api_request() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  shift 3 || true
+
+  local curl_args=(
+    -sS
+    -w $'\n%{http_code}'
+    -X "$method"
+    "$SENDA_BASE_URL$path"
+  )
+
+  local header
+  for header in "$@"; do
+    curl_args+=(-H "$header")
+  done
+
+  if [[ -n "$body" ]]; then
+    curl_args+=(-H 'Content-Type: application/json' --data "$body")
+  fi
+
+  curl "${curl_args[@]}"
 }
 
 ensure_tenant_workspace() {
@@ -188,7 +250,7 @@ sync_adapter_identities() {
 
 create_aws_sim_identity() {
   local identity="$1"
-  go run "$ROOT_DIR/cmd/systemtest" aws-sim-create-identity \
+  systemtest aws-sim-create-identity \
     --endpoint "$AWS_SIM_BASE_URL" \
     --identity "$identity" >/dev/null
 }
@@ -252,12 +314,178 @@ delete_manual_identity_if_exists() {
   fi
 }
 
+ensure_external_integration_profile() {
+  bootstrap_api_expect "200" PUT "/api/v1/manage/config" "$(cat <<EOF_JSON
+{
+  "external_integrations": {
+    "profiles": [
+      {
+        "slug": "${EXTERNAL_PROFILE_SLUG}",
+        "name": "Partner Portal",
+        "description": "System test external integration profile",
+        "enabled": true,
+        "auth_method_name": "e2e-signed-token",
+        "resolver_name": "e2e-workspace-resolver",
+        "allowed_origins": ["http://localhost:3000"],
+        "allowed_headers": ["x-tenant-code", "x-senda-external-token"],
+        "required_headers": ["x-tenant-code"],
+        "capabilities": {
+          "list_templates": true,
+          "view_versions": true,
+          "edit_versions": true,
+          "publish_versions": true,
+          "test_send": true,
+          "builder_access": true,
+          "metadata_access": true,
+          "locale_access": true
+        }
+      }
+    ]
+  }
+}
+EOF_JSON
+)" >/dev/null
+}
+
+run_environment_contract_checks() {
+  log "api-contract-tester: running environment contract checks"
+
+  ensure_tenant_workspace "$ENV_FIXTURE_WORKSPACE_CODE" "$ENV_FIXTURE_WORKSPACE_NAME"
+  ensure_external_integration_profile
+
+  local prod_list test_list prod_workspace prod_reject_response prod_reject_status prod_reject_payload
+  local test_update_response test_key_response prod_key_response test_key prod_key test_key_id prod_key_id
+  local reset_prod_response reset_prod_status reset_prod_payload reset_test_status
+  local external_missing_response external_missing_status external_missing_payload
+  local external_invalid_response external_invalid_status external_invalid_payload
+  local external_ok_response external_ok_status bootstrap_test_status
+  local env_prod_base="/api/v1/manage/environments/prod/tenants/${TENANT_CODE}/workspaces/${ENV_FIXTURE_WORKSPACE_CODE}"
+  local env_test_base="/api/v1/manage/environments/test/tenants/${TENANT_CODE}/workspaces/${ENV_FIXTURE_WORKSPACE_CODE}"
+  local external_base="/api/v1/external/${EXTERNAL_PROFILE_SLUG}/tenants/${TENANT_CODE}/workspaces/${ENV_FIXTURE_WORKSPACE_CODE}"
+
+  prod_list="$(bootstrap_api_get "/api/v1/manage/tenants/${TENANT_CODE}/workspaces")"
+  printf '%s\n' "$prod_list" | jq -e --arg code "$ENV_FIXTURE_WORKSPACE_CODE" '
+    any(.items[]; .code == $code and .environment == "prod")
+  ' >/dev/null
+
+  test_list="$(bootstrap_api_get "/api/v1/manage/environments/test/tenants/${TENANT_CODE}/workspaces")"
+  printf '%s\n' "$test_list" | jq -e --arg code "$ENV_FIXTURE_WORKSPACE_CODE" '
+    any(.items[]; .code == $code and .environment == "test")
+  ' >/dev/null
+
+  prod_workspace="$(bootstrap_api_get "$env_prod_base")"
+  printf '%s\n' "$prod_workspace" | jq -e '
+    .environment == "prod"
+    and ((.test_recipient_addresses // []) | length == 0)
+    and ((.test_recipient_mode // "replace") == "replace")
+  ' >/dev/null
+
+  prod_reject_response="$(bootstrap_api_request_with_headers PUT "$env_prod_base" "$(cat <<EOF_JSON
+{"test_recipient_mode":"append","test_recipient_addresses":["${ENV_FIXTURE_TEST_RECIPIENT_A}","${ENV_FIXTURE_TEST_RECIPIENT_B}"]}
+EOF_JSON
+)")"
+  prod_reject_status="$(printf '%s\n' "$prod_reject_response" | tail -n1)"
+  prod_reject_payload="$(printf '%s\n' "$prod_reject_response" | sed '$d')"
+  [[ "$prod_reject_status" == "422" ]]
+  printf '%s\n' "$prod_reject_payload" | jq -e '
+    .error.message == "validation failed"
+    and ((.error.fields // .error.details // []) | any(.field == "test_recipient_mode"))
+  ' >/dev/null
+
+  test_update_response="$(bootstrap_api_expect "200" PUT "$env_test_base" "$(cat <<EOF_JSON
+{"test_recipient_mode":"append","test_recipient_addresses":["${ENV_FIXTURE_TEST_RECIPIENT_A}","${ENV_FIXTURE_TEST_RECIPIENT_B}"]}
+EOF_JSON
+)")"
+  printf '%s\n' "$test_update_response" | jq -e \
+    --arg addr1 "$ENV_FIXTURE_TEST_RECIPIENT_A" \
+    --arg addr2 "$ENV_FIXTURE_TEST_RECIPIENT_B" '
+      .environment == "test"
+      and .test_recipient_mode == "append"
+      and (.test_recipient_addresses | index($addr1))
+      and (.test_recipient_addresses | index($addr2))
+    ' >/dev/null
+
+  prod_workspace="$(bootstrap_api_get "$env_prod_base")"
+  printf '%s\n' "$prod_workspace" | jq -e '
+    .environment == "prod"
+    and ((.test_recipient_addresses // []) | length == 0)
+    and ((.test_recipient_mode // "replace") == "replace")
+  ' >/dev/null
+
+  reset_prod_response="$(bootstrap_api_request_with_headers POST "${env_prod_base}/runtime/reset" "")"
+  reset_prod_status="$(printf '%s\n' "$reset_prod_response" | tail -n1)"
+  reset_prod_payload="$(printf '%s\n' "$reset_prod_response" | sed '$d')"
+  [[ "$reset_prod_status" == "409" ]]
+  printf '%s\n' "$reset_prod_payload" | jq -e '
+    .error.code == "TEST_ENVIRONMENT_REQUIRED"
+  ' >/dev/null
+
+  reset_test_status="$(bootstrap_api_status POST "${env_test_base}/runtime/reset")"
+  [[ "$reset_test_status" == "204" ]]
+
+  prod_key_response="$(bootstrap_api_expect "201" POST "${env_prod_base}/api-keys" "$(cat <<EOF_JSON
+{"name":"${ENV_FIXTURE_PROD_KEY_NAME}"}
+EOF_JSON
+)")"
+  prod_key="$(printf '%s\n' "$prod_key_response" | jq -r '.key')"
+  prod_key_id="$(printf '%s\n' "$prod_key_response" | jq -r '.id')"
+  [[ "$prod_key" == senda_prod_* ]]
+
+  test_key_response="$(bootstrap_api_expect "201" POST "${env_test_base}/api-keys" "$(cat <<EOF_JSON
+{"name":"${ENV_FIXTURE_TEST_KEY_NAME}"}
+EOF_JSON
+)")"
+  test_key="$(printf '%s\n' "$test_key_response" | jq -r '.key')"
+  test_key_id="$(printf '%s\n' "$test_key_response" | jq -r '.id')"
+  [[ "$test_key" == senda_test_* ]]
+
+  bootstrap_api_expect "204" DELETE "${env_prod_base}/api-keys/${prod_key_id}" >/dev/null
+  bootstrap_api_expect "204" DELETE "${env_test_base}/api-keys/${test_key_id}" >/dev/null
+
+  bootstrap_test_status="$(external_api_request GET "/api/v1/external/${EXTERNAL_PROFILE_SLUG}/environments/test/bootstrap" "" | tail -n1)"
+  [[ "$bootstrap_test_status" == "200" ]]
+
+  external_missing_response="$(external_api_request GET "${external_base}/template-types?token=${EXTERNAL_PROFILE_TOKEN}" "" "X-Tenant-Code: ${TENANT_CODE}")"
+  external_missing_status="$(printf '%s\n' "$external_missing_response" | tail -n1)"
+  external_missing_payload="$(printf '%s\n' "$external_missing_response" | sed '$d')"
+  [[ "$external_missing_status" == "400" ]]
+  printf '%s\n' "$external_missing_payload" | jq -e '
+    .error.message == "missing required header X-Senda-Environment"
+  ' >/dev/null
+
+  external_invalid_response="$(external_api_request GET "${external_base}/template-types?token=${EXTERNAL_PROFILE_TOKEN}" "" "X-Tenant-Code: ${TENANT_CODE}" "X-Senda-Environment: sandbox")"
+  external_invalid_status="$(printf '%s\n' "$external_invalid_response" | tail -n1)"
+  external_invalid_payload="$(printf '%s\n' "$external_invalid_response" | sed '$d')"
+  [[ "$external_invalid_status" == "400" ]]
+  printf '%s\n' "$external_invalid_payload" | jq -e '
+    .error.message == "invalid X-Senda-Environment header"
+  ' >/dev/null
+
+  external_ok_response="$(external_api_request GET "${external_base}/template-types?token=${EXTERNAL_PROFILE_TOKEN}" "" "X-Tenant-Code: ${TENANT_CODE}" "X-Senda-Environment: test")"
+  external_ok_status="$(printf '%s\n' "$external_ok_response" | tail -n1)"
+  [[ "$external_ok_status" == "200" ]]
+
+  ENVIRONMENT_CONTRACT_GATES=$(cat <<EOF_GATES
+4. Environment-scoped management contract:
+   - \`GET /api/v1/manage/tenants/${TENANT_CODE}/workspaces\` resolves prod workspaces by default.
+   - \`GET /api/v1/manage/environments/test/tenants/${TENANT_CODE}/workspaces\` resolves the test workspace set.
+   - \`GET|PUT /api/v1/manage/environments/{prod|test}/tenants/${TENANT_CODE}/workspaces/${ENV_FIXTURE_WORKSPACE_CODE}\` keeps test-recipient state isolated to the test environment.
+   - \`POST /runtime/reset\` rejects prod with \`TEST_ENVIRONMENT_REQUIRED\` and succeeds for test.
+5. Environment-scoped API key generation returns \`senda_prod_\` for prod and \`senda_test_\` for test.
+6. External integration contract:
+   - \`GET /api/v1/external/${EXTERNAL_PROFILE_SLUG}/environments/test/bootstrap\` succeeds.
+   - Scoped external routes reject missing/invalid \`X-Senda-Environment\`.
+   - Scoped external routes accept \`X-Senda-Environment: test\` when the rest of the request is valid.
+EOF_GATES
+)
+}
+
 log "api-contract-tester: seeding keycloak users + RBAC"
 seed_keycloak_users
 seed_rbac_memberships
 
 log "api-contract-tester: ensuring deterministic E2E tenant exists (test-corp)"
-E2E_BOOTSTRAP_TOKEN="$(go run "$ROOT_DIR/cmd/systemtest" token --email "$SUPERADMIN_EMAIL" --secret "$SENDA_E2E_JWT_SECRET" | tail -n1)"
+E2E_BOOTSTRAP_TOKEN="$(systemtest token --email "$SUPERADMIN_EMAIL" --secret "$SENDA_E2E_JWT_SECRET" | tail -n1)"
 E2E_TENANT_BODY="$ARTIFACT_DIR/e2e-tenant-create.json"
 E2E_TENANT_STATUS="$(curl -sS -o "$E2E_TENANT_BODY" -w '%{http_code}' \
   -X POST "$SENDA_BASE_URL/api/v1/manage/tenants" \
@@ -271,7 +499,7 @@ if [[ "$E2E_TENANT_STATUS" != "201" && "$E2E_TENANT_STATUS" != "409" ]]; then
 fi
 
 log "api-contract-tester: seeding deterministic E2E fixture RBAC (test-corp/main)"
-go run "$ROOT_DIR/cmd/systemtest" seed-rbac \
+systemtest seed-rbac \
   --base-url "$SENDA_BASE_URL" \
   --email "$SUPERADMIN_EMAIL" \
   --secret "$SENDA_E2E_JWT_SECRET" \
@@ -351,6 +579,8 @@ set -a
 source "$RUNTIME_ENV_FILE"
 set +a
 
+run_environment_contract_checks
+
 log "api-contract-tester: executing Postman collection with newman"
 set +e
 corepack pnpm dlx newman run "$COLLECTION" \
@@ -399,14 +629,16 @@ if [[ "${SYSTEM_API_CONTRACT_FULL:-0}" == "1" ]]; then
 1. \`make test\` (unit tests).
 2. \`make test-integration\` (integration tests).
 3. Newman run over collection: \`$COLLECTION\`.
-4. Optional deterministic E2E backend suites are available via \`SYSTEM_API_CONTRACT_E2E=1\`, but are not part of the default API-contract gate because nightly already runs dedicated security/chaos coverage separately.
+${ENVIRONMENT_CONTRACT_GATES}
+7. Optional deterministic E2E backend suites are available via \`SYSTEM_API_CONTRACT_E2E=1\`, but are not part of the default API-contract gate because nightly already runs dedicated security/chaos coverage separately.
 EOF_GATES
 )
 else
   EXECUTED_GATES=$(cat <<EOF_GATES
 1. Seed deterministic auth + RBAC fixtures for the system test tenant/workspace.
 2. Newman run over collection: \`$COLLECTION\`.
-3. Dedicated backend/unit/integration/E2E suites are expected to run in their own gates; opt in here with \`SYSTEM_API_CONTRACT_FULL=1\` and/or \`SYSTEM_API_CONTRACT_E2E=1\` when explicitly needed.
+${ENVIRONMENT_CONTRACT_GATES}
+7. Dedicated backend/unit/integration/E2E suites are expected to run in their own gates; opt in here with \`SYSTEM_API_CONTRACT_FULL=1\` and/or \`SYSTEM_API_CONTRACT_E2E=1\` when explicitly needed.
 EOF_GATES
 )
 fi

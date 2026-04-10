@@ -84,7 +84,7 @@ func newTestChainResolver(chain *resolution.ResolutionChain, err error) *resolut
 			}
 			return &domain.Workspace{ID: wsID, TenantID: tenantID, IsSystem: false}, nil
 		},
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: sysID, TenantID: tenantID, IsSystem: true}, nil
 		},
 	}
@@ -96,7 +96,7 @@ func newErrorChainResolver(retErr error) *resolution.ChainResolver {
 		getByID: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 			return nil, retErr
 		},
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			return nil, nil
 		},
 	}
@@ -501,7 +501,7 @@ func TestResolveWithContext_CodeInjectorsOnly(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, "welcome")
+	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -536,7 +536,7 @@ func TestResolveWithContext_InitFunc(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, initFunc)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -559,7 +559,7 @@ func TestResolveWithContext_NonCriticalSkipped(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{failInj, okInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -584,7 +584,7 @@ func TestResolveWithContext_CriticalAborts(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{criticalInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err == nil {
@@ -606,7 +606,7 @@ func TestResolveWithContext_DependencyOrder(t *testing.T) {
 	cr := newTestChainResolver(chain, nil)
 	// Register child BEFORE parent to test dependency resolution.
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{childInj, parentInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -669,7 +669,7 @@ func TestResolveWithContext_CodeOverridesDB(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -716,7 +716,7 @@ func TestResolveWithContext_MixedDBAndCode(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -759,7 +759,7 @@ func TestResolveWithContext_NoCodeInjectors_SameAsResolve(t *testing.T) {
 	cr := newTestChainResolver(chain, nil)
 	// No code injectors.
 	merger := resolution.NewInjectorMerger(injStore, cr, nil, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	resultCtx, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -821,7 +821,7 @@ func TestResolveWithContext_InitFuncError(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{inj}, failInit)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	_, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err == nil {
@@ -876,7 +876,7 @@ func TestResolveWithContext_DepOnDBInjector(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -902,7 +902,7 @@ func TestResolveWithContext_DuplicateCodeInjectorCodes(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(emptyInjStore(), cr, []port.CodeInjector{first, second}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, "t")
+	injCtx := port.NewInjectorContext(nil, "t:w:t", nil, uuid.Nil, wsID, domain.EnvironmentProd, "t")
 
 	result, err := merger.ResolveWithContext(context.Background(), wsID, injCtx)
 	if err != nil {
@@ -954,7 +954,7 @@ func TestResolveWithContext_RequestInjectorsOverrideCodeAndDefault(t *testing.T)
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, "welcome")
+	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 	injCtx.SetRequestInjectors(map[string]map[string]any{
 		"student": {"name": "Request Student"},
 	})
@@ -1011,7 +1011,7 @@ func TestResolveWithContext_LockedFieldAlwaysUsesDefault(t *testing.T) {
 
 	cr := newTestChainResolver(chain, nil)
 	merger := resolution.NewInjectorMerger(injStore, cr, []port.CodeInjector{codeInj}, nil)
-	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, "welcome")
+	injCtx := port.NewInjectorContext(nil, "t:w:welcome", nil, uuid.Nil, wsID, domain.EnvironmentProd, "welcome")
 	injCtx.SetRequestInjectors(map[string]map[string]any{
 		"student": {"name": "Request Student"},
 	})

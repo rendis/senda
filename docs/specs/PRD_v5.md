@@ -27,7 +27,7 @@ Connecting each application directly to a provider (SES, Gmail), scattering send
 **User Goals:**
 
 1. A centralized place where any application sends emails, with full lifecycle visibility.
-2. Hierarchical management at 3 levels (Global → Tenant → Workspace) with automatic inheritance and overrides where needed.
+2. Hierarchical management across Global → Tenant → `_system` → Workspace with automatic inheritance, selective sharing, and overrides where needed.
 3. Traceability for all emails in a business case via `external_id`, across workspaces and tenants.
 4. Reusable templates with a visual editor (drag-and-drop + inline) for non-technical users.
 5. Typed data injectors that automatically provide context according to the hierarchy.
@@ -58,9 +58,9 @@ Connecting each application directly to a provider (SES, Gmail), scattering send
 
 ## 4. Core Concepts
 
-### 4.1. Hierarchy: Global → Tenant → Workspace
+### 4.1. Hierarchy: Global → Tenant → `_system` → Workspace
 
-Senda operates with **three hierarchical levels**. The names are generic — each company decides what each level means.
+Senda operates with a hierarchical scope model composed of Global, Tenant, and Workspace, with a special tenant-owned `_system` workspace participating in resolution. The names are generic — each company decides what each level means.
 
 **Global** is the root layer. It is managed by superadmins. It defines defaults inherited across the platform: base templates, corporate injectors, default sending adapters, verified domains, and platform settings.
 
@@ -359,7 +359,7 @@ AI integration is assistance — the editor always retains control over the fina
 **Request:**
 ```json
 POST /api/v1/send
-Authorization: Bearer senda_live_abc123...
+Authorization: Bearer senda_prod_abc123...
 
 {
   "ref": "latam:acme:welcome",
@@ -512,7 +512,7 @@ This flow happens only once. If at least one member already exists, OIDC login i
 Access to the send and query API (data plane) does not use OIDC but long-lived **API Keys**:
 
 - Each API Key belongs to a specific workspace.
-- Identifiable prefix format: `senda_live_<random>` (production) and `senda_test_<random>` (sandbox).
+- Identifiable prefix format: `senda_prod_<random>` (production) and `senda_test_<random>` (test).
 - They are stored hashed in the database (never in plaintext).
 - A workspace can have multiple active API Keys.
 - API Keys can be revoked individually.
@@ -525,7 +525,7 @@ Access to the send and query API (data plane) does not use OIDC but long-lived *
 - Search emails by recipient/sender
 - Export records with filters
 
-**Test/sandbox mode:** Test and simulation functionality (sending a test email without actually delivering it) is performed from the **dashboard** authenticated via OIDC, not from the API. This lets editors and admins test templates without needing test API Keys.
+**Test mode:** Test and simulation functionality exists both through dashboard-driven test sends and through dedicated `senda_test_...` API keys. The environment controls recipient safety policies and runtime isolation.
 
 ### 4.12. Soft Delete and Dependency Management
 
@@ -713,8 +713,8 @@ The audit log is append-only (it cannot be modified or deleted). It is visible t
 
 ### Must-Have (P0)
 
-**R-01: 3-level hierarchy with inheritance and `_system`**
-Global → Tenant → Workspace. Each tenant has an auto-created `_system` workspace for inheritable configuration. Resolution: workspace → tenant `_system` → global.
+**R-01: Hierarchical scope model with inheritance and `_system`**
+Global → Tenant → `_system` → Workspace. Each tenant has an auto-created `_system` workspace for inheritable configuration. Resolution: workspace → tenant `_system` → global.
 - [x] Isolation: resources from workspace A are not visible from workspace B (except via `_system`/global inheritance).
 - [x] `_system` is created automatically when a tenant is created. It cannot be deleted or renamed.
 - [x] Emails cannot be sent from `_system`.
@@ -865,7 +865,7 @@ The first user automatically becomes superadmin.
 **R-20: API Keys for the data plane**
 Authentication for the send and query API uses long-lived API Keys.
 - [x] Each API Key belongs to a workspace.
-- [x] Format: `senda_live_<random>` (prod). It is only shown in full at creation time.
+- [x] Format: `senda_prod_<random>` or `senda_test_<random>` depending on the workspace environment. It is only shown in full at creation time.
 - [x] Stored hashed (never plaintext).
 - [x] A workspace can have multiple API Keys.
 - [x] Individual revocation.
@@ -1049,7 +1049,7 @@ Docker + Docker Compose. Caddy optional for HTTPS.
 ## 10. Phasing
 
 ### Phase 1 — Core
-3-level hierarchy + `_system`, slug codes, typed injectors (top-down schema), API with deterministic addressing (array `to`, `cc`, `bcc`, `locale`), code-based MJML templates (with subject, preview text, from address), versioning with states, kill switch, lifecycle tracking, optional `external_id`, SES/Gmail adapters, provider-managed email authentication (no in-app DKIM), members and roles (multiple superadmins), initial onboarding, API Keys (send + query), OIDC, suppression lists (global + workspace), soft delete + dependencies, audit logging, basic rate limiting (respect SES limits), basic i18n support (field `locale` in the API + template variant resolution).
+Hierarchical scope model + `_system`, slug codes, typed injectors (top-down schema), API with deterministic addressing (array `to`, `cc`, `bcc`, `locale`), code-based MJML templates (with subject, preview text, from address), versioning with states, kill switch, lifecycle tracking, optional `external_id`, SES/Gmail adapters, provider-managed email authentication (no in-app DKIM), members and roles (multiple superadmins), initial onboarding, environment-aware API Keys (send + query), OIDC, suppression lists (global + workspace), soft delete + dependencies, audit logging, basic rate limiting (respect SES limits), basic i18n support (field `locale` in the API + template variant resolution).
 
 ### Phase 2 — Observability
 Dashboard, metrics, advanced search, bulk export, bounce/complaint alerts, test emails from dashboard.

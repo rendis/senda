@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 SYSTEM_MODE="${SYSTEM_MODE:-pr}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$ROOT_DIR/artifacts/system/$(date -u +%Y%m%dT%H%M%SZ)}"
 ENV_REPORT_FILE="${ENV_REPORT_FILE:-$ARTIFACT_DIR/env-report.json}"
@@ -53,6 +53,13 @@ pnpm_cmd() {
 
 pnpm_web() {
   pnpm_cmd --dir "$ROOT_DIR/web" "$@"
+}
+
+systemtest() {
+  (
+    cd "$ROOT_DIR"
+    go run ./cmd/systemtest "$@"
+  )
 }
 
 load_env_report() {
@@ -220,11 +227,15 @@ ensure_runtime_env() {
 
   local runtime_env="${RUNTIME_ENV_FILE:-$ARTIFACT_DIR/runtime.env}"
   if [[ -f "$runtime_env" ]]; then
-    return 0
+    if [[ ! -f "$ENV_REPORT_FILE" || "$runtime_env" -nt "$ENV_REPORT_FILE" ]]; then
+      return 0
+    fi
+    log "runtime context is older than env-report; regenerating -> $runtime_env"
+    rm -f "$runtime_env"
   fi
 
   log "resolving runtime context -> $runtime_env"
-  go run "$ROOT_DIR/cmd/systemtest" resolve-context \
+  systemtest resolve-context \
     --base-url "$SENDA_BASE_URL" \
     --email "$SUPERADMIN_EMAIL" \
     --secret "$SENDA_E2E_JWT_SECRET" \
@@ -251,7 +262,7 @@ seed_keycloak_users() {
   load_env_report
 
   log "seeding keycloak users"
-  if ! go run "$ROOT_DIR/cmd/systemtest" keycloak-seed \
+  if ! systemtest keycloak-seed \
     --base-url "$KEYCLOAK_BASE_URL" \
     --realm "$KEYCLOAK_REALM" \
     --admin-user "$KEYCLOAK_ADMIN_USER" \
@@ -266,7 +277,7 @@ seed_rbac_memberships() {
   ensure_runtime_env
   load_runtime_env
   log "seeding RBAC member roles"
-  go run "$ROOT_DIR/cmd/systemtest" seed-rbac \
+  systemtest seed-rbac \
     --base-url "$SENDA_BASE_URL" \
     --email "$SUPERADMIN_EMAIL" \
     --secret "$SENDA_E2E_JWT_SECRET" \

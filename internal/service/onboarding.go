@@ -185,12 +185,15 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		return nil, fmt.Errorf("add tenant admin role: %w", err)
 	}
 
-	// 5. Create _system workspace.
+	// 5. Create _system logical workspace pair.
+	logicalWorkspaceID := uuid.Must(uuid.NewV7())
 	ws := &domain.Workspace{
 		ID:                                   uuid.Must(uuid.NewV7()),
+		LogicalWorkspaceID:                   logicalWorkspaceID,
 		TenantID:                             tenant.ID,
 		Code:                                 "_system",
 		Name:                                 "System",
+		Environment:                          domain.EnvironmentProd,
 		IsSystem:                             true,
 		IsActive:                             true,
 		AllowWorkspaceLocalTemplates:         true,
@@ -198,31 +201,49 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		AllowWorkspaceLocalInjectors:         true,
 		WorkspacePoliciesInitialized:         true,
 	}
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO workspaces (
-		    id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
-		    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
-		)
-		 VALUES (
-		    @id, @tenant_id, @code, @name, @is_system, @is_active, @open_tracking_enabled, @default_locale,
-		    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
-		)
-		 RETURNING is_active, created_at, updated_at`,
-		pgx.NamedArgs{
-			"id":                              ws.ID,
-			"tenant_id":                       ws.TenantID,
-			"code":                            ws.Code,
-			"name":                            ws.Name,
-			"is_system":                       ws.IsSystem,
-			"is_active":                       ws.IsActive,
-			"open_tracking_enabled":           false,
-			"default_locale":                  ws.DefaultLocale,
-			"allow_workspace_local_templates": ws.AllowWorkspaceLocalTemplates,
-			"allow_workspace_inherited_template_forks": ws.AllowWorkspaceInheritedTemplateForks,
-			"allow_workspace_local_injectors":          ws.AllowWorkspaceLocalInjectors,
-		},
-	).Scan(&ws.IsActive, &ws.CreatedAt, &ws.UpdatedAt); err != nil {
-		return nil, fmt.Errorf("create system workspace: %w", err)
+	testWS := &domain.Workspace{
+		ID:                                   uuid.Must(uuid.NewV7()),
+		LogicalWorkspaceID:                   logicalWorkspaceID,
+		TenantID:                             tenant.ID,
+		Code:                                 "_system",
+		Name:                                 "System",
+		Environment:                          domain.EnvironmentTest,
+		IsSystem:                             true,
+		IsActive:                             true,
+		AllowWorkspaceLocalTemplates:         true,
+		AllowWorkspaceInheritedTemplateForks: true,
+		AllowWorkspaceLocalInjectors:         true,
+		WorkspacePoliciesInitialized:         true,
+	}
+	for _, currentWorkspace := range []*domain.Workspace{ws, testWS} {
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO workspaces (
+			    id, logical_workspace_id, tenant_id, code, name, environment, is_system, is_active, open_tracking_enabled, default_locale,
+			    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
+			)
+			 VALUES (
+			    @id, @logical_workspace_id, @tenant_id, @code, @name, @environment, @is_system, @is_active, @open_tracking_enabled, @default_locale,
+			    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
+			)
+			 RETURNING is_active, created_at, updated_at`,
+			pgx.NamedArgs{
+				"id":                              currentWorkspace.ID,
+				"logical_workspace_id":            currentWorkspace.LogicalWorkspaceID,
+				"tenant_id":                       currentWorkspace.TenantID,
+				"code":                            currentWorkspace.Code,
+				"name":                            currentWorkspace.Name,
+				"environment":                     currentWorkspace.Environment,
+				"is_system":                       currentWorkspace.IsSystem,
+				"is_active":                       currentWorkspace.IsActive,
+				"open_tracking_enabled":           false,
+				"default_locale":                  currentWorkspace.DefaultLocale,
+				"allow_workspace_local_templates": currentWorkspace.AllowWorkspaceLocalTemplates,
+				"allow_workspace_inherited_template_forks": currentWorkspace.AllowWorkspaceInheritedTemplateForks,
+				"allow_workspace_local_injectors":          currentWorkspace.AllowWorkspaceLocalInjectors,
+			},
+		).Scan(&currentWorkspace.IsActive, &currentWorkspace.CreatedAt, &currentWorkspace.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("create system workspace (%s): %w", currentWorkspace.Environment, err)
+		}
 	}
 
 	// 6. Audit log (best-effort with savepoint — a failed INSERT must not
@@ -230,19 +251,19 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 	if _, spErr := tx.Exec(ctx, "SAVEPOINT audit_sp"); spErr == nil {
 		changesJSON, _ := json.Marshal(map[string]any{"tenant_code": tenant.Code, "tenant_name": tenant.Name, "member_email": member.Email})
 		_, auditErr := tx.Exec(ctx,
-			`INSERT INTO audit_logs (id, actor_id, actor_email, action, entity_type, entity_id, tenant_id, scope_type, changes, created_at)
-			 VALUES (@id, @actor_id, @actor_email, @action, @entity_type, @entity_id, @tenant_id, @scope_type, @changes::jsonb, @created_at)`,
+			`INSERT INTO audit_logs (id, member_id, member_email, action, resource_type, resource_id, tenant_id, scope_type, changes, created_at)
+			 VALUES (@id, @member_id, @member_email, @action, @resource_type, @resource_id, @tenant_id, @scope_type, @changes::jsonb, @created_at)`,
 			pgx.NamedArgs{
-				"id":          uuid.Must(uuid.NewV7()),
-				"actor_id":    member.ID,
-				"actor_email": member.Email,
-				"action":      domain.AuditCreate,
-				"entity_type": "onboarding",
-				"entity_id":   tenant.ID,
-				"tenant_id":   &tenant.ID,
-				"scope_type":  domain.ScopeGlobal,
-				"changes":     string(changesJSON),
-				"created_at":  now,
+				"id":            uuid.Must(uuid.NewV7()),
+				"member_id":     member.ID,
+				"member_email":  member.Email,
+				"action":        domain.AuditCreate,
+				"resource_type": "onboarding",
+				"resource_id":   tenant.ID,
+				"tenant_id":     &tenant.ID,
+				"scope_type":    domain.ScopeGlobal,
+				"changes":       string(changesJSON),
+				"created_at":    now,
 			},
 		)
 		if auditErr != nil {

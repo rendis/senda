@@ -38,7 +38,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		resp := externalRequest(t, http.MethodGet,
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/template-types/%s/templates", TemplateTypeSlug),
 			nil,
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"")
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusOK)
@@ -54,7 +57,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		resp = externalRequest(t, http.MethodGet,
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/templates/%s/versions/%s", templateID, draftVersionID),
 			nil,
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"")
 		defer resp.Body.Close()
 		RequireStatus(t, resp, http.StatusOK)
@@ -70,7 +76,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 				"body_mjml":      SampleMJML(),
 				"default_locale": "en",
 			},
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"",
 		)
 		defer updateResp.Body.Close()
@@ -79,7 +88,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		previewResp := externalRequest(t, http.MethodPost,
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/templates/%s/preview-mjml", templateID),
 			map[string]any{"mjml": SampleMJML()},
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"",
 		)
 		defer previewResp.Body.Close()
@@ -100,7 +112,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 					"company_name": "Tether",
 				},
 			},
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"",
 		)
 		defer testSendResp.Body.Close()
@@ -109,7 +124,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		publishResp := externalRequest(t, http.MethodPost,
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/templates/%s/versions/%s/publish", templateID, draftVersionID),
 			nil,
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"",
 		)
 		defer publishResp.Body.Close()
@@ -120,7 +138,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		readResp := externalRequest(t, http.MethodGet,
 			externalWorkspacePath("missing")+"/template-types",
 			nil,
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"fallback=system",
 		)
 		defer readResp.Body.Close()
@@ -135,7 +156,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 				"body_mjml":      SampleMJML(),
 				"default_locale": "en",
 			},
-			map[string]string{"X-Tenant-Code": TenantCode},
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"fallback=system",
 		)
 		defer writeResp.Body.Close()
@@ -146,7 +170,7 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		resp := externalRequest(t, http.MethodGet,
 			externalWorkspacePath(WorkspaceCode)+"/template-types",
 			nil,
-			nil,
+			map[string]string{"X-Senda-Environment": "prod"},
 			"",
 		)
 		defer resp.Body.Close()
@@ -156,6 +180,18 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 			externalWorkspacePath(WorkspaceCode)+"/template-types",
 			nil,
 			map[string]string{"X-Tenant-Code": TenantCode},
+			"",
+		)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "missing environment header should fail: %s", ReadResponseBody(t, resp))
+
+		resp = externalRequest(t, http.MethodGet,
+			externalWorkspacePath(WorkspaceCode)+"/template-types",
+			nil,
+			map[string]string{
+				"X-Tenant-Code":       TenantCode,
+				"X-Senda-Environment": "prod",
+			},
 			"token=wrong-token",
 		)
 		defer resp.Body.Close()
@@ -164,7 +200,10 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 		resp = externalRequest(t, http.MethodGet,
 			externalWorkspacePath(WorkspaceCode)+"/template-types",
 			nil,
-			map[string]string{"X-Tenant-Code": "other-tenant"},
+			map[string]string{
+				"X-Tenant-Code":       "other-tenant",
+				"X-Senda-Environment": "prod",
+			},
 			"",
 		)
 		defer resp.Body.Close()
@@ -176,8 +215,9 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/templates/%s/versions/%s", templateID, draftVersionID),
 			nil,
 			map[string]string{
-				"X-Tenant-Code":           TenantCode,
+				"X-Tenant-Code":          TenantCode,
 				"X-Senda-External-Token": externalViewerToken,
+				"X-Senda-Environment":    "prod",
 			},
 			"",
 		)
@@ -194,8 +234,9 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 				"default_locale": "en",
 			},
 			map[string]string{
-				"X-Tenant-Code":           TenantCode,
+				"X-Tenant-Code":          TenantCode,
 				"X-Senda-External-Token": externalViewerToken,
+				"X-Senda-Environment":    "prod",
 			},
 			"",
 		)
@@ -206,8 +247,9 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 			externalWorkspacePath(WorkspaceCode)+fmt.Sprintf("/templates/%s/versions/%s/publish", templateID, draftVersionID),
 			nil,
 			map[string]string{
-				"X-Tenant-Code":           TenantCode,
+				"X-Tenant-Code":          TenantCode,
 				"X-Senda-External-Token": externalViewerToken,
+				"X-Senda-Environment":    "prod",
 			},
 			"",
 		)
@@ -223,8 +265,9 @@ func TestExternalIntegration01_APIHappyChaosAndMaliciousFlows(t *testing.T) {
 				},
 			},
 			map[string]string{
-				"X-Tenant-Code":           TenantCode,
+				"X-Tenant-Code":          TenantCode,
 				"X-Senda-External-Token": externalViewerToken,
+				"X-Senda-Environment":    "prod",
 			},
 			"",
 		)
@@ -247,8 +290,8 @@ func ensureExternalIntegrationProfile(t *testing.T, client *TestClient) {
 					"auth_method_name": "e2e-signed-token",
 					"resolver_name":    "e2e-workspace-resolver",
 					"allowed_origins":  []string{"http://localhost:3000"},
-					"allowed_headers":  []string{"x-tenant-code"},
-					"required_headers": []string{"x-tenant-code"},
+					"allowed_headers":  []string{"x-tenant-code", "x-senda-environment"},
+					"required_headers": []string{"x-tenant-code", "x-senda-environment"},
 					"capabilities": map[string]bool{
 						"list_templates":   true,
 						"view_versions":    true,

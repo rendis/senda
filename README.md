@@ -1,8 +1,9 @@
+
 <div align="center">
   <img src="web/public/senda-logo.svg" width="80" alt="Senda" />
   <h1>Senda</h1>
   <p><strong>Open-source email orchestration for multi-tenant SaaS</strong></p>
-  <p>Templates, inheritance, provider-agnostic delivery — one API call.</p>
+  <p>Templates, inheritance, environment-aware delivery, and embeddable builder flows — one platform.</p>
 
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
@@ -18,116 +19,99 @@
 
 ## Why Senda?
 
-Most email services are either too simple (no multi-tenancy) or too complex (Kafka, Redis, microservices). Senda sits in the sweet spot:
+Most email products are either too simple for multi-tenant SaaS or too operationally heavy. Senda stays in the middle:
 
-- **Zero external dependencies** — PostgreSQL handles queue ([River](https://riverqueue.com)), cache (UNLOGGED tables), and rate limiting (PL/pgSQL token bucket). No Redis. No Kafka.
-- **3-level hierarchy** — Configure templates, injectors, and adapters at Global scope. Override at Tenant or Workspace level. Inheritance chain resolves automatically.
-- **Selective system sharing** — Tenant `_system` can share Gmail adapters to specific workspaces and SES **email identities** (not whole domains) to the exact workspaces allowed to send from them.
-- **MJML-native** — Write responsive email templates in MJML. Compiled to battle-tested HTML at send time with variable injection and locale fallback.
-- **Dual auth model** — OIDC/JWT for humans on the management plane. Workspace-scoped API keys for machines on the data plane. 5-tier RBAC.
-- **Full-stack** — Go backend + Next.js 16 dashboard with dark mode, scope switcher, template editor (Monaco), and real-time metrics.
-
----
+- **PostgreSQL-first** — queue, cache, rate limiting, and state all stay close to the core application. No Redis required.
+- **Hierarchical resolution** — global, tenant, `_system`, and workspace cooperate through explicit inheritance and selective sharing.
+- **Real environments** — each logical workspace operates as `prod` and `test`, with isolated API keys, runtime state, and safety controls.
+- **Embeddable** — external builder/editor surfaces can be exposed through custom auth methods and workspace resolvers.
+- **SDK-friendly** — embedders can register code injectors, per-request init, external auth/resolver seams, and lifecycle hooks without forking Senda.
 
 ## Features
 
-|               | Feature             | Description                                                                                                    |
-| ------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Hierarchy** | Multi-tenant scopes | Global > Tenant > Workspace with inheritance chain resolution                                                  |
-| **Sharing**   | System-owned adapters | Tenant `_system` can grant Gmail adapters per workspace and SES sender emails per workspace, with read-only inherited rows in child workspaces |
-| **Templates** | Versioned + i18n    | Draft > Published > Archived lifecycle. Locale fallback (exact > prefix > workspace default > version default) |
-| **Providers** | Adapter system      | SES, Gmail, SMTP built-in. Add any provider by implementing one interface                                      |
-| **Rendering** | MJML compiler       | Responsive HTML from MJML templates. Variable injection via injector merge                                     |
-| **Webhooks**  | Event delivery      | HMAC-SHA256 signed. Exponential backoff. Auto-disable after 10 consecutive failures                            |
-| **Tracking**  | Open & click        | Pixel injection for opens. Provider event ingestion (delivered, bounced, complained)                           |
-| **Security**  | Defense in depth    | AES-256-GCM at rest, HMAC API keys, SSRF protection, CSP/HSTS headers, advisory-locked onboarding              |
-| **Audit**     | Full trail          | Every mutation logged with actor, scope, entity, and change diff                                               |
-| **MCP**       | AI-ready            | OpenAPI-backed MCP server for Claude Code, Codex, and Gemini CLI                                               |
-| **Dashboard** | Full-stack UI       | Next.js 16 + shadcn/ui. Templates, adapters, members, metrics, settings                                        |
+| Area | Feature | Description |
+| --- | --- | --- |
+| Hierarchy | Scope resolution | Global → Tenant → `_system` → Workspace resolution with owned, inherited, and shared resources |
+| Environments | `prod` / `test` workspaces | One logical workspace, two operational environments with isolated runtime state |
+| Templates | Versioned + localized | Draft/published/archive lifecycle, locale overrides, exact version cloning |
+| Providers | Adapter model | SES, Gmail, SMTP built in; adapter and identity sharing from `_system` |
+| Safety | Test recipient policy | `replace` or `append` safe-recipient behavior in `test` only |
+| External | Embeddable builder surface | Bootstrap, session, template editing, locale editing, preview, and test-send via external profiles |
+| Security | OIDC + API keys | OIDC for management, environment-aware API keys for data plane |
+| SDK | Public extension seams | Injectors, init function, external auth method, workspace resolver, lifecycle hooks |
 
----
+## Environment model
 
-## Shared Adapters from Tenant `_system`
+Each logical workspace has two physical operational environments:
 
-Senda supports **selective adapter inheritance** from a tenant's `_system` workspace down to its child workspaces:
+- `prod`
+- `test`
 
-- **Gmail** is shared at the **adapter** level. `_system` decides exactly which workspaces can see and use the adapter.
-- **SES** is shared at the **email identity** level. `_system` can grant `a@example.dev` to one workspace and `b@example.dev` to another. Domain identities stay in `_system`; they are **not** shareable.
-- In child workspaces, inherited adapters appear in the adapters UI as **read-only shared rows**. Workspace-owned adapters remain editable.
-- For a workspace using a shared SES adapter, `sender_identity_id` is mandatory on the template type so each send is attributed to the correct workspace + sender identity combination.
+Important rules:
+
+- The **send ref stays** `tenant:workspace:templateType`.
+- Environment is selected by **route**, **API key prefix**, or **external header**, depending on the surface.
+- Test-only runtime reset is exposed on the environment-scoped management surface.
+- Test-only recipient safety controls exist at workspace level and can be overridden by template type in the test environment.
+
+See `docs/API.md` and `skills/senda/` for the operational details.
+
+## Shared adapters from tenant `_system`
+
+Senda supports **selective sharing** from a tenant `_system` workspace:
+
+- **Gmail** sharing is adapter-level.
+- **SES** sharing is email-identity-level; domain identities are not shareable.
+- Shared entries are read-only in child workspaces.
+- Child workspaces can fork inherited template content when they need local ownership.
 
 ## Quick Start
 
-**Prerequisites:** Docker, Go 1.25+, Node 25 (or `nvm use` from `web/.nvmrc`), Make
+**Prerequisites:** Docker, Go 1.25+, Node 25 (or `web/.nvmrc`), Make, Corepack.
 
 ```bash
-# 1. Clone and start
-git clone https://github.com/rendis/senda.git && cd senda
+git clone https://github.com/rendis/senda.git
+cd senda
 make dev
-
-# 2. Verify (wait ~30s for Keycloak)
 curl http://localhost:8081/health
-# {"status":"ok"}
+```
 
-# 3. Send your first email
+Start the frontend:
+
+```bash
+corepack enable
+(cd web && corepack install)
+pnpm --dir web install
+pnpm --dir web dev
+```
+
+Example data-plane send:
+
+```bash
 curl -X POST http://localhost:8081/api/v1/send \
-  -H "Authorization: Bearer senda_live_YOUR_KEY" \
+  -H "Authorization: Bearer senda_prod_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "ref": "acme:main:welcome-email",
     "to": ["user@example.com"],
-    "variables": { "name": "Jane" },
+    "variables": {"name": "Jane"},
     "locale": "es"
   }'
 ```
 
-Check the email in [Mailpit UI](http://localhost:8026). Start the frontend with `corepack enable && (cd web && corepack install) && pnpm --dir web install && pnpm --dir web dev`.
-
-For local PR-style validation, run the same fast gates used by CI:
+For local validation, prefer the repo gates used by CI:
 
 ```bash
 make ci-backend-pr
 make ci-frontend      # if you changed web/
-make ci-pr            # if the change spans backend + frontend
-make ci-main          # for systemic flows
+make ci-pr            # backend + frontend
+make ci-main          # systemic flows
 make install-githooks
 ```
 
----
-
-## E2E Validation
-
-Para correr la suite E2E desde un clon fresco no hace falta levantar un stack manualmente: el harness usa **Testcontainers** y provisiona lo necesario.
-
-### Prerrequisitos
-
-- Docker corriendo
-- Go 1.25+
-- Make
-
-### Gate determinística completa
-
-```bash
-make test-e2e
-```
-
-### Solo SES lifecycle + SNS signed replay
-
-```bash
-make test-e2e-ses
-```
-
-Más detalle en:
-
-- `docs/DEVELOPMENT.md`
-- `test/e2e/README.md`
-- `test/e2e/QUICK_START.md`
-
----
-
 ## Use as a Library
 
-Senda can be imported as a Go module. Register custom **code injectors** to feed business-specific data into templates, add an **init function** for shared per-request context, and wire **lifecycle hooks** for your infrastructure.
+Senda exposes a public Go SDK for embedders.
 
 ```bash
 go get github.com/rendis/senda
@@ -144,416 +128,100 @@ import (
 func main() {
     engine := sdk.NewWithConfig("config.yaml")
 
-    // Per-request init: load shared data before injectors run.
     engine.SetInitFunc(func(ctx context.Context, injCtx *sdk.InjectorContext) (any, error) {
         return loadStudent(ctx, injCtx.Header("X-Case-Id"))
     })
 
-    // Custom injector: values merge with DB injectors into templates.
-    // Templates use {{ injector.student.full_name }}.
     engine.RegisterInjector(&StudentInjector{})
+    engine.RegisterExternalAuthMethod(&PortalAuthMethod{})
+    engine.RegisterExternalWorkspaceResolver(&PortalWorkspaceResolver{})
 
-    // Lifecycle hooks for your infrastructure.
-    engine.OnStart(func(ctx context.Context) error  { return connectMongo(ctx) })
+    engine.OnStart(func(ctx context.Context) error { return connectMongo(ctx) })
     engine.OnShutdown(func(ctx context.Context) error { return closeMongo(ctx) })
 
-    engine.Run()
+    _ = engine.Run()
 }
 ```
 
-<details>
-<summary><strong>Implementing an Injector</strong></summary>
+Public extension seams:
 
-```go
-type StudentInjector struct{}
+- `RegisterInjector(...)`
+- `SetInitFunc(...)`
+- `RegisterExternalAuthMethod(...)`
+- `RegisterExternalWorkspaceResolver(...)`
+- `OnStart(...)`
+- `OnShutdown(...)`
 
-func (i *StudentInjector) Code() string { return "student" }
+`InjectorContext.Environment()` and `ExternalIntegrationRequest.Environment` are the public runtime sources of truth for `prod` / `test` behavior.
 
-func (i *StudentInjector) Resolve() (sdk.ResolveFunc, []string) {
-    return func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
-        student := injCtx.InitData().(*Student)
-        return map[string]any{
-            "full_name": student.FullName,
-            "email":     student.Email,
-            "grade":     student.Grade,
-        }, nil
-    }, nil // no dependencies on other injectors
-}
+## External integrations
 
-func (i *StudentInjector) IsCritical() bool        { return true }
-func (i *StudentInjector) Timeout() time.Duration   { return 10 * time.Second }
+Senda exposes an embeddable external surface under:
+
+- `/api/v1/external/:profile_slug/bootstrap`
+- `/api/v1/external/:profile_slug/environments/:environment/bootstrap`
+- `/api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code/...`
+
+External authenticated requests must include:
+
+```http
+X-Senda-Environment: prod|test
 ```
 
-**Key concepts:**
-- `Code()` maps to the template namespace: `{{ injector.<Code()>.<field> }}`
-- `Resolve()` returns `(resolveFunc, dependencies)` — dependencies are other injector codes that must resolve first
-- `IsCritical()` — if `true`, a failure aborts the send; if `false`, the injector is silently skipped
-- `InjectorContext.RequestInjectors()` exposes request-body runtime overrides
-- Runtime precedence is **per field**:
-  - `allow_overwrite=false` → always use `default_value`
-  - `allow_overwrite=true` → `reqBody.injectors > code injector value > default_value`
-- If a code injector and a DB injector share the same code, the code injector still wins for that injector name, but overwrite rules are evaluated field by field
-- `InjectorContext` provides: HTTP headers, send request variables, init data, tenant/workspace IDs, and other resolved injectors
+External profiles select a registered auth method and workspace resolver, which together determine effective permissions and effective workspace.
 
-</details>
+## API at a glance
 
-**What's extensible (SDK):** Code injectors, init function, lifecycle hooks (OnStart/OnShutdown).
+| Group | Base | Auth | Notes |
+| --- | --- | --- | --- |
+| Health | `/health`, `/healthz`, `/metrics` | None / token | Liveness, readiness, Prometheus |
+| Data plane | `/api/v1/send`, `/api/v1/emails` | API key | Environment selected by `senda_prod_...` / `senda_test_...` |
+| Management (shared) | `/api/v1/manage/tenants/.../workspaces/...` | OIDC | Logical workspace CRUD |
+| Management (env) | `/api/v1/manage/environments/:environment/...` | OIDC | Environment-specific workspace runtime/resources |
+| External | `/api/v1/external/:profile_slug/...` | Custom | Embeddable builder/editor surface |
+| Global | `/api/v1/manage/global/...` | OIDC | Superadmin-only global resources |
+| Webhooks | `/api/v1/webhooks/ses/inbound` | SNS sig | Provider event ingestion |
 
-**What's internal (config):** Email senders (SES/Gmail/SMTP), cache, crypto, queue, rate limiter, auth, middleware, resolution engine. All managed via YAML config.
+## MCP integration
 
-Update Senda independently — `go get -u github.com/rendis/senda@latest` — your extensions keep working.
+Senda ships a dedicated MCP skill and OpenAPI-backed MCP server configuration.
 
----
+- Skill bundle: `skills/senda/`
+- Setup guide: `docs/mcp_setup.md`
+- OpenAPI-backed server name: `senda`
 
-## Architecture
-
-Hexagonal (Ports & Adapters). Domain logic has zero infrastructure dependencies.
-
-```mermaid
-graph TB
-    subgraph HTTP["HTTP Layer"]
-        H[Handlers]
-        MW[Middleware<br/>Auth · RBAC · Scope · Metrics · Logger]
-    end
-
-    subgraph Services["Service Layer"]
-        SS[SendService]
-        TS[TemplateService]
-        EP[EventProcessor]
-        WS[WebhookService]
-        AK[APIKeyService]
-        IS[IdentityService]
-    end
-
-    subgraph Resolution["Resolution Engine"]
-        CR[ChainResolver]
-        TR[TemplateResolver]
-        IM[InjectorMerger]
-        AR[AdapterResolver]
-    end
-
-    subgraph Ports["Port Interfaces"]
-        ST[(Stores)]
-        ES[EmailSender]
-        JQ[JobQueue]
-        CA[Cache]
-        CY[Crypto]
-        RL[RateLimiter]
-    end
-
-    subgraph Adapters["Adapter Implementations"]
-        PG[(PostgreSQL)]
-        SES[AWS SES]
-        GM[Gmail]
-        SMTP[SMTP]
-        RV[River Workers]
-        PGC[PG Cache]
-        AES[AES-256-GCM]
-        MJ[MJML Compiler]
-    end
-
-    HTTP --> Services
-    Services --> Resolution
-    Services --> Ports
-    Resolution --> Ports
-    Ports --> Adapters
-```
-
----
-
-## How Sending Works
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant S as SendService
-    participant R as Resolution Engine
-    participant DB as PostgreSQL
-    participant Q as River Queue
-    participant W as SendWorker
-    participant P as Email Provider
-
-    C->>S: POST /api/v1/send
-    S->>R: Resolve chain + template + injectors + adapter
-    R->>DB: Cached lookups (PGCache + LRU)
-    S->>DB: Create email + enqueue job (atomic tx)
-    S-->>C: 202 { tracking_id }
-
-    Q->>W: Poll job
-    W->>W: Rate limit + render MJML + inject tracking
-    W->>P: Send email (cached sender)
-    P-->>W: Provider message ID
-    W->>DB: CAS status update (processing > sent)
-    Note over P,DB: Provider events arrive via webhooks
-```
-
----
-
-## Tech Stack
-
-<table>
-<tr><td>
-
-**Backend**
-
-| Component  | Technology              |
-| ---------- | ----------------------- |
-| Language   | Go 1.25+                |
-| Database   | PostgreSQL 16 + pg_cron |
-| HTTP       | Echo v5                 |
-| Job Queue  | River (PG-native)       |
-| Templates  | gomjml (MJML)           |
-| Encryption | AES-256-GCM (HKDF)      |
-| Cache      | PG UNLOGGED tables      |
-| Rate Limit | PL/pgSQL token bucket   |
-
-</td><td>
-
-**Frontend**
-
-| Component | Technology                      |
-| --------- | ------------------------------- |
-| Framework | Next.js 16                      |
-| UI        | React 19 + shadcn/ui            |
-| Styling   | Tailwind CSS v4                 |
-| State     | TanStack Query 5                |
-| Forms     | React Hook Form + Zod 4         |
-| Auth      | Auth.js v5 (OIDC)               |
-| Theme     | next-themes (light/dark/system) |
-| Editor    | Monaco Editor                   |
-
-</td></tr>
-</table>
-
----
-
-## API at a Glance
-
-| Group      | Endpoint                                    | Auth         | Description                     |
-| ---------- | ------------------------------------------- | ------------ | ------------------------------- |
-| Health     | `/health`, `/healthz`, `/metrics`           | None / Token | Liveness, readiness, Prometheus |
-| Data Plane | `/api/v1/send`, `/api/v1/emails`            | API Key      | Send emails, query status       |
-| Management | `/api/v1/manage/tenants/.../workspaces/...` | OIDC         | CRUD for all resources          |
-| Global     | `/api/v1/manage/global/...`                 | OIDC         | Global-scope management         |
-| Webhooks   | `/api/v1/webhooks/ses/inbound`              | SNS sig      | Provider event ingestion        |
-| Tracking   | `/t/o/:tracking_id`                         | None         | Open-tracking pixel             |
-
-> Full reference: [docs/API.md](docs/API.md) | Postman: [docs/postman/](docs/postman/)
-
----
-
-<details>
-<summary><strong>Hierarchy & Resolution</strong></summary>
-
-Senda uses a 3-level scope hierarchy. Resources at lower scopes override those at higher scopes:
-
-```mermaid
-graph TD
-    G["Global Scope<br/>(defaults for everything)"]
-    T["Tenant Scope<br/>(organization-level overrides)"]
-    SYS["_system Workspace<br/>(tenant-wide defaults)"]
-    W["Workspace Scope<br/>(project-level overrides)"]
-
-    G --> T
-    T --> SYS
-    SYS --> W
-
-    style W fill:#2563eb,color:#fff
-    style SYS fill:#7c3aed,color:#fff
-    style T fill:#059669,color:#fff
-    style G fill:#6b7280,color:#fff
-```
-
-**Resolution order:** Workspace > \_system workspace > Global. First match wins. Injectors merge field-by-field across all scopes.
-
-</details>
-
-<details>
-<summary><strong>Authentication & RBAC</strong></summary>
-
-```mermaid
-flowchart LR
-    REQ[Request] --> CHECK{Auth Header?}
-
-    CHECK -->|"Bearer senda_live_..."| AK[Workspace API Key Auth]
-    CHECK -->|"Bearer eyJ..."| OIDC[OIDC Auth]
-
-    AK --> WS[Workspace-scoped]
-    WS --> DP[Data Plane<br/>send · query emails]
-
-    OIDC --> RBAC[RBAC Check]
-    RBAC --> MP[Management Plane<br/>CRUD · config · admin]
-```
-
-| Role            | Scope     | Permissions                              |
-| --------------- | --------- | ---------------------------------------- |
-| Superadmin      | Global    | Everything                               |
-| TenantAdmin     | Tenant    | Manage workspaces, members within tenant |
-| WorkspaceAdmin  | Workspace | Full workspace management                |
-| WorkspaceEditor | Workspace | Edit template versions/locales, injector values, field runtime policy, test-send, bulk-send |
-| WorkspaceViewer | Workspace | Read-only access                         |
-
-</details>
-
-<details>
-<summary><strong>Configuration</strong></summary>
-
-YAML config with environment variable overrides (`SENDA_` prefix). Priority: env vars > YAML > defaults.
-
-```bash
-cp config/config.example.yaml config/config.yaml
-```
-
-| Variable                   | Default   | Description                           |
-| -------------------------- | --------- | ------------------------------------- |
-| `SENDA_DATABASE_URL`       | --        | PostgreSQL connection URL (required)  |
-| `SENDA_MASTER_KEY`         | --        | AES-256-GCM key, 32+ chars (required) |
-| `SENDA_OIDC_DISCOVERY_URL` | --        | OIDC .well-known URL (required)       |
-| `SENDA_OIDC_CLIENT_ID`     | --        | OIDC client ID (required)             |
-| `SENDA_HOST`               | `0.0.0.0` | Bind address                          |
-| `SENDA_PORT`               | `8080`    | HTTP port                             |
-| `SENDA_LOG_LEVEL`          | `info`    | debug, info, warn, error              |
-| `SENDA_TRACKING_BASE_URL`  | --        | Public base URL for email tracking (open pixels, SES event auto-provisioning, SNS webhook). Unset = tracking disabled, auto-provisioning returns 501 |
-
-See [`config/config.example.yaml`](config/config.example.yaml) for all options.
-
-</details>
-
-<details>
-<summary><strong>MCP Integration (AI Agents)</strong></summary>
-
-Senda ships a single MCP server definition named `senda`, backed by
-[`mcp-openapi-proxy`](https://github.com/rendis/mcp-openapi-proxy) and the committed
-OpenAPI 3 spec at [`cmd/senda/docs/openapi.yaml`](cmd/senda/docs/openapi.yaml).
-
-**Install:**
-
-```bash
-go install github.com/rendis/mcp-openapi-proxy/cmd/mcp-openapi-proxy@latest
-```
-
-**Regenerate spec:**
-
-```bash
-make swagger
-```
-
-The repo includes `.mcp.json` with the server config. It exposes three tools:
-
-- `senda_list_endpoints` — discover operations
-- `senda_describe_endpoint` — inspect params and body
-- `senda_call_endpoint` — execute an endpoint
-
-**Authentication:**
-
-- Data plane: `export MCP_AUTH_WORKSPACEAPIKEYBEARER_TOKEN="senda_live_..."`
-- Management plane: `mcp-openapi-proxy login --mcp-config ./.mcp.json --server senda`
-
-**Supported clients:** Claude Code (auto-detects `.mcp.json`), Codex, Gemini CLI.
-
-> Full MCP setup guide with examples for each client: see the `.mcp.json` file and `AGENTS.md`.
-
-</details>
-
-<details>
-<summary><strong>Docker Services</strong></summary>
-
-**Dev stack** (`make dev`):
-
-| Service  | Port      | Purpose                     |
-| -------- | --------- | --------------------------- |
-| senda    | 8081      | Backend (Air hot-reload)    |
-| postgres | 5435      | PostgreSQL 16 + pg_cron     |
-| keycloak | 9090      | OIDC provider (admin/admin) |
-| mailpit  | 1026/8026 | SMTP capture + Web UI       |
-| caddy    | 443       | HTTPS proxy (optional)      |
-
-**Test users:**
-
-| Email                      | Password         | Role            |
-| -------------------------- | ---------------- | --------------- |
-| admin@senda.dev            | admin            | Superadmin      |
-| tenant-admin@senda.dev     | tenant-admin     | TenantAdmin     |
-| workspace-admin@senda.dev  | workspace-admin  | WorkspaceAdmin  |
-| workspace-editor@senda.dev | workspace-editor | WorkspaceEditor |
-| workspace-viewer@senda.dev | workspace-viewer | WorkspaceViewer |
-
-</details>
-
----
+For data-plane MCP usage, authenticate with a raw workspace API key such as `senda_prod_...` or `senda_test_...`.
 
 ## Development
 
-| Command                 | Description                        |
-| ----------------------- | ---------------------------------- |
-| `make dev`              | Start full Docker stack            |
-| `make build`            | Build Go binary                    |
-| `make test`             | Unit tests (race detector)         |
-| `make test-integration` | Integration tests (TestContainers) |
-| `make test-e2e`         | E2E deterministic gate             |
-| `make lint`             | golangci-lint                      |
-| `make swagger`          | Regenerate OpenAPI spec            |
-| `make system-pr`        | PR gate (functional + UI)          |
+| Command | Description |
+| --- | --- |
+| `make dev` | Start the Docker development stack |
+| `make test` | Unit tests with race detector |
+| `make test-integration` | Integration tests |
+| `make test-e2e` | Deterministic E2E gate |
+| `make test-e2e-chaos` | Chaos/resilience E2E gate |
+| `make system-pr` | System browser/API gate |
+| `make lint` | Go linting |
+| `pnpm --dir web typecheck` | Frontend typecheck |
+| `pnpm --dir web lint` | Frontend lint |
 
-Frontend: `pnpm --dir web dev` | `pnpm --dir web typecheck` | `pnpm --dir web lint`
+## Project structure
 
-> Full guide: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
-
----
-
-## Project Structure
-
-```
+```text
 senda/
-├── sdk/                    Public SDK (Engine, Injector, InjectorContext)
-├── cmd/senda/              Entry point (uses sdk.Engine)
+├── sdk/                    Public SDK
+├── cmd/senda/              Server entry point
 ├── internal/
-│   ├── domain/             Entities, value objects, domain errors
-│   ├── port/               Interface contracts (incl. CodeInjector)
+│   ├── domain/             Domain model and environment types
+│   ├── port/               Public extension and internal contracts
 │   ├── service/            Business logic
-│   ├── resolution/         Hierarchy chain resolution engine
-│   ├── adapter/            PostgreSQL, SES, Gmail, SMTP, River, MJML, Crypto
-│   ├── http/               Handlers + middleware
-│   └── app/                Bootstrap + DI wiring
-├── pkg/                    Shared utilities
-├── migrations/             37 migration versions (74 SQL files: up + down)
-├── config/                 YAML configuration
-├── docker/                 Dockerfiles + Compose
-├── test/                   E2E + system tests
-└── web/                    Next.js 16 frontend
+│   ├── resolution/         Scope and injector resolution
+│   ├── adapter/            Postgres, River, SES, Gmail, SMTP, MJML, crypto
+│   ├── http/               Handlers and middleware
+│   └── app/                Bootstrap and extension bridge
+├── migrations/             SQL migrations
+├── docs/                   Human-facing docs
+├── skills/senda/           Self-contained skill bundle for agents
+└── web/                    Next.js frontend
 ```
-
----
-
-## Documentation
-
-|                      | Document                                                           | Description                                    |
-| -------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
-| **Email Flows**      | [docs/EMAIL_FLOWS.md](docs/EMAIL_FLOWS.md)                         | Per-provider email lifecycle, status machine, tracking |
-| **Extensibility**    | [docs/extensibility-guide.md](docs/extensibility-guide.md)         | SDK guide: injectors, init, hooks, examples    |
-| **Architecture**     | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                       | Hexagonal layers, resolution engine, ADRs      |
-| **API**              | [docs/API.md](docs/API.md)                                        | All endpoints, auth schemes, error codes       |
-| **Development**      | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)                        | Setup, Docker, testing, troubleshooting        |
-| **Deployment**       | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                          | Production Dockerfile, env vars, health checks |
-| **Postman**          | [docs/postman/](docs/postman/)                                    | Collection + environments                      |
-| **Tech Spec**        | [docs/specs/TECH_SPEC_v1.md](docs/specs/TECH_SPEC_v1.md)          | Complete technical specification               |
-
----
-
-## Contributing
-
-We welcome focused, well-validated contributions.
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, validation rules, commit conventions, and PR expectations. Please also read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md) before opening issues or pull requests.
-
-The short version: fork the repo, create a focused branch, write or update tests first when behavior changes, run the fast local gates (`make ci-backend-pr`, `make ci-frontend`, `make ci-pr`, `make ci-main` as needed), and then run deeper suites like `make test-integration` and `make test-e2e` for systemic changes before opening a small PR with clear context.
-
-For larger changes, open an issue before implementation so maintainers can align on scope and fit. Repository-specific development and planning details remain documented in [AGENTS.md](AGENTS.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
----
-
-<div align="center">
-  <sub>Built with Go, PostgreSQL, and Next.js. No Redis required.</sub>
-  <br/>
-  <a href="LICENSE">MIT License</a>
-</div>

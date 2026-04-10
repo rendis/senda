@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useScope } from "@/hooks/use-scope";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ScopeSwitcher } from "@/components/shared/scope-switcher";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
@@ -73,7 +74,7 @@ export function AppSidebar({
   onMobileOpenChange,
 }: AppSidebarProps) {
   const pathname = usePathname();
-  const { level, tenantCode, workspaceCode } = useScope();
+  const { level, tenantCode, workspaceCode, environment } = useScope();
   const { data: session } = useSession();
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
@@ -111,9 +112,14 @@ export function AppSidebar({
 
   useEffect(() => {
     if (level === "workspace" && tenantCode && workspaceCode) {
-      setLastWorkspacePath(`/t/${tenantCode}/w/${workspaceCode}`);
+      setLastWorkspacePath(
+        applyEnvironmentSearchParam(
+          `/t/${tenantCode}/w/${workspaceCode}`,
+          environment,
+        ),
+      );
     }
-  }, [level, tenantCode, workspaceCode]);
+  }, [environment, level, tenantCode, workspaceCode]);
 
   const displayName = session?.user?.name ?? session?.user?.email ?? "User";
   const initials = getUserInitials(session?.user?.name, session?.user?.email);
@@ -122,7 +128,11 @@ export function AppSidebar({
   const visibleNavItems = navItems.filter((item) => item.vis[effectiveLevel]);
 
   function hrefForItem(href: string) {
-    return `${basePath}${href}`;
+    const path = `${basePath}${href}`;
+    if (!path.startsWith("/t/")) {
+      return path;
+    }
+    return applyEnvironmentSearchParam(path, environment);
   }
 
   function renderSidebarContent(

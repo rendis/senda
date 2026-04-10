@@ -121,7 +121,7 @@ Configure the adapter with the SMTP relay host and port. This is the most flexib
 
 ### Provider Selection
 
-Each adapter is assigned to a template type. When sending an email, Senda resolves the adapter through the 3-level hierarchy (Global, Tenant, Workspace) and uses the configured provider for that template type.
+Each adapter is assigned to a template type. When sending an email, Senda resolves the adapter through the hierarchical scope model (Global, Tenant, `_system`, Workspace) and uses the configured provider for that template type.
 
 ## Health Checks
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd agent-browser
@@ -67,7 +68,7 @@ start_frontend_dev() {
 
 issue_test_token() {
   local email="$1"
-  go run "$ROOT_DIR/cmd/systemtest" token \
+  systemtest token \
     --email "$email" \
     --secret "$SENDA_E2E_JWT_SECRET" \
     | tail -n1

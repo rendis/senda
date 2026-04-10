@@ -407,7 +407,7 @@ func TestTemplateHandler_ListByTemplateType_ResolvesVisibleSystemTemplateInWorks
 	typeID := uuid.Must(uuid.NewV7())
 	templateID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -477,7 +477,7 @@ func TestTemplateHandler_CreateVersion_BlocksInheritedSystemTemplateInWorkspace(
 	systemWorkspace := uuid.Must(uuid.NewV7())
 	templateID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -530,7 +530,7 @@ func TestTemplateHandler_UpdateVersion_BlocksInheritedSystemTemplateInWorkspace(
 	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -594,7 +594,7 @@ func TestTemplateHandler_ForkTemplate_Success(t *testing.T) {
 	systemWorkspace := uuid.Must(uuid.NewV7())
 	invalidatedWorkspace := uuid.Nil
 
-	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}

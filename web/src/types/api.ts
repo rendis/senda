@@ -29,14 +29,17 @@ export interface FieldError {
 /** Scope levels for the hierarchy */
 export type ScopeLevel = "global" | "tenant" | "workspace";
 export type OwnerScope = "global" | "system" | "local" | "workspace";
+export type Environment = "prod" | "test";
 
 export const SYSTEM_WORKSPACE_CODE = "_system";
 
 /** Current scope context */
 export interface ScopeContext {
   level: ScopeLevel;
+  profileSlug?: string;
   tenantCode?: string;
   workspaceCode?: string;
+  environment?: Environment;
 }
 
 /** Email statuses */
@@ -79,13 +82,17 @@ export interface Tenant {
 /** Workspace */
 export interface Workspace {
   id: string;
+  logical_workspace_id: string;
   tenant_id: string;
   code: string;
   name: string;
+  environment: Environment;
   is_system: boolean;
   is_active: boolean;
   open_tracking_enabled: boolean;
   default_locale: string | null;
+  test_recipient_mode: "replace" | "append";
+  test_recipient_addresses: string[] | null;
   created_at: string;
   updated_at: string;
 }

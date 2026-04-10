@@ -145,18 +145,19 @@ func TestAuth_ValidAPIKey(t *testing.T) {
 		},
 	}
 
-	var gotAuthType, gotWSID any
+	var gotAuthType, gotWSID, gotEnvironment any
 
 	e := echo.New()
 	e.Use(middleware.Auth(store, &mockMemberStore{}, &mockOIDCVerifier{}, "test-pepper"))
 	e.GET("/test", func(c *echo.Context) error {
 		gotAuthType = c.Get(middleware.ContextKeyAuthType)
 		gotWSID = c.Get(middleware.ContextKeyWorkspaceID)
+		gotEnvironment = c.Get(middleware.ContextKeyEnvironment)
 		return c.String(http.StatusOK, "ok")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer senda_live_abc123xyz")
+	req.Header.Set("Authorization", "Bearer senda_prod_abc123xyz")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -168,6 +169,9 @@ func TestAuth_ValidAPIKey(t *testing.T) {
 	}
 	if gotWSID != wsID {
 		t.Fatalf("expected workspace_id=%s, got %v", wsID, gotWSID)
+	}
+	if gotEnvironment != domain.EnvironmentProd {
+		t.Fatalf("expected environment=%q, got %v", domain.EnvironmentProd, gotEnvironment)
 	}
 }
 
@@ -189,7 +193,7 @@ func TestAuth_RevokedAPIKey(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer senda_live_abc123xyz")
+	req.Header.Set("Authorization", "Bearer senda_prod_abc123xyz")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -212,7 +216,7 @@ func TestAuth_UnknownAPIKey(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer senda_live_unknownkey")
+	req.Header.Set("Authorization", "Bearer senda_prod_unknownkey")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -343,7 +347,7 @@ func TestAuth_OIDCEmailNotRegistered(t *testing.T) {
 }
 
 func TestAuth_APIKeyPrefixDetection(t *testing.T) {
-	// Token without "senda_live_" prefix should go through OIDC path, not API key path.
+	// Token without a supported senda_<environment>_ prefix should go through OIDC path, not API key path.
 	verifier := &mockOIDCVerifier{
 		verifyFn: func(_ context.Context, _ string) (*port.OIDCClaims, error) {
 			return nil, errors.New("invalid token")

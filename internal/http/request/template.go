@@ -12,6 +12,8 @@ type CreateTemplateTypeRequest struct {
 	AdapterID        *string         `json:"adapter_id,omitempty"`
 	SenderIdentityID *string         `json:"sender_identity_id,omitempty"`
 	VariableSchema   json.RawMessage `json:"variable_schema,omitempty"`
+	TestRecipientMode      *string   `json:"test_recipient_mode,omitempty"`
+	TestRecipientAddresses []string  `json:"test_recipient_addresses,omitempty"`
 }
 
 // UpdateTemplateTypeRequest is the request body for PUT template-types/:slug.
@@ -22,6 +24,8 @@ type UpdateTemplateTypeRequest struct {
 	AdapterID        *string          `json:"adapter_id,omitempty"`
 	SenderIdentityID *string          `json:"sender_identity_id,omitempty"`
 	VariableSchema   *json.RawMessage `json:"variable_schema,omitempty"`
+	TestRecipientMode      *string    `json:"test_recipient_mode,omitempty"`
+	TestRecipientAddresses *[]string  `json:"test_recipient_addresses,omitempty"`
 }
 
 // --- Templates ---

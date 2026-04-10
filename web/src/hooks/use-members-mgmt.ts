@@ -12,11 +12,11 @@ import type {
 } from "@/types/members-ext";
 
 function useMembersPath(): string {
-  const { level, tenantCode, workspaceCode } = useScope();
+  const { level, tenantCode, workspaceCode, environment } = useScope();
 
   switch (level) {
     case "workspace":
-      return `manage/tenants/${tenantCode}/workspaces/${workspaceCode}/members`;
+      return `manage/environments/${environment ?? "prod"}/tenants/${tenantCode}/workspaces/${workspaceCode}/members`;
     default:
       return "manage/members";
   }

@@ -1516,6 +1516,87 @@
       "critical": true
     },
     {
+      "route": "/embed/[profileSlug]/t/[tenantCode]/w/[workspaceCode]/templates/[slug]/edit",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved",
+        "external integration bootstrap configured"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify embed builder shell renders"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "external embed shell remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug__edit",
+      "critical": true
+    },
+    {
+      "route": "/embed/[profileSlug]/environments/[environment]/t/[tenantCode]/w/[workspaceCode]/templates/[slug]/edit",
+      "scope": [
+        "workspace"
+      ],
+      "role": [
+        "superadmin",
+        "tenant-admin",
+        "workspace-admin",
+        "workspace-editor",
+        "workspace-viewer",
+        "no-member"
+      ],
+      "locale": [
+        "en",
+        "es"
+      ],
+      "viewport": [
+        "desktop",
+        "mobile"
+      ],
+      "preconditions": [
+        "template slug exists",
+        "TEMPLATE_SLUG resolved",
+        "external integration bootstrap configured"
+      ],
+      "actions": [
+        "open route",
+        "wait network idle",
+        "verify embed builder shell renders",
+        "verify environment-aware bootstrap path is used"
+      ],
+      "assertions": [
+        "HTTP render without crash",
+        "no runtime fatal errors",
+        "page not 404",
+        "external embed shell remains available"
+      ],
+      "pencilFrameId": "frame:t__tenantCode__w__workspaceCode__templates__slug__edit",
+      "critical": true
+    },
+    {
       "route": "/t/[tenantCode]/w/[workspaceCode]/templates/[slug]",
       "scope": [
         "workspace"

@@ -22,7 +22,7 @@
 - [ ] Full key visible only once (in the creation response)
 - [ ] Immediate revocation (check revoked_at on every request)
 - [ ] Rate limit per API key (future, not P1 — but design it to be extensible)
-- [ ] Key prefix identifies the type: `senda_live_` (helps detect leaks)
+- [ ] Key prefix identifies the environment: `senda_prod_` / `senda_test_` (helps detect leaks and misuse)
 - [ ] Audit log on creation and revocation
 
 ### 1.3. RBAC

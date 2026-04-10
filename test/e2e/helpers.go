@@ -265,10 +265,10 @@ func (c *TestClient) Delete(path string) *http.Response {
 }
 
 // setAuthHeaders adds authorization headers to the request.
-// API keys are sent as "Authorization: Bearer senda_live_..." (same header, different prefix).
+// API keys are sent as "Authorization: Bearer senda_prod_..." or "Authorization: Bearer senda_test_..." (same header, different prefix).
 func (c *TestClient) setAuthHeaders(req *http.Request) {
 	if c.apiKey != "" {
-		// API keys use Bearer token format; the server detects them by the "senda_live_" prefix.
+		// API keys use Bearer token format; the server detects them by the "senda_prod_" / "senda_test_" prefix.
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 		return
 	}

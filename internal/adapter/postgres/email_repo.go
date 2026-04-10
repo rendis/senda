@@ -182,6 +182,39 @@ func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageI
 	return scanEmail(row)
 }
 
+func (r *EmailRepo) PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("beginning purge workspace runtime tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM email_events
+		 WHERE email_id IN (
+		     SELECT id
+		     FROM emails
+		     WHERE workspace_id = @workspace_id
+		 )`,
+		pgx.NamedArgs{"workspace_id": workspaceID},
+	); err != nil {
+		return fmt.Errorf("deleting workspace email events: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM emails WHERE workspace_id = @workspace_id`,
+		pgx.NamedArgs{"workspace_id": workspaceID},
+	); err != nil {
+		return fmt.Errorf("deleting workspace emails: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing purge workspace runtime tx: %w", err)
+	}
+
+	return nil
+}
+
 func (r *EmailRepo) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error {
 	result, err := r.pool.Exec(ctx,
 		`UPDATE emails SET status = @new_status, updated_at = now()

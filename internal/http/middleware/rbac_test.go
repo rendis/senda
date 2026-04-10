@@ -34,23 +34,30 @@ func (m *mockTenantStore) SoftDelete(_ context.Context, _ uuid.UUID) error     {
 func (m *mockTenantStore) Purge(_ context.Context, _ uuid.UUID) error          { return nil }
 
 type mockWorkspaceStore struct {
-	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
+	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
 }
 
 func (m *mockWorkspaceStore) Create(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) CreateLogicalPair(_ context.Context, _ *domain.Workspace, _ *domain.Workspace) error {
+	return nil
+}
 func (m *mockWorkspaceStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
-	return m.getByTenantAndCodeFn(ctx, tenantID, code)
+func (m *mockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+	return m.getByTenantAndCodeFn(ctx, tenantID, code, environment)
 }
-func (m *mockWorkspaceStore) GetSystemWorkspace(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+func (m *mockWorkspaceStore) GetSystemWorkspace(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 	return nil, "", nil
 }
+func (m *mockWorkspaceStore) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
 func (m *mockWorkspaceStore) Update(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
 
 // --- Helper: build Echo with pre-set context values ---
@@ -127,7 +134,7 @@ func TestRequireRole_SuperadminAccessAnything(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: wsID, TenantID: tenantID, Code: "main"}, nil
 		},
 	}
@@ -158,7 +165,7 @@ func TestRequireRole_SuperadminWrongScopeType(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: wsID, TenantID: tenantID, Code: "main"}, nil
 		},
 	}
@@ -172,7 +179,7 @@ func TestRequireRole_SuperadminWrongScopeType(t *testing.T) {
 	// But it should NOT bypass into a different workspace
 	otherWsID := uuid.New()
 	wsOther := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: otherWsID, TenantID: tenantID, Code: "other"}, nil
 		},
 	}
@@ -250,7 +257,7 @@ func TestRequireRole_WorkspaceAdminOwnWorkspace(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: wsID, TenantID: tenantID, Code: "main"}, nil
 		},
 	}
@@ -280,7 +287,7 @@ func TestRequireRole_ViewerCannotAccessEditorEndpoint(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: wsID, TenantID: tenantID, Code: "main"}, nil
 		},
 	}
@@ -311,7 +318,7 @@ func TestRequireRole_NoMatchingRoleForScope(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: requestedWsID, TenantID: tenantID, Code: "other"}, nil
 		},
 	}
@@ -349,7 +356,7 @@ func TestRequireRole_TenantAdminAccessWorkspaceInOwnTenant(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, _ string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: wsID, TenantID: tid, Code: "main"}, nil
 		},
 	}

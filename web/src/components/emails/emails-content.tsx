@@ -11,6 +11,7 @@ import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EmailFiltersBar } from "@/components/emails/email-filters";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { formatDate } from "@/lib/utils";
 import type { Email, EmailFilters } from "@/types/emails";
 
@@ -19,7 +20,10 @@ function buildDetailPath(
   trackingId: string
 ): string {
   if (scope.level === "workspace") {
-    return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails/${trackingId}`;
+    return applyEnvironmentSearchParam(
+      `/t/${scope.tenantCode}/w/${scope.workspaceCode}/emails/${trackingId}`,
+      scope.environment,
+    );
   }
   return `/global/emails/${trackingId}`;
 }

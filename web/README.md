@@ -1,8 +1,9 @@
+
 # Senda web frontend
 
 ## Development
 
-Use pnpm only.
+Use `pnpm` only.
 
 ```bash
 corepack enable
@@ -18,4 +19,10 @@ pnpm --dir web typecheck
 pnpm --dir web lint -- --max-warnings=0
 ```
 
-The repo validation gate intentionally does not require a local `next build`.
+The standard repo validation flow intentionally does not require a local `next build`.
+
+## Notes
+
+- The dashboard is environment-aware for workspace runtime flows (`prod` / `test`).
+- External embed routes live under `web/src/app/embed/` and rely on the external integration bootstrap/session APIs.
+- Keep route generation and navigation helpers aligned with the environment model helpers under `web/src/lib/` and `web/src/hooks/`.

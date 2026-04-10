@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd agent-browser
@@ -27,6 +28,7 @@ EMAIL_DETAIL_JSON="$ARTIFACT_DIR/ui-adapter-sharing-email-detail.json"
 
 TENANT_CODE="${TENANT_CODE:-${SYSTEM_TENANT_CODE:-test-corp}}"
 SYSTEM_WORKSPACE_CODE_UI="_system"
+SYSTEM_WORKSPACE_SCOPE_LABEL_UI="Default scope"
 AWS_SIM_INTERNAL_URL="${AWS_SIM_INTERNAL_URL:-http://aws-sim:4566}"
 FIXTURE_SUFFIX="$(basename "$ARTIFACT_DIR" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | cut -c1-12)"
 WORKSPACE_A_CODE="share-a-${FIXTURE_SUFFIX}"
@@ -94,7 +96,7 @@ start_frontend_dev() {
 tenant_admin_token() {
   if [[ -z "${TENANT_ADMIN_TOKEN:-}" ]]; then
     TENANT_ADMIN_TOKEN="$(
-      go run "$ROOT_DIR/cmd/systemtest" token \
+      systemtest token \
         --email "$TENANT_ADMIN_EMAIL" \
         --secret "$SENDA_E2E_JWT_SECRET" \
         | tail -n1
@@ -291,7 +293,7 @@ ensure_tracking_provisioned() {
 
 create_aws_sim_identity() {
   local identity="$1"
-  go run "$ROOT_DIR/cmd/systemtest" aws-sim-create-identity \
+  systemtest aws-sim-create-identity \
     --endpoint "$AWS_SIM_BASE_URL" \
     --identity "$identity" >/dev/null
 }
@@ -747,7 +749,7 @@ ab screenshot "$SCREENSHOT_DIR/06-workspace-a-shared-adapters.png" >/dev/null
 
 click_adapter_row_action "$SES_NAME" 0
 wait_for_text "Sender Identities — ${SES_NAME}"
-wait_for_text "Shared from _system — read only"
+wait_for_text "Shared from ${SYSTEM_WORKSPACE_SCOPE_LABEL_UI} — read only"
 wait_for_text "$SES_EMAIL_A"
 if ab_json eval "(() => (document.body?.innerText || '').includes('${SES_EMAIL_B}'))()" | jq -e '.data.result == true' >/dev/null; then
   echo "workspace A shared sender panel should not expose ${SES_EMAIL_B}" >&2

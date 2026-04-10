@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "senda-api-v1-collection",
     "name": "Senda API v1",
-    "description": "Comprehensive Postman collection for the Senda email orchestration platform API.\n\n## Authentication\n\n**OIDC (Management API):** Bearer token in Authorization header.\n\n**API Key (Data Plane):** `Authorization: Bearer senda_live_...` with the full key returned at creation.\n\n## Hierarchy\n\nSenda uses a 3-level hierarchy: Global -> Tenant -> Workspace. Resources are scoped to a workspace (or global for superadmin operations).\n\n## Pagination\n\nAll list endpoints use cursor-based pagination with `cursor` and `limit` query parameters. Responses include `next_cursor` and `has_more` fields.",
+    "description": "Comprehensive Postman collection for the Senda email orchestration platform API.\n\n## Authentication\n\n**OIDC (Management API):** Bearer token in Authorization header.\n\n**API Key (Data Plane):** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...` with the full key returned at creation.\n\n## Hierarchy\n\nSenda uses a hierarchical scope model: Global -> Tenant -> _system -> Workspace. Resources can be owned, inherited, or selectively shared depending on scope.\n\n## Pagination\n\nAll list endpoints use cursor-based pagination with `cursor` and `limit` query parameters. Responses include `next_cursor` and `has_more` fields.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -723,7 +723,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Main Workspace (Updated)\",\n    \"open_tracking_enabled\": true,\n    \"default_locale\": \"en\"\n}"
+              "raw": "{\n    \"name\": \"Main Workspace (Updated)\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/manage/tenants/{{tenant_code}}/workspaces/{{workspace_code}}",
@@ -2537,7 +2537,7 @@
     },
     {
       "name": "Send",
-      "description": "Data-plane email sending. Requires a workspace API key in `Authorization: Bearer senda_live_...`.",
+      "description": "Data-plane email sending. Requires a workspace API key in `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`.",
       "item": [
         {
           "name": "Send Email",
@@ -2574,7 +2574,7 @@
                 "send"
               ]
             },
-            "description": "Send an email using a template reference.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Ref format:** `tenant_code:workspace_code:template_type_slug`\n\n**Response:** 202 Accepted with tracking IDs for each recipient."
+            "description": "Send an email using a template reference.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`\n\n**Ref format:** `tenant_code:workspace_code:template_type_slug`\n\n**Response:** 202 Accepted with tracking IDs for each recipient."
           },
           "response": [],
           "event": [
@@ -2639,7 +2639,7 @@
                 "batch"
               ]
             },
-            "description": "Send a same-template batch where each item has its own variables and injector context.\n\n**Auth:** `Authorization: Bearer senda_live_...`\n\n**Limits:** default max 100 items (configurable via `send.batch_max_items` / `SENDA_SEND_BATCH_MAX_ITEMS`).\n\n**Response:** 202 Accepted with per-item tracking IDs and statuses."
+            "description": "Send a same-template batch where each item has its own variables and injector context.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`\n\n**Limits:** default max 100 items (configurable via `send.batch_max_items` / `SENDA_SEND_BATCH_MAX_ITEMS`).\n\n**Response:** 202 Accepted with per-item tracking IDs and statuses."
           },
           "response": [],
           "event": [
@@ -2668,7 +2668,7 @@
     },
     {
       "name": "Emails",
-      "description": "Data-plane email query and event history. Requires a workspace API key in `Authorization: Bearer senda_live_...`.",
+      "description": "Data-plane email query and event history. Requires a workspace API key in `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`.",
       "item": [
         {
           "name": "List Emails",
@@ -2749,7 +2749,7 @@
                 }
               ]
             },
-            "description": "List workspace emails with optional filters and cursor-based pagination.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
+            "description": "List workspace emails with optional filters and cursor-based pagination.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`"
           },
           "response": [],
           "event": [
@@ -2797,7 +2797,7 @@
                 "{{tracking_id}}"
               ]
             },
-            "description": "Get a single workspace email with all its events.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
+            "description": "Get a single workspace email with all its events.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`"
           },
           "response": [],
           "event": [
@@ -2847,7 +2847,7 @@
                 "events"
               ]
             },
-            "description": "Get lifecycle events for a workspace email.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
+            "description": "Get lifecycle events for a workspace email.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`"
           },
           "response": []
         },
@@ -2931,7 +2931,7 @@
                 }
               ]
             },
-            "description": "Export workspace emails as CSV using the same filters as the list endpoint.\n\n**Auth:** `Authorization: Bearer senda_live_...`"
+            "description": "Export workspace emails as CSV using the same filters as the list endpoint.\n\n**Auth:** `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`"
           },
           "response": []
         }

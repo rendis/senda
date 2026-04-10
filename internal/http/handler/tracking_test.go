@@ -31,6 +31,9 @@ func (m *mockTrackingEmailStore) GetByTrackingID(ctx context.Context, trackingID
 	}
 	return nil, domain.ErrNotFound
 }
+func (m *mockTrackingEmailStore) PurgeWorkspaceRuntime(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
 
 // newTrackingEventProcessor builds a real EventProcessor backed by tracking mocks.
 func newTrackingEventProcessor(lookup service.EmailLookup, updater service.EmailStatusUpdater) *service.EventProcessor {

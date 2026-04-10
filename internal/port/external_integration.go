@@ -1,11 +1,16 @@
 package port
 
-import "context"
+import (
+	"context"
+
+	"github.com/rendis/senda/internal/domain"
+)
 
 // ExternalIntegrationRequest carries the request context for external
 // integration auth and workspace resolution flows.
 type ExternalIntegrationRequest struct {
 	ProfileSlug    string
+	Environment    domain.Environment
 	TenantCode     string
 	WorkspaceCodes []string
 	Token          string

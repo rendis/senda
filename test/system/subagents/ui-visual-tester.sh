@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd go
@@ -203,7 +204,7 @@ case_count=0
 
 echo -e "route\tscope\trole\tlocale\tviewport\tstatus\tnote\tscreenshot\ttrace" >"$CASE_RESULTS"
 
-while IFS=$'\t' read -r route critical; do
+while IFS=$'\t' read -r route _critical; do
   scope="$(route_scope "$route")"
   role="$(choose_role_for_route "$route" "$scope")"
   for locale in "${locales[@]}"; do
@@ -284,7 +285,7 @@ if [[ "$SYSTEM_MODE" == "pr" ]]; then
 fi
 
 log "ui-visual-tester: running visual diff"
-go run "$ROOT_DIR/cmd/systemtest" visual-diff \
+systemtest visual-diff \
   --actual-dir "$ACTUAL_DIR" \
   --golden-dir "$ROOT_DIR/test/system/baselines/golden" \
   --pencil-dir "$ROOT_DIR/test/system/baselines/pencil" \

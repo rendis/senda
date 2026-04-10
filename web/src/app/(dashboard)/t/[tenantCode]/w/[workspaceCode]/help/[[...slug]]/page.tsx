@@ -1,16 +1,20 @@
 import { HelpArticle } from "@/components/help/help-article";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
 
 export default async function WorkspaceHelpPage({
   params,
+  searchParams,
 }: {
   params: Promise<{
     tenantCode: string;
     workspaceCode: string;
     slug?: string[];
   }>;
+  searchParams: Promise<{ environment?: string }>;
 }) {
   const { tenantCode, workspaceCode, slug } = await params;
+  const { environment } = await searchParams;
   const scopeLabel =
     workspaceCode === SYSTEM_WORKSPACE_CODE ? tenantCode : workspaceCode;
 
@@ -18,7 +22,10 @@ export default async function WorkspaceHelpPage({
     <HelpArticle
       slug={slug}
       scopeLabel={scopeLabel}
-      basePath={`/t/${tenantCode}/w/${workspaceCode}/help`}
+      basePath={applyEnvironmentSearchParam(
+        `/t/${tenantCode}/w/${workspaceCode}/help`,
+        environment,
+      )}
       tenantCode={tenantCode}
       workspaceCode={workspaceCode}
     />

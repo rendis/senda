@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
@@ -24,8 +25,8 @@ const (
 
 	// ContextKeyWorkspaceID holds the uuid.UUID of the workspace (API key path only).
 	ContextKeyWorkspaceID = "workspace_id"
-
-	apiKeyPrefix = "senda_live_"
+	// ContextKeyEnvironment holds the normalized request environment when present.
+	ContextKeyEnvironment = "environment"
 )
 
 // Auth returns middleware that authenticates requests via API key or OIDC bearer token.
@@ -49,8 +50,8 @@ func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifi
 
 			ctx := c.Request().Context()
 
-			if strings.HasPrefix(token, apiKeyPrefix) {
-				return authenticateAPIKey(c, ctx, token, apiKeyStore, pepper, next)
+			if environment, ok := apiKeyEnvironment(token); ok {
+				return authenticateAPIKey(c, ctx, token, environment, apiKeyStore, pepper, next)
 			}
 
 			return authenticateOIDC(c, ctx, token, oidcVerifier, memberStore, next)
@@ -58,7 +59,7 @@ func Auth(apiKeyStore port.APIKeyStore, memberStore port.MemberStore, oidcVerifi
 	}
 }
 
-func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, store port.APIKeyStore, pepper string, next echo.HandlerFunc) error {
+func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, environment domain.Environment, store port.APIKeyStore, pepper string, next echo.HandlerFunc) error {
 	// Try HMAC-SHA256 hash first (new keys).
 	hash := service.HashKeyHMAC(token, pepper)
 	key, err := store.GetByHash(ctx, hash)
@@ -86,8 +87,18 @@ func authenticateAPIKey(c *echo.Context, ctx context.Context, token string, stor
 
 	c.Set(ContextKeyAuthType, "apikey")
 	c.Set(ContextKeyWorkspaceID, key.WorkspaceID)
+	c.Set(ContextKeyEnvironment, environment)
 
 	return next(c)
+}
+
+func apiKeyEnvironment(token string) (domain.Environment, bool) {
+	for _, environment := range domain.Environments() {
+		if strings.HasPrefix(token, environment.APIKeyTokenPrefix()) {
+			return environment, true
+		}
+	}
+	return "", false
 }
 
 func authenticateOIDC(c *echo.Context, ctx context.Context, token string, verifier port.OIDCVerifier, memberStore port.MemberStore, next echo.HandlerFunc) error {

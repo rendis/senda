@@ -52,6 +52,27 @@ func TestRouteSecurity(t *testing.T) {
 	}
 }
 
+func TestRouteParametersAddsExternalEnvironmentHeader(t *testing.T) {
+	t.Parallel()
+
+	got := routeParameters(Route{
+		Method:     "GET",
+		Path:       "/api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code/session",
+		Parameters: []string{"profile_slug", "tenant_code", "workspace_code"},
+	})
+
+	var found bool
+	for _, param := range got {
+		if param.Name == "X-Senda-Environment" && param.In == "header" && param.Required {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("routeParameters() did not include required X-Senda-Environment header: %#v", got)
+	}
+}
+
 func TestPatchSecuritySchemes(t *testing.T) {
 	t.Parallel()
 
@@ -73,8 +94,8 @@ func TestPatchSecuritySchemes(t *testing.T) {
 	}
 
 	data := doc.Components.SecuritySchemes["WorkspaceAPIKeyBearer"].Value
-	if data.Type != "http" || data.Scheme != "bearer" || data.BearerFormat != "senda_live" {
-		t.Fatalf("workspace API key scheme = %#v, want http bearer senda_live", data)
+	if data.Type != "http" || data.Scheme != "bearer" || data.BearerFormat != "senda_prod|senda_test" {
+		t.Fatalf("workspace API key scheme = %#v, want http bearer senda_prod|senda_test", data)
 	}
 }
 
@@ -104,12 +125,45 @@ func TestValidateRouteCoverage(t *testing.T) {
 	}
 }
 
+func TestRegisteredRoutesIncludesEnvironmentAndExternalSurfaces(t *testing.T) {
+	t.Parallel()
+
+	routes, err := RegisteredRoutes()
+	if err != nil {
+		t.Fatalf("RegisteredRoutes() error = %v", err)
+	}
+
+	wanted := map[string]bool{
+		"GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces":                                            false,
+		"POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/runtime/reset":           false,
+		"GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies":                 false,
+		"PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/policies":                 false,
+		"GET /api/v1/external/{profile_slug}/bootstrap":                                                                              false,
+		"GET /api/v1/external/{profile_slug}/environments/{environment}/bootstrap":                                                  false,
+		"GET /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/session":                            false,
+	}
+
+	for _, route := range routes {
+		key := route.Method + " " + NormalizeEchoPath(route.Path)
+		if _, ok := wanted[key]; ok {
+			wanted[key] = true
+		}
+	}
+
+	for key, found := range wanted {
+		if !found {
+			t.Fatalf("RegisteredRoutes() missing %s", key)
+		}
+	}
+}
+
 func TestGenerateSwagDocsContent(t *testing.T) {
 	t.Parallel()
 
 	content := GenerateSwagDocsContent([]Route{
 		{Method: "POST", Path: "/api/v1/send", Parameters: nil},
 		{Method: "GET", Path: "/api/v1/manage/tenants/:tenant_code", Parameters: []string{"tenant_code"}},
+		{Method: "GET", Path: "/api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code/session", Parameters: []string{"profile_slug", "tenant_code", "workspace_code"}},
 	})
 
 	for _, want := range []string{
@@ -119,6 +173,8 @@ func TestGenerateSwagDocsContent(t *testing.T) {
 		"@Router       /api/v1/manage/tenants/{tenant_code} [get]",
 		"@Param        tenant_code  path",
 		"@Security     ManagementBearer",
+		"@Router       /api/v1/external/{profile_slug}/tenants/{tenant_code}/workspaces/{workspace_code}/session [get]",
+		"@Param        X-Senda-Environment  header  string  true",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("generated docs missing %q\n%s", want, content)

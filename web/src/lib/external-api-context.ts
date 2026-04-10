@@ -1,7 +1,11 @@
+import { normalizeEnvironment } from "./environment-mode.ts";
+import type { Environment } from "../types/api.ts";
+
 export interface ScopedPathParams {
   profileSlug?: string;
   tenantCode?: string;
   workspaceCode?: string;
+  environment?: Environment;
 }
 
 export interface StorageLike {
@@ -15,6 +19,7 @@ export const EXTERNAL_EMBED_TOKEN_CHANGED_EVENT =
   "senda:external-embed-token-changed";
 export const EXTERNAL_EMBED_TOKEN_HEADER = "x-senda-external-token";
 export const EXTERNAL_TENANT_HEADER = "x-tenant-code";
+export const EXTERNAL_ENVIRONMENT_HEADER = "x-senda-environment";
 
 function normalizeSearchString(currentSearch: string): string {
   if (!currentSearch) {
@@ -49,14 +54,51 @@ function isExternalAPIRequest(requestURL: string): boolean {
 
 const FORWARDED_EXTERNAL_QUERY_PARAMS = new Set(["fallback", "readonly"]);
 
-function extractTenantCodeFromEmbedPath(currentPathname: string): string | null {
+interface ExternalEmbedPathContext {
+  profileSlug: string;
+  environment: Environment;
+  tenantCode: string | null;
+}
+
+function parseExternalEmbedPath(
+  currentPathname: string,
+): ExternalEmbedPathContext | null {
   const segments = currentPathname.split("/").filter(Boolean);
-  if (segments.length < 5 || segments[0] !== "embed" || segments[2] !== "t") {
+  if (segments.length < 4 || segments[0] !== "embed" || !segments[1]) {
     return null;
   }
 
-  const tenantCode = segments[3]?.trim();
-  return tenantCode || null;
+  let index = 2;
+  let environment: Environment = "prod";
+  if (segments[index] === "environments") {
+    environment = normalizeEnvironment(segments[index + 1]);
+    index += 2;
+  }
+
+  if (segments[index] !== "t") {
+    return {
+      profileSlug: segments[1],
+      environment,
+      tenantCode: null,
+    };
+  }
+
+  const tenantCode = segments[index + 1]?.trim() || null;
+  return {
+    profileSlug: segments[1],
+    environment,
+    tenantCode,
+  };
+}
+
+function extractTenantCodeFromEmbedPath(currentPathname: string): string | null {
+  return parseExternalEmbedPath(currentPathname)?.tenantCode ?? null;
+}
+
+export function extractEnvironmentFromEmbedPath(
+  currentPathname: string,
+): Environment {
+  return parseExternalEmbedPath(currentPathname)?.environment ?? "prod";
 }
 
 export function resolveScopedPathFromParams(params: ScopedPathParams): string {
@@ -65,7 +107,7 @@ export function resolveScopedPathFromParams(params: ScopedPathParams): string {
   }
 
   if (params.tenantCode && params.workspaceCode) {
-    return `manage/tenants/${params.tenantCode}/workspaces/${params.workspaceCode}`;
+    return `manage/environments/${normalizeEnvironment(params.environment)}/tenants/${params.tenantCode}/workspaces/${params.workspaceCode}`;
   }
 
   if (params.tenantCode) {
@@ -86,7 +128,7 @@ export function resolveWorkspacePoliciesPathFromParams(
     return `external/${params.profileSlug}/tenants/${params.tenantCode}/workspaces/${params.workspaceCode}/policies`;
   }
 
-  return `manage/tenants/${params.tenantCode}/workspaces/${params.workspaceCode}/policies`;
+  return `manage/environments/${normalizeEnvironment(params.environment)}/tenants/${params.tenantCode}/workspaces/${params.workspaceCode}/policies`;
 }
 
 export function isExternalEmbedPath(currentPathname: string): boolean {
@@ -194,6 +236,10 @@ export function buildExternalEmbedApiRequest(
   if (tenantCode) {
     headers.set(EXTERNAL_TENANT_HEADER, tenantCode);
   }
+  headers.set(
+    EXTERNAL_ENVIRONMENT_HEADER,
+    extractEnvironmentFromEmbedPath(currentPathname),
+  );
 
   const url = new URL(request.url);
   const current = externalEmbedURL(currentSearch);

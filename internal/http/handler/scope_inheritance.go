@@ -45,7 +45,7 @@ func resolveSystemWorkspace(ctx context.Context, current *domain.Workspace, wsSt
 		return current, nil
 	}
 
-	systemWorkspace, err := wsStore.GetSystemWorkspace(ctx, current.TenantID)
+	systemWorkspace, err := wsStore.GetSystemWorkspace(ctx, current.TenantID, current.Environment)
 	if err != nil {
 		if apperr.IsNotFound(err) || errors.Is(err, domain.ErrNotFound) {
 			return nil, nil

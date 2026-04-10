@@ -52,6 +52,7 @@ import {
   renderVideoBlockToMjml,
 } from "./video-block";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { getTemplateManagementState } from "@/lib/workspace-resource-policies";
 import {
   useTemplateVersion,
@@ -2525,7 +2526,10 @@ export function MjmlEditor({
       case "global":
         return `/global/templates/${slug}`;
       default:
-        return `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`;
+        return applyEnvironmentSearchParam(
+          `/t/${scope.tenantCode}/w/${scope.workspaceCode}/templates/${slug}`,
+          scope.environment,
+        );
     }
   }
 

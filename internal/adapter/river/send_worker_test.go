@@ -58,6 +58,7 @@ func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string)
 	}
 	return nil, domain.ErrNotFound
 }
+func (m *mockEmailStore) PurgeWorkspaceRuntime(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error {
 	m.updateStatusCalls = append(m.updateStatusCalls, updateStatusCall{ID: id, Status: newStatus})
 	if m.updateStatusFn != nil {
@@ -953,11 +954,11 @@ func TestSendWorker_ProcessingWithoutProviderID_Stale_FailsPermanently(t *testin
 	}
 }
 
-// TestSendWorker_ProcessingWithoutProviderID_Recent_CancelsJob verifies that
-// when the email is in Processing with no ProviderMessageID but was updated
-// recently (< 10 min), the worker defers to the possible concurrent worker by
-// returning JobCancel without marking the email failed.
-func TestSendWorker_ProcessingWithoutProviderID_Recent_CancelsJob(t *testing.T) {
+// TestSendWorker_ProcessingWithoutProviderID_Recent_ResumesDelivery verifies
+// that when the email is in Processing with no ProviderMessageID but was updated
+// recently (< 10 min), the worker resumes the delivery attempt after crash
+// recovery instead of cancelling the job permanently.
+func TestSendWorker_ProcessingWithoutProviderID_Recent_ResumesDelivery(t *testing.T) {
 	email := newTestEmail()
 	email.Status = domain.StatusProcessing
 	email.ProviderMessageID = nil
@@ -968,26 +969,34 @@ func TestSendWorker_ProcessingWithoutProviderID_Recent_CancelsJob(t *testing.T) 
 			return email, nil
 		},
 	}
-	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+	sender := &mockSender{
+		sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+			return "provider-msg-recovered", nil
+		},
+	}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender)
 
 	job := makeJob(SendJobArgs{TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
 
 	err := worker.Work(context.Background(), job)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if err != nil {
+		t.Fatalf("expected recovered processing email to resume successfully, got %v", err)
 	}
 
-	// Must be JobCancel.
-	var cancelErr *goriver.JobCancelError
-	if !errors.As(err, &cancelErr) {
-		t.Errorf("expected JobCancelError for recent processing email, got %T: %v", err, err)
+	if len(emailStore.updateStatusCalls) == 0 {
+		t.Fatal("expected status updates during resumed delivery")
 	}
-
-	// Email must NOT have been marked Failed — another worker may still own it.
+	foundSent := false
 	for _, call := range emailStore.updateStatusCalls {
-		if call.Status == domain.StatusFailed {
-			t.Error("email should NOT be marked failed when processing is recent (another worker may own it)")
+		if call.Status == domain.StatusSent {
+			foundSent = true
 		}
+		if call.Status == domain.StatusFailed {
+			t.Fatal("recovered processing email should not be marked failed")
+		}
+	}
+	if !foundSent {
+		t.Fatal("expected resumed delivery to mark email as sent")
 	}
 }
 

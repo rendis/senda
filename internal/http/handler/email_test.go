@@ -31,6 +31,7 @@ type mockEmailStore struct {
 	queryByRecipientFn    func(ctx context.Context, wsID uuid.UUID, email string, cursor string, limit int) ([]*domain.Email, string, error)
 	queryByWorkspaceFn    func(ctx context.Context, wsID uuid.UUID, filters port.EmailFilters, cursor string, limit int) ([]*domain.Email, string, error)
 	queryByExternalIDGlobalFn func(ctx context.Context, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
+	purgeWorkspaceFn      func(ctx context.Context, workspaceID uuid.UUID) error
 }
 
 func (m *mockEmailStore) Create(ctx context.Context, email *domain.Email) error {
@@ -48,6 +49,12 @@ func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string)
 		return m.getByTrackingIDFn(ctx, trackingID)
 	}
 	return nil, domain.ErrNotFound
+}
+func (m *mockEmailStore) PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error {
+	if m.purgeWorkspaceFn != nil {
+		return m.purgeWorkspaceFn(ctx, workspaceID)
+	}
+	return nil
 }
 func (m *mockEmailStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, _ domain.EmailStatus) error {
 	if m.updateStatusFn != nil {

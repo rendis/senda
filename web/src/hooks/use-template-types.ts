@@ -41,7 +41,14 @@ export function useUpdateTemplateType(scopedPath: string, slug: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name?: string; slug?: string; adapter_id?: string; sender_identity_id?: string }) =>
+    mutationFn: (data: {
+      name?: string;
+      slug?: string;
+      adapter_id?: string;
+      sender_identity_id?: string;
+      test_recipient_mode?: "" | "replace" | "append";
+      test_recipient_addresses?: string[];
+    }) =>
       api
         .put(`${scopedPath}/template-types/${slug}`, { json: data })
         .json<TemplateType>(),
@@ -81,7 +88,14 @@ export function useCreateTemplateType(scopedPath: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { slug: string; name: string; adapter_id?: string; sender_identity_id?: string }) =>
+    mutationFn: (data: {
+      slug: string;
+      name: string;
+      adapter_id?: string;
+      sender_identity_id?: string;
+      test_recipient_mode?: "" | "replace" | "append";
+      test_recipient_addresses?: string[];
+    }) =>
       api
         .post(`${scopedPath}/template-types`, { json: data })
         .json<TemplateType>(),

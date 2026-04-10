@@ -253,6 +253,39 @@ func TestTemplateRepo_GetTypeBySlug_NotFound(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_GetTypeByID_RoundTripsTestRecipientPolicy(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	mode := domain.TestRecipientModeReplace
+	tt := &domain.TemplateType{
+		ID:                     uuid.New(),
+		Slug:                   "policy-roundtrip",
+		Name:                   "Policy Roundtrip",
+		VariableSchema:         map[string]any{"type": "object"},
+		TestRecipientMode:      &mode,
+		TestRecipientAddresses: []string{"qa@example.com", "qa@example.com", "ops@example.com"},
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	got, err := repo.GetTypeByID(ctx, tt.ID)
+	if err != nil {
+		t.Fatalf("GetTypeByID() error: %v", err)
+	}
+	if got.TestRecipientMode == nil || *got.TestRecipientMode != mode {
+		t.Fatalf("expected test recipient mode %q, got %v", mode, got.TestRecipientMode)
+	}
+	if len(got.TestRecipientAddresses) != 2 {
+		t.Fatalf("expected normalized recipient addresses, got %v", got.TestRecipientAddresses)
+	}
+	if got.TestRecipientAddresses[0] != "qa@example.com" || got.TestRecipientAddresses[1] != "ops@example.com" {
+		t.Fatalf("unexpected recipient addresses: %v", got.TestRecipientAddresses)
+	}
+}
+
 func TestTemplateRepo_FindTypeBySlugInScope(t *testing.T) {
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)

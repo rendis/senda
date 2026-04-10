@@ -26,7 +26,7 @@ func TestTemplateTypeService_Create_Success(t *testing.T) {
 
 	wsID := uuid.Must(uuid.NewV7())
 	desc := "Welcome emails"
-	tt, err := svc.Create(context.Background(), "welcome-email", "Welcome Email", &desc, nil, nil, nil, &wsID)
+	tt, err := svc.Create(context.Background(), "welcome-email", "Welcome Email", &desc, nil, nil, nil, nil, nil, &wsID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestTemplateTypeService_Create_Global(t *testing.T) {
 
 	svc := service.NewTemplateTypeService(store)
 
-	tt, err := svc.Create(context.Background(), "password-reset", "Password Reset", nil, nil, nil, nil, nil)
+	tt, err := svc.Create(context.Background(), "password-reset", "Password Reset", nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestTemplateTypeService_Create_DuplicateSlug(t *testing.T) {
 
 	svc := service.NewTemplateTypeService(store)
 
-	_, err := svc.Create(context.Background(), "welcome-email", "Welcome", nil, nil, nil, nil, nil)
+	_, err := svc.Create(context.Background(), "welcome-email", "Welcome", nil, nil, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate slug")
 	}
@@ -100,7 +100,7 @@ func TestTemplateTypeService_Create_StoreError(t *testing.T) {
 
 	svc := service.NewTemplateTypeService(store)
 
-	_, err := svc.Create(context.Background(), "test-type", "Test", nil, nil, nil, nil, nil)
+	_, err := svc.Create(context.Background(), "test-type", "Test", nil, nil, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -124,7 +124,7 @@ func TestTemplateTypeService_Create_WithAdapterAndSchema(t *testing.T) {
 	adapterID := uuid.Must(uuid.NewV7())
 	schema := map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string"}}}
 
-	tt, err := svc.Create(context.Background(), "invoice", "Invoice", nil, &adapterID, nil, schema, nil)
+	tt, err := svc.Create(context.Background(), "invoice", "Invoice", nil, &adapterID, nil, schema, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

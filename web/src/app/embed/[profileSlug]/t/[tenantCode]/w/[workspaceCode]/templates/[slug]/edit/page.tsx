@@ -27,6 +27,8 @@ export default async function ExternalTemplateBuilderPage({
     level: "workspace",
     tenantCode,
     workspaceCode,
+    profileSlug,
+    environment: "prod",
   };
 
   const fallbackToSystem =

@@ -7,7 +7,7 @@ const root = process.cwd();
 
 test("tenant management frontend typechecks", () => {
   try {
-    execFileSync("npm", ["run", "typecheck"], {
+    execFileSync("corepack", ["pnpm", "typecheck"], {
       cwd: join(root, "web"),
       stdio: "pipe",
     });

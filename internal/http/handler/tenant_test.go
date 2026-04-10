@@ -70,9 +70,10 @@ func (m *mockTenantStore) Purge(_ context.Context, _ uuid.UUID) error { return n
 type mockWorkspaceStore struct {
 	createFn             func(ctx context.Context, ws *domain.Workspace) error
 	getByIDFn            func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
-	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
-	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
-	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error)
+	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
+	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error)
+	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error)
+	updateSharedFn       func(ctx context.Context, tenantID uuid.UUID, currentCode, nextCode, nextName string) error
 	updateFn             func(ctx context.Context, ws *domain.Workspace) error
 	softDeleteFn         func(ctx context.Context, id uuid.UUID) error
 }
@@ -83,33 +84,58 @@ func (m *mockWorkspaceStore) Create(ctx context.Context, ws *domain.Workspace) e
 	}
 	return nil
 }
+func (m *mockWorkspaceStore) CreateLogicalPair(ctx context.Context, prod *domain.Workspace, test *domain.Workspace) error {
+	if m.createFn != nil {
+		if err := m.createFn(ctx, prod); err != nil {
+			return err
+		}
+		return m.createFn(ctx, test)
+	}
+	return nil
+}
 func (m *mockWorkspaceStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+func (m *mockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getByTenantAndCodeFn != nil {
-		return m.getByTenantAndCodeFn(ctx, tenantID, code)
+		return m.getByTenantAndCodeFn(ctx, tenantID, code, environment)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStore) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+func (m *mockWorkspaceStore) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getSystemWorkspaceFn != nil {
-		return m.getSystemWorkspaceFn(ctx, tenantID)
+		return m.getSystemWorkspaceFn(ctx, tenantID, environment)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStore) ListByTenant(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStore) ListByTenant(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error) {
 	if m.listByTenantFn != nil {
-		return m.listByTenantFn(ctx, tenantID, opts)
+		return m.listByTenantFn(ctx, tenantID, environment, opts)
 	}
 	return nil, "", nil
+}
+func (m *mockWorkspaceStore) UpdateShared(ctx context.Context, tenantID uuid.UUID, currentCode, nextCode, nextName string) error {
+	if m.updateSharedFn != nil {
+		return m.updateSharedFn(ctx, tenantID, currentCode, nextCode, nextName)
+	}
+	return nil
 }
 func (m *mockWorkspaceStore) Update(ctx context.Context, ws *domain.Workspace) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, ws)
+	}
+	return nil
+}
+func (m *mockWorkspaceStore) SoftDeleteLogical(ctx context.Context, tenantID uuid.UUID, code string) error {
+	if m.getByTenantAndCodeFn != nil && m.softDeleteFn != nil {
+		ws, err := m.getByTenantAndCodeFn(ctx, tenantID, code, domain.EnvironmentProd)
+		if err != nil {
+			return err
+		}
+		return m.softDeleteFn(ctx, ws.ID)
 	}
 	return nil
 }
@@ -302,7 +328,7 @@ func TestTenantHandler_List_IncludesDeleteBlockedReasonForTenantWithSESAdapter(t
 		},
 	}
 	ws := &mockWorkspaceStore{
-		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 			if tenantID == tenantWithSES.ID {
 				return []*domain.Workspace{systemWS}, "", nil
 			}
@@ -521,7 +547,7 @@ func TestTenantHandler_SoftDelete_BlocksWhenTenantHasSESAdapter(t *testing.T) {
 		},
 	}
 	ws := &mockWorkspaceStore{
-		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 			if tenantID != tenant.ID {
 				t.Fatalf("expected tenant ID %s, got %s", tenant.ID, tenantID)
 			}
@@ -552,5 +578,76 @@ func TestTenantHandler_SoftDelete_BlocksWhenTenantHasSESAdapter(t *testing.T) {
 	}
 	if softDeleteCalled {
 		t.Fatal("expected tenant soft delete to be blocked")
+	}
+}
+
+func TestTenantHandler_SoftDelete_BlocksWhenTenantHasTestEnvironmentSESAdapter(t *testing.T) {
+	now := time.Now().UTC()
+	tenant := &domain.Tenant{ID: uuid.New(), Code: "acme", Name: "Acme Corp", CreatedAt: now, UpdatedAt: now}
+	testSystemWS := &domain.Workspace{
+		ID:          uuid.New(),
+		TenantID:    tenant.ID,
+		Code:        "_system",
+		Name:        "System",
+		IsSystem:    true,
+		Environment: domain.EnvironmentTest,
+	}
+
+	softDeleteCalled := false
+	ts := &mockTenantStore{
+		getByCodeFn: func(_ context.Context, _ string) (*domain.Tenant, error) {
+			return tenant, nil
+		},
+		softDeleteFn: func(_ context.Context, _ uuid.UUID) error {
+			softDeleteCalled = true
+			return nil
+		},
+	}
+
+	var listedEnvironments []domain.Environment
+	ws := &mockWorkspaceStore{
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, environment domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			if tenantID != tenant.ID {
+				t.Fatalf("expected tenant ID %s, got %s", tenant.ID, tenantID)
+			}
+			listedEnvironments = append(listedEnvironments, environment)
+			switch environment {
+			case domain.EnvironmentProd:
+				return nil, "", nil
+			case domain.EnvironmentTest:
+				return []*domain.Workspace{testSystemWS}, "", nil
+			default:
+				t.Fatalf("unexpected environment %s", environment)
+				return nil, "", nil
+			}
+		},
+	}
+	as := &mockAdapterStore{
+		listByWorkspaceFn: func(_ context.Context, workspaceID *uuid.UUID, _ port.ListOptions) (*port.PageResult[domain.Adapter], error) {
+			if workspaceID == nil || *workspaceID != testSystemWS.ID {
+				t.Fatalf("expected workspace ID %s", testSystemWS.ID)
+			}
+			return &port.PageResult[domain.Adapter]{
+				Items: []*domain.Adapter{
+					{ID: uuid.New(), Name: "SES Test", WorkspaceID: workspaceID, AdapterType: domain.AdapterTypeSES},
+				},
+			}, nil
+		},
+	}
+
+	e, _ := setupTenantTest(ts, ws, as)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if softDeleteCalled {
+		t.Fatal("expected tenant soft delete to be blocked by test-environment SES adapter")
+	}
+	if len(listedEnvironments) != 2 {
+		t.Fatalf("expected tenant delete scan to cover both environments, got %v", listedEnvironments)
 	}
 }

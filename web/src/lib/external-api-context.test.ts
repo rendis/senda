@@ -6,6 +6,7 @@ import {
   captureExternalEmbedTokenFromSearch,
   clearExternalEmbedToken,
   EXTERNAL_EMBED_TOKEN_HEADER,
+  EXTERNAL_ENVIRONMENT_HEADER,
   EXTERNAL_EMBED_TOKEN_STORAGE_KEY,
   EXTERNAL_TENANT_HEADER,
   isExternalEmbedPath,
@@ -51,7 +52,15 @@ test("resolveScopedPathFromParams keeps management paths for regular scopes", ()
       tenantCode: "acme",
       workspaceCode: "marketing",
     }),
-    "manage/tenants/acme/workspaces/marketing",
+    "manage/environments/prod/tenants/acme/workspaces/marketing",
+  );
+  assert.equal(
+    resolveScopedPathFromParams({
+      tenantCode: "acme",
+      workspaceCode: "marketing",
+      environment: "test",
+    }),
+    "manage/environments/test/tenants/acme/workspaces/marketing",
   );
   assert.equal(
     resolveScopedPathFromParams({ tenantCode: "acme" }),
@@ -77,7 +86,15 @@ test("resolveWorkspacePoliciesPathFromParams returns management path outside emb
       tenantCode: "acme",
       workspaceCode: "marketing",
     }),
-    "manage/tenants/acme/workspaces/marketing/policies",
+    "manage/environments/prod/tenants/acme/workspaces/marketing/policies",
+  );
+  assert.equal(
+    resolveWorkspacePoliciesPathFromParams({
+      tenantCode: "acme",
+      workspaceCode: "marketing",
+      environment: "test",
+    }),
+    "manage/environments/test/tenants/acme/workspaces/marketing/policies",
   );
   assert.equal(resolveWorkspacePoliciesPathFromParams({ tenantCode: "acme" }), null);
 });
@@ -135,7 +152,30 @@ test("buildExternalEmbedApiRequest adds the dedicated external headers for exter
   assert.ok(nextRequest);
   assert.equal(nextRequest?.headers.get(EXTERNAL_EMBED_TOKEN_HEADER), SIGNED_TOKEN);
   assert.equal(nextRequest?.headers.get(EXTERNAL_TENANT_HEADER), "acme");
+  assert.equal(nextRequest?.headers.get(EXTERNAL_ENVIRONMENT_HEADER), "prod");
   assert.equal(nextRequest?.headers.get("accept"), "application/json");
+});
+
+test("buildExternalEmbedApiRequest derives environment header from embed path", () => {
+  const storage = createStorage({ [EXTERNAL_EMBED_TOKEN_STORAGE_KEY]: SIGNED_TOKEN });
+  const request = new Request(
+    "https://senda.tether.education/api/v1/external/partner-portal/bootstrap",
+    {
+      headers: {
+        accept: "application/json",
+      },
+    },
+  );
+
+  const nextRequest = buildExternalEmbedApiRequest(
+    request,
+    "/embed/partner-portal/environments/test/t/acme/w/marketing/templates/newsletter/edit",
+    storage,
+  );
+
+  assert.ok(nextRequest);
+  assert.equal(nextRequest?.headers.get(EXTERNAL_ENVIRONMENT_HEADER), "test");
+  assert.equal(nextRequest?.headers.get(EXTERNAL_TENANT_HEADER), "acme");
 });
 
 
@@ -164,6 +204,7 @@ test("buildExternalEmbedApiRequest mutates POST requests in place when the URL d
   assert.equal(nextRequest, request);
   assert.equal(nextRequest?.headers.get(EXTERNAL_EMBED_TOKEN_HEADER), SIGNED_TOKEN);
   assert.equal(nextRequest?.headers.get(EXTERNAL_TENANT_HEADER), "acme");
+  assert.equal(nextRequest?.headers.get(EXTERNAL_ENVIRONMENT_HEADER), "prod");
   assert.equal(await nextRequest?.clone().text(), JSON.stringify({ mjml: "<mjml />" }));
 });
 

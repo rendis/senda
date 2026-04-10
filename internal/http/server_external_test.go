@@ -162,6 +162,24 @@ func TestServer_ExternalIntegrationSurface_BootstrapRemainsOutsideOIDC(t *testin
 	}
 }
 
+func TestServer_ExternalIntegrationSurface_EnvironmentBootstrapPath(t *testing.T) {
+	h := handler.NewExternalIntegrationHandler(&externalConfigStore{
+		getFn: func(context.Context) (*domain.GlobalConfig, error) {
+			return externalProfileConfig(), nil
+		},
+	}, []port.ExternalAuthMethod{&externalAuthMethod{name: "signed-headers"}}, []port.ExternalWorkspaceResolver{&externalResolver{name: "tenant-workspace-resolver"}})
+
+	srv := sendahttp.NewServer(testConfig(), testLogger(), sendahttp.WithExternalIntegrationHandler(h))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/environments/test/bootstrap", nil)
+	rec := httptest.NewRecorder()
+	srv.Echo().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestExternalIntegrationMiddleware_SuccessAndPathRewrite(t *testing.T) {
 	cfg := externalProfileConfig()
 	auth := &externalAuthMethod{
@@ -190,6 +208,7 @@ func TestExternalIntegrationMiddleware_SuccessAndPathRewrite(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -227,6 +246,7 @@ func TestExternalIntegrationMiddleware_AllowsPoliciesReadForBuilder(t *testing.T
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/policies", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -254,12 +274,13 @@ func TestExternalIntegrationMiddleware_DisabledProfile(t *testing.T) {
 func TestExternalIntegrationMiddleware_MissingRequiredHeader(t *testing.T) {
 	e := setupExternalRouteServer(externalProfileConfig(), &externalAuthMethod{name: "signed-headers"}, &externalResolver{name: "tenant-workspace-resolver"})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	req.Header.Set("X-Signature", "sig")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for missing required header, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 401 for missing X-Tenant-Code header, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -276,6 +297,7 @@ func TestExternalIntegrationMiddleware_AuthDenyAndError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -291,6 +313,7 @@ func TestExternalIntegrationMiddleware_AuthDenyAndError(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	rec = httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
@@ -310,6 +333,7 @@ func TestExternalIntegrationMiddleware_ResolverMismatch(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/other/template-types", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -344,6 +368,7 @@ func TestExternalIntegrationMiddleware_FallbackReadOnlyAllowsReadBlocksMutation(
 	readReq := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	readReq.Header.Set("X-Tenant-Code", "acme")
 	readReq.Header.Set("X-Signature", "sig")
+	readReq.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	readRec := httptest.NewRecorder()
 	e.ServeHTTP(readRec, readReq)
 	if readRec.Code != http.StatusOK {
@@ -361,6 +386,7 @@ func TestExternalIntegrationMiddleware_FallbackReadOnlyAllowsReadBlocksMutation(
 	mutReq := httptest.NewRequest(http.MethodPut, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/templates/t1/versions/v1", nil)
 	mutReq.Header.Set("X-Tenant-Code", "acme")
 	mutReq.Header.Set("X-Signature", "sig")
+	mutReq.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	mutRec := httptest.NewRecorder()
 	e.ServeHTTP(mutRec, mutReq)
 	if mutRec.Code != http.StatusForbidden {

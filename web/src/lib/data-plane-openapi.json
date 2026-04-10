@@ -947,8 +947,8 @@
       "WorkspaceAPIKeyBearer": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "senda_live",
-        "description": "Workspace-scoped API key sent as Authorization: Bearer senda_live_..."
+        "bearerFormat": "senda_prod|senda_test",
+        "description": "Workspace-scoped API key sent as Authorization: Bearer senda_prod_... or senda_test_..."
       }
     },
     "schemas": {

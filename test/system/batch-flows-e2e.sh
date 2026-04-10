@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$ROOT_DIR/artifacts/system/batch-flows-$(date -u +%Y%m%dT%H%M%SZ)}"
 BACKEND_PID_FILE="$ARTIFACT_DIR/backend.pid"
 BACKEND_LOG_FILE="$ARTIFACT_DIR/backend.log"
@@ -244,7 +244,8 @@ ensure_keycloak_user "$SUPERADMIN_EMAIL" "$SUPERADMIN_PASSWORD" "Superadmin" "Bo
 ensure_keycloak_user "$WORKSPACE_EDITOR_EMAIL" "$WORKSPACE_EDITOR_PASSWORD" "Workspace" "Editor"
 reset_test_database
 start_local_backend
-export SENDA_E2E_SUPERADMIN_TOKEN="$(issue_superadmin_token)"
+SENDA_E2E_SUPERADMIN_TOKEN="$(issue_superadmin_token)"
+export SENDA_E2E_SUPERADMIN_TOKEN
 if [[ -z "$SENDA_E2E_SUPERADMIN_TOKEN" || "$SENDA_E2E_SUPERADMIN_TOKEN" == "null" ]]; then
   echo "failed to issue static superadmin token for E2E" >&2
   exit 1

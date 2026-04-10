@@ -52,6 +52,7 @@ func (r *mockRow) Scan(dest ...any) error {
 // mockTx with configurable QueryRow for different test scenarios.
 type mockTx struct {
 	queryRowFn func(ctx context.Context, sql string, args ...any) pgx.Row
+	execFn     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 func (m *mockTx) Begin(_ context.Context) (pgx.Tx, error) { return &mockTx{}, nil }
@@ -65,7 +66,10 @@ func (m *mockTx) LargeObjects() pgx.LargeObjects                             { r
 func (m *mockTx) Prepare(_ context.Context, _, _ string) (*pgconn.StatementDescription, error) {
 	return nil, nil
 }
-func (m *mockTx) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+func (m *mockTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if m.execFn != nil {
+		return m.execFn(ctx, sql, args...)
+	}
 	return pgconn.NewCommandTag("SELECT 1"), nil
 }
 func (m *mockTx) Query(_ context.Context, _ string, _ ...any) (pgx.Rows, error) { return nil, nil }
@@ -204,9 +208,9 @@ func (m *mockTenantStoreOnboarding) Purge(ctx context.Context, id uuid.UUID) err
 type mockWorkspaceStoreOnboarding struct {
 	createFn             func(ctx context.Context, ws *domain.Workspace) error
 	getByIDFn            func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
-	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
-	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
-	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error)
+	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
+	getSystemWorkspaceFn func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error)
+	listByTenantFn       func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error)
 	updateFn             func(ctx context.Context, ws *domain.Workspace) error
 	softDeleteFn         func(ctx context.Context, id uuid.UUID) error
 }
@@ -217,34 +221,49 @@ func (m *mockWorkspaceStoreOnboarding) Create(ctx context.Context, ws *domain.Wo
 	}
 	return nil
 }
+func (m *mockWorkspaceStoreOnboarding) CreateLogicalPair(ctx context.Context, prod *domain.Workspace, test *domain.Workspace) error {
+	if m.createFn != nil {
+		if err := m.createFn(ctx, prod); err != nil {
+			return err
+		}
+		return m.createFn(ctx, test)
+	}
+	return nil
+}
 func (m *mockWorkspaceStoreOnboarding) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnboarding) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreOnboarding) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getByTenantAndCodeFn != nil {
-		return m.getByTenantAndCodeFn(ctx, tenantID, code)
+		return m.getByTenantAndCodeFn(ctx, tenantID, code, environment)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnboarding) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+func (m *mockWorkspaceStoreOnboarding) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getSystemWorkspaceFn != nil {
-		return m.getSystemWorkspaceFn(ctx, tenantID)
+		return m.getSystemWorkspaceFn(ctx, tenantID, environment)
 	}
 	return nil, nil
 }
-func (m *mockWorkspaceStoreOnboarding) ListByTenant(ctx context.Context, tenantID uuid.UUID, opts port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStoreOnboarding) ListByTenant(ctx context.Context, tenantID uuid.UUID, environment domain.Environment, opts port.ListOptions) ([]*domain.Workspace, string, error) {
 	if m.listByTenantFn != nil {
-		return m.listByTenantFn(ctx, tenantID, opts)
+		return m.listByTenantFn(ctx, tenantID, environment, opts)
 	}
 	return nil, "", nil
+}
+func (m *mockWorkspaceStoreOnboarding) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+	return nil
 }
 func (m *mockWorkspaceStoreOnboarding) Update(ctx context.Context, ws *domain.Workspace) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, ws)
 	}
+	return nil
+}
+func (m *mockWorkspaceStoreOnboarding) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
 	return nil
 }
 func (m *mockWorkspaceStoreOnboarding) SoftDelete(ctx context.Context, id uuid.UUID) error {
@@ -374,6 +393,47 @@ func TestOnboardingService_Setup_Success(t *testing.T) {
 	}
 	if result.Workspace.TenantID != result.Tenant.ID {
 		t.Fatal("expected workspace tenant_id to match tenant")
+	}
+}
+
+func TestOnboardingService_Setup_AuditInsertUsesCurrentSchemaColumns(t *testing.T) {
+	var auditInsertSQL string
+	tx := &mockTx{
+		execFn: func(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+			if strings.Contains(sql, "INSERT INTO audit_logs") {
+				auditInsertSQL = sql
+			}
+			return pgconn.NewCommandTag("SELECT 1"), nil
+		},
+	}
+
+	ms := &mockMemberStoreOnboarding{}
+	ts := &mockTenantStoreOnboarding{}
+	ws := &mockWorkspaceStoreOnboarding{}
+	as := &mockAuditLogStoreOnboarding{}
+
+	svc := service.NewOnboardingService(&mockTxBeginner{tx: tx}, ms, ts, ws, as)
+
+	req := &service.OnboardingRequest{
+		TenantCode: "acme",
+		TenantName: "Acme",
+	}
+	claims := &port.OIDCClaims{
+		Email:   "owner@example.com",
+		Subject: "oidc-owner",
+	}
+
+	if _, err := svc.Setup(context.Background(), claims, req); err != nil {
+		t.Fatalf("unexpected setup error: %v", err)
+	}
+	if auditInsertSQL == "" {
+		t.Fatal("expected onboarding setup to write an audit log")
+	}
+	if strings.Contains(auditInsertSQL, "actor_id") || strings.Contains(auditInsertSQL, "actor_email") || strings.Contains(auditInsertSQL, "entity_type") {
+		t.Fatalf("expected audit insert to use current schema columns, got %q", auditInsertSQL)
+	}
+	if !strings.Contains(auditInsertSQL, "member_id") || !strings.Contains(auditInsertSQL, "member_email") || !strings.Contains(auditInsertSQL, "resource_type") {
+		t.Fatalf("expected audit insert to reference member/resource columns, got %q", auditInsertSQL)
 	}
 }
 

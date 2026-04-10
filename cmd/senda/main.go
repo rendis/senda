@@ -18,7 +18,7 @@ import (
 // @securityDefinitions.apikey WorkspaceAPIKeyBearer
 // @in              header
 // @name            Authorization
-// @description     Workspace API key sent as `Authorization: Bearer senda_live_...`.
+// @description     Workspace API key sent as `Authorization: Bearer senda_prod_...` or `Authorization: Bearer senda_test_...`.
 func main() {
 	cfgPath := os.Getenv("SENDA_CONFIG")
 	if cfgPath == "" {

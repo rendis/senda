@@ -131,27 +131,36 @@ func (m *memberMockTenantStore) SoftDelete(_ context.Context, _ uuid.UUID) error
 func (m *memberMockTenantStore) Purge(_ context.Context, _ uuid.UUID) error       { return nil }
 
 type memberMockWorkspaceStore struct {
-	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error)
+	getByTenantAndCodeFn func(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error)
 }
 
 func (m *memberMockWorkspaceStore) Create(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *memberMockWorkspaceStore) CreateLogicalPair(_ context.Context, _ *domain.Workspace, _ *domain.Workspace) error {
+	return nil
+}
 func (m *memberMockWorkspaceStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *memberMockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string) (*domain.Workspace, error) {
+func (m *memberMockWorkspaceStore) GetByTenantAndCode(ctx context.Context, tenantID uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
 	if m.getByTenantAndCodeFn != nil {
-		return m.getByTenantAndCodeFn(ctx, tenantID, code)
+		return m.getByTenantAndCodeFn(ctx, tenantID, code, environment)
 	}
 	return nil, nil
 }
-func (m *memberMockWorkspaceStore) GetSystemWorkspace(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+func (m *memberMockWorkspaceStore) GetSystemWorkspace(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *memberMockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *memberMockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 	return nil, "", nil
 }
+func (m *memberMockWorkspaceStore) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+	return nil
+}
 func (m *memberMockWorkspaceStore) Update(_ context.Context, _ *domain.Workspace) error { return nil }
-func (m *memberMockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
+func (m *memberMockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+func (m *memberMockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
 func setupMemberTest(ms port.MemberStore, ts port.TenantStore, ws port.WorkspaceStore) *echo.Echo {
 	e := echo.New()
@@ -279,7 +288,7 @@ func TestMemberHandler_Create_WorkspaceScope_AssignsRole(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
 			}
@@ -362,7 +371,7 @@ func TestMemberHandler_Create_WorkspaceScope_RequiresRole(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tid != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
 			}
@@ -435,7 +444,7 @@ func TestMemberHandler_Create_ExistingEmail_ReusesIdentity(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code}, nil
 		},
 	}
@@ -462,6 +471,58 @@ func TestMemberHandler_Create_ExistingEmail_ReusesIdentity(t *testing.T) {
 	}
 	if addedRole.Role != domain.RoleWorkspaceAdmin {
 		t.Fatalf("expected workspace_admin role, got %s", addedRole.Role)
+	}
+}
+
+func TestMemberHandler_Create_GlobalExistingEmail_ReusesIdentity(t *testing.T) {
+	existingMemberID := uuid.New()
+	now := time.Now().UTC()
+	displayName := "Existing User"
+
+	createCalled := false
+	ms := &mockMemberStore{
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			return &domain.Member{
+				ID:          existingMemberID,
+				Email:       email,
+				DisplayName: &displayName,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}, nil
+		},
+		createFn: func(_ context.Context, _ *domain.Member) error {
+			createCalled = true
+			return nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	body := `{"email":"existing@example.com","display_name":"Duplicate Attempt"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/members", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if createCalled {
+		t.Fatal("expected Create NOT to be called for existing member")
+	}
+
+	var resp response.MemberWithRolesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.ID != existingMemberID.String() {
+		t.Fatalf("expected existing member id %s, got %s", existingMemberID, resp.ID)
+	}
+	if resp.DisplayName == nil || *resp.DisplayName != displayName {
+		t.Fatalf("expected existing display name %q, got %v", displayName, resp.DisplayName)
+	}
+	if len(resp.Roles) != 0 {
+		t.Fatalf("expected no roles on global reuse, got %d", len(resp.Roles))
 	}
 }
 
@@ -592,7 +653,7 @@ func TestMemberHandler_WorkspaceList_FiltersRoles(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tID != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tID)
 			}
@@ -684,7 +745,7 @@ func TestMemberHandler_WorkspaceAddRole_Success(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			if tID != tenantID {
 				t.Fatalf("expected tenant id %s, got %s", tenantID, tID)
 			}
@@ -737,7 +798,7 @@ func TestMemberHandler_WorkspaceGet_404OutsideScope(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code}, nil
 		},
 	}
@@ -776,7 +837,7 @@ func TestMemberHandler_WorkspaceRemoveRole_RequiresScope(t *testing.T) {
 		},
 	}
 	ws := &memberMockWorkspaceStore{
-		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string) (*domain.Workspace, error) {
+		getByTenantAndCodeFn: func(_ context.Context, tID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code}, nil
 		},
 	}

@@ -336,7 +336,7 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_BlocksRevokeWhenInU
 	}
 
 	wsStore := &mockWorkspaceStoreSend{
-		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 			if tenantID != systemWorkspace.TenantID {
 				return nil, "", errors.New("unexpected tenant lookup")
 			}
@@ -424,7 +424,7 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_RejectsDomainIdenti
 	}
 
 	wsStore := &mockWorkspaceStoreSend{
-		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 			if tenantID != systemWorkspace.TenantID {
 				return nil, "", errors.New("unexpected tenant lookup")
 			}
@@ -444,5 +444,165 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_RejectsDomainIdenti
 	err := svc.ReplaceIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID, []uuid.UUID{workspaceID})
 	if !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("expected ErrValidation for domain identity sharing, got %v", err)
+	}
+}
+
+func TestAdapterAccessService_ReplaceAdapterWorkspaceAccess_UsesSystemWorkspaceEnvironment(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{
+		ID:          systemWorkspaceID,
+		TenantID:    uuid.Must(uuid.NewV7()),
+		Code:        "_system",
+		IsSystem:    true,
+		Environment: domain.EnvironmentTest,
+	}
+	workspace := &domain.Workspace{
+		ID:          workspaceID,
+		TenantID:    systemWorkspace.TenantID,
+		Code:        "default",
+		Environment: domain.EnvironmentTest,
+	}
+
+	var listedEnvironment domain.Environment
+	var replacedTargets []uuid.UUID
+
+	wsStore := &mockWorkspaceStoreSend{
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, environment domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			if tenantID != systemWorkspace.TenantID {
+				return nil, "", errors.New("unexpected tenant lookup")
+			}
+			listedEnvironment = environment
+			return []*domain.Workspace{systemWorkspace, workspace}, "", nil
+		},
+	}
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWorkspaceID,
+				AdapterType: domain.AdapterTypeGmail,
+			}, nil
+		},
+	}
+	adapterGrants := &mockAdapterGrantStore{
+		replaceAdapterWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID, workspaceIDs []uuid.UUID) error {
+			if id != adapterID {
+				return errors.New("unexpected adapter id")
+			}
+			replacedTargets = append([]uuid.UUID(nil), workspaceIDs...)
+			return nil
+		},
+	}
+
+	svc := service.NewAdapterAccessService(
+		adapterStore,
+		&mockAdapterIdentityStoreSend{},
+		wsStore,
+		adapterGrants,
+		&mockIdentityGrantStore{},
+		&mockTemplateTypeUsageStore{},
+	)
+
+	if err := svc.ReplaceAdapterWorkspaceAccess(context.Background(), systemWorkspace, adapterID, []uuid.UUID{workspaceID}); err != nil {
+		t.Fatalf("expected replace grants to succeed, got %v", err)
+	}
+	if listedEnvironment != domain.EnvironmentTest {
+		t.Fatalf("expected workspace validation in test environment, got %s", listedEnvironment)
+	}
+	if len(replacedTargets) != 1 || replacedTargets[0] != workspaceID {
+		t.Fatalf("expected replace grants with workspace %s, got %v", workspaceID, replacedTargets)
+	}
+}
+
+func TestAdapterAccessService_ListIdentityWorkspaceAccess_UsesSystemWorkspaceEnvironment(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{
+		ID:          systemWorkspaceID,
+		TenantID:    uuid.Must(uuid.NewV7()),
+		Code:        "_system",
+		IsSystem:    true,
+		Environment: domain.EnvironmentTest,
+	}
+	workspace := &domain.Workspace{
+		ID:          workspaceID,
+		TenantID:    systemWorkspace.TenantID,
+		Code:        "default",
+		Name:        "Default",
+		Environment: domain.EnvironmentTest,
+	}
+
+	var listedEnvironment domain.Environment
+
+	wsStore := &mockWorkspaceStoreSend{
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, environment domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			if tenantID != systemWorkspace.TenantID {
+				return nil, "", errors.New("unexpected tenant lookup")
+			}
+			listedEnvironment = environment
+			return []*domain.Workspace{systemWorkspace, workspace}, "", nil
+		},
+	}
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWorkspaceID,
+				AdapterType: domain.AdapterTypeSES,
+			}, nil
+		},
+	}
+	identityStore := &mockAdapterIdentityStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+			if id != identityID {
+				return nil, domain.ErrIdentityNotFound
+			}
+			return &domain.AdapterIdentity{
+				ID:           identityID,
+				AdapterID:    adapterID,
+				Identity:     "a@example.dev",
+				IdentityType: domain.IdentityTypeEmail,
+			}, nil
+		},
+	}
+	identityGrants := &mockIdentityGrantStore{
+		listIdentityWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+			if id != identityID {
+				return nil, errors.New("unexpected identity id")
+			}
+			return []uuid.UUID{workspaceID}, nil
+		},
+	}
+
+	svc := service.NewAdapterAccessService(
+		adapterStore,
+		identityStore,
+		wsStore,
+		&mockAdapterGrantStore{},
+		identityGrants,
+		&mockTemplateTypeUsageStore{},
+	)
+
+	grants, err := svc.ListIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID)
+	if err != nil {
+		t.Fatalf("expected list grants to succeed, got %v", err)
+	}
+	if listedEnvironment != domain.EnvironmentTest {
+		t.Fatalf("expected grant listing in test environment, got %s", listedEnvironment)
+	}
+	if len(grants) != 1 || grants[0].Workspace.ID != workspaceID || !grants[0].Granted {
+		t.Fatalf("expected granted workspace %s, got %+v", workspaceID, grants)
 	}
 }

@@ -18,23 +18,30 @@ import (
 
 type mockWorkspaceStore struct {
 	getByID            func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
-	getSystemWorkspace func(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error)
+	getSystemWorkspace func(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error)
 }
 
 func (m *mockWorkspaceStore) Create(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) CreateLogicalPair(_ context.Context, _ *domain.Workspace, _ *domain.Workspace) error {
+	return nil
+}
 func (m *mockWorkspaceStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
 	return m.getByID(ctx, id)
 }
-func (m *mockWorkspaceStore) GetByTenantAndCode(_ context.Context, _ uuid.UUID, _ string) (*domain.Workspace, error) {
+func (m *mockWorkspaceStore) GetByTenantAndCode(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
 	return nil, nil
 }
-func (m *mockWorkspaceStore) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
-	return m.getSystemWorkspace(ctx, tenantID)
+func (m *mockWorkspaceStore) GetSystemWorkspace(ctx context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error) {
+	return m.getSystemWorkspace(ctx, tenantID, environment)
 }
-func (m *mockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+func (m *mockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 	return nil, "", nil
 }
+func (m *mockWorkspaceStore) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
 func (m *mockWorkspaceStore) Update(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
 func (m *mockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
 
 // --- Mock Cache ---
@@ -86,7 +93,7 @@ func TestChainResolver_RegularWorkspace(t *testing.T) {
 
 	store := &mockWorkspaceStore{
 		getByID:            func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) { return ws, nil },
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return sysWS, nil },
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) { return sysWS, nil },
 	}
 	cache := newMockCache()
 	resolver := resolution.NewChainResolver(store, cache)
@@ -126,7 +133,7 @@ func TestChainResolver_SystemWorkspace(t *testing.T) {
 
 	store := &mockWorkspaceStore{
 		getByID: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return sysWS, nil },
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			t.Error("GetSystemWorkspace should not be called for system workspace")
 			return nil, nil
 		},
@@ -176,7 +183,7 @@ func TestChainResolver_CacheHit(t *testing.T) {
 			storeCalled = true
 			return nil, errors.New("should not be called")
 		},
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			storeCalled = true
 			return nil, errors.New("should not be called")
 		},
@@ -203,7 +210,7 @@ func TestChainResolver_WorkspaceNotFound(t *testing.T) {
 		getByID: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
 			return nil, apperr.NotFound("workspace not found")
 		},
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			return nil, nil
 		},
 	}
@@ -227,7 +234,7 @@ func TestChainResolver_SystemWorkspaceNotFound(t *testing.T) {
 
 	store := &mockWorkspaceStore{
 		getByID: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return ws, nil },
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) {
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 			return nil, apperr.NotFound("system workspace not found")
 		},
 	}
@@ -254,7 +261,7 @@ func TestChainResolver_CacheSetFailureStillReturns(t *testing.T) {
 
 	store := &mockWorkspaceStore{
 		getByID:            func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return ws, nil },
-		getSystemWorkspace: func(_ context.Context, _ uuid.UUID) (*domain.Workspace, error) { return sysWS, nil },
+		getSystemWorkspace: func(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) { return sysWS, nil },
 	}
 	cache := newMockCache()
 	cache.setErr = errors.New("cache write failed")

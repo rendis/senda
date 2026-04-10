@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=test/system/subagents/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd agent-browser
@@ -18,6 +19,7 @@ SCREENSHOT_DIR="$ARTIFACT_DIR/ui-workspace-management"
 
 TENANT_CODE="${TENANT_CODE:-${SYSTEM_TENANT_CODE:-test-corp}}"
 SYSTEM_WORKSPACE_CODE_UI="_system"
+SYSTEM_WORKSPACE_DISPLAY_LABEL="Default"
 FIXTURE_SUFFIX="$(basename "$ARTIFACT_DIR" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | cut -c1-10)"
 FIXTURE_CODE="${WORKSPACE_UI_FIXTURE_CODE:-ui-ws-${FIXTURE_SUFFIX}}"
 FIXTURE_NAME="${WORKSPACE_UI_FIXTURE_NAME:-Workspace UI Fixture}"
@@ -68,7 +70,7 @@ start_frontend_dev() {
 management_api_token() {
   if [[ -z "${MANAGEMENT_API_TOKEN:-}" ]]; then
     MANAGEMENT_API_TOKEN="$(
-      go run "$ROOT_DIR/cmd/systemtest" token \
+      systemtest token \
         --email "$SUPERADMIN_EMAIL" \
         --secret "$SENDA_E2E_JWT_SECRET" \
         | tail -n1
@@ -212,6 +214,20 @@ wait_for_url() {
     sleep 0.25
   done
   echo "timed out waiting for url: $expected" >&2
+  return 1
+}
+
+wait_for_url_prefix() {
+  local expected_prefix="$1"
+  for _ in $(seq 1 60); do
+    local current
+    current="$(ab_json get url | jq -r '.data.url // ""')"
+    if [[ "$current" == "$expected_prefix"* ]]; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "timed out waiting for url prefix: $expected_prefix" >&2
   return 1
 }
 
@@ -372,16 +388,16 @@ wait_for_text "Workspaces"
 ab screenshot "$SCREENSHOT_DIR/01-scope-switcher-manage.png" >/dev/null
 
 wait_for_text "Create Workspace"
-wait_for_text "$SYSTEM_WORKSPACE_CODE_UI"
+wait_for_text "$SYSTEM_WORKSPACE_DISPLAY_LABEL"
 wait_for_eval_true "(() => {
-  const edit = document.querySelector('button[aria-label=\"Edit workspace ${SYSTEM_WORKSPACE_CODE_UI}\"]');
-  const del = document.querySelector('button[aria-label=\"Delete workspace ${SYSTEM_WORKSPACE_CODE_UI}\"]');
+  const edit = document.querySelector('button[aria-label=\"Edit workspace ${SYSTEM_WORKSPACE_DISPLAY_LABEL}\"]');
+  const del = document.querySelector('button[aria-label=\"Delete workspace ${SYSTEM_WORKSPACE_DISPLAY_LABEL}\"]');
   return !!edit && !!del && edit.disabled === true && del.disabled === true;
 })()"
 ab screenshot "$SCREENSHOT_DIR/02-overview.png" >/dev/null
 
-click_row_by_code "$SYSTEM_WORKSPACE_CODE_UI"
-wait_for_url "$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${SYSTEM_WORKSPACE_CODE_UI}"
+click_row_by_code "$SYSTEM_WORKSPACE_DISPLAY_LABEL"
+wait_for_url_prefix "$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${SYSTEM_WORKSPACE_CODE_UI}"
 ab screenshot "$SCREENSHOT_DIR/03-system-workspace-scope.png" >/dev/null
 
 ab open "$WORKSPACES_URL" >/dev/null
@@ -431,7 +447,7 @@ wait_for_eval_true "(() => Array.from(document.querySelectorAll('tbody tr')).som
 }))()"
 
 click_row_by_code "$FIXTURE_CODE"
-wait_for_url "$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${FIXTURE_CODE}"
+wait_for_url_prefix "$FRONTEND_BASE_URL/t/${TENANT_CODE}/w/${FIXTURE_CODE}"
 ab screenshot "$SCREENSHOT_DIR/09-workspace-scope.png" >/dev/null
 
 ab open "$WORKSPACES_URL" >/dev/null

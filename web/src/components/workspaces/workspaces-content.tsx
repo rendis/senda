@@ -45,7 +45,9 @@ import {
   useWorkspacesManagement,
 } from "@/hooks/use-workspaces-mgmt";
 import { useScope } from "@/hooks/use-scope";
+import { applyEnvironmentSearchParam } from "@/lib/environment-mode";
 import { parseApiError } from "@/lib/api";
+import { formatWorkspaceTestRecipientAddresses } from "@/lib/workspace-test-recipient-addresses";
 import { formatDate } from "@/lib/utils";
 import {
   generateSlug,
@@ -62,6 +64,8 @@ const createWorkspaceSchema = z.object({
 const editWorkspaceSchema = z.object({
   name: nameSchema,
   status: z.enum(["active", "disabled"]),
+  test_recipient_mode: z.enum(["replace", "append"]).optional(),
+  test_recipient_addresses: z.string().optional(),
 });
 
 type CreateWorkspaceFormValues = z.infer<typeof createWorkspaceSchema>;
@@ -71,8 +75,29 @@ type WorkspaceToggleTarget = {
   nextActive: boolean;
 };
 
+const emailAddressSchema = z.email("Enter a valid email address");
+
 function formatCompactDate(value: string): string {
   return formatDate(value).replace(",", "");
+}
+
+function parseRecipientAddressesInput(value: string): {
+  addresses: string[];
+  invalid: string[];
+} {
+  const parts = value
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const invalid = parts.filter(
+    (item) => !emailAddressSchema.safeParse(item).success,
+  );
+
+  return {
+    addresses: Array.from(new Set(parts)),
+    invalid,
+  };
 }
 
 async function applyCreateWorkspaceErrors(
@@ -107,6 +132,9 @@ async function applyEditWorkspaceErrors(
       if (detail.field === "name") {
         setError("name", { message: detail.message });
       }
+      if (detail.field === "test_recipient_addresses") {
+        setError("test_recipient_addresses", { message: detail.message });
+      }
     }
     return;
   }
@@ -118,6 +146,7 @@ export function WorkspacesContent() {
   const router = useRouter();
   const scope = useScope();
   const tenantCode = scope.tenantCode;
+  const environment = scope.environment ?? "prod";
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -137,9 +166,9 @@ export function WorkspacesContent() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useWorkspacesManagement(tenantCode ?? "", search);
+  } = useWorkspacesManagement(tenantCode ?? "", search, environment);
   const createWorkspace = useCreateWorkspace(tenantCode ?? "");
-  const updateWorkspace = useUpdateWorkspace(tenantCode ?? "");
+  const updateWorkspace = useUpdateWorkspace(tenantCode ?? "", environment);
   const deleteWorkspace = useDeleteWorkspace(tenantCode ?? "");
 
   useEffect(() => {
@@ -397,10 +426,21 @@ export function WorkspacesContent() {
           />
         </div>
 
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Workspace
-        </Button>
+        <div className="flex items-center gap-3">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] ${
+              environment === "prod"
+                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                : "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            }`}
+          >
+            {environment}
+          </span>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Workspace
+          </Button>
+        </div>
       </div>
 
       <DataTable
@@ -410,7 +450,14 @@ export function WorkspacesContent() {
         hasMore={hasNextPage}
         onLoadMore={() => fetchNextPage()}
         loadingMore={isFetchingNextPage}
-        onRowClick={(workspace) => router.push(`/t/${tenantCode}/w/${workspace.code}`)}
+        onRowClick={(workspace) =>
+          router.push(
+            applyEnvironmentSearchParam(
+              `/t/${tenantCode}/w/${workspace.code}`,
+              environment,
+            ),
+          )
+        }
         emptyState={
           <EmptyState
             icon={Layers}
@@ -443,6 +490,7 @@ export function WorkspacesContent() {
           onOpenChange={(open) => {
             if (!open) setEditTarget(null);
           }}
+          environment={environment}
           onUpdateWorkspace={handleUpdateWorkspace}
         />
       )}
@@ -592,11 +640,13 @@ function EditWorkspaceDialog({
   workspace,
   open,
   onOpenChange,
+  environment,
   onUpdateWorkspace,
 }: {
   workspace: Workspace;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  environment: "prod" | "test";
   onUpdateWorkspace: (
     workspaceCode: string,
     data: UpdateWorkspaceInput,
@@ -607,14 +657,26 @@ function EditWorkspaceDialog({
     defaultValues: {
       name: workspace.name,
       status: workspace.is_active ? "active" : "disabled",
+      test_recipient_mode: workspace.test_recipient_mode,
+      test_recipient_addresses: formatWorkspaceTestRecipientAddresses(
+        workspace.test_recipient_addresses,
+      ),
     },
   });
   const watchedStatus = useWatch({ control: form.control, name: "status" });
+  const watchedTestRecipientMode = useWatch({
+    control: form.control,
+    name: "test_recipient_mode",
+  });
 
   useEffect(() => {
     form.reset({
       name: workspace.name,
       status: workspace.is_active ? "active" : "disabled",
+      test_recipient_mode: workspace.test_recipient_mode,
+      test_recipient_addresses: formatWorkspaceTestRecipientAddresses(
+        workspace.test_recipient_addresses,
+      ),
     });
   }, [form, workspace]);
 
@@ -624,10 +686,34 @@ function EditWorkspaceDialog({
     await form.handleSubmit(
       async (values) => {
         try {
-          await onUpdateWorkspace(workspace.code, {
+          const update: UpdateWorkspaceInput = {
             name: values.name,
             is_active: values.status === "active",
-          });
+          };
+
+          if (environment === "test") {
+            const parsed = parseRecipientAddressesInput(
+              values.test_recipient_addresses ?? "",
+            );
+            if (parsed.invalid.length > 0) {
+              form.setError("test_recipient_addresses", {
+                message: `Invalid addresses: ${parsed.invalid.join(", ")}`,
+              });
+              keepOpen = true;
+              return;
+            }
+            if (parsed.addresses.length === 0) {
+              form.setError("test_recipient_addresses", {
+                message: "At least one safe recipient is required in test mode.",
+              });
+              keepOpen = true;
+              return;
+            }
+            update.test_recipient_mode = values.test_recipient_mode ?? "replace";
+            update.test_recipient_addresses = parsed.addresses;
+          }
+
+          await onUpdateWorkspace(workspace.code, update);
         } catch (error) {
           keepOpen = true;
           await applyEditWorkspaceErrors(error, form.setError);
@@ -702,6 +788,71 @@ function EditWorkspaceDialog({
             </p>
           )}
         </div>
+
+        {environment === "test" ? (
+          <>
+            <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+              Test mode never sends to real recipients directly. Configure the safe recipients used for this environment.
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[13px] font-medium">
+                Test recipient mode
+              </Label>
+              <Select
+                value={watchedTestRecipientMode ?? "replace"}
+                onValueChange={(value) =>
+                  form.setValue(
+                    "test_recipient_mode",
+                    value as EditWorkspaceFormValues["test_recipient_mode"],
+                    { shouldValidate: true },
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="replace">Replace recipients</SelectItem>
+                  <SelectItem value="append">Append safe recipients</SelectItem>
+                </SelectContent>
+              </Select>
+              {watchedTestRecipientMode === "append" ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Warning: append keeps the original recipients and adds the safe list.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Replace is the recommended default for test workspaces.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="edit-workspace-test-recipients"
+                className="text-[13px] font-medium"
+              >
+                Safe recipients
+              </Label>
+              <textarea
+                id="edit-workspace-test-recipients"
+                rows={4}
+                placeholder={"qa@example.com\napprover@example.com"}
+                {...form.register("test_recipient_addresses")}
+                className="flex min-h-[96px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none ring-ring/10 transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-4"
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate addresses with new lines, commas, or semicolons.
+              </p>
+              {form.formState.errors.test_recipient_addresses && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.test_recipient_addresses.message}
+                </p>
+              )}
+            </div>
+          </>
+        ) : null}
       </div>
     </FormDialog>
   );

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/sdk"
 )
 
@@ -91,7 +92,7 @@ func TestEngineFluentAPI(t *testing.T) {
 }
 
 func TestInjectorContext_NilHeaders(t *testing.T) {
-	ctx := sdk.NewInjectorContext(nil, "", nil, [16]byte{}, [16]byte{}, "")
+	ctx := sdk.NewInjectorContext(nil, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
 
 	// Should not panic.
 	if got := ctx.Header("X-Anything"); got != "" {
@@ -106,7 +107,7 @@ func TestInjectorContext_NilHeaders(t *testing.T) {
 
 func TestInjectorContext_HeadersCopy(t *testing.T) {
 	original := map[string]string{"Key": "value"}
-	ctx := sdk.NewInjectorContext(original, "", nil, [16]byte{}, [16]byte{}, "")
+	ctx := sdk.NewInjectorContext(original, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
 
 	// Modify the returned copy.
 	copy := ctx.Headers()
@@ -123,7 +124,7 @@ func TestInjectorContext_HeadersCopy(t *testing.T) {
 }
 
 func TestInjectorContext_Concurrency(t *testing.T) {
-	ctx := sdk.NewInjectorContext(nil, "ref", nil, [16]byte{1}, [16]byte{2}, "type")
+	ctx := sdk.NewInjectorContext(nil, "ref", nil, [16]byte{1}, [16]byte{2}, domain.EnvironmentProd, "type")
 
 	done := make(chan struct{})
 	go func() {
@@ -148,6 +149,7 @@ func TestInjectorContext(t *testing.T) {
 		"tenant:workspace:welcome",
 		map[string]any{"name": "Jane"},
 		[16]byte{1}, [16]byte{2},
+		domain.EnvironmentProd,
 		"welcome",
 	)
 
@@ -166,6 +168,9 @@ func TestInjectorContext(t *testing.T) {
 
 	if got := ctx.TemplateType(); got != "welcome" {
 		t.Errorf("TemplateType() = %q, want %q", got, "welcome")
+	}
+	if got := ctx.Environment(); got != domain.EnvironmentProd {
+		t.Errorf("Environment() = %q, want %q", got, domain.EnvironmentProd)
 	}
 
 	// InitData starts nil.
