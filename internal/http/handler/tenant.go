@@ -68,14 +68,18 @@ func (h *TenantHandler) Create(c *echo.Context) error {
 
 	// Create the _system workspace for the new tenant.
 	sysWS := &domain.Workspace{
-		ID:        uuid.Must(uuid.NewV7()),
-		TenantID:  tenant.ID,
-		Code:      "_system",
-		Name:      "System",
-		IsSystem:  true,
-		IsActive:  true,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:                                   uuid.Must(uuid.NewV7()),
+		TenantID:                             tenant.ID,
+		Code:                                 "_system",
+		Name:                                 "System",
+		IsSystem:                             true,
+		IsActive:                             true,
+		AllowWorkspaceLocalTemplates:         true,
+		AllowWorkspaceInheritedTemplateForks: true,
+		AllowWorkspaceLocalInjectors:         true,
+		WorkspacePoliciesInitialized:         true,
+		CreatedAt:                            now,
+		UpdatedAt:                            now,
 	}
 	if err := h.wsStore.Create(ctx, sysWS); err != nil {
 		return mapStoreError(c, err)

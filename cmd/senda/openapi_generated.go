@@ -2544,6 +2544,28 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templa
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/enable [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_enable() {}
 
+// doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_fork auto-generated route documentation.
+// @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/fork [post]
+func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_fork() {}
+
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.

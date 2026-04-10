@@ -16,6 +16,7 @@ import (
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 type resolvedTemplateInvalidator interface {
@@ -83,6 +84,15 @@ func (h *TemplateHandler) CreateTemplate(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
+	if !ws.IsSystem {
+		systemWorkspace, err := resolveSystemWorkspace(c.Request().Context(), ws, h.wsStore)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !effectiveWorkspacePolicies(systemWorkspace).AllowWorkspaceLocalTemplates {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_TEMPLATES_DISABLED", "workspace local templates are disabled by tenant policy")
+		}
+	}
 
 	return h.createTemplate(c, &ws.ID)
 }
@@ -126,7 +136,7 @@ func (h *TemplateHandler) ListByTemplateType(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.listByTemplateType(c, &ws.ID)
+	return h.listByTemplateType(c, ws)
 }
 
 // ListByTemplateTypeGlobal handles GET /global/template-types/:slug/templates.
@@ -134,30 +144,57 @@ func (h *TemplateHandler) ListByTemplateTypeGlobal(c *echo.Context) error {
 	return h.listByTemplateType(c, nil)
 }
 
-func (h *TemplateHandler) listByTemplateType(c *echo.Context, wsID *uuid.UUID) error {
+func (h *TemplateHandler) listByTemplateType(c *echo.Context, workspace *domain.Workspace) error {
 	slugParam := c.Param("slug")
+	ctx := c.Request().Context()
 
-	tt, err := h.store.FindTypeBySlugInScope(c.Request().Context(), slugParam, wsID)
+	if workspace == nil {
+		tt, err := h.store.FindTypeBySlugInScope(ctx, slugParam, nil)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+
+		opts := pagination.ParseListOptions(c)
+		templates, nextCursor, err := h.svc.ListByType(ctx, tt.ID, nil, opts)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+
+		items := make([]response.TemplateResponse, len(templates))
+		for i, tpl := range templates {
+			items[i] = response.NewTemplateResponse(tpl)
+		}
+
+		return c.JSON(http.StatusOK, response.TemplateListResponse{
+			Items:      items,
+			NextCursor: nextCursor,
+			HasMore:    nextCursor != "",
+		})
+	}
+
+	chain, systemWorkspace, err := workspaceResolutionChain(ctx, workspace, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	opts := pagination.ParseListOptions(c)
-
-	templates, nextCursor, err := h.svc.ListByType(c.Request().Context(), tt.ID, wsID, opts)
+	tt, err := h.store.GetTypeBySlug(ctx, slugParam, chain)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
+	annotateTemplateTypeScope(tt, workspace, systemWorkspace)
 
-	items := make([]response.TemplateResponse, len(templates))
-	for i, tpl := range templates {
-		items[i] = response.NewTemplateResponse(tpl)
+	tpl, err := h.store.ResolveTemplate(ctx, tt.ID, chain)
+	if err != nil {
+		if errors.Is(err, domain.ErrTemplateNotFound) || errors.Is(err, domain.ErrNotFound) || apperr.IsNotFound(err) {
+			return c.JSON(http.StatusOK, response.TemplateListResponse{Items: []response.TemplateResponse{}, HasMore: false})
+		}
+		return mapStoreError(c, err)
 	}
+	annotateTemplateScope(tpl, workspace, systemWorkspace)
 
 	return c.JSON(http.StatusOK, response.TemplateListResponse{
-		Items:      items,
-		NextCursor: nextCursor,
-		HasMore:    nextCursor != "",
+		Items:   []response.TemplateResponse{response.NewTemplateResponse(tpl)},
+		HasMore: false,
 	})
 }
 
@@ -167,7 +204,7 @@ func (h *TemplateHandler) DisableTemplate(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.setTemplateDisabled(c, &ws.ID, true)
+	return h.setTemplateDisabled(c, ws, true)
 }
 
 // EnableTemplate handles POST .../templates/:template_id/enable.
@@ -176,7 +213,7 @@ func (h *TemplateHandler) EnableTemplate(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.setTemplateDisabled(c, &ws.ID, false)
+	return h.setTemplateDisabled(c, ws, false)
 }
 
 // DisableTemplateGlobal handles POST /global/templates/:template_id/disable.
@@ -189,10 +226,28 @@ func (h *TemplateHandler) EnableTemplateGlobal(c *echo.Context) error {
 	return h.setTemplateDisabled(c, nil, false)
 }
 
-func (h *TemplateHandler) setTemplateDisabled(c *echo.Context, wsID *uuid.UUID, disabled bool) error {
+func (h *TemplateHandler) setTemplateDisabled(c *echo.Context, workspace *domain.Workspace, disabled bool) error {
 	templateID, err := uuid.Parse(c.Param("template_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	var wsID *uuid.UUID
+	if workspace != nil {
+		wsID = &workspace.ID
+		tpl, _, policies, err := h.loadWorkspaceTemplateAccess(c.Request().Context(), workspace, templateID)
+		if err != nil {
+			return mapTemplateError(c, err)
+		}
+		if tpl.IsFork {
+			if !policies.AllowWorkspaceInheritedTemplateForks {
+				return writePolicyForbidden(c, "WORKSPACE_INHERITED_TEMPLATE_FORKS_DISABLED", "workspace inherited template forks are disabled by tenant policy")
+			}
+		} else {
+			if !policies.AllowWorkspaceLocalTemplates {
+				return writePolicyForbidden(c, "WORKSPACE_LOCAL_TEMPLATES_DISABLED", "workspace local templates are disabled by tenant policy")
+			}
+		}
 	}
 
 	if disabled {
@@ -237,6 +292,18 @@ func (h *TemplateHandler) GetVersion(c *echo.Context) error {
 
 // UpdateVersion handles PUT .../templates/:template_id/versions/:version_id.
 func (h *TemplateHandler) UpdateVersion(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -254,6 +321,9 @@ func (h *TemplateHandler) UpdateVersion(c *echo.Context) error {
 
 	if ver.Status != domain.VersionStatusDraft {
 		return response.WriteError(c, http.StatusConflict, "CONFLICT", "only draft versions can be updated")
+	}
+	if ver.TemplateID != templateID {
+		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
 	}
 
 	if req.Subject != "" {
@@ -510,9 +580,26 @@ func mapTestSendError(c *echo.Context, err error) error {
 
 // DeleteTemplate handles DELETE .../templates/:template_id.
 func (h *TemplateHandler) DeleteTemplate(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
 	templateID, err := uuid.Parse(c.Param("template_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	tpl, _, policies, err := h.loadWorkspaceTemplateAccess(c.Request().Context(), ws, templateID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+	if tpl.IsFork {
+		if !policies.AllowWorkspaceInheritedTemplateForks {
+			return writePolicyForbidden(c, "WORKSPACE_INHERITED_TEMPLATE_FORKS_DISABLED", "workspace inherited template forks are disabled by tenant policy")
+		}
+	} else {
+		if !policies.AllowWorkspaceLocalTemplates {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_TEMPLATES_DISABLED", "workspace local templates are disabled by tenant policy")
+		}
 	}
 	if err := h.svc.DeleteTemplate(c.Request().Context(), templateID); err != nil {
 		if errors.Is(err, domain.ErrHasPublishedVersion) {
@@ -525,6 +612,18 @@ func (h *TemplateHandler) DeleteTemplate(c *echo.Context) error {
 
 // DeleteVersion handles DELETE .../templates/:template_id/versions/:version_id.
 func (h *TemplateHandler) DeleteVersion(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -555,9 +654,16 @@ func (h *TemplateHandler) ListVersions(c *echo.Context) error {
 
 // CreateVersion handles POST .../templates/:template_id/versions.
 func (h *TemplateHandler) CreateVersion(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
 	templateID, err := uuid.Parse(c.Param("template_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
 	}
 
 	var req request.CreateVersionRequest
@@ -604,6 +710,18 @@ func (h *TemplateHandler) CreateVersion(c *echo.Context) error {
 
 // PublishVersion handles POST .../templates/:template_id/versions/:version_id/publish.
 func (h *TemplateHandler) PublishVersion(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -622,7 +740,7 @@ func (h *TemplateHandler) CloneVersion(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.cloneVersion(c, &ws.ID)
+	return h.cloneVersion(c, ws)
 }
 
 // CloneVersionGlobal handles POST /global/templates/:template_id/versions/:version_id/clone.
@@ -630,7 +748,7 @@ func (h *TemplateHandler) CloneVersionGlobal(c *echo.Context) error {
 	return h.cloneVersion(c, nil)
 }
 
-func (h *TemplateHandler) cloneVersion(c *echo.Context, wsID *uuid.UUID) error {
+func (h *TemplateHandler) cloneVersion(c *echo.Context, workspace *domain.Workspace) error {
 	templateID, err := uuid.Parse(c.Param("template_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
@@ -641,6 +759,14 @@ func (h *TemplateHandler) cloneVersion(c *echo.Context, wsID *uuid.UUID) error {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
 	}
 
+	var wsID *uuid.UUID
+	if workspace != nil {
+		wsID = &workspace.ID
+		if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), workspace, templateID); err != nil {
+			return mapTemplateError(c, err)
+		}
+	}
+
 	cloned, err := h.svc.CloneVersion(c.Request().Context(), templateID, versionID, wsID, nil)
 	if err != nil {
 		return mapTemplateError(c, err)
@@ -649,8 +775,53 @@ func (h *TemplateHandler) cloneVersion(c *echo.Context, wsID *uuid.UUID) error {
 	return c.JSON(http.StatusCreated, response.NewTemplateVersionResponse(cloned))
 }
 
+// ForkTemplate handles POST .../templates/:template_id/fork.
+func (h *TemplateHandler) ForkTemplate(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	tpl, _, policies, err := h.loadWorkspaceTemplateAccess(c.Request().Context(), ws, templateID)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+	if isOwnedByCurrentWorkspace(tpl.WorkspaceID, ws) {
+		return response.WriteError(c, http.StatusConflict, "TEMPLATE_ALREADY_LOCAL", "template already belongs to this workspace")
+	}
+	if !policies.AllowWorkspaceInheritedTemplateForks {
+		return writePolicyForbidden(c, "WORKSPACE_INHERITED_TEMPLATE_FORKS_DISABLED", "workspace inherited template forks are disabled by tenant policy")
+	}
+
+	forked, err := h.svc.ForkTemplate(c.Request().Context(), templateID, ws.ID, nil)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+	annotateTemplateScope(forked, ws, nil)
+	h.invalidateResolvedTemplates(c.Request().Context(), &ws.ID)
+
+	return c.JSON(http.StatusCreated, response.NewTemplateResponse(forked))
+}
+
 // SetLocale handles POST .../templates/:template_id/versions/:version_id/locales.
 func (h *TemplateHandler) SetLocale(c *echo.Context) error { //nolint:dupl // structurally similar to UpdateLocale
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -687,6 +858,18 @@ func (h *TemplateHandler) SetLocale(c *echo.Context) error { //nolint:dupl // st
 
 // UpdateLocale handles PUT .../templates/:template_id/versions/:version_id/locales/:locale.
 func (h *TemplateHandler) UpdateLocale(c *echo.Context) error { //nolint:dupl // structurally similar to SetLocale
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -763,6 +946,18 @@ func (h *TemplateHandler) ListLocales(c *echo.Context) error {
 
 // DeleteLocale handles DELETE .../templates/:template_id/versions/:version_id/locales/:locale.
 func (h *TemplateHandler) DeleteLocale(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+	if _, _, err := h.requireMutableWorkspaceTemplate(c.Request().Context(), ws, templateID); err != nil {
+		return mapTemplateError(c, err)
+	}
+
 	versionID, err := uuid.Parse(c.Param("version_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
@@ -778,6 +973,52 @@ func (h *TemplateHandler) DeleteLocale(c *echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *TemplateHandler) loadWorkspaceTemplateAccess(
+	ctx context.Context,
+	workspace *domain.Workspace,
+	templateID uuid.UUID,
+) (*domain.Template, *domain.Workspace, workspacePolicies, error) {
+	systemWorkspace, err := resolveSystemWorkspace(ctx, workspace, h.wsStore)
+	if err != nil {
+		return nil, nil, workspacePolicies{}, err
+	}
+
+	tpl, err := h.store.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return nil, nil, workspacePolicies{}, err
+	}
+	if !templateVisibleInWorkspace(tpl, workspace, systemWorkspace) {
+		return nil, systemWorkspace, workspacePolicies{}, apperr.NotFound("template not found in workspace scope")
+	}
+	annotateTemplateScope(tpl, workspace, systemWorkspace)
+
+	return tpl, systemWorkspace, effectiveWorkspacePolicies(systemWorkspace), nil
+}
+
+func (h *TemplateHandler) requireMutableWorkspaceTemplate(
+	ctx context.Context,
+	workspace *domain.Workspace,
+	templateID uuid.UUID,
+) (*domain.Template, workspacePolicies, error) {
+	tpl, systemWorkspace, policies, err := h.loadWorkspaceTemplateAccess(ctx, workspace, templateID)
+	if err != nil {
+		return nil, workspacePolicies{}, err
+	}
+	if !isOwnedByCurrentWorkspace(tpl.WorkspaceID, workspace) {
+		return nil, workspacePolicies{}, apperr.Forbidden("inherited templates are read-only in workspace scope")
+	}
+	if tpl.IsFork {
+		if !policies.AllowWorkspaceInheritedTemplateForks {
+			return nil, workspacePolicies{}, apperr.Forbidden("workspace inherited template forks are disabled by tenant policy")
+		}
+	} else if !workspace.IsSystem && !policies.AllowWorkspaceLocalTemplates {
+		return nil, workspacePolicies{}, apperr.Forbidden("workspace local templates are disabled by tenant policy")
+	}
+
+	annotateTemplateScope(tpl, workspace, systemWorkspace)
+	return tpl, policies, nil
 }
 
 // mapTemplateError maps template-specific domain errors to HTTP responses.

@@ -14,6 +14,7 @@ import (
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/pkg/apperr"
 	"github.com/rendis/senda/pkg/slug"
 )
 
@@ -46,6 +47,15 @@ func (h *TemplateTypeHandler) Create(c *echo.Context) error {
 	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
+	}
+	if !ws.IsSystem {
+		systemWorkspace, err := resolveSystemWorkspace(c.Request().Context(), ws, h.wsStore)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		if !effectiveWorkspacePolicies(systemWorkspace).AllowWorkspaceLocalTemplates {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_TEMPLATES_DISABLED", "workspace local templates are disabled by tenant policy")
+		}
 	}
 
 	return h.create(c, ws)
@@ -123,7 +133,7 @@ func (h *TemplateTypeHandler) Delete(c *echo.Context) error {
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	return h.deleteType(c, &ws.ID)
+	return h.deleteType(c, ws)
 }
 
 // DeleteGlobal handles DELETE /global/template-types/:slug.
@@ -131,19 +141,44 @@ func (h *TemplateTypeHandler) DeleteGlobal(c *echo.Context) error {
 	return h.deleteType(c, nil)
 }
 
-func (h *TemplateTypeHandler) deleteType(c *echo.Context, workspaceID *uuid.UUID) error {
+func (h *TemplateTypeHandler) deleteType(c *echo.Context, workspace *domain.Workspace) error {
 	slugParam := c.Param("slug")
+	ctx := c.Request().Context()
 
-	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
+	var (
+		tt              *domain.TemplateType
+		workspaceID     *uuid.UUID
+		systemWorkspace *domain.Workspace
+		err             error
+	)
+	if workspace == nil {
+		tt, err = h.svc.FindBySlugInScope(ctx, slugParam, nil)
+	} else {
+		workspaceID = &workspace.ID
+		var chain []uuid.NullUUID
+		chain, systemWorkspace, err = workspaceResolutionChain(ctx, workspace, h.wsStore)
+		if err == nil {
+			tt, err = h.svc.GetBySlug(ctx, slugParam, chain)
+		}
+	}
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-	if !sameScope(tt.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	if workspace != nil {
+		annotateTemplateTypeScope(tt, workspace, systemWorkspace)
+		if !isOwnedByCurrentWorkspace(tt.WorkspaceID, workspace) {
+			return writePolicyForbidden(c, "READ_ONLY_INHERITED_TEMPLATE_TYPE", "inherited template types are read-only in workspace scope")
+		}
+		if !workspace.IsSystem && !effectiveWorkspacePolicies(systemWorkspace).AllowWorkspaceLocalTemplates {
+			return writePolicyForbidden(c, "WORKSPACE_LOCAL_TEMPLATES_DISABLED", "workspace local templates are disabled by tenant policy")
+		}
 	}
 
-	if err := h.svc.DeleteType(c.Request().Context(), tt.ID); err != nil {
+	if err := h.svc.DeleteType(ctx, tt.ID); err != nil {
 		return mapStoreError(c, err)
+	}
+	if workspace != nil {
+		workspaceID = &workspace.ID
 	}
 	h.invalidateResolvedTemplates(c.Request().Context(), workspaceID)
 
@@ -165,18 +200,12 @@ func (h *TemplateTypeHandler) UpdateGlobal(c *echo.Context) error {
 }
 
 func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspace) error {
-	var workspaceID *uuid.UUID
-	if workspace != nil {
-		workspaceID = &workspace.ID
-	}
 	slugParam := c.Param("slug")
+	ctx := c.Request().Context()
 
-	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
+	tt, _, err := h.loadTemplateTypeForUpdate(ctx, workspace, slugParam)
 	if err != nil {
 		return mapStoreError(c, err)
-	}
-	if !sameScope(tt.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
 	}
 
 	var req request.UpdateTemplateTypeRequest
@@ -184,6 +213,62 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspac
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 	}
 
+	fieldErrors := validateTemplateTypeUpdateRequest(req)
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	previousSlug := tt.Slug
+	if field, err := applyTemplateTypeUpdateRequest(tt, req); err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid "+field)
+	}
+
+	if h.accessSvc != nil {
+		if err := h.accessSvc.ValidateTemplateTypeSelection(ctx, workspace, tt.AdapterID, tt.SenderIdentityID); err != nil {
+			return mapTemplateTypeAccessError(c, err)
+		}
+	}
+
+	if err := h.svc.Update(ctx, tt, previousSlug); err != nil {
+		return mapStoreError(c, err)
+	}
+	h.invalidateResolvedTemplates(ctx, workspaceIDFor(workspace))
+
+	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+}
+
+func (h *TemplateTypeHandler) loadTemplateTypeForUpdate(
+	ctx context.Context,
+	workspace *domain.Workspace,
+	slugParam string,
+) (*domain.TemplateType, *domain.Workspace, error) {
+	if workspace == nil {
+		tt, err := h.svc.FindBySlugInScope(ctx, slugParam, nil)
+		return tt, nil, err
+	}
+
+	chain, systemWorkspace, err := workspaceResolutionChain(ctx, workspace, h.wsStore)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tt, err := h.svc.GetBySlug(ctx, slugParam, chain)
+	if err != nil {
+		return nil, nil, err
+	}
+	annotateTemplateTypeScope(tt, workspace, systemWorkspace)
+
+	if !isOwnedByCurrentWorkspace(tt.WorkspaceID, workspace) {
+		return nil, nil, apperr.Forbidden("inherited template types are read-only in workspace scope")
+	}
+	if !workspace.IsSystem && !effectiveWorkspacePolicies(systemWorkspace).AllowWorkspaceLocalTemplates {
+		return nil, nil, apperr.Forbidden("workspace local templates are disabled by tenant policy")
+	}
+
+	return tt, systemWorkspace, nil
+}
+
+func validateTemplateTypeUpdateRequest(req request.UpdateTemplateTypeRequest) []response.FieldError {
 	var fieldErrors []response.FieldError
 	if req.Slug != nil {
 		if err := slug.Validate(*req.Slug); err != nil {
@@ -197,11 +282,10 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspac
 			fieldErrors = append(fieldErrors, response.FieldError{Field: "name", Message: "must be at most 255 characters"})
 		}
 	}
-	if len(fieldErrors) > 0 {
-		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
-	}
+	return fieldErrors
+}
 
-	previousSlug := tt.Slug
+func applyTemplateTypeUpdateRequest(tt *domain.TemplateType, req request.UpdateTemplateTypeRequest) (string, error) {
 	if req.Slug != nil {
 		tt.Slug = *req.Slug
 	}
@@ -211,39 +295,34 @@ func (h *TemplateTypeHandler) update(c *echo.Context, workspace *domain.Workspac
 	if req.AdapterID != nil {
 		if *req.AdapterID == "" {
 			tt.AdapterID = nil
-			tt.SenderIdentityID = nil // clear sender when adapter is cleared
+			tt.SenderIdentityID = nil
 		} else {
-			parsed, err := uuid.Parse(*req.AdapterID)
+			adapterID, err := parseOptionalUUID(req.AdapterID)
 			if err != nil {
-				return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid adapter_id")
+				return "adapter_id", err
 			}
-			tt.AdapterID = &parsed
+			tt.AdapterID = adapterID
 		}
 	}
 	if req.SenderIdentityID != nil {
 		if *req.SenderIdentityID == "" {
 			tt.SenderIdentityID = nil
 		} else {
-			parsed, err := uuid.Parse(*req.SenderIdentityID)
+			senderIdentityID, err := parseOptionalUUID(req.SenderIdentityID)
 			if err != nil {
-				return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid sender_identity_id")
+				return "sender_identity_id", err
 			}
-			tt.SenderIdentityID = &parsed
+			tt.SenderIdentityID = senderIdentityID
 		}
 	}
+	return "", nil
+}
 
-	if h.accessSvc != nil {
-		if err := h.accessSvc.ValidateTemplateTypeSelection(c.Request().Context(), workspace, tt.AdapterID, tt.SenderIdentityID); err != nil {
-			return mapTemplateTypeAccessError(c, err)
-		}
+func workspaceIDFor(workspace *domain.Workspace) *uuid.UUID {
+	if workspace == nil {
+		return nil
 	}
-
-	if err := h.svc.Update(c.Request().Context(), tt, previousSlug); err != nil {
-		return mapStoreError(c, err)
-	}
-	h.invalidateResolvedTemplates(c.Request().Context(), workspaceID)
-
-	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+	return &workspace.ID
 }
 
 func mapTemplateTypeAccessError(c *echo.Context, err error) error {
@@ -294,14 +373,27 @@ func (h *TemplateTypeHandler) GetGlobal(c *echo.Context) error {
 func (h *TemplateTypeHandler) get(c *echo.Context, workspaceID *uuid.UUID) error {
 	slugParam := c.Param("slug")
 
-	tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, workspaceID)
+	if workspaceID == nil {
+		tt, err := h.svc.FindBySlugInScope(c.Request().Context(), slugParam, nil)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
+	}
+
+	workspace, err := resolveWorkspace(c, h.tsStore, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
-
-	if !sameScope(tt.WorkspaceID, workspaceID) {
-		return response.WriteError(c, http.StatusNotFound, "NOT_FOUND", "resource not found")
+	chain, systemWorkspace, err := workspaceResolutionChain(c.Request().Context(), workspace, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
 	}
+	tt, err := h.svc.GetBySlug(c.Request().Context(), slugParam, chain)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	annotateTemplateTypeScope(tt, workspace, systemWorkspace)
 
 	return c.JSON(http.StatusOK, response.NewTemplateTypeResponse(tt))
 }
@@ -313,7 +405,7 @@ func (h *TemplateTypeHandler) List(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 
-	return h.listTypes(c, &ws.ID)
+	return h.listTypes(c, ws)
 }
 
 // ListGlobal handles GET /global/template-types.
@@ -321,22 +413,68 @@ func (h *TemplateTypeHandler) ListGlobal(c *echo.Context) error {
 	return h.listTypes(c, nil)
 }
 
-func (h *TemplateTypeHandler) listTypes(c *echo.Context, wsID *uuid.UUID) error {
+func (h *TemplateTypeHandler) listTypes(c *echo.Context, workspace *domain.Workspace) error {
 	opts := pagination.ParseListOptions(c)
+	ctx := c.Request().Context()
 
-	types, nextCursor, err := h.svc.ListTypes(c.Request().Context(), wsID, opts)
+	if workspace == nil {
+		types, nextCursor, err := h.svc.ListTypes(ctx, nil, opts)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+
+		items := make([]response.TemplateTypeResponse, len(types))
+		for i, tt := range types {
+			items[i] = response.NewTemplateTypeResponse(tt)
+		}
+
+		return c.JSON(http.StatusOK, response.TemplateTypeListResponse{
+			Items:      items,
+			NextCursor: nextCursor,
+			HasMore:    nextCursor != "",
+		})
+	}
+
+	systemWorkspace, err := resolveSystemWorkspace(ctx, workspace, h.wsStore)
 	if err != nil {
 		return mapStoreError(c, err)
 	}
 
-	items := make([]response.TemplateTypeResponse, len(types))
-	for i, tt := range types {
+	visible := make([]*domain.TemplateType, 0)
+	seen := make(map[string]struct{})
+	appendUnique := func(list []*domain.TemplateType) {
+		for _, tt := range list {
+			if _, ok := seen[tt.Slug]; ok {
+				continue
+			}
+			annotateTemplateTypeScope(tt, workspace, systemWorkspace)
+			visible = append(visible, tt)
+			seen[tt.Slug] = struct{}{}
+		}
+	}
+
+	localTypes, _, err := h.svc.ListTypes(ctx, &workspace.ID, opts)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	appendUnique(localTypes)
+
+	if systemWorkspace != nil && systemWorkspace.ID != workspace.ID {
+		systemTypes, _, err := h.svc.ListTypes(ctx, &systemWorkspace.ID, opts)
+		if err != nil {
+			return mapStoreError(c, err)
+		}
+		appendUnique(systemTypes)
+	}
+
+	items := make([]response.TemplateTypeResponse, len(visible))
+	for i, tt := range visible {
 		items[i] = response.NewTemplateTypeResponse(tt)
 	}
 
 	return c.JSON(http.StatusOK, response.TemplateTypeListResponse{
 		Items:      items,
-		NextCursor: nextCursor,
-		HasMore:    nextCursor != "",
+		NextCursor: "",
+		HasMore:    false,
 	})
 }

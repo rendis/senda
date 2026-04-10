@@ -195,5 +195,189 @@
     "noWorkspacesFound": "No workspaces found",
     "noWorkspacesAvailable": "No workspaces available",
     "manageWorkspaces": "Manage workspaces"
+  },
+  "resourceState": {
+    "badges": {
+      "local": "Local",
+      "defaultSystem": "Default/System",
+      "forkedFromDefault": "Forked from Default",
+      "readOnly": "Read-only",
+      "workspace": "Workspace",
+      "global": "Global"
+    }
+  },
+  "scopeIndicator": {
+    "global": "Global",
+    "system": "Default",
+    "tenant": "Tenant",
+    "workspace": "Workspace"
+  },
+  "settingsPage": {
+    "accessDenied": {
+      "title": "Access denied",
+      "description": "Settings are available globally or from the tenant _system workspace."
+    },
+    "saveChanges": "Save Changes",
+    "saving": "Saving...",
+    "global": {
+      "loadErrorTitle": "Failed to load settings",
+      "loadErrorDescription": "Could not retrieve system settings. You may not have superadmin permissions.",
+      "saveSuccess": "Settings saved successfully",
+      "saveError": "Failed to save settings",
+      "oidcTitle": "OIDC Configuration",
+      "discoveryUrl": "Discovery URL",
+      "clientId": "Client ID",
+      "emailDefaultsTitle": "Email Defaults",
+      "maxRetries": "Max Retries",
+      "backoffBaseSeconds": "Backoff Base (sec)",
+      "logRetentionDays": "Log Retention (days)",
+      "alertsTitle": "Alerts",
+      "bounceThreshold": "Bounce Threshold %",
+      "complaintThreshold": "Complaint Threshold %"
+    },
+    "workspace": {
+      "loadErrorTitle": "Failed to load workspace policies",
+      "loadErrorDescription": "Could not retrieve tenant workspace policies from the _system workspace.",
+      "saveSuccess": "Workspace policies saved successfully",
+      "saveError": "Failed to save workspace policies",
+      "workspaceDefaultsPolicy": "Workspace Defaults Policy",
+      "workspaceDefaultsDescription": "These switches control what regular workspaces in this tenant can create locally, and whether they can fork a default template to manage workspace-only versions.",
+      "allowLocalTemplatesTitle": "Allow local template types and templates",
+      "allowLocalTemplatesDescription": "When disabled, workspaces still see tenant defaults but cannot create, edit, or delete local template definitions.",
+      "allowInheritedForksTitle": "Allow forks of inherited default templates",
+      "allowInheritedForksDescription": "When enabled, a workspace can clone a default template into a local fork to manage versions without editing template metadata.",
+      "allowLocalInjectorsTitle": "Allow local injectors",
+      "allowLocalInjectorsDescription": "When disabled, workspaces can still view and use _system injectors, but cannot create or edit local injector schemas."
+    }
+  },
+  "templateTypesPage": {
+    "columns": {
+      "slug": "SLUG",
+      "name": "NAME",
+      "adapter": "ADAPTER",
+      "scope": "SCOPE"
+    },
+    "noAdapter": "No adapter",
+    "viewTemplates": "View templates",
+    "viewTemplatesAria": "View templates for {slug}",
+    "editTemplateTypeAria": "Edit template type {slug}",
+    "deleteTemplateTypeAria": "Delete template type {slug}",
+    "localTemplateTypesDisabled": "Local template types are disabled by the tenant _system workspace policy.",
+    "defaultTemplateTypesReadonly": "Default template types are read-only in workspaces.",
+    "sharedSesRequiresIdentity": "Shared SES adapters require an explicit sender identity",
+    "templateTypeCreated": "Template type created",
+    "templateTypeCreateFailed": "Failed to create template type",
+    "templateTypeDeleted": "Template type deleted",
+    "templateTypeDeleteFailed": "Failed to delete template type",
+    "newTemplateType": "New Template Type",
+    "searchPlaceholder": "Search template types...",
+    "slugLabel": "Slug",
+    "localTemplateCreationDisabled": "Local template creation is disabled by the tenant _system workspace policy.",
+    "empty": {
+      "title": "No template types",
+      "description": "Create your first template type to organize your email templates."
+    },
+    "createDialog": {
+      "title": "Create Template Type",
+      "description": "Define a new template type for this scope.",
+      "namePlaceholder": "Welcome Email",
+      "slugPlaceholder": "welcome-email"
+    },
+    "deleteDialog": {
+      "title": "Delete Template Type",
+      "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
+    }
+  },
+  "templatesPage": {
+    "templateTypeNotLoaded": "Template type not loaded",
+    "readOnlyDefaultMustFork": "This default template is read-only. Fork it first to manage workspace-only versions.",
+    "versionManagementDisabledInWorkspace": "Version management is disabled for this template in the current workspace.",
+    "localTemplateCreationDisabled": "Local template creation is disabled by the tenant _system workspace policy.",
+    "draftVersionCreated": "Draft version created",
+    "createVersionFailed": "Failed to create version",
+    "defaultTemplateNotLoaded": "Default template not loaded",
+    "publishSuccess": "Version {version} published",
+    "publishFailed": "Failed to publish version",
+    "forkVersionManagementOnly": "This fork keeps template metadata locked. Only version management is allowed when the tenant _system workspace policy permits it.",
+    "defaultTemplatesReadonly": "Default templates are read-only. Fork this template to manage workspace-only versions.",
+    "localTemplateChangesDisabled": "Local template changes are disabled by the tenant _system workspace policy.",
+    "columns": {
+      "version": "VERSION",
+      "createdBy": "CREATED BY",
+      "date": "DATE"
+    },
+    "openVersionAria": "Open version {version}",
+    "readOnlyBannerTitle": "This template is read-only in this workspace.",
+    "readOnlyBannerDescription": "Fork the default template to create workspace-only versions without changing template metadata.",
+    "versionsTitle": "Versions",
+    "forking": "Forking...",
+    "forkFromDefault": "Fork from Default",
+    "newVersion": "New Version",
+    "createDraftVersion": "Create a new draft version",
+    "forkFirstBeforeVersions": "Fork the default template first to manage workspace-only versions.",
+    "versionManagementDisabledForScope": "Version management is disabled for this scope.",
+    "empty": {
+      "title": "No versions yet",
+      "description": "Create your first template version to start building this email template."
+    },
+    "createVersion": "Create Version",
+    "publishDialog": {
+      "title": "Publish Version",
+      "description": "Are you sure you want to publish version {version}? This will replace the current published version."
+    },
+    "deleteDialog": {
+      "title": "Delete Draft Version",
+      "description": "Are you sure you want to delete version {version}? This action cannot be undone."
+    },
+    "deleteSuccess": "Draft version deleted",
+    "deleteFailed": "Failed to delete version",
+    "cloneSuccess": "Version {version} cloned as draft",
+    "cloneFailed": "Failed to clone version",
+    "actions": {
+      "editVersion": "Edit version",
+      "openVersion": "Open version",
+      "publish": "Publish",
+      "clone": "Clone"
+    }
+  },
+  "injectorsPage": {
+    "unsupportedScopeTitle": "Injectors are managed per writable scope",
+    "unsupportedScopeDescription": "Choose the global catalog or a workspace to define and edit injector schemas.",
+    "backToInjectors": "Back to Injectors",
+    "noDescription": "No description set for this injector yet.",
+    "editInjector": "Edit injector",
+    "localInjectorEditingDisabled": "Local injector editing is disabled by the tenant _system workspace policy.",
+    "defaultInjectorsReadonly": "Default injectors are read-only in workspaces.",
+    "replaceAllNotice": "Schema updates are replace-all: renames or type changes do not migrate existing template references, and all injector values for this definition are cleared when you save.",
+    "noFields": "No fields defined for this injector.",
+    "fieldMeta": {
+      "mode": "Mode",
+      "overwriteEnabled": "overwrite enabled",
+      "lockedToDefault": "locked to default",
+      "position": "Position",
+      "default": "Default",
+      "fieldType": "Field type"
+    },
+    "columns": {
+      "name": "NAME",
+      "scope": "SCOPE",
+      "fields": "FIELDS"
+    },
+    "fieldCount": "{count} fields",
+    "localInjectorManagementDisabled": "Local injector management is disabled by the tenant _system workspace policy.",
+    "viewFields": "View fields",
+    "searchPlaceholder": "Search injectors...",
+    "newInjector": "New Injector",
+    "createInScope": "Create a new injector in this scope",
+    "localInjectorCreationDisabled": "Local injector creation is disabled by the tenant _system workspace policy.",
+    "empty": {
+      "title": "No injectors defined",
+      "description": "Define the tokens your template builders can use and how each field resolves at runtime."
+    },
+    "addInjector": "Add Injector",
+    "deleteDialog": {
+      "title": "Delete Injector",
+      "description": "Are you sure you want to delete \"{name}\"? Templates using this injector will no longer see its fields in the builder."
+    }
   }
 }

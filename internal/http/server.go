@@ -38,10 +38,11 @@ type Server struct {
 	configStore port.GlobalConfigStore
 
 	// Handlers.
-	tenantHandler    *handler.TenantHandler
-	workspaceHandler *handler.WorkspaceHandler
-	memberHandler    *handler.MemberHandler
-	configHandler    *handler.ConfigHandler
+	tenantHandler          *handler.TenantHandler
+	workspaceHandler       *handler.WorkspaceHandler
+	workspacePolicyHandler *handler.WorkspacePolicyHandler
+	memberHandler          *handler.MemberHandler
+	configHandler          *handler.ConfigHandler
 
 	// HT-20 handlers.
 	injectorHandler *handler.InjectorHandler
@@ -139,6 +140,13 @@ func WithTenantHandler(h *handler.TenantHandler) ServerOption {
 func WithWorkspaceHandler(h *handler.WorkspaceHandler) ServerOption {
 	return func(s *Server) {
 		s.workspaceHandler = h
+	}
+}
+
+// WithWorkspacePolicyHandler sets the WorkspacePolicyHandler for _system policy routes.
+func WithWorkspacePolicyHandler(h *handler.WorkspacePolicyHandler) ServerOption {
+	return func(s *Server) {
+		s.workspacePolicyHandler = h
 	}
 }
 
@@ -403,6 +411,10 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			mgmt.PUT("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.Update, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 			mgmt.DELETE("/tenants/:tenant_code/workspaces/:workspace_code", s.workspaceHandler.SoftDelete, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
 		}
+		if s.workspacePolicyHandler != nil {
+			mgmt.GET("/tenants/:tenant_code/workspaces/:workspace_code/policies", s.workspacePolicyHandler.Get, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+			mgmt.PUT("/tenants/:tenant_code/workspaces/:workspace_code/policies", s.workspacePolicyHandler.Update, middleware.RequireRole(domain.RoleTenantAdmin, s.tenantStore, s.wsStore))
+		}
 
 		// Tenant dashboard stats.
 		if s.dashboardHandler != nil {
@@ -482,6 +494,7 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 			if s.templateHandler != nil {
 				ws.GET("/template-types/:slug/templates", s.templateHandler.ListByTemplateType, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates", s.templateHandler.CreateTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
+				ws.POST("/templates/:template_id/fork", s.templateHandler.ForkTemplate, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions", s.templateHandler.ListVersions, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 				ws.POST("/templates/:template_id/versions", s.templateHandler.CreateVersion, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))

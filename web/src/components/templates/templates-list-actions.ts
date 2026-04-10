@@ -2,21 +2,22 @@ import type { TemplateVersionStatus } from "@/types/api";
 
 export interface VersionPrimaryAction {
   icon: "pencil" | "file-text";
-  label: "Edit version" | "Open version";
+  labelKey: "editVersion" | "openVersion";
 }
 
 export function getVersionPrimaryAction(
   status: TemplateVersionStatus,
+  draftAction: "edit" | "open" = "edit",
 ): VersionPrimaryAction {
   if (status === "draft") {
     return {
-      icon: "pencil",
-      label: "Edit version",
+      icon: draftAction === "edit" ? "pencil" : "file-text",
+      labelKey: draftAction === "edit" ? "editVersion" : "openVersion",
     };
   }
 
   return {
     icon: "file-text",
-    label: "Open version",
+    labelKey: "openVersion",
   };
 }

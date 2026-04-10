@@ -8,12 +8,14 @@ import (
 
 // InjectorDefinitionResponse is the JSON response for an injector definition.
 type InjectorDefinitionResponse struct {
-	ID          string  `json:"id"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID                  string  `json:"id"`
+	WorkspaceID         *string `json:"workspace_id,omitempty"`
+	Name                string  `json:"name"`
+	Description         *string `json:"description,omitempty"`
+	OwnerScope          string  `json:"owner_scope,omitempty"`
+	InheritedFromSystem bool    `json:"inherited_from_system"`
+	CreatedAt           string  `json:"created_at"`
+	UpdatedAt           string  `json:"updated_at"`
 }
 
 // InjectorFieldResponse is the JSON response for an injector field.
@@ -51,11 +53,13 @@ type InjectorListResponse struct {
 // NewInjectorDefinitionResponse maps a domain InjectorDefinition to a response.
 func NewInjectorDefinitionResponse(d *domain.InjectorDefinition) InjectorDefinitionResponse {
 	resp := InjectorDefinitionResponse{
-		ID:          d.ID.String(),
-		Name:        d.Name,
-		Description: d.Description,
-		CreatedAt:   d.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:   d.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		ID:                  d.ID.String(),
+		Name:                d.Name,
+		Description:         d.Description,
+		OwnerScope:          d.OwnerScope,
+		InheritedFromSystem: d.InheritedFromSystem,
+		CreatedAt:           d.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:           d.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if d.WorkspaceID != nil {
 		s := d.WorkspaceID.String()

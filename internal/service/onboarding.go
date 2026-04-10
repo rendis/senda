@@ -187,26 +187,39 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 
 	// 5. Create _system workspace.
 	ws := &domain.Workspace{
-		ID:       uuid.Must(uuid.NewV7()),
-		TenantID: tenant.ID,
-		Code:     "_system",
-		Name:     "System",
-		IsSystem: true,
-		IsActive: true,
+		ID:                                   uuid.Must(uuid.NewV7()),
+		TenantID:                             tenant.ID,
+		Code:                                 "_system",
+		Name:                                 "System",
+		IsSystem:                             true,
+		IsActive:                             true,
+		AllowWorkspaceLocalTemplates:         true,
+		AllowWorkspaceInheritedTemplateForks: true,
+		AllowWorkspaceLocalInjectors:         true,
+		WorkspacePoliciesInitialized:         true,
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO workspaces (id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale)
-		 VALUES (@id, @tenant_id, @code, @name, @is_system, @is_active, @open_tracking_enabled, @default_locale)
+		`INSERT INTO workspaces (
+		    id, tenant_id, code, name, is_system, is_active, open_tracking_enabled, default_locale,
+		    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
+		)
+		 VALUES (
+		    @id, @tenant_id, @code, @name, @is_system, @is_active, @open_tracking_enabled, @default_locale,
+		    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
+		)
 		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
-			"id":                    ws.ID,
-			"tenant_id":             ws.TenantID,
-			"code":                  ws.Code,
-			"name":                  ws.Name,
-			"is_system":             ws.IsSystem,
-			"is_active":             ws.IsActive,
-			"open_tracking_enabled": false,
-			"default_locale":        ws.DefaultLocale,
+			"id":                              ws.ID,
+			"tenant_id":                       ws.TenantID,
+			"code":                            ws.Code,
+			"name":                            ws.Name,
+			"is_system":                       ws.IsSystem,
+			"is_active":                       ws.IsActive,
+			"open_tracking_enabled":           false,
+			"default_locale":                  ws.DefaultLocale,
+			"allow_workspace_local_templates": ws.AllowWorkspaceLocalTemplates,
+			"allow_workspace_inherited_template_forks": ws.AllowWorkspaceInheritedTemplateForks,
+			"allow_workspace_local_injectors":          ws.AllowWorkspaceLocalInjectors,
 		},
 	).Scan(&ws.IsActive, &ws.CreatedAt, &ws.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("create system workspace: %w", err)

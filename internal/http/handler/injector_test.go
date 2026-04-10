@@ -21,16 +21,16 @@ import (
 // --- Mock InjectorStore ---
 
 type mockInjectorStore struct {
-	createDefinitionFn     func(ctx context.Context, def *domain.InjectorDefinition) error
+	createDefinitionFn       func(ctx context.Context, def *domain.InjectorDefinition) error
 	updateDefinitionSchemaFn func(ctx context.Context, currentName string, workspaceID *uuid.UUID, def *domain.InjectorDefinition, fields []*domain.InjectorField) error
-	getDefinitionByIDFn    func(ctx context.Context, id uuid.UUID) (*domain.InjectorDefinition, error)
-	findDefinitionByNameFn func(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error)
+	getDefinitionByIDFn      func(ctx context.Context, id uuid.UUID) (*domain.InjectorDefinition, error)
+	findDefinitionByNameFn   func(ctx context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error)
 	listDefinitionsInChainFn func(ctx context.Context, chain []uuid.NullUUID) ([]*domain.InjectorDefinition, error)
-	createFieldFn          func(ctx context.Context, field *domain.InjectorField) error
-	updateFieldFn          func(ctx context.Context, field *domain.InjectorField) error
-	getFieldsByDefinitionFn func(ctx context.Context, defID uuid.UUID) ([]*domain.InjectorField, error)
-	setValueFn             func(ctx context.Context, val *domain.InjectorValue) error
-	getValuesFn            func(ctx context.Context, defID uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error)
+	createFieldFn            func(ctx context.Context, field *domain.InjectorField) error
+	updateFieldFn            func(ctx context.Context, field *domain.InjectorField) error
+	getFieldsByDefinitionFn  func(ctx context.Context, defID uuid.UUID) ([]*domain.InjectorField, error)
+	setValueFn               func(ctx context.Context, val *domain.InjectorValue) error
+	getValuesFn              func(ctx context.Context, defID uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error)
 }
 
 func (m *mockInjectorStore) CreateDefinition(ctx context.Context, def *domain.InjectorDefinition) error {
@@ -279,8 +279,8 @@ func TestInjectorHandler_List_IncludeInheritedUsesResolutionChain(t *testing.T) 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if len(gotChain) != 3 {
-		t.Fatalf("expected workspace/system/global chain, got %+v", gotChain)
+	if len(gotChain) != 2 {
+		t.Fatalf("expected workspace/system chain, got %+v", gotChain)
 	}
 	if !gotChain[0].Valid || gotChain[0].UUID != ws.ID {
 		t.Fatalf("expected workspace scope first, got %+v", gotChain)
@@ -288,8 +288,118 @@ func TestInjectorHandler_List_IncludeInheritedUsesResolutionChain(t *testing.T) 
 	if !gotChain[1].Valid || gotChain[1].UUID != systemID {
 		t.Fatalf("expected system scope second, got %+v", gotChain)
 	}
-	if gotChain[2].Valid {
-		t.Fatalf("expected global scope last, got %+v", gotChain)
+}
+
+func TestInjectorHandler_Get_ResolvesInheritedSystemInjectorInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemID := uuid.Must(uuid.NewV7())
+	defID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("unexpected tenant id %s", tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemID,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	is := &mockInjectorStore{
+		findDefinitionByNameFn: func(_ context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+			if workspaceID == nil || *workspaceID != systemID {
+				return nil, domain.ErrNotFound
+			}
+			if name != "company_info" {
+				t.Fatalf("unexpected name %q", name)
+			}
+			return &domain.InjectorDefinition{
+				ID:          defID,
+				WorkspaceID: &systemID,
+				Name:        "company_info",
+			}, nil
+		},
+		getFieldsByDefinitionFn: func(_ context.Context, id uuid.UUID) ([]*domain.InjectorField, error) {
+			if id != defID {
+				t.Fatalf("expected definition id %s, got %s", defID, id)
+			}
+			return []*domain.InjectorField{
+				{ID: uuid.Must(uuid.NewV7()), InjectorDefinitionID: defID, FieldName: "company_name", FieldType: domain.FieldTypeText, Position: 0},
+			}, nil
+		},
+		getValuesFn: func(_ context.Context, id uuid.UUID, chain []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+			if id != defID {
+				t.Fatalf("expected definition id %s, got %s", defID, id)
+			}
+			return nil, nil
+		},
+	}
+
+	e, _ := setupInjectorTest(is, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/injectors/company_info", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.InjectorDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp.OwnerScope != "system" {
+		t.Fatalf("expected owner_scope system, got %q", resp.OwnerScope)
+	}
+	if !resp.InheritedFromSystem {
+		t.Fatal("expected inherited system marker")
+	}
+}
+
+func TestInjectorHandler_Get_DoesNotFallbackToGlobalInjectorInWorkspace(t *testing.T) {
+	tenant, _, ts, wsStore := testTenantAndWorkspace()
+	systemID := uuid.Must(uuid.NewV7())
+
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			t.Fatalf("unexpected tenant id %s", tenantID)
+		}
+		return &domain.Workspace{
+			ID:       systemID,
+			TenantID: tenant.ID,
+			Code:     "_system",
+			Name:     "Default",
+			IsSystem: true,
+		}, nil
+	}
+
+	is := &mockInjectorStore{
+		findDefinitionByNameFn: func(_ context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+			if name != "global_only" {
+				t.Fatalf("unexpected name %q", name)
+			}
+			if workspaceID == nil {
+				return &domain.InjectorDefinition{
+					ID:   uuid.Must(uuid.NewV7()),
+					Name: "global_only",
+				}, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	e, _ := setupInjectorTest(is, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manage/tenants/acme/workspaces/default/injectors/global_only", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -595,13 +705,26 @@ func TestInjectorHandler_Update_Success(t *testing.T) {
 	_, ws, ts, wsStore := testTenantAndWorkspace()
 
 	var (
-		currentName string
+		currentName    string
 		gotWorkspaceID *uuid.UUID
-		updatedDef *domain.InjectorDefinition
-		updatedFields []*domain.InjectorField
+		updatedDef     *domain.InjectorDefinition
+		updatedFields  []*domain.InjectorField
 	)
 
 	is := &mockInjectorStore{
+		findDefinitionByNameFn: func(_ context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+			if name != "student" {
+				t.Fatalf("expected lookup for student, got %q", name)
+			}
+			if workspaceID == nil || *workspaceID != ws.ID {
+				t.Fatalf("expected workspace lookup %s, got %v", ws.ID, workspaceID)
+			}
+			return &domain.InjectorDefinition{
+				ID:          uuid.Must(uuid.NewV7()),
+				WorkspaceID: &ws.ID,
+				Name:        name,
+			}, nil
+		},
 		updateDefinitionSchemaFn: func(_ context.Context, name string, workspaceID *uuid.UUID, def *domain.InjectorDefinition, fields []*domain.InjectorField) error {
 			currentName = name
 			gotWorkspaceID = workspaceID
@@ -655,9 +778,23 @@ func TestInjectorHandler_Update_Success(t *testing.T) {
 }
 
 func TestInjectorHandler_Update_RejectsDuplicateFieldNames(t *testing.T) {
-	_, _, ts, wsStore := testTenantAndWorkspace()
+	_, ws, ts, wsStore := testTenantAndWorkspace()
 
-	is := &mockInjectorStore{}
+	is := &mockInjectorStore{
+		findDefinitionByNameFn: func(_ context.Context, name string, workspaceID *uuid.UUID) (*domain.InjectorDefinition, error) {
+			if name != "student" {
+				t.Fatalf("expected lookup for student, got %q", name)
+			}
+			if workspaceID == nil || *workspaceID != ws.ID {
+				t.Fatalf("expected workspace lookup %s, got %v", ws.ID, workspaceID)
+			}
+			return &domain.InjectorDefinition{
+				ID:          uuid.Must(uuid.NewV7()),
+				WorkspaceID: &ws.ID,
+				Name:        name,
+			}, nil
+		},
+	}
 	e, _ := setupInjectorTest(is, ts, wsStore)
 
 	body := `{"name":"student","fields":[{"field_name":"full name","field_type":"text","position":0},{"field_name":"full name","field_type":"text","position":1}]}`
@@ -673,10 +810,10 @@ func TestInjectorHandler_Update_RejectsDuplicateFieldNames(t *testing.T) {
 
 func TestInjectorHandler_GlobalUpdate_Success(t *testing.T) {
 	var (
-		currentName string
+		currentName    string
 		gotWorkspaceID *uuid.UUID
-		updatedDef *domain.InjectorDefinition
-		updatedFields []*domain.InjectorField
+		updatedDef     *domain.InjectorDefinition
+		updatedFields  []*domain.InjectorField
 	)
 
 	is := &mockInjectorStore{

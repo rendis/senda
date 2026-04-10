@@ -95,6 +95,7 @@ type TemplateStore interface {
 
 	// Core template methods
 	CreateTemplate(ctx context.Context, tpl *domain.Template) error
+	ForkTemplate(ctx context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (*domain.Template, error)
 	GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 	GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)

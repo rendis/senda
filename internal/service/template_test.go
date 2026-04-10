@@ -20,6 +20,7 @@ type mockTemplateStore struct {
 	findTypeBySlugInScopeFn func(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
 	updateTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
 	createTemplateFn        func(ctx context.Context, tpl *domain.Template) error
+	forkTemplateFn          func(ctx context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error)
 	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
 	getTemplateByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.Template, error)
@@ -59,6 +60,12 @@ func (m *mockTemplateStore) CreateTemplate(ctx context.Context, tpl *domain.Temp
 		return m.createTemplateFn(ctx, tpl)
 	}
 	return nil
+}
+func (m *mockTemplateStore) ForkTemplate(ctx context.Context, sourceTemplateID uuid.UUID, workspaceID uuid.UUID, createdBy *uuid.UUID) (*domain.Template, error) {
+	if m.forkTemplateFn != nil {
+		return m.forkTemplateFn(ctx, sourceTemplateID, workspaceID, createdBy)
+	}
+	return nil, domain.ErrNotFound
 }
 func (m *mockTemplateStore) GetByTypeAndScope(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error) {
 	if m.getByTypeAndScopeFn != nil {

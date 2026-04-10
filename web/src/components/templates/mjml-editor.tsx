@@ -52,6 +52,7 @@ import {
   renderVideoBlockToMjml,
 } from "./video-block";
 import { useScope, useScopedPath } from "@/hooks/use-scope";
+import { getTemplateManagementState } from "@/lib/workspace-resource-policies";
 import {
   useTemplateVersion,
   useSaveTemplateVersion,
@@ -62,7 +63,9 @@ import {
   useSaveTemplateLocale,
   useDeleteTemplateLocale,
 } from "@/hooks/use-template-version";
+import { useResolvedWorkspacePolicies } from "@/hooks/use-settings";
 import { useTemplateType } from "@/hooks/use-template-types";
+import { useTemplatesByType } from "@/hooks/use-templates";
 import { useInjectorList } from "@/hooks/use-injectors";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { SaveStatusIndicator } from "@/components/templates/save-status-indicator";
@@ -1653,6 +1656,7 @@ export function MjmlEditor() {
   const router = useRouter();
   const scope = useScope();
   const scopedPath = useScopedPath();
+  const workspacePolicies = useResolvedWorkspacePolicies(scope);
   const searchParams = useSearchParams();
   const params = useParams<{ slug: string }>();
   const templateTypeSlug = params.slug ?? "";
@@ -1679,6 +1683,27 @@ export function MjmlEditor() {
   const previewMutation = usePreviewMjml(scopedPath, templateId);
 
   const templateTypeQuery = useTemplateType(scopedPath, templateTypeSlug);
+  const visibleTemplatesQuery = useTemplatesByType(scopedPath, templateTypeSlug);
+  const visibleTemplate = useMemo(
+    () =>
+      visibleTemplatesQuery.data?.find((candidate) => candidate.id === templateId) ??
+      visibleTemplatesQuery.data?.[0],
+    [templateId, visibleTemplatesQuery.data],
+  );
+  const templateManagementTarget =
+    visibleTemplate ??
+    (scope.level !== "workspace" || scope.workspaceCode === "_system"
+      ? {
+          owner_scope: scope.level === "global" ? "global" : "local",
+          inherited_from_system: false,
+          is_fork: false,
+        }
+      : undefined);
+  const templateState = getTemplateManagementState(
+    scope,
+    templateManagementTarget,
+    workspacePolicies.data,
+  );
   const testSendAvailability = useMemo(
     () =>
       getTestSendAvailability({
@@ -1686,7 +1711,9 @@ export function MjmlEditor() {
       }),
     [templateTypeQuery.data?.adapter_id],
   );
-  const injectorList = useInjectorList(scopedPath);
+  const injectorList = useInjectorList(scopedPath, {
+    includeInherited: scope.level === "workspace",
+  });
   const injectorItems = useMemo<InjectorDefinition[]>(() => {
     return injectorList.data?.items ?? [];
   }, [injectorList.data]);
@@ -1786,6 +1813,7 @@ export function MjmlEditor() {
   });
 
   const isDraft = version?.status === "draft";
+  const canEditDraft = Boolean(isDraft && templateState.canManageVersions);
 
   const autoSave = useAutoSave({
     getPayload: () => {
@@ -1822,7 +1850,7 @@ export function MjmlEditor() {
         ...(data.editor_data ? { editor_data: data.editor_data as Record<string, unknown> } : {}),
       });
     },
-    enabled: isDraft,
+    enabled: canEditDraft,
     debounceMs: 2000,
   });
 
@@ -2502,7 +2530,7 @@ export function MjmlEditor() {
   }
 
   function addBlock(type: BuilderBlockType) {
-    if (!builderDocument || !isDraft) return;
+    if (!builderDocument || !canEditDraft) return;
 
     const id = nowId();
     let newBlock: BuilderBlock;
@@ -2590,7 +2618,7 @@ export function MjmlEditor() {
   }
 
   function removeBlock(blockId: string) {
-    if (!builderDocument || !isDraft) return;
+    if (!builderDocument || !canEditDraft) return;
 
     const remaining = builderDocument.blocks.filter((block) => block.id !== blockId);
     if (!remaining.length) {
@@ -2734,7 +2762,7 @@ export function MjmlEditor() {
     blockId: string,
     variable: TemplateVariable
   ) {
-    if (!builderDocument || !isDraft) return;
+    if (!builderDocument || !canEditDraft) return;
 
     const targetBlock =
       builderDocument.blocks.find((block) => block.id === blockId) ??
@@ -2808,7 +2836,7 @@ export function MjmlEditor() {
     blockId: string,
     event: ReactKeyboardEvent<HTMLDivElement>
   ) {
-    if (!isDraft) return;
+    if (!canEditDraft) return;
     if (event.key === "Enter") {
       event.preventDefault();
       return;
@@ -2892,7 +2920,7 @@ export function MjmlEditor() {
         ),
       })
     );
-    if (mode === "cut" && isDraft) {
+    if (mode === "cut" && canEditDraft) {
       const nextSegments = replaceSegmentsUnitRange(
         liveSegments,
         selectionRange.start,
@@ -2912,7 +2940,7 @@ export function MjmlEditor() {
     blockId: string,
     event: ReactClipboardEvent<HTMLDivElement>
   ) {
-    if (!isDraft) {
+    if (!canEditDraft) {
       return;
     }
     const editor = event.currentTarget;
@@ -2952,7 +2980,7 @@ export function MjmlEditor() {
     blockId: string,
     event: DragEvent<HTMLDivElement>
   ) {
-    if (!isDraft || isBlockDragEvent(event.dataTransfer)) {
+    if (!canEditDraft || isBlockDragEvent(event.dataTransfer)) {
       return;
     }
     if (!isVariableDragEvent(event.dataTransfer)) {
@@ -2971,7 +2999,7 @@ export function MjmlEditor() {
     blockId: string,
     event: DragEvent<HTMLDivElement>
   ) {
-    if (!isDraft || isBlockDragEvent(event.dataTransfer)) {
+    if (!canEditDraft || isBlockDragEvent(event.dataTransfer)) {
       return;
     }
     if (!isVariableDragEvent(event.dataTransfer)) {
@@ -3326,7 +3354,7 @@ export function MjmlEditor() {
   }
 
   function moveListItem(blockId: string, draggedItemId: string, targetItemId: string, position: "before" | "after") {
-    if (!builderDocument || !isDraft || draggedItemId === targetItemId) return;
+    if (!builderDocument || !canEditDraft || draggedItemId === targetItemId) return;
     const block = builderDocument.blocks.find(
       (b) => b.id === blockId && b.type === "list"
     );
@@ -3393,7 +3421,7 @@ export function MjmlEditor() {
     event: DragEvent<HTMLButtonElement>,
     blockId: string
   ) {
-    if (!isDraft) return;
+    if (!canEditDraft) return;
     event.dataTransfer.setData(BLOCK_DND_MIME, blockId);
     event.dataTransfer.setData(MIME_TEXT_PLAIN, `block:${blockId}`);
     event.dataTransfer.effectAllowed = "move";
@@ -3413,7 +3441,7 @@ export function MjmlEditor() {
     event: DragEvent<HTMLDivElement>,
     dropIndex: number
   ) {
-    if (!isDraft || !builderDocument) return;
+    if (!canEditDraft || !builderDocument) return;
     if (!isBlockDragEvent(event.dataTransfer)) return;
 
     event.preventDefault();
@@ -3422,7 +3450,7 @@ export function MjmlEditor() {
   }
 
   function moveBlockToIndex(blockId: string, targetIndex: number) {
-    if (!builderDocument || !isDraft) return;
+    if (!builderDocument || !canEditDraft) return;
     const sourceIndex = builderDocument.blocks.findIndex(
       (block) => block.id === blockId
     );
@@ -3455,7 +3483,7 @@ export function MjmlEditor() {
     event: DragEvent<HTMLDivElement>,
     dropIndex: number
   ) {
-    if (!isDraft) return;
+    if (!canEditDraft) return;
     const blockId = getDraggedBlockId(event.dataTransfer);
     if (!blockId) return;
 
@@ -3537,7 +3565,7 @@ export function MjmlEditor() {
                   >
                     {loc.locale}
                   </button>
-                  {isDraft && (
+                  {canEditDraft && (
                     <button
                       type="button"
                       className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-destructive text-destructive-foreground"
@@ -3553,7 +3581,7 @@ export function MjmlEditor() {
                 </div>
               ))}
 
-              {isDraft && (
+              {canEditDraft && (
                 <Popover open={addLocaleOpen} onOpenChange={setAddLocaleOpen}>
                   <PopoverTrigger asChild>
                     <button
@@ -3599,7 +3627,7 @@ export function MjmlEditor() {
               </button>
             </div>
 
-            {isDraft && (
+            {canEditDraft && (
               <>
                 <SaveStatusIndicator
                   status={autoSave.status}
@@ -3668,7 +3696,7 @@ export function MjmlEditor() {
                 </TooltipContent>
               </Tooltip>
             )}
-            {isDraft && (
+            {canEditDraft && (
               <Button size="sm" onClick={() => setShowPublishConfirm(true)}>
                 <Rocket className="h-4 w-4 mr-1.5" />
                 Publish
@@ -3677,6 +3705,14 @@ export function MjmlEditor() {
           </div>
         </div>
       </div>
+
+      {isDraft && !canEditDraft ? (
+        <div className="mx-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          This draft is visible in this workspace but locked for editing. Fork
+          the default template or enable workspace version management from the
+          tenant _system workspace policies.
+        </div>
+      ) : null}
 
       <div ref={layoutSplitRef} className="flex flex-1 overflow-hidden">
         {/* Left: editor */}
@@ -3716,7 +3752,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("text")}
                         className="h-8"
                       >
@@ -3725,7 +3761,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("button")}
                         className="h-8"
                       >
@@ -3734,7 +3770,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("image")}
                         className="h-8"
                       >
@@ -3743,7 +3779,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("divider")}
                         className="h-8"
                       >
@@ -3752,7 +3788,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("spacer")}
                         className="h-8"
                       >
@@ -3761,7 +3797,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("banner")}
                         className="h-8"
                       >
@@ -3770,7 +3806,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("video")}
                         className="h-8"
                       >
@@ -3779,7 +3815,7 @@ export function MjmlEditor() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onClick={() => addBlock("list")}
                         className="h-8"
                       >
@@ -3817,7 +3853,7 @@ export function MjmlEditor() {
                         draggable={editorMode === "visual"}
                         onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
                         onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                       >
                         <div className="font-mono text-[11px] truncate">{item.label}</div>
                         <div className="text-muted-foreground text-[10px]">{item.hint}</div>
@@ -3899,7 +3935,7 @@ export function MjmlEditor() {
                                             draggable={editorMode === "visual"}
                                             onDragStart={editorMode === "visual" ? (event) => onVariableCardDragStart(event, item) : undefined}
                                             onClick={() => appendTemplateVariableToBlock(selectedBlockId ?? "", item)}
-                                            disabled={!isDraft}
+                                            disabled={!canEditDraft}
                                           >
                                             <div className="font-mono text-[11px] truncate">{fieldName}</div>
                                           </button>
@@ -3998,7 +4034,7 @@ export function MjmlEditor() {
                               isActive ? "border-primary bg-primary/5" : "bg-background"
                             }`}
                             onDragOver={(ev) => {
-                              if (!isDraft) return;
+                              if (!canEditDraft) return;
                               if (isBlockDragEvent(ev.dataTransfer)) {
                                 ev.preventDefault();
                                 ev.dataTransfer.dropEffect = "move";
@@ -4018,7 +4054,7 @@ export function MjmlEditor() {
                             }}
                             onDrop={(ev) => {
                               ev.preventDefault();
-                              if (!isDraft) return;
+                              if (!canEditDraft) return;
                               if (isBlockDragEvent(ev.dataTransfer)) {
                                 const rect = ev.currentTarget.getBoundingClientRect();
                                 const nextIndex =
@@ -4060,7 +4096,7 @@ export function MjmlEditor() {
                                 <button
                                   type="button"
                                   className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted cursor-grab active:cursor-grabbing"
-                                  draggable={isDraft}
+                                  draggable={canEditDraft}
                                   onDragStart={(event) =>
                                     onBlockHandleDragStart(event, block.id)
                                   }
@@ -4084,10 +4120,10 @@ export function MjmlEditor() {
                                     }
                                   }}
                                   onClick={(ev) => ev.stopPropagation()}
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                               </div>
-                              {isDraft ? (
+                              {canEditDraft ? (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -4112,7 +4148,7 @@ export function MjmlEditor() {
                                 content={block.content}
                                 onChange={(html, newAlign) => updateTextBlock(block.id, html, newAlign)}
                                 align={block.align}
-                                disabled={!isDraft}
+                                disabled={!canEditDraft}
                                 onFocus={() => setSelectedBlockId(block.id)}
                               />
                             )}
@@ -4129,7 +4165,7 @@ export function MjmlEditor() {
                                         delete blockEditorRefs.current[block.id];
                                       }
                                     }}
-                                    contentEditable={isDraft}
+                                    contentEditable={canEditDraft}
                                     suppressContentEditableWarning
                                     className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
                                     data-placeholder={t("textPlaceholder")}
@@ -4166,7 +4202,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateButtonHref(block.id, ev.target.value)
                                   }
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                               </div>
                             ) : null}
@@ -4180,7 +4216,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "src", ev.target.value)
                                   }
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                                 <Label className="text-xs mt-2">Alt</Label>
                                 <Input
@@ -4189,7 +4225,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "alt", ev.target.value)
                                   }
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                                 <Label className="text-xs mt-2">Width</Label>
                                 <Input
@@ -4198,7 +4234,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "width", ev.target.value)
                                   }
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                               </>
                             ) : null}
@@ -4218,7 +4254,7 @@ export function MjmlEditor() {
                                       Number.parseInt(ev.target.value, 10)
                                     )
                                   }
-                                  readOnly={!isDraft}
+                                  readOnly={!canEditDraft}
                                 />
                               </>
                             ) : null}
@@ -4238,7 +4274,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="https://example.com/hero.jpg"
                                     onChange={(ev) => updateBannerBlock(block.id, "backgroundUrl", ev.target.value)}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                                 <div className="flex gap-2">
@@ -4249,7 +4285,7 @@ export function MjmlEditor() {
                                       value={block.backgroundColor}
                                       className="h-8 mt-1 w-16"
                                       onChange={(ev) => updateBannerBlock(block.id, "backgroundColor", ev.target.value)}
-                                      readOnly={!isDraft}
+                                      readOnly={!canEditDraft}
                                     />
                                   </div>
                                   <div className="flex-1">
@@ -4257,7 +4293,7 @@ export function MjmlEditor() {
                                     <select
                                       value={block.mode}
                                       onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
-                                      disabled={!isDraft}
+                                      disabled={!canEditDraft}
                                       className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
                                     >
                                       <option value="fluid-height">Fluid</option>
@@ -4274,7 +4310,7 @@ export function MjmlEditor() {
                                       value={block.height}
                                       className="h-8 mt-1"
                                       onChange={(ev) => updateBannerBlock(block.id, "height", Number.parseInt(ev.target.value, 10) || 400)}
-                                      readOnly={!isDraft}
+                                      readOnly={!canEditDraft}
                                     />
                                   </div>
                                 )}
@@ -4289,7 +4325,7 @@ export function MjmlEditor() {
                                           delete blockEditorRefs.current[block.id];
                                         }
                                       }}
-                                      contentEditable={isDraft}
+                                      contentEditable={canEditDraft}
                                       suppressContentEditableWarning
                                       className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
                                       data-placeholder="Headline text..."
@@ -4322,7 +4358,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="Leave empty for no button"
                                     onChange={(ev) => updateBannerBlock(block.id, "buttonText", ev.target.value)}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                                 {block.buttonText && (
@@ -4333,7 +4369,7 @@ export function MjmlEditor() {
                                         value={block.buttonHref}
                                         className="h-8 mt-1"
                                         onChange={(ev) => updateBannerBlock(block.id, "buttonHref", ev.target.value)}
-                                        readOnly={!isDraft}
+                                        readOnly={!canEditDraft}
                                       />
                                     </div>
                                     <div>
@@ -4343,7 +4379,7 @@ export function MjmlEditor() {
                                         value={block.buttonColor}
                                         className="h-8 mt-1 w-16"
                                         onChange={(ev) => updateBannerBlock(block.id, "buttonColor", ev.target.value)}
-                                        readOnly={!isDraft}
+                                        readOnly={!canEditDraft}
                                       />
                                     </div>
                                   </div>
@@ -4354,7 +4390,7 @@ export function MjmlEditor() {
                                     <select
                                       value={block.verticalAlign}
                                       onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
-                                      disabled={!isDraft}
+                                      disabled={!canEditDraft}
                                       className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
                                     >
                                       <option value="top">Top</option>
@@ -4370,7 +4406,7 @@ export function MjmlEditor() {
                                       value={block.padding}
                                       className="h-8 mt-1"
                                       onChange={(ev) => updateBannerBlock(block.id, "padding", Number.parseInt(ev.target.value, 10) || 0)}
-                                      readOnly={!isDraft}
+                                      readOnly={!canEditDraft}
                                     />
                                   </div>
                                 </div>
@@ -4401,7 +4437,7 @@ export function MjmlEditor() {
                                         }),
                                       });
                                     }}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                                 <div>
@@ -4411,7 +4447,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
                                     onChange={(ev) => updateVideoBlock(block.id, "thumbnailUrl", ev.target.value)}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                                 {block.thumbnailUrl && (
@@ -4435,7 +4471,7 @@ export function MjmlEditor() {
                                     value={block.alt}
                                     className="h-8 mt-1"
                                     onChange={(ev) => updateVideoBlock(block.id, "alt", ev.target.value)}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                                 <div>
@@ -4445,7 +4481,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="100%"
                                     onChange={(ev) => updateVideoBlock(block.id, "width", ev.target.value)}
-                                    readOnly={!isDraft}
+                                    readOnly={!canEditDraft}
                                   />
                                 </div>
                               </div>
@@ -4458,7 +4494,7 @@ export function MjmlEditor() {
                                   <select
                                     value={block.listType}
                                     onChange={(ev) => updateListBlock(block.id, "listType", ev.target.value)}
-                                    disabled={!isDraft}
+                                    disabled={!canEditDraft}
                                     className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
                                   >
                                     <option value="bullet">Bullets</option>
@@ -4516,7 +4552,7 @@ export function MjmlEditor() {
                                             {isDropAfter && (
                                               <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary rounded pointer-events-none" />
                                             )}
-                                            {isDraft && (
+                                            {canEditDraft && (
                                               <button
                                                 type="button"
                                                 className="h-5 w-4 inline-flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
@@ -4544,9 +4580,9 @@ export function MjmlEditor() {
                                               onChange={(ev) =>
                                                 updateListItemSegments(block.id, item.id, ev.target.value)
                                               }
-                                              readOnly={!isDraft}
+                                              readOnly={!canEditDraft}
                                             />
-                                            {isDraft && (
+                                            {canEditDraft && (
                                               <div className="flex items-center gap-0.5 shrink-0">
                                                 {idx > 0 && depth < 2 && (
                                                   <button
@@ -4593,7 +4629,7 @@ export function MjmlEditor() {
                                       });
                                     })(block.items, 0)}
                                   </div>
-                                  {isDraft && (
+                                  {canEditDraft && (
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -4643,7 +4679,7 @@ export function MjmlEditor() {
                   <MonacoEditorWrapper
                     value={codeMjml}
                     onChange={handleCodeChange}
-                    readOnly={!isDraft}
+                    readOnly={!canEditDraft}
                   />
                 </div>
               </div>
@@ -4674,7 +4710,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("subject")}
                   className="h-8 text-sm"
-                  readOnly={!isDraft}
+                  readOnly={!canEditDraft}
                 />
                 {errors.subject && (
                   <span className="text-xs text-destructive">
@@ -4687,7 +4723,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("preview_text")}
                   className="h-8 text-sm"
-                  readOnly={!isDraft}
+                  readOnly={!canEditDraft}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -4695,7 +4731,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("from_name")}
                   className="h-8 text-sm"
-                  readOnly={!isDraft}
+                  readOnly={!canEditDraft}
                 />
                 {errors.from_name && (
                   <span className="text-xs text-destructive">
@@ -4709,7 +4745,7 @@ export function MjmlEditor() {
                   <Input
                     {...register("reply_to")}
                     className="h-8 text-sm"
-                    readOnly={!isDraft}
+                    readOnly={!canEditDraft}
                   />
                 </div>
               )}

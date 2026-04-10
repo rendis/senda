@@ -28,6 +28,9 @@ func (m *mockTemplateStore) FindTypeBySlugInScope(_ context.Context, _ string, _
 	return nil, nil
 }
 func (m *mockTemplateStore) CreateTemplate(_ context.Context, _ *domain.Template) error { return nil }
+func (m *mockTemplateStore) ForkTemplate(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID) (*domain.Template, error) {
+	return nil, domain.ErrNotFound
+}
 func (m *mockTemplateStore) GetByTypeAndScope(_ context.Context, _ uuid.UUID, _ *uuid.UUID) (*domain.Template, error) {
 	return nil, nil
 }
