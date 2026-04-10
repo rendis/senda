@@ -238,6 +238,7 @@ func routeHasBody(route Route) bool {
 	switch {
 	case strings.HasSuffix(normalized, "/disable"),
 		strings.HasSuffix(normalized, "/enable"),
+		strings.HasSuffix(normalized, "/clone"),
 		strings.HasSuffix(normalized, "/publish"),
 		strings.HasSuffix(normalized, "/test"),
 		strings.HasSuffix(normalized, "/test-send"),
@@ -556,6 +557,8 @@ func routeSuccessType(route Route) string {
 		return "response.TemplateVersionListResponse"
 	case strings.HasSuffix(normalized, "/versions") && route.Method == "POST":
 		return "response.TemplateVersionResponse"
+	case strings.HasSuffix(normalized, "/versions/{version_id}/clone") && route.Method == "POST":
+		return "response.TemplateVersionResponse"
 	case strings.Contains(normalized, "/versions/{version_id}") && route.Method == "GET" && !strings.Contains(normalized, "/locales/"):
 		return "response.TemplateVersionResponse"
 	case strings.Contains(normalized, "/versions/{version_id}") && route.Method == "PUT" && !strings.Contains(normalized, "/locales/"):
@@ -613,6 +616,7 @@ func routeSuccessStatus(route Route) int {
 			strings.HasSuffix(normalized, "/template-types"),
 			strings.HasSuffix(normalized, "/templates"),
 			strings.HasSuffix(normalized, "/versions"),
+			strings.HasSuffix(normalized, "/clone"),
 			strings.Contains(normalized, "/locales/{locale}"),
 			strings.HasSuffix(normalized, "/api-keys"),
 			strings.HasSuffix(normalized, "/webhooks"),

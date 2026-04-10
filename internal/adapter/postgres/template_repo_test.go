@@ -831,6 +831,100 @@ func TestTemplateRepo_ListVersions(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_CloneVersion_CopiesVersionAndLocales(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	_, tpl := createTestTemplateWithType(ctx, t, repo)
+
+	replyTo := "reply@example.com"
+	source := &domain.TemplateVersion{
+		ID:            uuid.New(),
+		TemplateID:    tpl.ID,
+		Status:        domain.VersionStatusDraft,
+		Subject:       "Original subject",
+		PreviewText:   "Original preview",
+		FromName:      "Original sender",
+		ReplyTo:       &replyTo,
+		BodyMJML:      "<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>",
+		DefaultLocale: "en",
+		EditorData:    map[string]any{"blocks": []any{"hero"}, "meta": map[string]any{"theme": "dark"}},
+	}
+	if err := repo.CreateVersion(ctx, source); err != nil {
+		t.Fatalf("CreateVersion(source) error: %v", err)
+	}
+
+	esSubject := "Hola"
+	esBody := "<mjml><mj-body><mj-text>Hola</mj-text></mj-body></mjml>"
+	if err := repo.SetLocale(ctx, &domain.TemplateVersionLocale{
+		ID:                uuid.New(),
+		TemplateVersionID: source.ID,
+		Locale:            "es",
+		Subject:           &esSubject,
+		BodyMJML:          &esBody,
+		EditorData:        map[string]any{"blocks": []any{"hero-es"}},
+	}); err != nil {
+		t.Fatalf("SetLocale(es) error: %v", err)
+	}
+
+	frSubject := "Bonjour"
+	if err := repo.SetLocale(ctx, &domain.TemplateVersionLocale{
+		ID:                uuid.New(),
+		TemplateVersionID: source.ID,
+		Locale:            "fr",
+		Subject:           &frSubject,
+		EditorData:        map[string]any{"blocks": []any{"hero-fr"}},
+	}); err != nil {
+		t.Fatalf("SetLocale(fr) error: %v", err)
+	}
+
+	cloned, err := repo.CloneVersion(ctx, tpl.ID, source.ID, nil)
+	if err != nil {
+		t.Fatalf("CloneVersion() error: %v", err)
+	}
+	if cloned.ID == source.ID {
+		t.Fatal("expected cloned version to have a new ID")
+	}
+	if cloned.VersionNumber != source.VersionNumber+1 {
+		t.Fatalf("expected cloned version number %d, got %d", source.VersionNumber+1, cloned.VersionNumber)
+	}
+	if cloned.Status != domain.VersionStatusDraft {
+		t.Fatalf("expected cloned status draft, got %s", cloned.Status)
+	}
+	if cloned.Subject != source.Subject || cloned.PreviewText != source.PreviewText || cloned.FromName != source.FromName {
+		t.Fatalf("expected cloned content to match source")
+	}
+	if cloned.ReplyTo == nil || *cloned.ReplyTo != replyTo {
+		t.Fatalf("expected cloned reply_to %q, got %v", replyTo, cloned.ReplyTo)
+	}
+	if cloned.BodyMJML != source.BodyMJML || cloned.DefaultLocale != source.DefaultLocale {
+		t.Fatalf("expected cloned body/default locale to match source")
+	}
+
+	locales, err := repo.ListLocales(ctx, cloned.ID)
+	if err != nil {
+		t.Fatalf("ListLocales(cloned) error: %v", err)
+	}
+	if len(locales) != 2 {
+		t.Fatalf("expected 2 cloned locales, got %d", len(locales))
+	}
+
+	gotLocales := map[string]*domain.TemplateVersionLocale{}
+	for _, locale := range locales {
+		gotLocales[locale.Locale] = locale
+		if locale.TemplateVersionID != cloned.ID {
+			t.Fatalf("expected cloned locale to point to cloned version %s, got %s", cloned.ID, locale.TemplateVersionID)
+		}
+	}
+	if gotLocales["es"] == nil || gotLocales["es"].Subject == nil || *gotLocales["es"].Subject != esSubject {
+		t.Fatalf("expected es locale to be cloned exactly")
+	}
+	if gotLocales["fr"] == nil || gotLocales["fr"].Subject == nil || *gotLocales["fr"].Subject != frSubject {
+		t.Fatalf("expected fr locale to be cloned exactly")
+	}
+}
+
 // --- Locale tests ---
 
 func TestTemplateRepo_SetLocale(t *testing.T) {

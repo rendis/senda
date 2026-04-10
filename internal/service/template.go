@@ -100,6 +100,39 @@ func (s *TemplateService) PublishVersion(ctx context.Context, versionID uuid.UUI
 	return s.store.Publish(ctx, versionID)
 }
 
+// CloneVersion creates a new draft by exactly copying a source version and all its locales.
+// Access validation is performed against the provided scope before delegating the atomic clone to the store.
+func (s *TemplateService) CloneVersion(
+	ctx context.Context,
+	templateID uuid.UUID,
+	sourceVersionID uuid.UUID,
+	wsID *uuid.UUID,
+	createdBy *uuid.UUID,
+) (*domain.TemplateVersion, error) {
+	tpl, err := s.store.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+
+	if wsID == nil {
+		if tpl.WorkspaceID != nil {
+			return nil, domain.ErrNotFound
+		}
+	} else if tpl.WorkspaceID == nil || *tpl.WorkspaceID != *wsID {
+		return nil, domain.ErrNotFound
+	}
+
+	sourceVersion, err := s.store.GetVersionByID(ctx, sourceVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if sourceVersion.TemplateID != templateID {
+		return nil, domain.ErrNotFound
+	}
+
+	return s.store.CloneVersion(ctx, templateID, sourceVersionID, createdBy)
+}
+
 // ListVersions returns all versions for a template.
 func (s *TemplateService) ListVersions(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error) {
 	return s.store.ListVersions(ctx, templateID)

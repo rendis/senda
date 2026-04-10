@@ -29,12 +29,15 @@ type mockTemplateStore struct {
 	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
+	cloneVersionFn          func(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error)
+	getVersionByIDFn        func(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
 	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 	listVersionsFn          func(ctx context.Context, templateID uuid.UUID) ([]*domain.TemplateVersion, error)
 	setLocaleFn             func(ctx context.Context, locale *domain.TemplateVersionLocale) error
 	getLocaleFn             func(ctx context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error)
+	listLocalesFn           func(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error)
 	deleteLocaleFn          func(ctx context.Context, versionID uuid.UUID, locale string) error
 	listTypesFn             func(ctx context.Context, wsID *uuid.UUID, opts port.ListOptions) ([]*domain.TemplateType, string, error)
 	updateTypeFn            func(ctx context.Context, tt *domain.TemplateType) error
@@ -93,7 +96,16 @@ func (m *mockTemplateStore) CreateVersion(ctx context.Context, ver *domain.Templ
 	}
 	return nil
 }
-func (m *mockTemplateStore) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
+func (m *mockTemplateStore) CloneVersion(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
+	if m.cloneVersionFn != nil {
+		return m.cloneVersionFn(ctx, templateID, sourceVersionID, createdBy)
+	}
+	return nil, nil
+}
+func (m *mockTemplateStore) GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error) {
+	if m.getVersionByIDFn != nil {
+		return m.getVersionByIDFn(ctx, versionID)
+	}
 	return nil, nil
 }
 func (m *mockTemplateStore) GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
@@ -134,7 +146,10 @@ func (m *mockTemplateStore) GetLocale(ctx context.Context, versionID uuid.UUID, 
 	}
 	return nil, nil
 }
-func (m *mockTemplateStore) ListLocales(_ context.Context, _ uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+func (m *mockTemplateStore) ListLocales(ctx context.Context, versionID uuid.UUID) ([]*domain.TemplateVersionLocale, error) {
+	if m.listLocalesFn != nil {
+		return m.listLocalesFn(ctx, versionID)
+	}
 	return nil, nil
 }
 func (m *mockTemplateStore) DeleteLocale(ctx context.Context, versionID uuid.UUID, locale string) error {

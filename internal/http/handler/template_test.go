@@ -109,6 +109,7 @@ func setupTemplateTestWithOptions(
 	e.POST("/api/v1/manage/global/templates", h.CreateTemplateGlobal)
 	e.GET(base+"/templates/:template_id/versions", h.ListVersions)
 	e.POST(base+"/templates/:template_id/versions", h.CreateVersion)
+	e.POST(base+"/templates/:template_id/versions/:version_id/clone", h.CloneVersion)
 	e.POST(base+"/templates/:template_id/versions/:version_id/publish", h.PublishVersion)
 	e.POST(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.SetLocale)
 	e.GET(base+"/templates/:template_id/versions/:version_id/locales/:locale", h.GetLocale)
@@ -426,6 +427,91 @@ func TestTemplateHandler_PublishVersion_NotFound(t *testing.T) {
 	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+versionID.String()+"/publish", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTemplateHandler_CloneVersion_Success(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	sourceVersionID := uuid.Must(uuid.NewV7())
+	clonedVersionID := uuid.Must(uuid.NewV7())
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return &domain.Template{ID: templateID, WorkspaceID: &ws.ID}, nil
+		},
+		getVersionByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateVersion, error) {
+			if id != sourceVersionID {
+				t.Fatalf("expected source version ID %s, got %s", sourceVersionID, id)
+			}
+			return &domain.TemplateVersion{ID: sourceVersionID, TemplateID: templateID, Status: domain.VersionStatusArchived}, nil
+		},
+		cloneVersionFn: func(_ context.Context, gotTemplateID, gotSourceVersionID uuid.UUID, _ *uuid.UUID) (*domain.TemplateVersion, error) {
+			if gotTemplateID != templateID {
+				t.Fatalf("expected clone template ID %s, got %s", templateID, gotTemplateID)
+			}
+			if gotSourceVersionID != sourceVersionID {
+				t.Fatalf("expected clone source version ID %s, got %s", sourceVersionID, gotSourceVersionID)
+			}
+			return &domain.TemplateVersion{
+				ID:            clonedVersionID,
+				TemplateID:    templateID,
+				VersionNumber: 4,
+				Status:        domain.VersionStatusDraft,
+				Subject:       "Cloned version",
+				CreatedAt:     time.Now().UTC(),
+				UpdatedAt:     time.Now().UTC(),
+			}, nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+sourceVersionID.String()+"/clone", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.TemplateVersionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp.ID != clonedVersionID.String() {
+		t.Fatalf("expected cloned version ID %s, got %s", clonedVersionID, resp.ID)
+	}
+	if resp.Status != string(domain.VersionStatusDraft) {
+		t.Fatalf("expected draft response, got %s", resp.Status)
+	}
+}
+
+func TestTemplateHandler_CloneVersion_WorkspaceMismatch(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	templateID := uuid.Must(uuid.NewV7())
+	sourceVersionID := uuid.Must(uuid.NewV7())
+	otherWorkspaceID := uuid.Must(uuid.NewV7())
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, _ uuid.UUID) (*domain.Template, error) {
+			return &domain.Template{ID: templateID, WorkspaceID: &otherWorkspaceID}, nil
+		},
+	}
+
+	e, _ := setupTemplateTest(store, &mockTemplateCompiler{}, ts, wsStore)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/versions/"+sourceVersionID.String()+"/clone", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 

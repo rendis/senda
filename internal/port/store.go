@@ -68,6 +68,7 @@ type TemplateTypeStore interface {
 // TemplateVersionStore manages template version persistence.
 type TemplateVersionStore interface {
 	CreateVersion(ctx context.Context, ver *domain.TemplateVersion) error
+	CloneVersion(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error)
 	GetVersionByID(ctx context.Context, versionID uuid.UUID) (*domain.TemplateVersion, error)
 	GetPublishedVersion(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	UpdateVersion(ctx context.Context, ver *domain.TemplateVersion) error

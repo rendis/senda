@@ -616,6 +616,39 @@ func (h *TemplateHandler) PublishVersion(c *echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// CloneVersion handles POST .../templates/:template_id/versions/:version_id/clone.
+func (h *TemplateHandler) CloneVersion(c *echo.Context) error {
+	ws, err := resolveWorkspace(c, h.tsStore, h.wsStore)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.cloneVersion(c, &ws.ID)
+}
+
+// CloneVersionGlobal handles POST /global/templates/:template_id/versions/:version_id/clone.
+func (h *TemplateHandler) CloneVersionGlobal(c *echo.Context) error {
+	return h.cloneVersion(c, nil)
+}
+
+func (h *TemplateHandler) cloneVersion(c *echo.Context, wsID *uuid.UUID) error {
+	templateID, err := uuid.Parse(c.Param("template_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid template ID")
+	}
+
+	versionID, err := uuid.Parse(c.Param("version_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid version ID")
+	}
+
+	cloned, err := h.svc.CloneVersion(c.Request().Context(), templateID, versionID, wsID, nil)
+	if err != nil {
+		return mapTemplateError(c, err)
+	}
+
+	return c.JSON(http.StatusCreated, response.NewTemplateVersionResponse(cloned))
+}
+
 // SetLocale handles POST .../templates/:template_id/versions/:version_id/locales.
 func (h *TemplateHandler) SetLocale(c *echo.Context) error { //nolint:dupl // structurally similar to UpdateLocale
 	versionID, err := uuid.Parse(c.Param("version_id"))

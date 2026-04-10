@@ -197,6 +197,7 @@ type mockTemplateStoreSend struct {
 	getByTypeAndScopeFn     func(ctx context.Context, typeID uuid.UUID, wsID *uuid.UUID) (*domain.Template, error)
 	resolveTemplateFn       func(ctx context.Context, typeID uuid.UUID, chain []uuid.NullUUID) (*domain.Template, error)
 	createVersionFn         func(ctx context.Context, ver *domain.TemplateVersion) error
+	cloneVersionFn          func(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error)
 	getPublishedVersionFn   func(ctx context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error)
 	publishFn               func(ctx context.Context, versionID uuid.UUID) error
 	setDisabledFn           func(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
@@ -255,6 +256,12 @@ func (m *mockTemplateStoreSend) CreateVersion(ctx context.Context, ver *domain.T
 		return m.createVersionFn(ctx, ver)
 	}
 	return nil
+}
+func (m *mockTemplateStoreSend) CloneVersion(ctx context.Context, templateID, sourceVersionID uuid.UUID, createdBy *uuid.UUID) (*domain.TemplateVersion, error) {
+	if m.cloneVersionFn != nil {
+		return m.cloneVersionFn(ctx, templateID, sourceVersionID, createdBy)
+	}
+	return nil, nil
 }
 func (m *mockTemplateStoreSend) GetVersionByID(_ context.Context, _ uuid.UUID) (*domain.TemplateVersion, error) {
 	return nil, nil
