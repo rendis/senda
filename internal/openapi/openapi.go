@@ -238,6 +238,7 @@ func routeHasBody(route Route) bool {
 	switch {
 	case strings.HasSuffix(normalized, "/disable"),
 		strings.HasSuffix(normalized, "/enable"),
+		strings.HasSuffix(normalized, "/clone"),
 		strings.HasSuffix(normalized, "/publish"),
 		strings.HasSuffix(normalized, "/test"),
 		strings.HasSuffix(normalized, "/test-send"),
@@ -615,6 +616,7 @@ func routeSuccessStatus(route Route) int {
 			strings.HasSuffix(normalized, "/template-types"),
 			strings.HasSuffix(normalized, "/templates"),
 			strings.HasSuffix(normalized, "/versions"),
+			strings.HasSuffix(normalized, "/clone"),
 			strings.Contains(normalized, "/locales/{locale}"),
 			strings.HasSuffix(normalized, "/api-keys"),
 			strings.HasSuffix(normalized, "/webhooks"),

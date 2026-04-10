@@ -877,6 +877,25 @@ func doc_get_api_v1_manage_global_templates_template_id_versions_version_id() {}
 // @Router       /api/v1/manage/global/templates/{template_id}/versions/{version_id} [put]
 func doc_put_api_v1_manage_global_templates_template_id_versions_version_id() {}
 
+// doc_post_api_v1_manage_global_templates_template_id_versions_version_id_clone auto-generated route documentation.
+// @Summary      POST /api/v1/manage/global/templates/{template_id}/versions/{version_id}/clone
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      201  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/global/templates/{template_id}/versions/{version_id}/clone [post]
+func doc_post_api_v1_manage_global_templates_template_id_versions_version_id_clone() {}
+
 // doc_get_api_v1_manage_global_templates_template_id_versions_version_id_locales auto-generated route documentation.
 // @Summary      GET /api/v1/manage/global/templates/{template_id}/versions/{version_id}/locales
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -2673,6 +2692,27 @@ func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templat
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id} [put]
 func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id() {}
+
+// doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_clone auto-generated route documentation.
+// @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/clone
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        version_id  path  string  true  "version_id path parameter"
+// @Success      201  {object}  response.TemplateVersionResponse
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/clone [post]
+func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_clone() {}
 
 // doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_versions_version_id_locales auto-generated route documentation.
 // @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/versions/{version_id}/locales
