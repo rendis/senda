@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { cn } from "@/lib/utils";
+import { SYSTEM_WORKSPACE_LABEL } from "@/lib/system-workspace-display";
 import type { Adapter, AdapterIdentity } from "@/types/adapters";
 import { useWorkspacesManagement } from "@/hooks/use-workspaces-mgmt";
 
@@ -402,7 +403,7 @@ export function IdentityPanel({
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-md bg-scope-system-bg px-2.5 py-1 text-xs text-scope-system">
                   <Lock className="h-3.5 w-3.5" />
-                  Shared from _system — read only
+                  {`Shared from ${SYSTEM_WORKSPACE_LABEL} — read only`}
                 </div>
               )}
             </div>

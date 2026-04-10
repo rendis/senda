@@ -38,6 +38,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { SYSTEM_WORKSPACE_LABEL } from "@/lib/system-workspace-display";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Adapter, AdapterIdentity, CreateAdapterRequest } from "@/types/adapters";
 import { useIdentityList } from "@/hooks/use-identities";
@@ -112,7 +113,7 @@ function AdaptersTable() {
                   Shared
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Shared from _system — read only in this workspace</TooltipContent>
+              <TooltipContent>{`Shared from ${SYSTEM_WORKSPACE_LABEL} — read only in this workspace`}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -334,7 +335,7 @@ function AdapterActions({
     (identities ?? []).some(isVerifiedEmail);
 
   const readOnlyReason = adapter.is_shared
-    ? "Shared from _system — read only in this workspace"
+    ? `Shared from ${SYSTEM_WORKSPACE_LABEL} — read only in this workspace`
     : "This adapter is read only";
 
   const actionButton = (opts: {
@@ -465,7 +466,7 @@ function AdapterWorkspaceAccessDialog({
         <DialogHeader>
           <DialogTitle>Workspace access — {adapter.name}</DialogTitle>
           <DialogDescription>
-            Choose which workspaces can use this Gmail adapter from _system.
+            {`Choose which workspaces can use this Gmail adapter from ${SYSTEM_WORKSPACE_LABEL}.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto py-2">

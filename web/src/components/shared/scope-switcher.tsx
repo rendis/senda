@@ -28,6 +28,11 @@ import { cn } from "@/lib/utils";
 import { setLastWorkspacePath } from "@/hooks/use-last-workspace";
 import { useOnScopeSwitcherOpen } from "@/lib/scope-switcher-events";
 import { SYSTEM_WORKSPACE_CODE, type Tenant, type Workspace } from "@/types/api";
+import {
+  SYSTEM_WORKSPACE_LABEL,
+  getWorkspaceDisplayCode,
+  getWorkspaceDisplayName,
+} from "@/lib/system-workspace-display";
 
 const WORKSPACE_PATH_RE = /^\/t\/[^/]+\/w\/[^/]+/;
 
@@ -84,7 +89,7 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
     level === "global"
       ? tScope("globalScope")
       : isSystemWorkspace
-        ? tenantCode ?? "Tenant"
+        ? SYSTEM_WORKSPACE_LABEL
         : workspaceCode ?? "Workspace";
 
   const ScopeIcon =
@@ -404,10 +409,14 @@ function WorkspacesView({
         >
           <Layers className="h-4 w-4 text-scope-workspace shrink-0" />
           <div className="flex flex-col min-w-0">
-            <span className="font-medium truncate">{w.name}</span>
-            <span className="text-xs text-muted-foreground truncate">
-              {w.code}
+            <span className="font-medium truncate">
+              {getWorkspaceDisplayName(w)}
             </span>
+            {getWorkspaceDisplayCode(w) !== getWorkspaceDisplayName(w) && (
+              <span className="text-xs text-muted-foreground truncate">
+                {getWorkspaceDisplayCode(w)}
+              </span>
+            )}
           </div>
         </button>
       ))}
