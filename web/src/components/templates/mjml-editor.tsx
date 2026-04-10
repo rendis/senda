@@ -221,6 +221,15 @@ type BuilderDocument = {
 
 type EditorMode = "visual" | "code";
 
+interface MjmlEditorProps {
+  embedded?: boolean;
+  forceReadOnly?: boolean;
+  lockEditing?: boolean;
+  canPublish?: boolean;
+  canSendTest?: boolean;
+  showBulkSend?: boolean;
+}
+
 type TemplateVariable = {
   id: string;
   token: string;
@@ -1639,8 +1648,16 @@ function makeVariableToken(name: string, category: "event" | "injector") {
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
-export function MjmlEditor() {
+export function MjmlEditor({
+  embedded = false,
+  forceReadOnly = false,
+  lockEditing = false,
+  canPublish: canPublishOverride,
+  canSendTest: canSendTestOverride,
+  showBulkSend = true,
+}: MjmlEditorProps = {}) {
   const t = useTranslations("editor");
+  const tExternal = useTranslations("externalBuilderPage");
 
   const defaultBlockLabel: Record<BuilderBlockType, string> = {
     text: t("blocks.text"),
@@ -1732,7 +1749,7 @@ export function MjmlEditor() {
   const [previewFrameUrl, setPreviewFrameUrl] = useState("");
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showTestSend, setShowTestSend] = useState(false);
-  const [showBulkSend, setShowBulkSend] = useState(false);
+  const [showBulkSendModal, setShowBulkSendModal] = useState(false);
   const [activeLocale, setActiveLocale] = useState<string>("default");
   const activeLocaleRef = useRef(activeLocale);
   useEffect(() => { activeLocaleRef.current = activeLocale; }, [activeLocale]);
@@ -1751,8 +1768,6 @@ export function MjmlEditor() {
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(
     null
   );
-  const bulkSendEnabled = scope.level === "workspace";
-
   const [builderDocument, setBuilderDocument] = useState<BuilderDocument | null>(
     null
   );
@@ -1813,7 +1828,21 @@ export function MjmlEditor() {
   });
 
   const isDraft = version?.status === "draft";
-  const canEditDraft = Boolean(isDraft && templateState.canManageVersions);
+  const canEditDraft = Boolean(
+    isDraft && templateState.canManageVersions && !lockEditing,
+  );
+  const isReadOnlyMode = forceReadOnly || !canEditDraft;
+  const canMutate = canEditDraft && !forceReadOnly;
+  const canSendTest =
+    testSendAvailability.enabled &&
+    !forceReadOnly &&
+    (canSendTestOverride ?? true);
+  const canPublish = canMutate && (canPublishOverride ?? true);
+  const testSendDisabledReason =
+    canSendTestOverride === false
+      ? tExternal("testSendDisabledByPermissions")
+      : testSendAvailability.reason;
+  const bulkSendEnabled = showBulkSend && scope.level === "workspace" && !forceReadOnly;
 
   const autoSave = useAutoSave({
     getPayload: () => {
@@ -3518,12 +3547,14 @@ export function MjmlEditor() {
       <div className="flex flex-col gap-2 px-6 py-3 border-b bg-card shrink-0">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push(buildBackPath())}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
+            {!embedded ? (
+              <button
+                onClick={() => router.push(buildBackPath())}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            ) : null}
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Templates</span>
               <span className="text-muted-foreground">/</span>
@@ -3646,7 +3677,7 @@ export function MjmlEditor() {
                 </Button>
               </>
             )}
-            {testSendAvailability.enabled ? (
+            {canSendTest ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -3666,37 +3697,24 @@ export function MjmlEditor() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {testSendAvailability.reason}
+                  {testSendDisabledReason}
                 </TooltipContent>
               </Tooltip>
             )}
-            <div className="mx-1 h-6 w-px bg-border" />
             {bulkSendEnabled ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkSend(true)}
-              >
-                <List className="h-4 w-4 mr-1.5" />
-                Bulk Send
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button variant="outline" size="sm" disabled>
-                      <List className="h-4 w-4 mr-1.5" />
-                      Bulk Send
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Bulk send is available only in workspace scope because it reuses the workspace
-                  queueing flow.
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEditDraft && (
+              <>
+                <div className="mx-1 h-6 w-px bg-border" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkSendModal(true)}
+                >
+                  <List className="h-4 w-4 mr-1.5" />
+                  Bulk Send
+                </Button>
+              </>
+            ) : null}
+            {canPublish && (
               <Button size="sm" onClick={() => setShowPublishConfirm(true)}>
                 <Rocket className="h-4 w-4 mr-1.5" />
                 Publish
@@ -3706,7 +3724,11 @@ export function MjmlEditor() {
         </div>
       </div>
 
-      {isDraft && !canEditDraft ? (
+      {forceReadOnly ? (
+        <div className="mx-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-200">
+          {tExternal("readOnlyFallbackDescription")}
+        </div>
+      ) : isDraft && !canEditDraft ? (
         <div className="mx-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           This draft is visible in this workspace but locked for editing. Fork
           the default template or enable workspace version management from the
@@ -4096,7 +4118,7 @@ export function MjmlEditor() {
                                 <button
                                   type="button"
                                   className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted cursor-grab active:cursor-grabbing"
-                                  draggable={canEditDraft}
+                                  draggable={!isReadOnlyMode}
                                   onDragStart={(event) =>
                                     onBlockHandleDragStart(event, block.id)
                                   }
@@ -4120,7 +4142,7 @@ export function MjmlEditor() {
                                     }
                                   }}
                                   onClick={(ev) => ev.stopPropagation()}
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                               </div>
                               {canEditDraft ? (
@@ -4165,7 +4187,7 @@ export function MjmlEditor() {
                                         delete blockEditorRefs.current[block.id];
                                       }
                                     }}
-                                    contentEditable={canEditDraft}
+                                    contentEditable={!isReadOnlyMode}
                                     suppressContentEditableWarning
                                     className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
                                     data-placeholder={t("textPlaceholder")}
@@ -4202,7 +4224,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateButtonHref(block.id, ev.target.value)
                                   }
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                               </div>
                             ) : null}
@@ -4216,7 +4238,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "src", ev.target.value)
                                   }
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                                 <Label className="text-xs mt-2">Alt</Label>
                                 <Input
@@ -4225,7 +4247,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "alt", ev.target.value)
                                   }
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                                 <Label className="text-xs mt-2">Width</Label>
                                 <Input
@@ -4234,7 +4256,7 @@ export function MjmlEditor() {
                                   onChange={(ev) =>
                                     updateImageBlock(block.id, "width", ev.target.value)
                                   }
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                               </>
                             ) : null}
@@ -4254,7 +4276,7 @@ export function MjmlEditor() {
                                       Number.parseInt(ev.target.value, 10)
                                     )
                                   }
-                                  readOnly={!canEditDraft}
+                                  readOnly={isReadOnlyMode}
                                 />
                               </>
                             ) : null}
@@ -4274,7 +4296,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="https://example.com/hero.jpg"
                                     onChange={(ev) => updateBannerBlock(block.id, "backgroundUrl", ev.target.value)}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                                 <div className="flex gap-2">
@@ -4285,7 +4307,7 @@ export function MjmlEditor() {
                                       value={block.backgroundColor}
                                       className="h-8 mt-1 w-16"
                                       onChange={(ev) => updateBannerBlock(block.id, "backgroundColor", ev.target.value)}
-                                      readOnly={!canEditDraft}
+                                      readOnly={isReadOnlyMode}
                                     />
                                   </div>
                                   <div className="flex-1">
@@ -4310,7 +4332,7 @@ export function MjmlEditor() {
                                       value={block.height}
                                       className="h-8 mt-1"
                                       onChange={(ev) => updateBannerBlock(block.id, "height", Number.parseInt(ev.target.value, 10) || 400)}
-                                      readOnly={!canEditDraft}
+                                      readOnly={isReadOnlyMode}
                                     />
                                   </div>
                                 )}
@@ -4325,7 +4347,7 @@ export function MjmlEditor() {
                                           delete blockEditorRefs.current[block.id];
                                         }
                                       }}
-                                      contentEditable={canEditDraft}
+                                      contentEditable={!isReadOnlyMode}
                                       suppressContentEditableWarning
                                       className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
                                       data-placeholder="Headline text..."
@@ -4358,7 +4380,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="Leave empty for no button"
                                     onChange={(ev) => updateBannerBlock(block.id, "buttonText", ev.target.value)}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                                 {block.buttonText && (
@@ -4369,7 +4391,7 @@ export function MjmlEditor() {
                                         value={block.buttonHref}
                                         className="h-8 mt-1"
                                         onChange={(ev) => updateBannerBlock(block.id, "buttonHref", ev.target.value)}
-                                        readOnly={!canEditDraft}
+                                        readOnly={isReadOnlyMode}
                                       />
                                     </div>
                                     <div>
@@ -4379,7 +4401,7 @@ export function MjmlEditor() {
                                         value={block.buttonColor}
                                         className="h-8 mt-1 w-16"
                                         onChange={(ev) => updateBannerBlock(block.id, "buttonColor", ev.target.value)}
-                                        readOnly={!canEditDraft}
+                                        readOnly={isReadOnlyMode}
                                       />
                                     </div>
                                   </div>
@@ -4406,7 +4428,7 @@ export function MjmlEditor() {
                                       value={block.padding}
                                       className="h-8 mt-1"
                                       onChange={(ev) => updateBannerBlock(block.id, "padding", Number.parseInt(ev.target.value, 10) || 0)}
-                                      readOnly={!canEditDraft}
+                                      readOnly={isReadOnlyMode}
                                     />
                                   </div>
                                 </div>
@@ -4437,7 +4459,7 @@ export function MjmlEditor() {
                                         }),
                                       });
                                     }}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                                 <div>
@@ -4447,7 +4469,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
                                     onChange={(ev) => updateVideoBlock(block.id, "thumbnailUrl", ev.target.value)}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                                 {block.thumbnailUrl && (
@@ -4471,7 +4493,7 @@ export function MjmlEditor() {
                                     value={block.alt}
                                     className="h-8 mt-1"
                                     onChange={(ev) => updateVideoBlock(block.id, "alt", ev.target.value)}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                                 <div>
@@ -4481,7 +4503,7 @@ export function MjmlEditor() {
                                     className="h-8 mt-1"
                                     placeholder="100%"
                                     onChange={(ev) => updateVideoBlock(block.id, "width", ev.target.value)}
-                                    readOnly={!canEditDraft}
+                                    readOnly={isReadOnlyMode}
                                   />
                                 </div>
                               </div>
@@ -4580,7 +4602,7 @@ export function MjmlEditor() {
                                               onChange={(ev) =>
                                                 updateListItemSegments(block.id, item.id, ev.target.value)
                                               }
-                                              readOnly={!canEditDraft}
+                                              readOnly={isReadOnlyMode}
                                             />
                                             {canEditDraft && (
                                               <div className="flex items-center gap-0.5 shrink-0">
@@ -4679,7 +4701,7 @@ export function MjmlEditor() {
                   <MonacoEditorWrapper
                     value={codeMjml}
                     onChange={handleCodeChange}
-                    readOnly={!canEditDraft}
+                    readOnly={isReadOnlyMode}
                   />
                 </div>
               </div>
@@ -4710,7 +4732,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("subject")}
                   className="h-8 text-sm"
-                  readOnly={!canEditDraft}
+                  readOnly={isReadOnlyMode}
                 />
                 {errors.subject && (
                   <span className="text-xs text-destructive">
@@ -4723,7 +4745,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("preview_text")}
                   className="h-8 text-sm"
-                  readOnly={!canEditDraft}
+                  readOnly={isReadOnlyMode}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -4731,7 +4753,7 @@ export function MjmlEditor() {
                 <Input
                   {...register("from_name")}
                   className="h-8 text-sm"
-                  readOnly={!canEditDraft}
+                  readOnly={isReadOnlyMode}
                 />
                 {errors.from_name && (
                   <span className="text-xs text-destructive">
@@ -4745,7 +4767,7 @@ export function MjmlEditor() {
                   <Input
                     {...register("reply_to")}
                     className="h-8 text-sm"
-                    readOnly={!canEditDraft}
+                    readOnly={isReadOnlyMode}
                   />
                 </div>
               )}
@@ -4843,18 +4865,20 @@ export function MjmlEditor() {
         scopedPath={scopedPath}
         templateId={templateId}
         locale={activeLocale === "default" ? undefined : activeLocale}
-        sendEnabled={testSendAvailability.enabled}
+        sendEnabled={canSendTest}
         sendDisabledReason={testSendAvailability.reason}
         allowedInjectorUsage={usedInjectorUsage}
       />
 
-      <BulkSendModal
-        open={showBulkSend}
-        onOpenChange={setShowBulkSend}
-        scopedPath={scopedPath}
-        templateId={templateId}
-        enabled={bulkSendEnabled}
-      />
+      {bulkSendEnabled ? (
+        <BulkSendModal
+          open={showBulkSendModal}
+          onOpenChange={setShowBulkSendModal}
+          scopedPath={scopedPath}
+          templateId={templateId}
+          enabled={bulkSendEnabled}
+        />
+      ) : null}
     </div>
   );
 }

@@ -69,3 +69,4 @@ test/system/baselines/pencil/
 # Project internal files (stories, design files)
 stories/
 *.pen
+.worktrees/

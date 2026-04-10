@@ -225,9 +225,11 @@ func startAppContainer(ctx context.Context, rootDir, networkName string) (testco
 		},
 		ExposedPorts: []string{"8080/tcp"},
 		Env: map[string]string{
-			"SENDA_E2E_ENABLE_CODE_INJECTORS": "true",
+			"SENDA_E2E_ENABLE_CODE_INJECTORS":       "true",
+			"SENDA_E2E_ENABLE_EXTERNAL_INTEGRATION": "true",
+			"SENDA_E2E_EXTERNAL_TOKEN":              "external-e2e-token",
 		},
-		Networks:     []string{networkName},
+		Networks: []string{networkName},
 		NetworkAliases: map[string][]string{
 			networkName: []string{"senda"},
 		},

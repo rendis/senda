@@ -31,6 +31,13 @@ type WorkspaceStore interface {
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 }
 
+// WorkspaceExistenceStore provides batch existence checks for tenant-scoped workspace codes.
+type WorkspaceExistenceStore interface {
+	// ExistsActiveByTenantCode returns a dense map where each requested workspace code is present
+	// and mapped to true only when the workspace exists for the tenant, is active, and is not soft-deleted.
+	ExistsActiveByTenantCode(ctx context.Context, tenantCode string, workspaceCodes []string) (map[string]bool, error)
+}
+
 // InjectorStore manages injector persistence.
 type InjectorStore interface {
 	// Definitions (schema)

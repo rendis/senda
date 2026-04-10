@@ -74,6 +74,9 @@ type Server struct {
 	// HT-25 handler (Onboarding).
 	onboardingHandler *handler.OnboardingHandler
 
+	// External integration handler.
+	externalIntegrationHandler *handler.ExternalIntegrationHandler
+
 	// HT-27 handler (API Keys).
 	apiKeyHandler *handler.APIKeyHandler
 
@@ -262,6 +265,14 @@ func WithOnboardingHandler(h *handler.OnboardingHandler) ServerOption {
 	}
 }
 
+// WithExternalIntegrationHandler sets the handler for the external integration
+// bootstrap route.
+func WithExternalIntegrationHandler(h *handler.ExternalIntegrationHandler) ServerOption {
+	return func(s *Server) {
+		s.externalIntegrationHandler = h
+	}
+}
+
 // WithAPIKeyHandler sets the APIKeyHandler for API key management routes.
 func WithAPIKeyHandler(h *handler.APIKeyHandler) ServerOption {
 	return func(s *Server) {
@@ -316,8 +327,14 @@ func NewServer(cfg *config.Config, logger *slog.Logger, opts ...ServerOption) *S
 		HSTSMaxAge:            31536000,
 		ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
 	}))
+	if s.externalIntegrationHandler != nil {
+		e.Use(middleware.ExternalIntegrationCORS(s.externalIntegrationHandler))
+	}
 	if len(cfg.Server.AllowedOrigins) > 0 {
 		e.Use(echomw.CORSWithConfig(echomw.CORSConfig{
+			Skipper: func(c *echo.Context) bool {
+				return strings.HasPrefix(c.Request().URL.Path, "/api/v1/external/")
+			},
 			AllowOrigins: cfg.Server.AllowedOrigins,
 			AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 			AllowHeaders: []string{"Authorization", "Content-Type", "X-Request-ID"},
@@ -383,6 +400,47 @@ func (s *Server) registerRoutes() { //nolint:gocognit,gocyclo,funlen // route re
 	if s.onboardingHandler != nil {
 		api.GET("/onboarding/status", s.onboardingHandler.Status)
 		api.POST("/onboarding/setup", s.onboardingHandler.Setup)
+	}
+
+	// External integration bootstrap surface — no OIDC.
+	if s.externalIntegrationHandler != nil {
+		external := s.echo.Group("/api/v1/external/:profile_slug")
+		external.GET("/bootstrap", s.externalIntegrationHandler.Bootstrap)
+
+		if s.templateTypeHandler != nil || s.templateHandler != nil || s.injectorHandler != nil {
+			externalScoped := external.Group("/tenants/:tenant_code/workspaces/:workspace_code")
+			externalScoped.Use(middleware.ExternalIntegration(s.externalIntegrationHandler))
+			externalScoped.GET("/session", s.externalIntegrationHandler.Session, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+
+			if s.templateTypeHandler != nil {
+				externalScoped.GET("/template-types", s.templateTypeHandler.List, middleware.RequireExternalCapability(middleware.ExternalActionListTemplates))
+				externalScoped.GET("/template-types/:slug", s.templateTypeHandler.Get, middleware.RequireExternalCapability(middleware.ExternalActionListTemplates))
+			}
+			if s.templateHandler != nil {
+				externalScoped.GET("/template-types/:slug/templates", s.templateHandler.ListByTemplateType, middleware.RequireExternalCapability(middleware.ExternalActionListTemplates))
+
+				externalScoped.GET("/templates/:template_id/versions", s.templateHandler.ListVersions, middleware.RequireExternalCapability(middleware.ExternalActionViewVersions))
+				externalScoped.GET("/templates/:template_id/versions/:version_id", s.templateHandler.GetVersion, middleware.RequireExternalCapability(middleware.ExternalActionViewVersions))
+				externalScoped.PUT("/templates/:template_id/versions/:version_id", s.templateHandler.UpdateVersion, middleware.RequireExternalCapability(middleware.ExternalActionEditVersions), middleware.RequireExternalMutation())
+				externalScoped.POST("/templates/:template_id/versions/:version_id/publish", s.templateHandler.PublishVersion, middleware.RequireExternalCapability(middleware.ExternalActionPublishVersions), middleware.RequireExternalMutation())
+
+				externalScoped.GET("/templates/:template_id/versions/:version_id/locales", s.templateHandler.ListLocales, middleware.RequireExternalCapability(middleware.ExternalActionLocaleAccess))
+				externalScoped.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale, middleware.RequireExternalCapability(middleware.ExternalActionLocaleAccess))
+				externalScoped.POST("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.SetLocale, middleware.RequireExternalCapability(middleware.ExternalActionLocaleAccess), middleware.RequireExternalMutation())
+				externalScoped.PUT("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.UpdateLocale, middleware.RequireExternalCapability(middleware.ExternalActionLocaleAccess), middleware.RequireExternalMutation())
+				externalScoped.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireExternalCapability(middleware.ExternalActionLocaleAccess), middleware.RequireExternalMutation())
+
+				externalScoped.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+				externalScoped.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireExternalCapability(middleware.ExternalActionTestSend), middleware.RequireExternalMutation())
+			}
+			if s.injectorHandler != nil {
+				externalScoped.GET("/injectors", s.injectorHandler.List, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+				externalScoped.GET("/injectors/:name", s.injectorHandler.Get, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+			}
+			if s.workspacePolicyHandler != nil {
+				externalScoped.GET("/policies", s.workspacePolicyHandler.Get, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+			}
+		}
 	}
 
 	// Current authenticated member profile (OIDC only).

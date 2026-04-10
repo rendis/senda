@@ -3,6 +3,7 @@ export interface SystemSettings {
   oidc: OidcSettings;
   email_defaults: EmailDefaultSettings;
   alerts: AlertSettings;
+  external_integrations?: ExternalIntegrationsSettings;
 }
 
 /** Tenant-local workspace policies configured from the _system workspace */
@@ -29,10 +30,46 @@ export interface AlertSettings {
   complaint_threshold_percent: number;
 }
 
+export interface ExternalIntegrationMethodDescriptor {
+  name: string;
+  description: string;
+}
+
+export interface ExternalIntegrationCapabilities {
+  list_templates: boolean;
+  view_versions: boolean;
+  edit_versions: boolean;
+  publish_versions: boolean;
+  test_send: boolean;
+  builder_access: boolean;
+  metadata_access: boolean;
+  locale_access: boolean;
+}
+
+export interface ExternalIntegrationProfile {
+  slug: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  auth_method_name: string;
+  resolver_name: string;
+  allowed_origins: string[];
+  allowed_headers: string[];
+  required_headers: string[];
+  capabilities: ExternalIntegrationCapabilities;
+}
+
+export interface ExternalIntegrationsSettings {
+  profiles: ExternalIntegrationProfile[];
+  available_auth_methods?: ExternalIntegrationMethodDescriptor[];
+  available_resolvers?: ExternalIntegrationMethodDescriptor[];
+}
+
 /** Update settings request (partial) */
 export interface UpdateSettingsRequest {
   email_defaults?: Partial<EmailDefaultSettings>;
   alerts?: Partial<AlertSettings>;
+  external_integrations?: Partial<ExternalIntegrationsSettings>;
 }
 
 export type UpdateWorkspacePoliciesRequest = Partial<WorkspacePolicies>;

@@ -58,14 +58,24 @@ func setupConfigTest(cs port.GlobalConfigStore) *echo.Echo {
 func TestConfigHandler_Get_Success(t *testing.T) {
 	now := time.Now().UTC()
 	cfg := &domain.GlobalConfig{
-		DefaultRetryCount:             3,
-		RetryBackoffBaseSeconds:       60,
-		LogRetentionDays:              90,
-		BounceAlertThresholdPercent:   5.0,
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               90,
+		BounceAlertThresholdPercent:    5.0,
 		ComplaintAlertThresholdPercent: 0.1,
-		DomainRecheckIntervalHours:    24,
-		OnboardingCompleted:           true,
-		UpdatedAt:                     now,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            true,
+		ExternalIntegrations: []domain.ExternalIntegrationProfile{
+			{
+				Slug:           "partner-portal",
+				Name:           "Partner Portal",
+				Description:    "Integration for partner-facing UI",
+				Enabled:        true,
+				AuthMethodName: "signed-headers",
+				ResolverName:   "tenant-workspace-resolver",
+			},
+		},
+		UpdatedAt: now,
 	}
 
 	cs := &mockGlobalConfigStore{
@@ -124,19 +134,25 @@ func TestConfigHandler_Get_Success(t *testing.T) {
 	if resp.Domain.RecheckIntervalHours != 24 {
 		t.Fatalf("expected domain.recheck_interval_hours 24, got %d", resp.Domain.RecheckIntervalHours)
 	}
+	if len(resp.ExternalIntegrations.Profiles) != 1 {
+		t.Fatalf("expected 1 external integration profile, got %d", len(resp.ExternalIntegrations.Profiles))
+	}
+	if resp.ExternalIntegrations.Profiles[0].Slug != "partner-portal" {
+		t.Fatalf("expected external integration slug partner-portal, got %q", resp.ExternalIntegrations.Profiles[0].Slug)
+	}
 }
 
 func TestConfigHandler_Update_Success(t *testing.T) {
 	now := time.Now().UTC()
 	cfg := &domain.GlobalConfig{
-		DefaultRetryCount:             3,
-		RetryBackoffBaseSeconds:       60,
-		LogRetentionDays:              90,
-		BounceAlertThresholdPercent:   5.0,
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               90,
+		BounceAlertThresholdPercent:    5.0,
 		ComplaintAlertThresholdPercent: 0.1,
-		DomainRecheckIntervalHours:    24,
-		OnboardingCompleted:           false,
-		UpdatedAt:                     now,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
+		UpdatedAt:                      now,
 	}
 
 	var upserted *domain.GlobalConfig
@@ -183,14 +199,14 @@ func TestConfigHandler_Update_Success(t *testing.T) {
 func TestConfigHandler_Update_PartialFields(t *testing.T) {
 	now := time.Now().UTC()
 	cfg := &domain.GlobalConfig{
-		DefaultRetryCount:             3,
-		RetryBackoffBaseSeconds:       60,
-		LogRetentionDays:              90,
-		BounceAlertThresholdPercent:   5.0,
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               90,
+		BounceAlertThresholdPercent:    5.0,
 		ComplaintAlertThresholdPercent: 0.1,
-		DomainRecheckIntervalHours:    24,
-		OnboardingCompleted:           false,
-		UpdatedAt:                     now,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
+		UpdatedAt:                      now,
 	}
 
 	var upserted *domain.GlobalConfig
@@ -228,5 +244,110 @@ func TestConfigHandler_Update_PartialFields(t *testing.T) {
 	}
 	if upserted.LogRetentionDays != 90 {
 		t.Fatalf("expected log_retention_days 90, got %d", upserted.LogRetentionDays)
+	}
+}
+
+func TestConfigHandler_Update_ExternalIntegrations(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := &domain.GlobalConfig{
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               90,
+		BounceAlertThresholdPercent:    5.0,
+		ComplaintAlertThresholdPercent: 0.1,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
+		UpdatedAt:                      now,
+	}
+
+	var upserted *domain.GlobalConfig
+	cs := &mockGlobalConfigStore{
+		getFn: func(_ context.Context) (*domain.GlobalConfig, error) {
+			return cfg, nil
+		},
+		upsertFn: func(_ context.Context, c *domain.GlobalConfig) error {
+			upserted = c
+			return nil
+		},
+	}
+
+	e := setupConfigTest(cs)
+
+	body := `{
+		"external_integrations":{
+			"profiles":[
+				{
+					"slug":"partner-portal",
+					"name":"Partner Portal",
+					"description":"Integration for partner-facing UI",
+					"enabled":true,
+					"auth_method_name":"signed-headers",
+					"resolver_name":"tenant-workspace-resolver",
+					"allowed_headers":["X-Tenant-Code","X-Trace-ID"],
+					"required_headers":["x-tenant-code"]
+				}
+			]
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if upserted == nil {
+		t.Fatal("expected config to be upserted")
+	}
+	if len(upserted.ExternalIntegrations) != 1 {
+		t.Fatalf("expected 1 external integration profile, got %d", len(upserted.ExternalIntegrations))
+	}
+	profile := upserted.ExternalIntegrations[0]
+	if profile.Slug != "partner-portal" {
+		t.Fatalf("expected normalized slug partner-portal, got %q", profile.Slug)
+	}
+	if len(profile.RequiredHeaders) != 1 || profile.RequiredHeaders[0] != "x-tenant-code" {
+		t.Fatalf("expected normalized required header x-tenant-code, got %#v", profile.RequiredHeaders)
+	}
+}
+
+func TestConfigHandler_Update_ExternalIntegrationsValidation(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := &domain.GlobalConfig{
+		DefaultRetryCount:              3,
+		RetryBackoffBaseSeconds:        60,
+		LogRetentionDays:               90,
+		BounceAlertThresholdPercent:    5.0,
+		ComplaintAlertThresholdPercent: 0.1,
+		DomainRecheckIntervalHours:     24,
+		OnboardingCompleted:            false,
+		UpdatedAt:                      now,
+	}
+
+	upsertCalled := false
+	cs := &mockGlobalConfigStore{
+		getFn: func(_ context.Context) (*domain.GlobalConfig, error) {
+			return cfg, nil
+		},
+		upsertFn: func(_ context.Context, c *domain.GlobalConfig) error {
+			upsertCalled = true
+			return nil
+		},
+	}
+
+	e := setupConfigTest(cs)
+
+	body := `{"external_integrations":{"profiles":[{"slug":"partner-portal","name":"Partner Portal","description":"Integration for partner-facing UI","enabled":true,"auth_method_name":"signed-headers","resolver_name":"tenant-workspace-resolver","allowed_headers":["x-trace-id"],"required_headers":["x-tenant-code"]}]}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 validation error, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if upsertCalled {
+		t.Fatal("expected invalid config to be rejected before upsert")
 	}
 }

@@ -197,6 +197,53 @@ func (r *WorkspaceRepo) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *WorkspaceRepo) ExistsActiveByTenantCode(ctx context.Context, tenantCode string, workspaceCodes []string) (map[string]bool, error) {
+	result := make(map[string]bool, len(workspaceCodes))
+	if len(workspaceCodes) == 0 {
+		return result, nil
+	}
+
+	requested := uniqueWorkspaceCodes(workspaceCodes)
+	for _, code := range requested {
+		result[code] = false
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		WITH requested(code) AS (
+			SELECT DISTINCT unnest($2::text[])
+		)
+		SELECT requested.code,
+		       (w.id IS NOT NULL) AS exists_active
+		FROM requested
+		LEFT JOIN tenants t
+		  ON t.code = $1
+		 AND t.deleted_at IS NULL
+		LEFT JOIN workspaces w
+		  ON w.tenant_id = t.id
+		 AND w.code = requested.code
+		 AND w.deleted_at IS NULL
+		 AND w.is_active = true
+		ORDER BY requested.code`, tenantCode, requested)
+	if err != nil {
+		return nil, fmt.Errorf("querying workspace existence by tenant code: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var code string
+		var exists bool
+		if err := rows.Scan(&code, &exists); err != nil {
+			return nil, fmt.Errorf("scanning workspace existence row: %w", err)
+		}
+		result[code] = exists
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating workspace existence rows: %w", err)
+	}
+
+	return result, nil
+}
+
 func scanWorkspace(row pgx.Row) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	err := row.Scan(
@@ -220,4 +267,17 @@ func effectiveWorkspacePolicyValue(value bool, initialized bool) bool {
 		return value
 	}
 	return true
+}
+
+func uniqueWorkspaceCodes(workspaceCodes []string) []string {
+	seen := make(map[string]struct{}, len(workspaceCodes))
+	result := make([]string, 0, len(workspaceCodes))
+	for _, code := range workspaceCodes {
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		result = append(result, code)
+	}
+	return result
 }

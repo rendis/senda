@@ -17,11 +17,13 @@ import (
 // Engine is the main entry point for running Senda as a library.
 // Create one with New or NewWithConfig, register extensions, then call Run.
 type Engine struct {
-	configPath string
-	injectors  []Injector
-	initFunc   InitFunc
-	onStart    []func(ctx context.Context) error
-	onShutdown []func(ctx context.Context) error
+	configPath                 string
+	injectors                  []Injector
+	initFunc                   InitFunc
+	externalAuthMethods        []ExternalAuthMethod
+	externalWorkspaceResolvers []ExternalWorkspaceResolver
+	onStart                    []func(ctx context.Context) error
+	onShutdown                 []func(ctx context.Context) error
 }
 
 // New creates an Engine with default config path ("config.yaml").
@@ -44,6 +46,19 @@ func (e *Engine) RegisterInjector(inj Injector) *Engine {
 // Replaces any previously set InitFunc.
 func (e *Engine) SetInitFunc(fn InitFunc) *Engine {
 	e.initFunc = fn
+	return e
+}
+
+// RegisterExternalAuthMethod adds a custom external integration auth method.
+func (e *Engine) RegisterExternalAuthMethod(method ExternalAuthMethod) *Engine {
+	e.externalAuthMethods = append(e.externalAuthMethods, method)
+	return e
+}
+
+// RegisterExternalWorkspaceResolver adds a custom external integration
+// workspace resolver.
+func (e *Engine) RegisterExternalWorkspaceResolver(resolver ExternalWorkspaceResolver) *Engine {
+	e.externalWorkspaceResolvers = append(e.externalWorkspaceResolvers, resolver)
 	return e
 }
 
@@ -122,12 +137,14 @@ func (e *Engine) Run() error {
 }
 
 func (e *Engine) buildExtensions() *app.Extensions {
-	if len(e.injectors) == 0 && e.initFunc == nil {
+	if len(e.injectors) == 0 && e.initFunc == nil && len(e.externalAuthMethods) == 0 && len(e.externalWorkspaceResolvers) == 0 {
 		return nil
 	}
 	return &app.Extensions{
-		Injectors: e.injectors,
-		InitFunc:  e.initFunc,
+		Injectors:                  e.injectors,
+		InitFunc:                   e.initFunc,
+		ExternalAuthMethods:        e.externalAuthMethods,
+		ExternalWorkspaceResolvers: e.externalWorkspaceResolvers,
 	}
 }
 

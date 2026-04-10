@@ -1,5 +1,6 @@
 import ky, { type Options, type KyInstance, HTTPError } from "ky";
 import type { ApiError } from "@/types/api";
+import { buildExternalEmbedApiRequest } from "@/lib/external-api-context";
 
 /**
  * Base ky instance for Senda API.
@@ -38,6 +39,25 @@ export const api = ky.create({
         // Only trigger logout if the session itself reports RefreshTokenError
         // (handled by SessionGuard, not here).
         // 401 after retry — let error propagate. SessionGuard handles real auth failures.
+      },
+    ],
+    beforeRequest: [
+      ({ request }) => {
+        if (typeof window === "undefined") {
+          return;
+        }
+
+        const nextRequest = buildExternalEmbedApiRequest(
+          request,
+          window.location.pathname,
+          undefined,
+          window.location.search,
+        );
+        if (!nextRequest) {
+          return;
+        }
+
+        return nextRequest;
       },
     ],
   },

@@ -6,8 +6,12 @@ import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionGuard } from "@/providers/session-guard";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { isExternalEmbedPath } from "@/providers/session-guard-policy";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const externalEmbedMode = isExternalEmbedPath(pathname);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -21,7 +25,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SessionProvider refetchInterval={3 * 60} refetchOnWindowFocus={true}>
+    <SessionProvider
+      session={externalEmbedMode ? null : undefined}
+      refetchInterval={externalEmbedMode ? 0 : 3 * 60}
+      refetchOnWindowFocus={!externalEmbedMode}
+    >
       <SessionGuard>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider

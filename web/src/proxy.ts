@@ -1,10 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import { auth } from "@/auth";
 import { LOCALE_COOKIE, DEFAULT_LOCALE } from "@/lib/locale";
+import {
+  applyExternalEmbedSecurityHeaders,
+  createExternalEmbedProxyRouter,
+  loadExternalEmbedFrameAncestors,
+} from "@/lib/external-embed-proxy";
 
-// next-auth v5: auth(handler) wraps the handler with auth checks.
-// The authorized callback in auth.ts handles redirect to /login.
-export default auth(function proxy(req: NextRequest) {
+const defaultBackendOrigin =
+  process.env.SENDA_SERVER_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:8080";
+
+function buildBaseProxyResponse(req: NextRequest): NextResponse {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-senda-pathname", req.nextUrl.pathname);
 
@@ -15,11 +23,9 @@ export default auth(function proxy(req: NextRequest) {
   });
 
   // Prevent browser bfcache from showing stale authenticated pages after logout.
-  // Without this, pressing "back" after logout can show cached dashboard content.
   res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
   res.headers.set("Pragma", "no-cache");
 
-  // Set default locale cookie on first visit if absent
   if (!req.cookies.get(LOCALE_COOKIE)) {
     res.cookies.set(LOCALE_COOKIE, DEFAULT_LOCALE, {
       path: "/",
@@ -29,6 +35,24 @@ export default auth(function proxy(req: NextRequest) {
   }
 
   return res;
+}
+
+async function proxyExternalEmbedRequest(req: NextRequest): Promise<NextResponse> {
+  const response = buildBaseProxyResponse(req);
+  const frameAncestors = await loadExternalEmbedFrameAncestors(
+    req,
+    defaultBackendOrigin,
+  );
+  return applyExternalEmbedSecurityHeaders(response, frameAncestors);
+}
+
+const authenticatedProxy = auth(function proxy(req: NextRequest) {
+  return buildBaseProxyResponse(req);
+});
+
+export default createExternalEmbedProxyRouter({
+  authenticatedProxy,
+  externalEmbedProxyRequest: proxyExternalEmbedRequest,
 });
 
 export const config = {

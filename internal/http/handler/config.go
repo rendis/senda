@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
+	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
@@ -76,6 +77,14 @@ func (h *ConfigHandler) Update(c *echo.Context) error {
 		if req.Domain.RecheckIntervalHours != nil {
 			cfg.DomainRecheckIntervalHours = *req.Domain.RecheckIntervalHours
 		}
+	}
+
+	if req.ExternalIntegrations != nil {
+		cfg.ExternalIntegrations = domain.NormalizeExternalIntegrationProfiles(req.ExternalIntegrations.ToDomain())
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	}
 
 	cfg.UpdatedAt = time.Now().UTC()
