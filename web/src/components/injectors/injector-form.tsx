@@ -178,7 +178,7 @@ export function InjectorForm({
 
           {fields.map((field, index) => (
             <InjectorFieldCard
-              key={`${field.field_name || "field"}-${index}`}
+              key={field.form_id}
               testId={`injector-field-row-${index}`}
               headerTestId={`injector-field-header-${index}`}
               title={field.field_name.trim() || `Field ${index + 1}`}

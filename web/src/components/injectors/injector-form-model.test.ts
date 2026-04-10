@@ -13,6 +13,7 @@ const {
 } = await import(new URL("./injector-form-model.ts", import.meta.url).href);
 
 type InjectorDefinition = import("@/types/injectors").InjectorDefinition;
+type InjectorFormFieldEntry = import("./injector-form-model").InjectorFormFieldEntry;
 
 const FULL_NAME = "full name";
 const ADA_LOVELACE = "Ada Lovelace";
@@ -41,10 +42,31 @@ test("injectorDefinitionToFormValues hydrates edit mode state preserving order a
     ],
   };
 
-  assert.deepEqual(injectorDefinitionToFormValues(injector), {
-    name: "student",
-    description: "Student profile",
-    fields: [
+  const values = injectorDefinitionToFormValues(injector);
+
+  assert.equal(values.name, "student");
+  assert.equal(values.description, "Student profile");
+  assert.equal(values.fields.length, 2);
+  assert.equal(values.fields[0].form_id.length > 0, true);
+  assert.equal(values.fields[1].form_id.length > 0, true);
+  assert.notEqual(values.fields[0].form_id, values.fields[1].form_id);
+  assert.deepEqual(
+    values.fields.map(
+      ({
+        field_name,
+        field_type,
+        description,
+        default_value,
+        allow_overwrite,
+      }: InjectorFormFieldEntry) => ({
+        field_name,
+        field_type,
+        description,
+        default_value,
+        allow_overwrite,
+      }),
+    ),
+    [
       {
         field_name: "full name",
         field_type: "text",
@@ -60,7 +82,7 @@ test("injectorDefinitionToFormValues hydrates edit mode state preserving order a
         allow_overwrite: false,
       },
     ],
-  });
+  );
 });
 
 test("buildInjectorRequest serializes edited fields with index-based positions", () => {
@@ -69,6 +91,7 @@ test("buildInjectorRequest serializes edited fields with index-based positions",
     description: "  ",
     fields: [
       {
+        form_id: "field-1",
         field_name: FULL_NAME,
         field_type: "text",
         description: "Primary label",
@@ -76,6 +99,7 @@ test("buildInjectorRequest serializes edited fields with index-based positions",
         allow_overwrite: true,
       },
       {
+        form_id: "field-2",
         field_name: "is active",
         field_type: "bool",
         description: "",
@@ -126,6 +150,7 @@ test("serialization helpers preserve bool defaults and spaced field names use re
   assert.equal(parseInjectorFieldValue("number", "42"), 42);
   assert.equal(parseInjectorFieldValue("text", ""), undefined);
   assert.equal(emptyInjectorFormField().field_name, "");
+  assert.equal(emptyInjectorFormField().form_id.length > 0, true);
   assert.equal(
     resolveUpdatedInjectorSelection({ name: STUDENT_PROFILE }),
     STUDENT_PROFILE,
