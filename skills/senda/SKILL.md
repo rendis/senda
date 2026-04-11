@@ -1,9 +1,10 @@
 ---
 name: senda
 description: >-
-  Operate and extend the Senda email orchestration platform via MCP and the Go SDK.
-  Use this skill when working with tenants, workspaces, templates, injectors, adapters,
-  external integrations, API keys, or when embedding Senda as a library from another repo.
+  Use when operating Senda via MCP or the Go SDK, especially for tenants,
+  workspaces, templates, template versions/locales, preview-mjml/test-send flows,
+  external builder sessions, injectors/API keys, or preserving visual-builder `editor_data`
+  during template edits.
 allowed-tools:
   - mcp__senda__*
 ---
@@ -28,6 +29,7 @@ Senda is a multi-tenant email orchestration platform with four operational surfa
 
 - operating Senda through MCP tools
 - creating or managing tenants, workspaces, templates, template versions, adapters, injectors, API keys, webhooks, or members
+- updating template version locales or running `preview-mjml` / test-send flows
 - sending emails or querying delivery/event history
 - working with workspace environments `prod` / `test`
 - integrating an external builder or portal against Senda
@@ -81,6 +83,18 @@ For the detailed model, load:
 - **Use `X-Senda-Environment` for external integration requests.**
 - **Runtime reset is test-only.** It is available only on the management environment-scoped test surface.
 - **Test recipient policies are test-only.** Do not assume they exist in prod.
+
+## Template builder / visual editor
+
+Use a different mental model for **MJML-only edits** versus **visual-builder edits**:
+
+- **MJML-only mode** — if the task is only to edit MJML/source content, operate on `body_mjml` directly.
+- **Visual mode** — if the current template version already carries `editor_data`, preserve it during updates. Do **not** overwrite a visual draft with `body_mjml` alone unless the intent is to leave visual mode.
+- **Preview/test-send** — preview requests compile MJML only; version updates/locales may need both `body_mjml` and `editor_data`.
+- **Colors** — prefer HEX (`#RRGGBB` / `#RGB`) in manual examples and inputs, but do **not** assume persisted builder content is hex-only; rich text and inline styles may contain CSS `rgb(...)` / `rgba(...)`.
+
+When working with template payloads, visual drafts, preview bodies, or color gotchas, load:
+- `references/template-builder-contract.md`
 
 ## MCP operating playbooks
 
@@ -208,6 +222,7 @@ Important runtime facts:
 ## Which reference to load next
 
 - **Need exact MCP workflows or endpoint usage** → `references/mcp-workflows.md`
+- **Need template-version payload rules, preview bodies, or visual-builder preservation rules** → `references/template-builder-contract.md`
 - **Need to register SDK functions or understand interfaces** → `references/sdk-extension-points.md`
 - **Need to understand `prod/test` behavior** → `references/environment-model.md`
 - **Need external embed/bootstrap/session/auth/resolver details** → `references/external-integration-flow.md`

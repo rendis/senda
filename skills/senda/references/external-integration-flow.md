@@ -110,3 +110,5 @@ External routes are individually guarded by these capabilities.
 - Do not assume the path workspace is the effective workspace; the resolver may override or force read-only fallback.
 - Always send `X-Senda-Environment`.
 - Use `/session` to understand effective permissions and whether the request is read-only.
+- If you mutate a visual template version or locale, preserve existing `editor_data` instead of sending `body_mjml` alone by default.
+- For builder payloads, preview request bodies, and color-format rules, load `references/template-builder-contract.md`.

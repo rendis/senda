@@ -54,6 +54,9 @@ Use the external profile routes and include:
 7. publish version
 8. create API key
 
+When step 6 involves content editing, preview/test-send, or a visual-builder draft, load:
+- `references/template-builder-contract.md`
+
 ### 3) Send and inspect
 
 1. use a raw API key bearer token
@@ -80,6 +83,9 @@ Use these for:
 3. call `/session` on the scoped external route
 4. use template/template-version/injector/policy endpoints according to granted capabilities
 
+If the flow mutates template versions or locale content, load:
+- `references/template-builder-contract.md`
+
 ## Operational reminders
 
 - Use `senda_list_endpoints` when unsure which operation exists.
@@ -87,3 +93,4 @@ Use these for:
 - Prefer management shared routes for logical workspace identity and environment-scoped routes for runtime state.
 - External requests must include `X-Senda-Environment`.
 - Do not put environment into `ref`.
+- Preview requests use `{ "mjml": "..." }`; do not invent version-style payloads for preview. Load `references/template-builder-contract.md` when unsure.
