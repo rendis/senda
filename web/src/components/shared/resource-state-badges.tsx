@@ -19,6 +19,8 @@ const badgeClassByKey: Record<ResourceStateBadge, string> = {
     "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300",
   global:
     "border-zinc-500/30 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300",
+  code:
+    "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
 };
 
 export function ResourceStateBadges({

@@ -203,7 +203,8 @@
       "forkedFromDefault": "Forked from Default",
       "readOnly": "Read-only",
       "workspace": "Workspace",
-      "global": "Global"
+      "global": "Global",
+      "code": "Code"
     }
   },
   "scopeIndicator": {

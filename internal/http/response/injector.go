@@ -11,6 +11,8 @@ type InjectorDefinitionResponse struct {
 	ID                  string  `json:"id"`
 	WorkspaceID         *string `json:"workspace_id,omitempty"`
 	Name                string  `json:"name"`
+	Source              string  `json:"source,omitempty"`
+	Static              bool    `json:"static"`
 	Description         *string `json:"description,omitempty"`
 	OwnerScope          string  `json:"owner_scope,omitempty"`
 	InheritedFromSystem bool    `json:"inherited_from_system"`
@@ -52,9 +54,15 @@ type InjectorListResponse struct {
 
 // NewInjectorDefinitionResponse maps a domain InjectorDefinition to a response.
 func NewInjectorDefinitionResponse(d *domain.InjectorDefinition) InjectorDefinitionResponse {
+	source := d.Source
+	if source == "" {
+		source = "database"
+	}
 	resp := InjectorDefinitionResponse{
 		ID:                  d.ID.String(),
 		Name:                d.Name,
+		Source:              source,
+		Static:              d.Static,
 		Description:         d.Description,
 		OwnerScope:          d.OwnerScope,
 		InheritedFromSystem: d.InheritedFromSystem,

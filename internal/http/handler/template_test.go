@@ -17,6 +17,7 @@ import (
 	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
 	"github.com/rendis/senda/internal/service"
 )
 
@@ -26,6 +27,15 @@ type mockResolvedTemplateInvalidator struct {
 	invalidateResolvedTemplatesFn func(ctx context.Context, workspaceID uuid.UUID)
 	invalidateAllFn               func(ctx context.Context)
 }
+
+type noopTemplateCache struct{}
+
+func (noopTemplateCache) Get(context.Context, string) ([]byte, error) { return nil, domain.ErrNotFound }
+func (noopTemplateCache) Set(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+func (noopTemplateCache) Delete(context.Context, string) error        { return nil }
+func (noopTemplateCache) DeletePattern(context.Context, string) error { return nil }
 
 func (m *mockResolvedTemplateInvalidator) InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID) {
 	if m.invalidateResolvedTemplatesFn != nil {
@@ -41,6 +51,27 @@ func (m *mockResolvedTemplateInvalidator) InvalidateAllResolvedTemplates(ctx con
 
 func setupTemplateTest(store port.TemplateStore, compiler port.TemplateCompiler, ts port.TenantStore, ws port.WorkspaceStore) (*echo.Echo, *handler.TemplateHandler) {
 	return setupTemplateTestWithOptions(store, compiler, ts, ws, nil, nil, nil, 100)
+}
+
+func setupTemplateTestWithMerger(
+	store port.TemplateStore,
+	compiler port.TemplateCompiler,
+	ts port.TenantStore,
+	ws port.WorkspaceStore,
+	merger *resolution.InjectorMerger,
+) (*echo.Echo, *handler.TemplateHandler) {
+	e := echo.New()
+	e.HTTPErrorHandler = response.HTTPErrorHandler
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Scope())
+
+	svc := service.NewTemplateService(store, compiler)
+	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, nil, nil, 100, merger, nil)
+
+	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
+	e.POST(base+"/templates/:template_id/preview-mjml", h.PreviewMJML)
+
+	return e, h
 }
 
 func setupTemplateTestWithInvalidator(
@@ -101,7 +132,7 @@ func setupTemplateTestWithOptions(
 	e.Use(middleware.Scope())
 
 	svc := service.NewTemplateService(store, compiler)
-	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, batchSender, auditStore, batchMaxItems, invalidator)
+	h := handler.NewTemplateHandler(svc, store, ts, ws, nil, batchSender, auditStore, batchMaxItems, nil, invalidator)
 
 	base := "/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code"
 
@@ -407,7 +438,7 @@ func TestTemplateHandler_ListByTemplateType_ResolvesVisibleSystemTemplateInWorks
 	typeID := uuid.Must(uuid.NewV7())
 	templateID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -477,7 +508,7 @@ func TestTemplateHandler_CreateVersion_BlocksInheritedSystemTemplateInWorkspace(
 	systemWorkspace := uuid.Must(uuid.NewV7())
 	templateID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -530,7 +561,7 @@ func TestTemplateHandler_UpdateVersion_BlocksInheritedSystemTemplateInWorkspace(
 	templateID := uuid.Must(uuid.NewV7())
 	versionID := uuid.Must(uuid.NewV7())
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -594,7 +625,7 @@ func TestTemplateHandler_ForkTemplate_Success(t *testing.T) {
 	systemWorkspace := uuid.Must(uuid.NewV7())
 	invalidatedWorkspace := uuid.Nil
 
-wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			t.Fatalf("expected tenant %s, got %s", tenant.ID, tenantID)
 		}
@@ -1194,6 +1225,130 @@ func TestTemplateHandler_PreviewMJML_Success(t *testing.T) {
 	}
 	if resp.HTML == "" {
 		t.Fatal("expected non-empty HTML")
+	}
+}
+
+type previewStaticCodeInjector struct {
+	code      string
+	resolveFn port.CodeResolveFunc
+}
+
+func (i previewStaticCodeInjector) Code() string { return i.code }
+
+func (i previewStaticCodeInjector) Resolve() (port.CodeResolveFunc, []string) {
+	return i.resolveFn, nil
+}
+
+func (i previewStaticCodeInjector) IsCritical() bool       { return false }
+func (i previewStaticCodeInjector) Timeout() time.Duration { return 0 }
+func (i previewStaticCodeInjector) Catalog() port.InjectorCatalog {
+	return port.InjectorCatalog{
+		Code:   i.code,
+		Static: true,
+		Fields: []port.InjectorFieldSpec{{Name: "label", Type: domain.FieldTypeText}},
+	}
+}
+
+func TestTemplateHandler_PreviewMJML_UsesWorkspaceSendRefForStaticCodeInjectors(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	templateID := uuid.Must(uuid.NewV7())
+	templateTypeID := uuid.Must(uuid.NewV7())
+	systemWS := &domain.Workspace{
+		ID:          uuid.Must(uuid.NewV7()),
+		TenantID:    tenant.ID,
+		Code:        "_system",
+		Name:        "System",
+		IsSystem:    true,
+		Environment: ws.Environment,
+	}
+	ws.Environment = domain.EnvironmentProd
+	wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		if id == ws.ID {
+			return ws, nil
+		}
+		if id == systemWS.ID {
+			return systemWS, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+	wsStore.getSystemWorkspaceFn = func(_ context.Context, tenantID uuid.UUID, environment domain.Environment) (*domain.Workspace, error) {
+		if tenantID != tenant.ID {
+			return nil, domain.ErrNotFound
+		}
+		return systemWS, nil
+	}
+	ts.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Tenant, error) {
+		if id == tenant.ID {
+			return tenant, nil
+		}
+		return nil, domain.ErrNotFound
+	}
+
+	store := &mockTemplateStore{
+		getTemplateByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Template, error) {
+			if id != templateID {
+				t.Fatalf("expected template ID %s, got %s", templateID, id)
+			}
+			return &domain.Template{
+				ID:             templateID,
+				TemplateTypeID: templateTypeID,
+				WorkspaceID:    &ws.ID,
+			}, nil
+		},
+		getTypeByIDFn: func(_ context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+			if id != templateTypeID {
+				t.Fatalf("expected template type ID %s, got %s", templateTypeID, id)
+			}
+			return &domain.TemplateType{ID: templateTypeID, Slug: "welcome"}, nil
+		},
+	}
+
+	compiler := &mockTemplateCompiler{
+		compileFn: func(_ context.Context, mjml string) (string, error) {
+			return mjml, nil
+		},
+	}
+
+	merger := resolution.NewInjectorMerger(
+		&mockInjectorStore{
+			listDefinitionsInChainFn: func(_ context.Context, _ []uuid.NullUUID) ([]*domain.InjectorDefinition, error) {
+				return nil, nil
+			},
+			getValuesFn: func(_ context.Context, _ uuid.UUID, _ []uuid.NullUUID) ([]*domain.InjectorValue, error) {
+				return nil, nil
+			},
+		},
+		resolution.NewChainResolver(wsStore, noopTemplateCache{}),
+		nil,
+		[]port.CodeInjector{
+			previewStaticCodeInjector{
+				code: "workspace_profile",
+				resolveFn: func(_ context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+					return map[string]any{"label": injCtx.Ref()}, nil
+				},
+			},
+		},
+		nil,
+	)
+
+	e, _ := setupTemplateTestWithMerger(store, compiler, ts, wsStore, merger)
+
+	body := `{"mjml":"<mjml><mj-body><mj-section><mj-column><mj-text>{{ injector.workspace_profile.label }}</mj-text></mj-column></mj-section></mj-body></mjml>"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/templates/"+templateID.String()+"/preview-mjml", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.MJMLPreviewResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if !strings.Contains(resp.HTML, "acme:default:welcome") {
+		t.Fatalf("expected preview to use workspace send ref, got %q", resp.HTML)
 	}
 }
 

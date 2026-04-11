@@ -666,7 +666,7 @@ func (f *sendTestFixture) buildService() *service.SendService {
 func (f *sendTestFixture) buildServiceWithCodeInjectors(codeInjectors []port.CodeInjector, initFunc port.CodeInitFunc) *service.SendService {
 	chainResolver := resolution.NewChainResolver(f.wsStore, f.cache)
 	templateResolver := resolution.NewTemplateResolver(f.templateStore, f.cache, chainResolver)
-	injectorMerger := resolution.NewInjectorMerger(f.injectorStore, chainResolver, codeInjectors, initFunc)
+	injectorMerger := resolution.NewInjectorMerger(f.injectorStore, chainResolver, nil, codeInjectors, initFunc)
 	adapterResolver := resolution.NewAdapterResolver(f.adapterStore, f.cache)
 	renderer := service.NewVariableRenderer()
 	identitySvc := service.NewIdentityService(f.identityStore, f.adapterStore, nil, nil)

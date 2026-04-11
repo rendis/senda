@@ -3,7 +3,6 @@ package sdk
 import (
 	"context"
 	"testing"
-	"time"
 )
 
 type testExternalAuthMethod struct {
@@ -85,7 +84,7 @@ func TestEngineBuildExtensions_NoExternalRegistrations(t *testing.T) {
 
 func TestEngineExternalRegistration_DoesNotAffectExistingInjectorAPIs(t *testing.T) {
 	engine := New()
-	engine.RegisterInjector(&dummyInjector{}).RegisterExternalAuthMethod(&testExternalAuthMethod{name: "auth", description: "desc"})
+	engine.RegisterInjector(dummyRegistration()).RegisterExternalAuthMethod(&testExternalAuthMethod{name: "auth", description: "desc"})
 
 	ext := engine.buildExtensions()
 	if ext == nil {
@@ -99,13 +98,48 @@ func TestEngineExternalRegistration_DoesNotAffectExistingInjectorAPIs(t *testing
 	}
 }
 
-type dummyInjector struct{}
+func TestEngineRegisterInjector_StaticRequiresFields(t *testing.T) {
+	engine := New()
 
-func (d *dummyInjector) Code() string { return "dummy" }
-func (d *dummyInjector) Resolve() (ResolveFunc, []string) {
-	return func(context.Context, *InjectorContext) (map[string]any, error) {
-		return map[string]any{"ok": true}, nil
-	}, nil
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for static injector without fields")
+		}
+	}()
+
+	engine.RegisterInjector(InjectorRegistration{
+		Code:   "school",
+		Static: true,
+		Resolve: func(context.Context, *InjectorContext) (map[string]any, error) {
+			return map[string]any{"name": "Acme School"}, nil
+		},
+	})
 }
-func (d *dummyInjector) IsCritical() bool       { return false }
-func (d *dummyInjector) Timeout() time.Duration { return time.Second }
+
+func TestEngineRegisterInjector_DynamicRegistrationUsesCodeNamespace(t *testing.T) {
+	engine := New()
+	engine.RegisterInjector(InjectorRegistration{
+		Code: "runtime_student",
+		Name: "Runtime Student",
+		Resolve: func(context.Context, *InjectorContext) (map[string]any, error) {
+			return map[string]any{"ok": true}, nil
+		},
+	})
+
+	ext := engine.buildExtensions()
+	if ext == nil || len(ext.Injectors) != 1 {
+		t.Fatal("expected one registered injector")
+	}
+	if got := ext.Injectors[0].Code(); got != "runtime_student" {
+		t.Fatalf("expected code namespace runtime_student, got %q", got)
+	}
+}
+
+func dummyRegistration() InjectorRegistration {
+	return InjectorRegistration{
+		Code: "dummy",
+		Resolve: func(context.Context, *InjectorContext) (map[string]any, error) {
+			return map[string]any{"ok": true}, nil
+		},
+	}
+}

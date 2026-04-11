@@ -26,6 +26,8 @@ type InjectorResourceLike = {
   inherited_from_system?: boolean;
   workspace_id?: string;
   scope_level?: ScopeLevel;
+  source?: "database" | "code";
+  static?: boolean;
 };
 
 export type ResourceStateBadge =
@@ -34,7 +36,8 @@ export type ResourceStateBadge =
   | "forkedFromDefault"
   | "readOnly"
   | "workspace"
-  | "global";
+  | "global"
+  | "code";
 
 export type ResourceDisplayScope = ScopeLevel | "system";
 
@@ -276,6 +279,14 @@ export function getInjectorManagementState(
     };
   }
 
+  if (resource.source === "code" || resource.static) {
+    return {
+      ...appendReadOnlyBadge(base),
+      canEdit: false,
+      canDelete: false,
+    };
+  }
+
   const resolved = resolveWorkspacePolicies(policies);
   if (!isWorkspaceScope(scope) || isSystemWorkspaceScope(scope)) {
     return {
@@ -314,6 +325,7 @@ function getBaseResourceState(
     owner_scope?: OwnerScope;
     inherited_from_system?: boolean;
     is_fork?: boolean;
+    source?: "database" | "code";
   } | null,
 ): ResourceState {
   if (resource?.is_fork) {
@@ -348,6 +360,13 @@ function getBaseResourceState(
     return {
       badges: ["global"],
       readOnly: false,
+    };
+  }
+
+  if (resource?.source === "code") {
+    return {
+      badges: ["global", "code"],
+      readOnly: true,
     };
   }
 

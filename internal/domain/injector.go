@@ -22,6 +22,8 @@ type InjectorDefinition struct {
 	WorkspaceID         *uuid.UUID // nil = global
 	Name                string
 	Description         *string
+	Source              string
+	Static              bool
 	OwnerScope          string
 	InheritedFromSystem bool
 	CreatedAt           time.Time

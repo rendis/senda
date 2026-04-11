@@ -36,10 +36,12 @@ test("keeps inherited injectors visible when the template references them", () =
           {
             field_name: "name",
             position: 0,
+            allow_overwrite: true,
           },
           {
             field_name: "ignored",
             position: 1,
+            allow_overwrite: false,
           },
         ],
       },
@@ -57,6 +59,7 @@ test("keeps inherited injectors visible when the template references them", () =
         {
           field_name: "name",
           position: 0,
+          allow_overwrite: true,
         },
       ],
     },

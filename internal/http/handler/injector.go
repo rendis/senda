@@ -14,19 +14,21 @@ import (
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
+	"github.com/rendis/senda/internal/resolution"
 	"github.com/rendis/senda/pkg/apperr"
 )
 
 // InjectorHandler handles CRUD operations for injector definitions and values.
 type InjectorHandler struct {
-	store   port.InjectorStore
-	tsStore port.TenantStore
-	wsStore port.WorkspaceStore
+	store          port.InjectorStore
+	tsStore        port.TenantStore
+	wsStore        port.WorkspaceStore
+	injectorMerger *resolution.InjectorMerger
 }
 
 // NewInjectorHandler creates a new InjectorHandler.
-func NewInjectorHandler(is port.InjectorStore, ts port.TenantStore, ws port.WorkspaceStore) *InjectorHandler {
-	return &InjectorHandler{store: is, tsStore: ts, wsStore: ws}
+func NewInjectorHandler(is port.InjectorStore, ts port.TenantStore, ws port.WorkspaceStore, merger *resolution.InjectorMerger) *InjectorHandler {
+	return &InjectorHandler{store: is, tsStore: ts, wsStore: ws, injectorMerger: merger}
 }
 
 // Create handles POST /tenants/:tenant_code/workspaces/:workspace_code/injectors.
@@ -224,6 +226,12 @@ func (h *InjectorHandler) list(c *echo.Context, workspace *domain.Workspace) err
 		annotateInjectorScope(def, workspace, systemWorkspace)
 	}
 
+	staticDefs, staticFields, err := h.staticCatalog(ctx, workspace)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	defs, fieldsByDefinition = mergeStaticCatalog(defs, fieldsByDefinition, staticDefs, staticFields)
+
 	return c.JSON(http.StatusOK, response.NewInjectorListResponse(defs, fieldsByDefinition))
 }
 
@@ -334,6 +342,9 @@ func (h *InjectorHandler) get(c *echo.Context, workspace *domain.Workspace) erro
 		}
 	}
 	if err != nil {
+		if staticDetail, staticFields, handled := h.tryStaticDefinition(ctx, workspace, name); handled {
+			return c.JSON(http.StatusOK, response.NewInjectorCreateResponse(staticDetail, staticFields))
+		}
 		return mapStoreError(c, err)
 	}
 	annotateInjectorScope(def, workspace, systemWorkspace)
@@ -575,6 +586,54 @@ func (h *InjectorHandler) loadWorkspaceDefinitionAccess(
 	}
 	annotateInjectorScope(def, workspace, systemWorkspace)
 	return def, systemWorkspace, effectiveWorkspacePolicies(systemWorkspace), nil
+}
+
+func (h *InjectorHandler) staticCatalog(ctx context.Context, workspace *domain.Workspace) ([]*domain.InjectorDefinition, map[uuid.UUID][]*domain.InjectorField, error) {
+	if h.injectorMerger == nil {
+		return nil, map[uuid.UUID][]*domain.InjectorField{}, nil
+	}
+	return h.injectorMerger.StaticCatalog(ctx, workspace, "")
+}
+
+func (h *InjectorHandler) tryStaticDefinition(ctx context.Context, workspace *domain.Workspace, name string) (*domain.InjectorDefinition, []*domain.InjectorField, bool) {
+	defs, fieldsByDefinition, err := h.staticCatalog(ctx, workspace)
+	if err != nil {
+		return nil, nil, false
+	}
+	for _, def := range defs {
+		if def.Name != name {
+			continue
+		}
+		return def, fieldsByDefinition[def.ID], true
+	}
+	return nil, nil, false
+}
+
+func mergeStaticCatalog(
+	defs []*domain.InjectorDefinition,
+	fieldsByDefinition map[uuid.UUID][]*domain.InjectorField,
+	staticDefs []*domain.InjectorDefinition,
+	staticFields map[uuid.UUID][]*domain.InjectorField,
+) ([]*domain.InjectorDefinition, map[uuid.UUID][]*domain.InjectorField) {
+	if len(staticDefs) == 0 {
+		return defs, fieldsByDefinition
+	}
+	if fieldsByDefinition == nil {
+		fieldsByDefinition = make(map[uuid.UUID][]*domain.InjectorField, len(staticDefs))
+	}
+	seen := make(map[string]struct{}, len(defs))
+	merged := append([]*domain.InjectorDefinition(nil), defs...)
+	for _, def := range defs {
+		seen[def.Name] = struct{}{}
+	}
+	for _, def := range staticDefs {
+		if _, exists := seen[def.Name]; exists {
+			continue
+		}
+		merged = append(merged, def)
+		fieldsByDefinition[def.ID] = staticFields[def.ID]
+	}
+	return merged, fieldsByDefinition
 }
 
 func errorsIsNotFound(err error) bool {

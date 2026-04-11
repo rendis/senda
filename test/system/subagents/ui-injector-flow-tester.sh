@@ -230,6 +230,14 @@ assert_visible() {
   fi
 }
 
+assert_not_present() {
+  local selector="$1"
+  if ! ab_json eval "(() => document.querySelector('${selector}') === null)()" | jq -e '.data.result == true' >/dev/null; then
+    echo "expected ${selector} to be absent" >&2
+    return 1
+  fi
+}
+
 click_selector() {
   local selector="$1"
   if ! ab_json eval "(() => {
@@ -535,9 +543,8 @@ verify_injector_builder_and_test_send() {
   ab wait --text "Send Test Email" >/dev/null
 
   assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-name\"]" "Default Student"
-  assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-locked\"]" "LOCKED-DEFAULT"
   assert_input_value "[data-testid=\"test-send-field-${INJECTOR_NAME}-status\"]" "DEFAULT-STATUS"
-  assert_input_disabled "[data-testid=\"test-send-field-${INJECTOR_NAME}-locked\"]"
+  assert_not_present "[data-testid=\"test-send-field-${INJECTOR_NAME}-locked\"]"
   ab screenshot "$SCREENSHOT_DIR/test-send-modal-defaults.png" >/dev/null
 
   mailpit_clear
@@ -649,7 +656,7 @@ cat >"$REPORT_PATH" <<EOF_MD
 - Workspace admin can create the injector catalog from the UI.
 - Locked fields block creation until a non-empty default is provided.
 - The template editor exposes workspace injector tokens in the builder.
-- Test Send recognizes injector fields, keeps locked fields read-only, and resolves default/code/request precedence correctly.
+- Test Send recognizes only overwriteable injector fields, hides locked/static fields, and resolves default/code/request precedence correctly.
 - Bulk Send accepts per-item injector overrides from UI-uploaded JSON and renders each item with the expected precedence.
 - Mailpit confirms rendered content for the default, partial override, explicit empty override, and bulk-send scenarios.
 EOF_MD

@@ -37,6 +37,30 @@ type CodeResolveFunc func(ctx context.Context, injCtx *InjectorContext) (map[str
 // The returned value is stored in InjectorContext.InitData().
 type CodeInitFunc func(ctx context.Context, injCtx *InjectorContext) (any, error)
 
+// InjectorFieldSpec describes one field exposed by a catalogable code injector.
+type InjectorFieldSpec struct {
+	Name        string
+	Type        domain.InjectorFieldType
+	Description string
+}
+
+// InjectorCatalog describes optional UI/catalog metadata for a code injector.
+type InjectorCatalog struct {
+	Code        string
+	Name        string
+	Description string
+	Static      bool
+	TTL         time.Duration
+	Fields      []InjectorFieldSpec
+}
+
+// CatalogCodeInjector augments a runtime injector with catalog metadata
+// so it can be exposed through injector management and builder surfaces.
+type CatalogCodeInjector interface {
+	CodeInjector
+	Catalog() InjectorCatalog
+}
+
 // InjectorContext is the read-only context available to code injectors
 // and the init function during send resolution.
 type InjectorContext struct {
