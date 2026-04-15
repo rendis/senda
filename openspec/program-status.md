@@ -38,7 +38,7 @@
 
 | change | estado | fase | dependencia/paralelo | reviewer final | último E2E | último score/panel | worktree |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| perimeter-identity-default-deny | in_progress | policy_review | ejecución directa sobre `main`; runtime hardening ya absorbido y follow-up `media-thumbnail-hotpath-optimization` cerrado; resta signoff de policy sobre fallback de unbound members | Lorentz | slices unit+integration verdes; resta decisión de policy | security re-audit 7.1/10 | `main` |
+| perimeter-identity-default-deny | done | approved | ejecución directa sobre `main`; runtime hardening absorbido y policy signoff firmado vía [ADR-0002](../docs/specs/ADR-0002-transitional-email-fallback-unbound-members.md) (accepted transition del email fallback para unbound members) | Lorentz | slices unit+integration verdes + ADR-0002 firmado | security re-audit 7.1/10 (pendiente re-auditoría al cerrar los otros dos streams de cycle 3) | `main` |
 | sdk-and-http-composition-decoupling | planned | proposal | paralelo seguro con security; agrupa SDK estable, composer por superficie y server explícito | Volta | pendiente | architecture re-audit 8.2/10 | `main` |
 | send-context-and-media-hotpath | planned | proposal | el media hot path ya quedó cerrado en follow-up dedicado; queda converger la fuente de verdad del send context | Kuhn + Volta | pendiente | performance re-audit 8.3/10 | `main` |
 | media-thumbnail-hotpath-optimization | done | approved | follow-up de performance extraído de perimeter; tres slices ya absorbidos en `main` y verify focalizado documentado | worker verification | suites focalizadas de `TestHandleVideoThumbnail` verdes | performance re-audit 8.3/10 | `main` |

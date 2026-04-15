@@ -24,6 +24,10 @@
 - El logout federado ya no confía en `Host`; usa `AUTH_URL` o `request.nextUrl.origin`.
 - El webhook SNS ya es **default-deny** cuando no hay binding/política configurada.
 - El validador SES/SNS ya usa **probes únicos no destructivos**.
+- El stream `perimeter-identity-default-deny` ya quedó **cerrado** en `main`:
+  - policy signoff vía [ADR-0002](../docs/specs/ADR-0002-transitional-email-fallback-unbound-members.md) — email fallback para unbound members aceptado como transición explícita con invariantes documentadas
+  - guard anti-hijack en `internal/http/middleware/auth.go:148-150` mantiene default-deny para members bound
+  - cero cambio runtime en el cierre — documentación pura
 - El follow-up `media-thumbnail-hotpath-optimization` ya quedó **cerrado** en `main`:
   - reuse de fetch client por request
   - sin validación duplicada del URL inicial en el primer candidato
@@ -37,24 +41,7 @@
 
 ## Lo que queda pendiente
 
-### 1) `perimeter-identity-default-deny`
-
-Estado actual: **in_progress**
-
-Pendiente real:
-
-- resolver el signoff de policy sobre si el fallback por email para miembros **unbound** se acepta como transición explícita o migra luego a un modelo más estricto
-- mantener el stream como **policy/documentation only** salvo que aparezca un hallazgo nuevo; el follow-up de media YA quedó cerrado
-- actualizar verify/cierre final solo cuando exista esa decisión de policy
-
-Pistas concretas:
-
-- archivo principal: `internal/http/middleware/auth.go`
-- soporte documental/contexto:
-  - `internal/http/handler/member.go`
-  - `internal/service/onboarding.go`
-
-### 2) `sdk-and-http-composition-decoupling`
+### 1) `sdk-and-http-composition-decoupling`
 
 Estado actual: **planned**
 
@@ -71,7 +58,7 @@ Pendiente real:
   - `internal/app/http_surfaces.go`
   - `internal/http/server.go`
 
-### 3) `send-context-and-media-hotpath`
+### 2) `send-context-and-media-hotpath`
 
 Estado actual: **planned**
 
@@ -86,12 +73,11 @@ Pendiente real:
 
 ## Orden recomendado para retomar
 
-1. resolver `perimeter-identity-default-deny` (decisión de policy)
-2. ejecutar `sdk-and-http-composition-decoupling`
-3. ejecutar `send-context-and-media-hotpath` (solo convergencia de send context)
-4. correr verify final del ciclo 3
-5. correr re-auditoría ciega nueva
-6. si cualquier eje queda `<= 8.5`, abrir cycle 4
+1. ejecutar `sdk-and-http-composition-decoupling`
+2. ejecutar `send-context-and-media-hotpath` (solo convergencia de send context)
+3. correr verify final del ciclo 3
+4. correr re-auditoría ciega nueva
+5. si cualquier eje queda `<= 8.5`, abrir cycle 4
 
 ## Verificación ya verde en esta sesión
 

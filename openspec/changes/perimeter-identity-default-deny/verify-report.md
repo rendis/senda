@@ -30,7 +30,14 @@
    - result: PASS
    - purpose: confirm SNS default-deny and thumbnail pinning/fail-closed behavior remain covered while this batch only re-scopes documentation.
 
+## Policy signoff
+
+- Decision: [ADR-0002 — Transitional Email Fallback for Unbound OIDC Members](../../../docs/specs/ADR-0002-transitional-email-fallback-unbound-members.md) (Accepted 2026-04-15).
+- Scope of decision: the email fallback for unbound members (`internal/http/middleware/auth.go:121` → `auth.go:139-153`) is accepted as an explicit, documented transition, conditioned on the anti-hijack guard at `auth.go:148-150`.
+- Reviewer final: Lorentz.
+- No runtime change: this closure is documentation-only. The tests listed above remain the authoritative behavioral lock.
+
 ## Final assessment
-- state recommended: `in_progress`
+- state recommended: `done`
 - reviewer_final: `Lorentz`
-- reason: the runtime hardening originally tracked by this stream is already on `main`. The only remaining item is a policy decision about whether the unbound-email fallback is an accepted transition or should later be replaced by a stricter binding migration. No runtime behavior changed in this batch.
+- reason: runtime hardening originally tracked by this stream was already on `main`. The residual policy decision — whether the unbound-email fallback is an accepted transition or must migrate to strict binding — is now resolved by ADR-0002 as an accepted transition with explicit invariants. A future migration to strict binding remains possible as a separate stream (`invite-flow-oidc-pre-binding` or similar) without reopening this one.

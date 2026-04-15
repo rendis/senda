@@ -1,11 +1,14 @@
-state: in_progress
-phase: policy_review
+state: done
+phase: approved
 reviewer_final: Lorentz
 worktree: main
 dependency: cycle-2 closed
-percent: 85
-updated_at: "2026-04-15T17:18:54-04:00"
-notes: "The runtime hardening slice is already on main: issuer+subject lookup first, safe logout origin, production metrics token requirement, SNS default-deny when unconfigured, and thumbnail pinning/redaction. This reframe batch makes explicit that auth still allows controlled email fallback for unbound invited members and intentionally leaves runtime unchanged. The media-thumbnail-hotpath-optimization follow-up is now closed on main; the remaining work here is policy signoff on whether the fallback stays as an accepted transition or moves to a future binding migration."
+percent: 100
+updated_at: "2026-04-15T22:00:00-04:00"
+signoff:
+  decision: ADR-0002-transitional-email-fallback-unbound-members
+  date: "2026-04-15"
+notes: "Runtime hardening was already on main (issuer+subject lookup first, safe logout origin, production metrics token requirement, SNS default-deny when unconfigured, thumbnail pinning/redaction). The media-thumbnail-hotpath-optimization follow-up closed separately. The remaining policy question — whether the email fallback for unbound invited members is an accepted transition or must migrate to strict binding — is resolved by ADR-0002 (accepted transition with explicit invariants). No runtime behavior changes in this closure; the stream is now documentation-only complete."
 verification:
   last_run: "2026-04-15T21:15:00-04:00"
   commands:
