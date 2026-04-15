@@ -24,7 +24,12 @@ health_check() {
 case "$ACTION" in
   up)
     log "infra-orchestrator: stack up"
-    stack_cmd up --mode "$SYSTEM_MODE" --out "$ENV_REPORT_PATH"
+    stack_cmd up \
+      --mode "$SYSTEM_MODE" \
+      --scope-spec "${SYSTEM_SCOPE_SPEC:-system-runner}" \
+      --scope-worktree "${SYSTEM_SCOPE_WORKTREE:-$(basename "$ROOT_DIR")}" \
+      --scope-run "${SYSTEM_SCOPE_RUN:-pid-$$}" \
+      --out "$ENV_REPORT_PATH"
     load_env_report "$ENV_REPORT_PATH"
     log "infra-orchestrator: health checks"
     health_check

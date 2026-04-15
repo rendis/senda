@@ -1,0 +1,12 @@
+state: in_progress
+phase: apply
+reviewer_final: James
+worktree: /.worktrees/spec-ci-drift-and-cache-pagination
+dependency: cycle-2 closed
+percent: 25
+updated_at: "2026-04-11T17:47:00-0400"
+notes: "Direct execution is in progress. Tenant cache invalidation now exhausts pagination cursors instead of assuming a single page. Remaining work is to extend taxonomy drift detection to PR template and AGENTS contract sources, then verify and close."
+verification:
+  last_run: "2026-04-11T17:44:00-0400"
+  commands:
+    - "go test ./internal/resolution -run TestCacheInvalidator_InvalidateTenantWorkspaces"

@@ -1,0 +1,16 @@
+state: done
+phase: approved
+reviewer_final: Volta
+worktree: /.worktrees/spec-composition-boundary-slimming
+dependency: cleared
+percent: 100
+updated_at: "2026-04-11T16:24:00-04:00"
+notes: "Composition root slimmed via bootstrap bundles, router registration split by HTTP surface, SES SNS parsing/mapping extracted to internal/adapter/ses/webhook, representative autonomous verification passed for management, data-plane, external integration, and SES inbound, and Volta approved the stream."
+verification:
+  last_run: "2026-04-11T15:41:42-04:00"
+  commands:
+    - "go test ./internal/app ./internal/http ./internal/http/handler ./internal/adapter/ses/webhook"
+    - "go test -v ./internal/app -run 'TestNewServerOptions_'"
+    - "go test -v ./internal/http -run 'TestServer_RouteContractRemainsPartitionableBySurface|TestServer_ExternalIntegrationSurface_.*'"
+    - "go test -v ./internal/http/handler -run 'TestTenantHandler_Create_Success|TestWorkspaceHandler_ResetRuntime_TestEnvironment_Success|TestSendHandler_SendBatch_ValidRequest|TestDataPlaneEmailHandler_List_ScopedByWorkspace|TestExternalIntegrationHandler_Bootstrap_MinimizesResponseMetadata|TestSESWebhook_(Delivery_HappyPath|SubscriptionConfirmation|InvalidTopicArn_Returns400|MalformedSESMessage_Returns200|SendNotification_NoWarnLog)'"
+    - "go test -v ./internal/adapter/ses/webhook"

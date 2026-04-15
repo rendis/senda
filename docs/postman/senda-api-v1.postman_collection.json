@@ -960,6 +960,42 @@
               }
             }
           ]
+        },
+        {
+          "name": "Revoke Access from Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manage/members/{{member_id}}/access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "manage",
+                "members",
+                "{{member_id}}",
+                "access"
+              ]
+            },
+            "description": "Revoke all access for a member in the selected scope.\n\n**Required role:** superadmin\n\nScoped variants also exist under tenant and workspace routes, including the environment-scoped workspace path."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

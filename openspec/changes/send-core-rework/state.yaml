@@ -1,0 +1,44 @@
+state: done
+phase: approved
+reviewer_final: "Volta + Kuhn"
+worktree: /.worktrees/spec-send-core-rework
+dependency: none
+percent: 99
+current_batch: reviewer-rework-final-final-hardening
+completed:
+  - add suppression batch contract on the port and PostgreSQL adapter
+  - extract SuppressionBatchEvaluator out of send.go
+  - switch SendService to a single suppression lookup for to/cc/bcc
+  - add unit tests for the new use case and service-path regression coverage
+  - add integration test for the batched PostgreSQL query
+  - add EmailStore.GetPayload and domain EmailPayload contract
+  - split hot row and cold payload persistence via email_payloads migration
+  - stop hydrating cold payload fields from EmailRepo hot reads/list queries
+  - adapt SendWorker to load cold payload only when render/send is about to happen
+  - add focused worker tests for deferred payload loading and rate-limit no-payload path
+  - add RateLimiter.AcquireBurst and PostgreSQL burst reservation function
+  - add worker-local token reservation cache keyed by adapter
+  - switch worker from per-message try-acquire to burst reservation reuse
+  - add focused tests proving one burst acquisition can serve multiple jobs for the same adapter
+  - add package-local pipeline tests that bridge SendService, queue, split hot/cold persistence, and SendWorker
+  - add worker burst-size override seam for measurement and targeted test coverage
+  - add benchmark comparing burst sizes 1/2/4/8 through the real worker rate-limit path
+  - add focused E2E hot/cold persistence test and stale network cleanup for the E2E harness
+  - verify black-box send flow from the current worktree app using an isolated Postgres container started from the already-built custom image plus external Keycloak/Mailpit services
+  - confirm E2E coverage for send success, suppression path, hot/cold persistence, and rate-limit contract against the current worktree app
+  - extract explicit send context and persistence seams so SendService no longer mixes setup, policy, persistence, and enqueue in one monolith
+  - make suppression batching case-insensitive end-to-end through canonicalization plus normalized persistence/querying
+  - stop SendBatch from delegating to Send item-by-item by reusing prepared context and one shared suppression batch
+  - add TTL and opportunistic cleanup for worker-local rate-limit reservations plus deterministic tests for expiry/pruning
+  - propagate systemic suppression-batch failures as batch-level errors instead of silent accepted/partial responses
+  - move rate-limit reservation pruning out of the acquire fast path and guard cleanup scheduling with atomics
+  - consolidate suppression lookup canonicalization to a single pass in EvaluateMany
+  - preserve all tracking IDs per batch item when test-recipient policy expands recipients in SendBatch
+  - harden async prune with reservation refs/deleting revalidation so live rate-limit reservations cannot be deleted by race
+pending:
+  - none
+risks:
+  - dedicated Testcontainers integration runs that rebuild images from scratch still stall in this environment and are no longer the main gating signal
+  - the previously running shared postgres stack had an inconsistent migration state (`schema_migrations=43` without `email_payloads`), so future reruns must keep using an isolated database/container for trustworthy evidence
+  - the current benchmark supports burst=4 as a pragmatic default, but not as a universal optimum under all production concurrency profiles
+updated_at: "2026-04-11T13:40:00-04:00"

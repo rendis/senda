@@ -1,0 +1,14 @@
+state: in_progress
+phase: apply
+reviewer_final: Lorentz
+worktree: /.worktrees/spec-perimeter-identity-default-deny
+dependency: cycle-2 closed
+percent: 55
+updated_at: "2026-04-11T17:47:00-0400"
+notes: "Direct execution is in progress. OIDC auth now resolves members by issuer+subject, federated logout no longer trusts Host, production requires metrics token, webhook SNS binding is default-deny when unconfigured, and validation probes now use unique non-destructive names. Remaining work is the thumbnail hot-path/pinning/redaction verification slice."
+verification:
+  last_run: "2026-04-11T17:46:00-0400"
+  commands:
+    - "go test ./internal/http/middleware ./internal/http/handler ./config ./internal/adapter/ses"
+    - "go test -tags=integration ./internal/adapter/postgres -run TestMemberRepo_GetByOIDCIdentity"
+    - "pnpm --dir web exec node --test src/app/api/auth/federated-logout-url/logout-url.test.ts src/app/api/auth/federated-logout-url/origin.test.ts"

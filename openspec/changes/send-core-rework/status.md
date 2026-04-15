@@ -1,0 +1,25 @@
+# Status
+
+- state: done
+- percent: 99%
+- dependency: ninguna
+- worktree: `/.worktrees/spec-send-core-rework`
+- reviewer_final: Volta + Kuhn
+- notes:
+  - batch 1 cerrado: extracción del primer use case explícito (`SuppressionBatchEvaluator`) y reemplazo del N+1/secuencial de suppressions por un lookup batched único para `to` + `cc` + `bcc`
+  - batch 2 cerrado: seam hot/cold real para `emails` con nueva tabla `email_payloads`, migración de split mínima viable, `EmailStore.GetPayload(...)` y worker cargando payload frío sólo después de resolver hot row + rate limit
+  - batch 3 cerrado: rediseño del rate limiting con reserva burst por adapter (`AcquireBurst`) + caché local por worker para reutilizar tokens ya reservados y evitar una sección crítica en PostgreSQL por mensaje
+  - batch 4 cerrado: evidencia autónoma del pipeline reescrito con tests que recorren `SendService -> enqueue -> SendWorker`, benchmark funcional del burst size y ruta black-box híbrida desde el worktree actual
+  - batch 5 cerrado: `SendService.Send()` dejó de concentrar todo el flujo; ahora hay seams explícitos para contexto compartido (`SendContextBuilder`), ejecución preparada por locale y persistencia/enqueue (`SendPersistenceWriter`)
+  - `SendBatch` ya no delega en `Send` por ítem: prepara el contexto una vez, reutiliza resoluciones estables y ejecuta una sola evaluación batch de suppressions para todos los items
+  - la suppressión batch quedó case-insensitive end-to-end: canonicalización en dominio, proyección case-insensitive en el evaluador y normalización persistente en PostgreSQL
+  - la caché local de rate-limit reservations del worker ahora tiene TTL y cleanup oportunista, evitando crecimiento sin cota y forzando reacquire cuando la reserva expira
+  - batch 6 cerrado: un fallo sistémico de `EvaluateMany()` ya no se degrada a `202 Accepted` parcial; `SendBatch` lo propaga como error de batch retryable
+  - el prune de `rateLimits` salió del fast path de adquisición; el worker ahora sólo agenda cleanup asíncrono al reservar un burst nuevo y el timestamp de último cleanup pasó a primitiva atómica para evitar data race
+  - la canonicalización del lookup de suppressions quedó consolidada en un solo paso dentro de `EvaluateMany()` en vez de re-normalizar todo el batch después
+  - batch 7 cerrado: el contrato batch se amplió para preservar todos los tracking IDs por item (`tracking_ids`) cuando la policy de test expande destinatarios; `tracking_id` se mantiene como alias backward-compatible del primero
+  - se eligió ampliar la respuesta, no prohibir `append` en batch, porque el diseño actual ya permite expansión por policy en test y el contrato correcto debe reflejar la cardinalidad real del envío
+  - el prune asíncrono del rate limiter quedó endurecido con refs/deleting flags atómicos para que una reserva viva no pueda ser borrada por carrera mientras aún está en uso
+  - la verificación afectada quedó verde en service/worker; no queda bloqueo técnico abierto del stream
+  - Volta + Kuhn aprobaron el rework final: el batch preserva cardinalidad real, la suppressión queda batched/case-insensitive y el modelo burst evita trabajo/carreras innecesarias en el hot path
+- DoD: evidencia autónoma + black-box híbrida + signoff doble

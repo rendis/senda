@@ -1,0 +1,40 @@
+schema: spec-driven
+project: senda
+mode: hybrid
+context: |
+  Tech stack: Go 1.25.1, PostgreSQL 16, Echo v5, River, pgx v5.
+  Frontend: Next.js 16.2.3, React 19.2.5, TypeScript 5, Tailwind v4, shadcn/ui.
+  Architecture: Hexagonal, no Redis, core under internal/, public SDK in sdk/.
+  Testing: make test / make vet / make lint; integration via make test-integration; E2E via make test-e2e*.
+  Style: TDD mandatory, manual mocks, no builds after changes.
+strict_tdd: true
+testing:
+  test_runner: go test
+  test_command: make test
+  integration_command: make test-integration
+  e2e_command: make test-e2e
+  coverage_command: go test -cover ./...
+  lint_command: make lint
+  vet_command: make vet
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing code patterns and conventions
+    - Load relevant coding skills for the project stack
+  verify:
+    - Run targeted tests if available
+    - Compare implementation against every spec scenario
+  archive:
+    - Warn before merging destructive deltas

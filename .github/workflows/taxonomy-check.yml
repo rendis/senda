@@ -1,0 +1,32 @@
+name: CI Taxonomy Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  taxonomy-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: web/.nvmrc
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pinned pnpm
+        working-directory: web
+        run: corepack install
+
+      - name: Run taxonomy check
+        run: make ci-taxonomy-check

@@ -70,3 +70,6 @@ test/system/baselines/pencil/
 stories/
 *.pen
 .worktrees/
+
+# SDD bootstrap artifacts
+.atl/

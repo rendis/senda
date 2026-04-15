@@ -1,0 +1,12 @@
+state: done
+phase: approved
+reviewer_final: James
+worktree: /.worktrees/spec-ci-taxonomy-and-test-discoverability
+dependency: ci-gates-and-doc-alignment
+parallel_with:
+  - send-core-rework
+  - surface-modularization-and-sdk-hardening
+  - security-perimeter-hardening
+  - autonomous-e2e-isolation
+updated_at: "2026-04-11T14:10:00-04:00"
+notes: Taxonomía CI y discoverability frontend quedaron cerradas con evidencia verde en `make ci-taxonomy-check` y `make ci-pr`; los tests frontend estables ahora usan `repoRoot` y el workspace web declara `type: module`.

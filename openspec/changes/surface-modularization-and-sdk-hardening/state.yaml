@@ -1,0 +1,13 @@
+state: done
+phase: approved
+reviewer_final: Volta
+worktree: /.worktrees/spec-surface-modularization-and-sdk-hardening
+dependency: cleared
+updated_at: "2026-04-11T13:13:04-04:00"
+summary: "Surface modularization and SDK hardening are approved: external-integration session routing is owned by the external surface, runtime auth/resolver seams are explicit, the SDK exposes its own Environment type instead of leaking internal/domain.Environment, the autonomous E2E harness passes on the aligned baseline, and architecture signoff is granted."
+verification:
+  last_run: "2026-04-11T13:13:04-04:00"
+  commands:
+    - "go test ./internal/app ./internal/http ./internal/http/handler ./internal/service ./internal/adapter/postgres ./internal/adapter/river"
+    - "go test ./sdk ./cmd/senda-e2e"
+    - "go test -tags=e2e -count=1 -timeout 5m -v ./test/e2e -run '^TestEnv03_ExternalEnvironmentHeaderValidation$'"

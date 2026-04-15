@@ -26,5 +26,5 @@ jobs:
           version: latest
           install-mode: binary
 
-      - name: Backend gate
+      - name: Backend gate (lint + vet + swagger-check + test)
         run: make ci-backend-pr

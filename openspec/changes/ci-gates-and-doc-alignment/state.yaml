@@ -1,0 +1,7 @@
+state: done
+phase: approved
+reviewer_final: James
+worktree: /.worktrees/spec-ci-gates-and-doc-alignment
+dependency: autonomous-e2e-isolation
+updated_at: "2026-04-11T06:55:00-04:00"
+notes: James aprobó el stream; `ci-backend-main` y `ci-main` quedaron como wrappers locales y `make ci-frontend` permanece verde
