@@ -30,6 +30,11 @@ type configCrypto interface {
 	Decrypt(ciphertext []byte) ([]byte, error)
 }
 
+// SNSBindingRegistrar lets the provisioning flow register exact SNS TopicArns
+// with the inbound webhook handler after those topics are created.
+type SNSBindingRegistrar interface {
+	RegisterSNSBinding(topicArn string)
+}
 
 // ProvisionResult contains the outcome of auto-provisioning tracking resources.
 type ProvisionResult struct {
@@ -42,11 +47,11 @@ type ProvisionResult struct {
 
 // Step response status constants (distinct from domain.ProvisioningStepStatus which tracks DB state).
 const (
-	StepStatusCreated              = "created"
-	StepStatusAlreadyExists        = "already_exists"
-	StepStatusAlreadyCompleted     = "already_completed"
-	StepStatusFailed               = "failed"
-	StepStatusPendingConfirmation  = "pending_confirmation"
+	StepStatusCreated             = "created"
+	StepStatusAlreadyExists       = "already_exists"
+	StepStatusAlreadyCompleted    = "already_completed"
+	StepStatusFailed              = "failed"
+	StepStatusPendingConfirmation = "pending_confirmation"
 )
 
 // ProvisionStep describes the outcome of a single provisioning step.
@@ -72,17 +77,16 @@ func DefaultAWSClientFactory(cfg aws.Config, endpointURL string) (SESAPI, SNSAPI
 		})
 }
 
-
 // TrackingProvisioner auto-provisions SES tracking resources (Configuration Set, SNS Topic,
 // Event Destination, HTTPS Subscription) using the adapter's own AWS credentials.
 type TrackingProvisioner struct {
-	adapterStore   adapterReadWriter
-	crypto         configCrypto
-	webhookBaseURL string
-	clientFactory  AWSClientFactory
-	stepStore      port.ProvisioningStepStore // nil = stateless fallback
-	logger         *slog.Logger
-
+	adapterStore     adapterReadWriter
+	crypto           configCrypto
+	webhookBaseURL   string
+	clientFactory    AWSClientFactory
+	stepStore        port.ProvisioningStepStore // nil = stateless fallback
+	bindingRegistrar SNSBindingRegistrar
+	logger           *slog.Logger
 }
 
 // NewTrackingProvisioner creates a new TrackingProvisioner.
@@ -93,18 +97,30 @@ func NewTrackingProvisioner(
 	webhookBaseURL string,
 	logger *slog.Logger,
 	stepStore port.ProvisioningStepStore,
+	bindingRegistrar ...SNSBindingRegistrar,
 ) *TrackingProvisioner {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &TrackingProvisioner{
-		adapterStore:   adapterStore,
-		crypto:         crypto,
-		webhookBaseURL: webhookBaseURL,
-		clientFactory:  DefaultAWSClientFactory,
-		stepStore:      stepStore,
-		logger:         logger,
+	var registrar SNSBindingRegistrar
+	if len(bindingRegistrar) > 0 {
+		registrar = bindingRegistrar[0]
 	}
+	return &TrackingProvisioner{
+		adapterStore:     adapterStore,
+		crypto:           crypto,
+		webhookBaseURL:   webhookBaseURL,
+		clientFactory:    DefaultAWSClientFactory,
+		stepStore:        stepStore,
+		bindingRegistrar: registrar,
+		logger:           logger,
+	}
+}
+
+// SetSNSBindingRegistrar updates the runtime registrar used to publish exact SNS TopicArns.
+// It is intended for bootstrap wiring once the webhook handler has been created.
+func (p *TrackingProvisioner) SetSNSBindingRegistrar(registrar SNSBindingRegistrar) {
+	p.bindingRegistrar = registrar
 }
 
 // loadAdapterClients loads an SES adapter, decrypts its config, and builds AWS clients.
@@ -192,6 +208,7 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 			topicARN = *ps.ResourceARN
 		}
 		result.TopicARN = topicARN
+		p.registerSNSBinding(topicARN)
 		result.Steps = append(result.Steps, ProvisionStep{
 			Name: domain.StepCreateSNSTopic, Status: StepStatusAlreadyCompleted,
 			Detail: topicARN, ResourceName: ps.ResourceName, ResourceARN: ps.ResourceARN,
@@ -205,6 +222,7 @@ func (p *TrackingProvisioner) Provision(ctx context.Context, adapterID uuid.UUID
 			p.persistStepFailure(ctx, stepMap, domain.StepCreateSNSTopic, step2.Detail)
 			return result, fmt.Errorf("create sns topic: %s", step2.Detail)
 		}
+		p.registerSNSBinding(topicARN)
 		p.persistStepSuccess(ctx, stepMap, domain.StepCreateSNSTopic, &topicName, &topicARN)
 	}
 
@@ -324,6 +342,13 @@ func (p *TrackingProvisioner) persistStepFailure(ctx context.Context, stepMap ma
 	if err := p.stepStore.MarkFailed(ctx, ps.ID, errMsg); err != nil {
 		p.logger.WarnContext(ctx, "failed to persist step failure", "step", stepName, "error", err)
 	}
+}
+
+func (p *TrackingProvisioner) registerSNSBinding(topicARN string) {
+	if p.bindingRegistrar == nil || topicARN == "" {
+		return
+	}
+	p.bindingRegistrar.RegisterSNSBinding(topicARN)
 }
 
 func (p *TrackingProvisioner) createConfigurationSet(ctx context.Context, client SESAPI, name string) ProvisionStep {

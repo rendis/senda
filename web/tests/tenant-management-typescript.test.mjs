@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
-const root = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const root = repoRoot;
 
 test("tenant management frontend typechecks", () => {
   try {

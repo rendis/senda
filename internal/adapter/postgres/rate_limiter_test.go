@@ -201,3 +201,41 @@ func TestProviderRateLimiter_SyncBucketCreatesAndUpdates(t *testing.T) {
 		t.Errorf("max_tokens = %d, want 5", maxTokens)
 	}
 }
+
+func TestProviderRateLimiter_AcquireBurstReservesMultipleTokens(t *testing.T) {
+	rl, pool := setupRateLimiter(t)
+	ctx := context.Background()
+
+	adapterID := createTestAdapter(t, ctx, pool, 5)
+
+	if err := rl.SyncBucket(ctx, adapterID, 5); err != nil {
+		t.Fatalf("SyncBucket() error: %v", err)
+	}
+
+	reserved, err := rl.AcquireBurst(ctx, adapterID, 3)
+	if err != nil {
+		t.Fatalf("AcquireBurst() error: %v", err)
+	}
+	if reserved != 3 {
+		t.Fatalf("expected 3 reserved tokens, got %d", reserved)
+	}
+
+	// Only 2 tokens should remain for single acquires.
+	for i := range 2 {
+		allowed, err := rl.TryAcquire(ctx, adapterID)
+		if err != nil {
+			t.Fatalf("TryAcquire() #%d error: %v", i, err)
+		}
+		if !allowed {
+			t.Fatalf("TryAcquire() #%d = false, want true", i)
+		}
+	}
+
+	allowed, err := rl.TryAcquire(ctx, adapterID)
+	if err != nil {
+		t.Fatalf("TryAcquire() after reserved tokens error: %v", err)
+	}
+	if allowed {
+		t.Fatal("expected exhaustion after burst reservation + remaining tokens")
+	}
+}

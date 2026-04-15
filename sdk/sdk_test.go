@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/sdk"
 )
 
@@ -88,7 +87,7 @@ func TestEngineFluentAPI(t *testing.T) {
 }
 
 func TestInjectorContext_NilHeaders(t *testing.T) {
-	ctx := sdk.NewInjectorContext(nil, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
+	ctx := sdk.NewInjectorContext(nil, "", nil, [16]byte{}, [16]byte{}, sdk.EnvironmentProd, "")
 
 	if got := ctx.Header("X-Anything"); got != "" {
 		t.Errorf("Header on nil headers = %q, want empty", got)
@@ -102,7 +101,7 @@ func TestInjectorContext_NilHeaders(t *testing.T) {
 
 func TestInjectorContext_HeadersCopy(t *testing.T) {
 	original := map[string]string{"Key": "value"}
-	ctx := sdk.NewInjectorContext(original, "", nil, [16]byte{}, [16]byte{}, domain.EnvironmentProd, "")
+	ctx := sdk.NewInjectorContext(original, "", nil, [16]byte{}, [16]byte{}, sdk.EnvironmentProd, "")
 
 	copy := ctx.Headers()
 	copy["Key"] = "mutated"
@@ -117,7 +116,7 @@ func TestInjectorContext_HeadersCopy(t *testing.T) {
 }
 
 func TestInjectorContext_Concurrency(t *testing.T) {
-	ctx := sdk.NewInjectorContext(nil, "ref", nil, [16]byte{1}, [16]byte{2}, domain.EnvironmentProd, "type")
+	ctx := sdk.NewInjectorContext(nil, "ref", nil, [16]byte{1}, [16]byte{2}, sdk.EnvironmentProd, "type")
 
 	done := make(chan struct{})
 	go func() {
@@ -142,7 +141,7 @@ func TestInjectorContext(t *testing.T) {
 		"tenant:workspace:welcome",
 		map[string]any{"name": "Jane"},
 		[16]byte{1}, [16]byte{2},
-		domain.EnvironmentProd,
+		sdk.EnvironmentProd,
 		"welcome",
 	)
 
@@ -162,8 +161,8 @@ func TestInjectorContext(t *testing.T) {
 	if got := ctx.TemplateType(); got != "welcome" {
 		t.Errorf("TemplateType() = %q, want %q", got, "welcome")
 	}
-	if got := ctx.Environment(); got != domain.EnvironmentProd {
-		t.Errorf("Environment() = %q, want %q", got, domain.EnvironmentProd)
+	if got := ctx.Environment(); got != sdk.EnvironmentProd {
+		t.Errorf("Environment() = %q, want %q", got, sdk.EnvironmentProd)
 	}
 
 	if ctx.InitData() != nil {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import { UserPlus, Users, ShieldPlus, Trash2, Search } from "lucide-react";
+import { UserPlus, Users, ShieldCheck, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -22,9 +22,18 @@ import {
   useCurrentMember,
   useMembers,
   useInviteMember,
-  useAddMemberRole,
-  useRemoveMemberRole,
+  useReplaceMemberRole,
+  useRevokeMemberAccess,
+  buildRevokeAccessDialogCopy,
+  getMemberRowActions,
+  getAllowedMemberRolesForScope,
+  hasMemberAccessInScope,
+  inviteMemberInScope,
 } from "@/hooks/use-members-mgmt";
+import {
+  getMemberRolesInScope,
+  getPrimaryMemberRoleInScope,
+} from "@/hooks/members-mgmt-logic";
 import { useScope } from "@/hooks/use-scope";
 import {
   SYSTEM_WORKSPACE_SCOPE_LABEL,
@@ -36,26 +45,22 @@ import type { Role, ScopeLevel } from "@/types/api";
 function canManageMembers(roles: MemberRoleDetail[], scopeLevel: ScopeLevel): boolean {
   if (roles.some((r) => r.role === "superadmin")) return true;
   switch (scopeLevel) {
+    case "tenant":
+      return roles.some((r) => r.role === "tenant_admin");
     case "workspace":
-      return roles.some((r) => r.role === "tenant_admin" || r.role === "workspace_admin");
+      return roles.some(
+        (r) => r.role === "tenant_admin" || r.role === "workspace_admin",
+      );
     case "global":
     default:
       return false;
   }
 }
 
-function allowedRolesForScope(scopeLevel: ScopeLevel): Role[] {
-  switch (scopeLevel) {
-    case "workspace":
-      return ["workspace_viewer", "workspace_editor", "workspace_admin"];
-    case "global":
-    default:
-      return ["workspace_viewer", "workspace_editor", "workspace_admin", "tenant_admin", "superadmin"];
-  }
-}
-
 function scopeLabel(scopeLevel: ScopeLevel, tenantCode?: string, workspaceCode?: string): string {
   switch (scopeLevel) {
+    case "tenant":
+      return tenantCode ? `tenant "${tenantCode}"` : "this tenant";
     case "workspace":
       if (!workspaceCode) return "this workspace";
       return isSystemWorkspaceCode(workspaceCode)
@@ -96,16 +101,13 @@ function MembersTable({
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useMembers();
   const inviteMutation = useInviteMember();
-  const addRoleMutation = useAddMemberRole();
-  const removeRoleMutation = useRemoveMemberRole();
+  const replaceRoleMutation = useReplaceMemberRole();
+  const revokeAccessMutation = useRevokeMemberAccess();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roleEditorTarget, setRoleEditorTarget] =
     useState<MemberWithRoles | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<{
-    member: MemberWithRoles;
-    role: MemberRoleDetail;
-  } | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<MemberWithRoles | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -114,45 +116,74 @@ function MembersTable({
 
   const members = useMemo(() => {
     const allMembers = data?.pages.flatMap((p) => p.items) ?? [];
-    const visibleMembers = allMembers.filter((member) => (member.roles?.length ?? 0) > 0);
+    const visibleMembers = allMembers.filter((member) =>
+      hasMemberAccessInScope(member, {
+        level: scopeLevel,
+        tenantCode,
+        workspaceCode,
+      }),
+    );
     if (!searchQuery) return visibleMembers;
     return visibleMembers.filter(
       (m) =>
         m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [data?.pages, searchQuery]);
+  }, [data?.pages, scopeLevel, searchQuery, tenantCode, workspaceCode]);
 
   const handleInvite = async (formData: {
     email: string;
     display_name?: string;
     role: Role;
   }) => {
-    await inviteMutation.mutateAsync(formData);
+    const result = await inviteMemberInScope({
+      scopeLevel,
+      formData,
+      inviteMember: (payload) => inviteMutation.mutateAsync(payload),
+      replaceMemberRole: ({ memberId, data }) =>
+        replaceRoleMutation.mutateAsync({
+          memberId,
+          data,
+        }),
+    });
+
+    setInviteOpen(false);
+
+    if (result.status === "needs-role-retry") {
+      setRoleEditorTarget(result.member);
+      toast.error(
+        "Member created, but assigning the initial role failed. Finish setup in Change role.",
+      );
+      return;
+    }
+
     toast.success("Member invited");
   };
 
-  const handleAddRole = async (
+  const handleRevokeAccess = async () => {
+    if (!revokeTarget) return;
+    await revokeAccessMutation.mutateAsync(revokeTarget.id);
+    setRevokeTarget(null);
+    toast.success("Access revoked");
+  };
+
+  const handleChangeRole = async (
     memberId: string,
     data: { role: Role; scope_type: ScopeLevel }
   ) => {
-    await addRoleMutation.mutateAsync({
+    await replaceRoleMutation.mutateAsync({
       memberId,
       data,
     });
     setRoleEditorTarget(null);
-    toast.success("Role added");
+    toast.success("Role updated");
   };
 
-  const handleRemoveRole = async () => {
-    if (!revokeTarget) return;
-    await removeRoleMutation.mutateAsync({
-      memberId: revokeTarget.member.id,
-      roleId: revokeTarget.role.id,
-    });
-    setRevokeTarget(null);
-    toast.success("Role removed");
-  };
+  const rowActions = getMemberRowActions(scopeLevel);
+  const revokeDialogCopy = buildRevokeAccessDialogCopy({
+    memberEmail: revokeTarget?.email ?? "",
+    scopeLabel: scopeLabel(scopeLevel, tenantCode, workspaceCode),
+  });
 
   const columns: ColumnDef<MemberWithRoles>[] = [
     {
@@ -176,7 +207,11 @@ function MembersTable({
       size: 160,
       enableSorting: false,
       cell: ({ row }) => {
-        const primaryRole = row.original.roles?.[0];
+        const primaryRole = getPrimaryMemberRoleInScope(row.original, {
+          level: scopeLevel,
+          tenantCode,
+          workspaceCode,
+        });
         return primaryRole ? (
           <RoleBadge role={primaryRole.role} />
         ) : (
@@ -190,7 +225,11 @@ function MembersTable({
       size: 100,
       enableSorting: false,
       cell: ({ row }) => {
-        const primaryRole = row.original.roles?.[0];
+        const primaryRole = getPrimaryMemberRoleInScope(row.original, {
+          level: scopeLevel,
+          tenantCode,
+          workspaceCode,
+        });
         return primaryRole ? (
           <MemberScopeBadge scope={primaryRole.scope_type} />
         ) : (
@@ -206,26 +245,45 @@ function MembersTable({
             enableSorting: false,
             cell: ({ row }: { row: { original: MemberWithRoles } }) => {
               const member = row.original;
+              const scopedRoles = getMemberRolesInScope(member, {
+                level: scopeLevel,
+                tenantCode,
+                workspaceCode,
+              });
+              const canRevokeAccess = scopedRoles.length > 0;
               return (
                 <div className="flex items-center justify-end gap-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setRoleEditorTarget(member)}>
-                        <ShieldPlus className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add Role</TooltipContent>
-                  </Tooltip>
-                  {(member.roles ?? []).map((role) => (
-                    <Tooltip key={role.id}>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setRevokeTarget({ member, role })}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remove {role.role}</TooltipContent>
-                    </Tooltip>
-                  ))}
+                  {rowActions.map((action) =>
+                    action.kind === "change-role" ? (
+                      <Tooltip key={action.kind}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setRoleEditorTarget(member)}
+                          >
+                            <ShieldCheck className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{action.label}</TooltipContent>
+                      </Tooltip>
+                    ) : canRevokeAccess ? (
+                      <Tooltip key={action.kind}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => setRevokeTarget(member)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{action.label}</TooltipContent>
+                      </Tooltip>
+                    ) : null,
+                  )}
                 </div>
               );
             },
@@ -283,7 +341,7 @@ function MembersTable({
           open={inviteOpen}
           onOpenChange={setInviteOpen}
           onSubmit={handleInvite}
-          allowedRoles={allowedRolesForScope(scopeLevel)}
+          allowedRoles={getAllowedMemberRolesForScope(scopeLevel)}
           scopeLabel={scopeLabel(scopeLevel, tenantCode, workspaceCode)}
         />
       )}
@@ -295,10 +353,11 @@ function MembersTable({
             if (!open) setRoleEditorTarget(null);
           }}
           memberEmail={roleEditorTarget.email}
-          onSubmit={(data) => handleAddRole(roleEditorTarget.id, data)}
-          scopeType={scopeLevel === "global" ? undefined : scopeLevel}
-          allowedRoles={allowedRolesForScope(scopeLevel)}
+          onSubmit={(data) => handleChangeRole(roleEditorTarget.id, data)}
+          scopeType={scopeLevel}
+          allowedRoles={getAllowedMemberRolesForScope(scopeLevel)}
           scopeLabel={scopeLabel(scopeLevel, tenantCode, workspaceCode)}
+          memberRoles={roleEditorTarget.roles}
         />
       )}
 
@@ -307,11 +366,11 @@ function MembersTable({
         onOpenChange={(open) => {
           if (!open) setRevokeTarget(null);
         }}
-        title="Remove Role"
-        description={`Remove the "${revokeTarget?.role.role ?? ""}" role from ${revokeTarget?.member.email ?? ""}? They may lose access to resources.`}
-        confirmLabel="Remove Role"
-        onConfirm={handleRemoveRole}
-        loading={removeRoleMutation.isPending}
+        title={revokeDialogCopy.title}
+        description={revokeDialogCopy.description}
+        confirmLabel={revokeDialogCopy.confirmLabel}
+        onConfirm={handleRevokeAccess}
+        loading={revokeAccessMutation.isPending}
       />
     </>
   );

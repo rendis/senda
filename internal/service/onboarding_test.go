@@ -106,6 +106,9 @@ func (m *mockMemberStoreOnboarding) GetByEmail(ctx context.Context, email string
 	}
 	return nil, nil
 }
+func (m *mockMemberStoreOnboarding) GetByOIDCIdentity(_ context.Context, _ string, _ string) (*domain.Member, error) {
+	return nil, nil
+}
 func (m *mockMemberStoreOnboarding) GetByID(ctx context.Context, id uuid.UUID) (*domain.Member, error) {
 	if m.getByIDFn != nil {
 		return m.getByIDFn(ctx, id)
@@ -124,6 +127,9 @@ func (m *mockMemberStoreOnboarding) AddRole(ctx context.Context, role *domain.Me
 	}
 	return nil
 }
+func (m *mockMemberStoreOnboarding) ReplaceRoleInScope(_ context.Context, _ *domain.MemberRole) error {
+	return nil
+}
 func (m *mockMemberStoreOnboarding) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
@@ -135,6 +141,9 @@ func (m *mockMemberStoreOnboarding) RemoveRole(ctx context.Context, roleID uuid.
 		return m.removeRoleFn(ctx, roleID)
 	}
 	return nil
+}
+func (m *mockMemberStoreOnboarding) RevokeAccessInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) (int64, error) {
+	return 0, nil
 }
 func (m *mockMemberStoreOnboarding) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error) {
 	if m.getRolesFn != nil {

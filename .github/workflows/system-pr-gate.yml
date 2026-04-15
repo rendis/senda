@@ -1,4 +1,4 @@
-name: System PR Gate
+name: System PR Gate (Manual)
 
 on:
   workflow_dispatch:

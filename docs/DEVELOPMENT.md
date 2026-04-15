@@ -14,11 +14,14 @@
 ```bash
 git clone https://github.com/rendis/senda.git
 cd senda
+corepack enable
+(cd web && corepack install)
+pnpm --dir web install
 make dev
 curl http://localhost:8081/health
 ```
 
-`make dev` starts the local stack: Senda API, PostgreSQL, Keycloak, and Mailpit.
+`make dev` starts the full local stack: Senda API, PostgreSQL, Keycloak, Mailpit, and the Next.js frontend. If you only want the Docker services, use `make dev-stack`.
 
 ## Frontend development
 
@@ -28,12 +31,14 @@ Use `pnpm` only.
 corepack enable
 (cd web && corepack install)
 pnpm --dir web install
-pnpm --dir web dev
+make dev        # full local stack, including frontend
+make dev-stack  # docker services only
 ```
 
 Useful frontend checks:
 
 ```bash
+pnpm --dir web test
 pnpm --dir web typecheck
 pnpm --dir web lint -- --max-warnings=0
 ```
@@ -80,6 +85,7 @@ Useful areas:
 ### Development
 
 - `make dev`
+- `make dev-stack`
 - `make dev-down`
 - `make dev-clean`
 
@@ -95,7 +101,7 @@ Useful areas:
 - `make ci-backend-pr`
 - `make ci-frontend`
 - `make ci-pr`
-- `make ci-main`
+- `make ci-taxonomy-check`
 - `make lint`
 - `make vet`
 
@@ -121,7 +127,8 @@ Senda now includes environment-aware runtime flows. When validating changes that
 
 - `make test-e2e`
 - `make test-e2e-chaos` for crash/recovery or cross-layer runtime behavior
-- `make system-pr` for browser/API validation
+- `make system-pr` for manual / observational browser/API validation
+- `make system-nightly` for manual / observational broader observability and resilience checks
 
 The system harness includes a dedicated environment-mode stage:
 
@@ -138,6 +145,14 @@ make test-e2e
 make test-e2e-chaos
 make test-e2e-ses
 ```
+
+## Validation taxonomy
+
+- `make ci-backend-pr` is the automatic backend PR gate.
+- `make ci-frontend` is the automatic frontend PR gate and uses `pnpm --dir web test` as the canonical frontend test entrypoint.
+- `make ci-pr` composes the automatic backend and frontend PR gates.
+- `make ci-taxonomy-check` compares Makefile, workflows, and docs so drift cannot hide.
+- `make system-pr` and `make system-nightly` are manual / observational workflow_dispatch gates, not automatic PR blockers.
 
 ## SDK / external integration development
 

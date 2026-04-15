@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/sdk"
 )
 
@@ -52,7 +51,7 @@ func TestDemoCodeInjectorsIncludeStaticCatalogExamples(t *testing.T) {
 func TestBrandInjectorResolveReturnsRenderableHtmlAndWorkspaceAwareText(t *testing.T) {
 	reg := demoBrandInjector()
 	resolve, _ := reg.Resolve, reg.Dependencies
-	ctx := sdk.NewInjectorContext(nil, "system-test-corp:system-main:welcome-email", nil, uuid.New(), uuid.New(), domain.EnvironmentProd, "welcome-email")
+	ctx := sdk.NewInjectorContext(nil, "system-test-corp:system-main:welcome-email", nil, uuid.New(), uuid.New(), sdk.EnvironmentProd, "welcome-email")
 
 	values, err := resolve(context.Background(), ctx)
 	if err != nil {
@@ -73,7 +72,7 @@ func TestBrandInjectorResolveReturnsRenderableHtmlAndWorkspaceAwareText(t *testi
 
 func TestWorkspaceProfileInjectorVariesByWorkspaceAndEnvironment(t *testing.T) {
 	reg := demoWorkspaceProfileInjector()
-	ctx := sdk.NewInjectorContext(nil, "system-test-corp:campus-north:welcome-email", nil, uuid.New(), uuid.New(), domain.EnvironmentTest, "welcome-email")
+	ctx := sdk.NewInjectorContext(nil, "system-test-corp:campus-north:welcome-email", nil, uuid.New(), uuid.New(), sdk.EnvironmentTest, "welcome-email")
 
 	values, err := reg.Resolve(context.Background(), ctx)
 	if err != nil {
@@ -91,7 +90,7 @@ func TestWorkspaceProfileInjectorVariesByWorkspaceAndEnvironment(t *testing.T) {
 
 func TestStudentInjectorUsesRequestOverridesWhenProvided(t *testing.T) {
 	reg := demoStudentInjector()
-	ctx := sdk.NewInjectorContext(nil, "system-test-corp:system-main:welcome-email", nil, uuid.New(), uuid.New(), domain.EnvironmentProd, "welcome-email")
+	ctx := sdk.NewInjectorContext(nil, "system-test-corp:system-main:welcome-email", nil, uuid.New(), uuid.New(), sdk.EnvironmentProd, "welcome-email")
 	ctx.SetRequestInjectors(map[string]map[string]any{
 		"student": {
 			"name":   "Ada Lovelace",

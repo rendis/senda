@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const cwd = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const cwd = repoRoot;
 const root = cwd.endsWith("/web") ? cwd : path.join(cwd, "web");
 
 async function read(relativePath) {
@@ -22,7 +24,12 @@ test("settings page exposes _system workspace policy controls", async () => {
 
   assert.match(source, /useTranslations\("settingsPage"\)/);
   assert.match(source, /onClick=\{\(\) => void savePolicies\(getValues\(\)\)\}/);
-  assert.match(hooks, /scope\.workspaceCode/);
+  assert.match(
+    source,
+    /useUpdateWorkspacePolicies\([\s\S]*scope\.workspaceCode[\s\S]*scope\.environment[\s\S]*\)/,
+  );
+  assert.match(source, /useResolvedWorkspacePolicies\(scope\)/);
+  assert.match(hooks, /workspaceCode = "_system"/);
   assert.doesNotMatch(hooks, /query\.data \?\? DEFAULT_WORKSPACE_POLICIES/);
   assert.match(en, /"workspaceDefaultsPolicy"/);
 });

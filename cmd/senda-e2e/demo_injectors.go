@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/sdk"
 )
 
@@ -171,8 +170,8 @@ func humanizeWorkspaceCode(code string) string {
 	return strings.Join(parts, " ")
 }
 
-func environmentBadgeColor(env domain.Environment) string {
-	if env == domain.EnvironmentTest {
+func environmentBadgeColor(env sdk.Environment) string {
+	if env == sdk.EnvironmentTest {
 		return "#D97706"
 	}
 	return "#0F766E"
@@ -185,8 +184,8 @@ func defaultStudentName(workspaceCode string) string {
 	return "Code Student"
 }
 
-func defaultStudentStatus(env domain.Environment) string {
-	if env == domain.EnvironmentTest {
+func defaultStudentStatus(env sdk.Environment) string {
+	if env == sdk.EnvironmentTest {
 		return "test-mode-status"
 	}
 	return "code-status"

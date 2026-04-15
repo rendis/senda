@@ -1,0 +1,11 @@
+state: planned
+phase: proposal
+reviewer_final: Volta
+worktree: /.worktrees/spec-sdk-and-http-composition-decoupling
+dependency: cycle-2 closed
+percent: 0
+updated_at: "2026-04-11T17:00:00-0400"
+notes: "Cycle 3 architecture stream opened from the integrated-main re-audit: the public SDK still leaks internal-domain coupling and the HTTP/server composition still hides dependency shape behind god-composer patterns and runtime nil checks."
+verification:
+  last_run: null
+  commands: []

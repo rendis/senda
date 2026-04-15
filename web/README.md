@@ -15,11 +15,18 @@ pnpm --dir web dev
 ## Validation
 
 ```bash
+pnpm --dir web test
 pnpm --dir web typecheck
 pnpm --dir web lint -- --max-warnings=0
 ```
 
-The standard repo validation flow intentionally does not require a local `next build`.
+`pnpm --dir web test` is the canonical frontend test entrypoint. The standard repo validation flow intentionally does not require a local `next build`.
+
+If you need the full frontend gate exactly as CI runs it, use:
+
+```bash
+make ci-frontend
+```
 
 ## Notes
 

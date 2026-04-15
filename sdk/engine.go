@@ -150,9 +150,9 @@ func (e *Engine) buildExtensions() *app.Extensions {
 	}
 	return &app.Extensions{
 		Injectors:                  injectors,
-		InitFunc:                   e.initFunc,
-		ExternalAuthMethods:        e.externalAuthMethods,
-		ExternalWorkspaceResolvers: e.externalWorkspaceResolvers,
+		InitFunc:                   adaptInitFunc(e.initFunc),
+		ExternalAuthMethods:        adaptExternalAuthMethods(e.externalAuthMethods),
+		ExternalWorkspaceResolvers: adaptExternalWorkspaceResolvers(e.externalWorkspaceResolvers),
 	}
 }
 
@@ -169,7 +169,9 @@ func (r registeredInjector) displayName() string {
 func (r registeredInjector) Code() string { return r.registration.Code }
 
 func (r registeredInjector) Resolve() (port.CodeResolveFunc, []string) {
-	return r.registration.Resolve, r.registration.Dependencies
+	return func(ctx context.Context, injCtx *port.InjectorContext) (map[string]any, error) {
+		return r.registration.Resolve(ctx, wrapInjectorContext(injCtx))
+	}, r.registration.Dependencies
 }
 
 func (r registeredInjector) IsCritical() bool { return r.registration.Critical }
@@ -183,7 +185,7 @@ func (r registeredInjector) Catalog() port.InjectorCatalog {
 		Description: r.registration.Description,
 		Static:      r.registration.Static,
 		TTL:         r.registration.TTL,
-		Fields:      r.registration.Fields,
+		Fields:      adaptInjectorFieldSpecs(r.registration.Fields),
 	}
 }
 

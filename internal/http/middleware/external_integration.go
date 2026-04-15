@@ -79,6 +79,9 @@ func ExternalIntegration(h ExternalIntegrationResolverStore) echo.MiddlewareFunc
 			if err := validateExternalRequiredHeaders(c, profile); err != nil || responseCommitted(c) {
 				return err
 			}
+			if err := validateExternalTokenTransport(c); err != nil || responseCommitted(c) {
+				return err
+			}
 
 			authMethod, resolver, err := resolveExternalDependencies(c, h, profile)
 			if err != nil || responseCommitted(c) {
@@ -146,7 +149,7 @@ func newExternalIntegrationRequest(c *echo.Context, profile domain.ExternalInteg
 		ProfileSlug: profile.Slug,
 		Environment: environment,
 		TenantCode:  c.Param("tenant_code"),
-		Token:       externalIntegrationToken(c),
+		Token:       strings.TrimSpace(c.Request().Header.Get(ExternalIntegrationTokenHeader)),
 		Headers:     collectAllowedHeaders(c.Request().Header, profile.AllowedHeaders),
 		QueryParams: copyQueryParams(c),
 		Path:        c.Request().URL.Path,
@@ -157,6 +160,18 @@ func newExternalIntegrationRequest(c *echo.Context, profile domain.ExternalInteg
 	}
 
 	return reqCtx
+}
+
+func validateExternalTokenTransport(c *echo.Context) error {
+	if token := strings.TrimSpace(c.QueryParam("token")); token != "" {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "external integration token must be provided via x-senda-external-token header")
+	}
+
+	if strings.TrimSpace(c.Request().Header.Get(ExternalIntegrationTokenHeader)) == "" {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing required header "+ExternalIntegrationTokenHeader)
+	}
+
+	return nil
 }
 
 func authenticateExternalRequest(c *echo.Context, authMethod port.ExternalAuthMethod, reqCtx *port.ExternalIntegrationRequest) (*port.ExternalAuthResult, error) {
@@ -389,15 +404,6 @@ func collectAllowedHeaders(headers http.Header, allowed []string) map[string]str
 		}
 	}
 	return out
-}
-
-func externalIntegrationToken(c *echo.Context) string {
-	token := strings.TrimSpace(c.Request().Header.Get(ExternalIntegrationTokenHeader))
-	if token != "" {
-		return token
-	}
-
-	return strings.TrimSpace(c.QueryParam("token"))
 }
 
 func copyQueryParams(c *echo.Context) map[string]string {

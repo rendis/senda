@@ -1,0 +1,13 @@
+state: done
+phase: approved
+reviewer_final: "Kuhn + Volta"
+worktree: /.worktrees/spec-send-path-amortization-and-cache-precision
+dependency: rereview
+percent: 100
+updated_at: "2026-04-11T16:44:00-0400"
+notes: "Both final re-review blockers are fixed: the batch shared context now starts from Send-equivalent workspace-default-locale semantics, mixed multi-recipient fan-out items keep partial item/batch reporting instead of being overwritten by the first tracking status, and Kuhn + Volta approved the stream."
+verification:
+  last_run: "2026-04-11T16:10:50-0400"
+  commands:
+    - "go test ./internal/service -run 'TestSendService_SendBatch_(UsesWorkspaceDefaultLocaleSemantics|MarksMixedFanoutItemAsPartial)$'"
+    - "go test ./internal/service -run 'TestSendService_SendBatch_(AmortizesWorkspaceDefaultLocaleResolution|UsesWorkspaceDefaultLocaleSemantics|PartialStatus|MarksMixedFanoutItemAsPartial|AllFailed|PreservesLocaleAndExternalIDPerItem)$'"

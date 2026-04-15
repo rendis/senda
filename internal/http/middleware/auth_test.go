@@ -41,8 +41,9 @@ func (m *mockAPIKeyStore) ListByWorkspace(_ context.Context, _ uuid.UUID, _ port
 }
 
 type mockMemberStore struct {
-	getByEmailFn func(ctx context.Context, email string) (*domain.Member, error)
-	getRolesFn   func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
+	getByEmailFn        func(ctx context.Context, email string) (*domain.Member, error)
+	getByOIDCIdentityFn func(ctx context.Context, issuer, subject string) (*domain.Member, error)
+	getRolesFn          func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 }
 
 func (m *mockMemberStore) Create(_ context.Context, _ *domain.Member) error { return nil }
@@ -52,9 +53,21 @@ func (m *mockMemberStore) GetByID(_ context.Context, _ uuid.UUID) (*domain.Membe
 func (m *mockMemberStore) GetByEmail(ctx context.Context, email string) (*domain.Member, error) {
 	return m.getByEmailFn(ctx, email)
 }
+func (m *mockMemberStore) GetByOIDCIdentity(ctx context.Context, issuer, subject string) (*domain.Member, error) {
+	if m.getByOIDCIdentityFn != nil {
+		return m.getByOIDCIdentityFn(ctx, issuer, subject)
+	}
+	return nil, domain.ErrNotFound
+}
 func (m *mockMemberStore) CountAll(_ context.Context) (int64, error)             { return 0, nil }
 func (m *mockMemberStore) AddRole(_ context.Context, _ *domain.MemberRole) error { return nil }
-func (m *mockMemberStore) RemoveRole(_ context.Context, _ uuid.UUID) error       { return nil }
+func (m *mockMemberStore) ReplaceRoleInScope(_ context.Context, _ *domain.MemberRole) error {
+	return nil
+}
+func (m *mockMemberStore) RemoveRole(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockMemberStore) RevokeAccessInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) (int64, error) {
+	return 0, nil
+}
 func (m *mockMemberStore) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error) {
 	return m.getRolesFn(ctx, memberID)
 }
@@ -249,7 +262,19 @@ func TestAuth_ValidOIDCToken(t *testing.T) {
 		},
 	}
 	memberStore := &mockMemberStore{
-		getByEmailFn: func(_ context.Context, _ string) (*domain.Member, error) {
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			if email != "unknown@example.com" {
+				t.Fatalf("email = %q, want %q", email, "unknown@example.com")
+			}
+			return nil, domain.ErrNotFound
+		},
+		getByOIDCIdentityFn: func(_ context.Context, issuer, subject string) (*domain.Member, error) {
+			if issuer != "https://auth.example.com" {
+				t.Fatalf("issuer = %q, want %q", issuer, "https://auth.example.com")
+			}
+			if subject != "sub-123" {
+				t.Fatalf("subject = %q, want %q", subject, "sub-123")
+			}
 			return member, nil
 		},
 		getRolesFn: func(_ context.Context, _ uuid.UUID) ([]*domain.MemberRole, error) {
@@ -314,7 +339,7 @@ func TestAuth_InvalidOIDCToken(t *testing.T) {
 	}
 }
 
-func TestAuth_OIDCEmailNotRegistered(t *testing.T) {
+func TestAuth_OIDCIdentityNotRegistered(t *testing.T) {
 	verifier := &mockOIDCVerifier{
 		verifyFn: func(_ context.Context, _ string) (*port.OIDCClaims, error) {
 			return &port.OIDCClaims{
@@ -325,8 +350,131 @@ func TestAuth_OIDCEmailNotRegistered(t *testing.T) {
 		},
 	}
 	memberStore := &mockMemberStore{
-		getByEmailFn: func(_ context.Context, _ string) (*domain.Member, error) {
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			if email != "unknown@example.com" {
+				t.Fatalf("email = %q, want %q", email, "unknown@example.com")
+			}
 			return nil, domain.ErrNotFound
+		},
+		getByOIDCIdentityFn: func(_ context.Context, issuer, subject string) (*domain.Member, error) {
+			if issuer != "https://auth.example.com" {
+				t.Fatalf("issuer = %q, want %q", issuer, "https://auth.example.com")
+			}
+			if subject != "sub-999" {
+				t.Fatalf("subject = %q, want %q", subject, "sub-999")
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	e := echo.New()
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier, "test-pepper"))
+	e.GET("/test", func(c *echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-oidc-token")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestAuth_OIDCFallsBackToEmailForUnboundInvitee(t *testing.T) {
+	memberID := uuid.New()
+	member := &domain.Member{
+		ID:    memberID,
+		Email: "invitee@example.com",
+	}
+	roles := []*domain.MemberRole{{
+		ID:        uuid.New(),
+		MemberID:  memberID,
+		Role:      domain.RoleTenantAdmin,
+		ScopeType: domain.ScopeTenant,
+	}}
+
+	verifier := &mockOIDCVerifier{
+		verifyFn: func(_ context.Context, _ string) (*port.OIDCClaims, error) {
+			return &port.OIDCClaims{
+				Subject: "sub-123",
+				Email:   "invitee@example.com",
+				Issuer:  "https://auth.example.com",
+			}, nil
+		},
+	}
+
+	memberStore := &mockMemberStore{
+		getByOIDCIdentityFn: func(_ context.Context, issuer, subject string) (*domain.Member, error) {
+			if issuer != "https://auth.example.com" || subject != "sub-123" {
+				t.Fatalf("unexpected OIDC identity lookup: issuer=%q subject=%q", issuer, subject)
+			}
+			return nil, domain.ErrNotFound
+		},
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			if email != "invitee@example.com" {
+				t.Fatalf("email = %q, want %q", email, "invitee@example.com")
+			}
+			return member, nil
+		},
+		getRolesFn: func(_ context.Context, gotMemberID uuid.UUID) ([]*domain.MemberRole, error) {
+			if gotMemberID != memberID {
+				t.Fatalf("memberID = %s, want %s", gotMemberID, memberID)
+			}
+			return roles, nil
+		},
+	}
+
+	e := echo.New()
+	e.Use(middleware.Auth(&mockAPIKeyStore{}, memberStore, verifier, "test-pepper"))
+	e.GET("/test", func(c *echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-oidc-token")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestAuth_OIDCRejectsEmailFallbackForBoundMember(t *testing.T) {
+	issuer := "https://different.example.com"
+	subject := "other-subject"
+
+	verifier := &mockOIDCVerifier{
+		verifyFn: func(_ context.Context, _ string) (*port.OIDCClaims, error) {
+			return &port.OIDCClaims{
+				Subject: "sub-123",
+				Email:   "invitee@example.com",
+				Issuer:  "https://auth.example.com",
+			}, nil
+		},
+	}
+
+	memberStore := &mockMemberStore{
+		getByOIDCIdentityFn: func(_ context.Context, issuer, subject string) (*domain.Member, error) {
+			return nil, domain.ErrNotFound
+		},
+		getByEmailFn: func(_ context.Context, email string) (*domain.Member, error) {
+			if email != "invitee@example.com" {
+				t.Fatalf("email = %q, want %q", email, "invitee@example.com")
+			}
+			return &domain.Member{
+				ID:          uuid.New(),
+				Email:       email,
+				OIDCIssuer:  &issuer,
+				OIDCSubject: &subject,
+			}, nil
+		},
+		getRolesFn: func(_ context.Context, _ uuid.UUID) ([]*domain.MemberRole, error) {
+			t.Fatal("roles must not be loaded when email fallback resolves a bound member")
+			return nil, nil
 		},
 	}
 

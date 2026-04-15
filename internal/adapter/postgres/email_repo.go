@@ -30,16 +30,16 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error { //n
 			id, tracking_id, external_id, workspace_id, tenant_id,
 			template_id, template_version_id, template_type_slug, template_ref,
 			recipient_email, cc, bcc, from_email, from_name, reply_to,
-			subject_rendered, body_mjml, locale, status, adapter_id, sender_identity_id,
-			provider_message_id, variables_snapshot, injectors_snapshot,
+			subject_rendered, locale, status, adapter_id, sender_identity_id,
+			provider_message_id,
 			source_type, source_actor_member_id, source_actor_email,
 			open_tracking_enabled, retry_count, max_retries, next_retry_at
 		) VALUES (
 			@id, @tracking_id, @external_id, @workspace_id, @tenant_id,
 			@template_id, @template_version_id, @template_type_slug, @template_ref,
 			@recipient_email, @cc, @bcc, @from_email, @from_name, @reply_to,
-			@subject_rendered, @body_mjml, @locale, @status, @adapter_id, @sender_identity_id,
-			@provider_message_id, @variables_snapshot, @injectors_snapshot,
+			@subject_rendered, @locale, @status, @adapter_id, @sender_identity_id,
+			@provider_message_id,
 			@source_type, @source_actor_member_id, @source_actor_email,
 			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
 		) RETURNING created_at, updated_at`,
@@ -60,14 +60,11 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error { //n
 			"from_name":              email.FromName,
 			"reply_to":               email.ReplyTo,
 			"subject_rendered":       email.SubjectRendered,
-			"body_mjml":              email.BodyMJML,
 			"locale":                 email.Locale,
 			"status":                 email.Status,
 			"adapter_id":             email.AdapterID,
 			"sender_identity_id":     email.SenderIdentityID,
 			"provider_message_id":    email.ProviderMessageID,
-			"variables_snapshot":     email.VariablesSnapshot,
-			"injectors_snapshot":     email.InjectorsSnapshot,
 			"source_type":            email.SourceType,
 			"source_actor_member_id": email.SourceActorMemberID,
 			"source_actor_email":     email.SourceActorEmail,
@@ -82,6 +79,10 @@ func (r *EmailRepo) Create(ctx context.Context, email *domain.Email) error { //n
 		return fmt.Errorf("inserting email: %w", err)
 	}
 
+	if err := r.createPayload(ctx, r.pool, email); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -91,16 +92,16 @@ func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email
 			id, tracking_id, external_id, workspace_id, tenant_id,
 			template_id, template_version_id, template_type_slug, template_ref,
 			recipient_email, cc, bcc, from_email, from_name, reply_to,
-			subject_rendered, body_mjml, locale, status, adapter_id, sender_identity_id,
-			provider_message_id, variables_snapshot, injectors_snapshot,
+			subject_rendered, locale, status, adapter_id, sender_identity_id,
+			provider_message_id,
 			source_type, source_actor_member_id, source_actor_email,
 			open_tracking_enabled, retry_count, max_retries, next_retry_at
 		) VALUES (
 			@id, @tracking_id, @external_id, @workspace_id, @tenant_id,
 			@template_id, @template_version_id, @template_type_slug, @template_ref,
 			@recipient_email, @cc, @bcc, @from_email, @from_name, @reply_to,
-			@subject_rendered, @body_mjml, @locale, @status, @adapter_id, @sender_identity_id,
-			@provider_message_id, @variables_snapshot, @injectors_snapshot,
+			@subject_rendered, @locale, @status, @adapter_id, @sender_identity_id,
+			@provider_message_id,
 			@source_type, @source_actor_member_id, @source_actor_email,
 			@open_tracking_enabled, @retry_count, @max_retries, @next_retry_at
 		) RETURNING created_at, updated_at`,
@@ -121,14 +122,11 @@ func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email
 			"from_name":              email.FromName,
 			"reply_to":               email.ReplyTo,
 			"subject_rendered":       email.SubjectRendered,
-			"body_mjml":              email.BodyMJML,
 			"locale":                 email.Locale,
 			"status":                 email.Status,
 			"adapter_id":             email.AdapterID,
 			"sender_identity_id":     email.SenderIdentityID,
 			"provider_message_id":    email.ProviderMessageID,
-			"variables_snapshot":     email.VariablesSnapshot,
-			"injectors_snapshot":     email.InjectorsSnapshot,
 			"source_type":            email.SourceType,
 			"source_actor_member_id": email.SourceActorMemberID,
 			"source_actor_email":     email.SourceActorEmail,
@@ -143,6 +141,10 @@ func (r *EmailRepo) CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email
 		return fmt.Errorf("inserting email (tx): %w", err)
 	}
 
+	if err := r.createPayload(ctx, tx, email); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -151,8 +153,8 @@ func (r *EmailRepo) GetByTrackingID(ctx context.Context, trackingID string) (*do
 		`SELECT id, tracking_id, external_id, workspace_id, tenant_id,
 		        template_id, template_version_id, template_type_slug, template_ref,
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
-		        subject_rendered, body_mjml, locale, status, adapter_id, sender_identity_id,
-		        provider_message_id, variables_snapshot, injectors_snapshot,
+		        subject_rendered, locale, status, adapter_id, sender_identity_id,
+		        provider_message_id,
 		        source_type, source_actor_member_id, source_actor_email,
 		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
 		        created_at, updated_at
@@ -169,8 +171,8 @@ func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageI
 		`SELECT id, tracking_id, external_id, workspace_id, tenant_id,
 		        template_id, template_version_id, template_type_slug, template_ref,
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
-		        subject_rendered, body_mjml, locale, status, adapter_id, sender_identity_id,
-		        provider_message_id, variables_snapshot, injectors_snapshot,
+		        subject_rendered, locale, status, adapter_id, sender_identity_id,
+		        provider_message_id,
 		        source_type, source_actor_member_id, source_actor_email,
 		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
 		        created_at, updated_at
@@ -180,6 +182,33 @@ func (r *EmailRepo) GetByProviderMessageID(ctx context.Context, providerMessageI
 	)
 
 	return scanEmail(row)
+}
+
+func (r *EmailRepo) GetPayload(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT email_id, email_created_at, body_mjml, variables_snapshot, injectors_snapshot, created_at, updated_at
+		   FROM email_payloads
+		  WHERE email_id = @email_id`,
+		pgx.NamedArgs{"email_id": emailID},
+	)
+
+	var payload domain.EmailPayload
+	if err := row.Scan(
+		&payload.EmailID,
+		&payload.EmailCreatedAt,
+		&payload.BodyMJML,
+		&payload.VariablesSnapshot,
+		&payload.InjectorsSnapshot,
+		&payload.CreatedAt,
+		&payload.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.NotFound("email payload not found")
+		}
+		return nil, fmt.Errorf("scanning email payload: %w", err)
+	}
+
+	return &payload, nil
 }
 
 func (r *EmailRepo) PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error {
@@ -199,6 +228,18 @@ func (r *EmailRepo) PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.
 		pgx.NamedArgs{"workspace_id": workspaceID},
 	); err != nil {
 		return fmt.Errorf("deleting workspace email events: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM email_payloads
+		 WHERE email_id IN (
+		     SELECT id
+		     FROM emails
+		     WHERE workspace_id = @workspace_id
+		 )`,
+		pgx.NamedArgs{"workspace_id": workspaceID},
+	); err != nil {
+		return fmt.Errorf("deleting workspace email payloads: %w", err)
 	}
 
 	if _, err := tx.Exec(ctx,
@@ -400,8 +441,8 @@ func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, w
 		`SELECT id, tracking_id, external_id, workspace_id, tenant_id,
 		        template_id, template_version_id, template_type_slug, template_ref,
 		        recipient_email, cc, bcc, from_email, from_name, reply_to,
-		        subject_rendered, body_mjml, locale, status, adapter_id, sender_identity_id,
-		        provider_message_id, variables_snapshot, injectors_snapshot,
+		        subject_rendered, locale, status, adapter_id, sender_identity_id,
+		        provider_message_id,
 		        source_type, source_actor_member_id, source_actor_email,
 		        open_tracking_enabled, retry_count, max_retries, next_retry_at,
 		        created_at, updated_at
@@ -437,8 +478,8 @@ func scanEmail(row pgx.Row) (*domain.Email, error) {
 		&e.ID, &e.TrackingID, &e.ExternalID, &e.WorkspaceID, &e.TenantID,
 		&e.TemplateID, &e.TemplateVersionID, &e.TemplateTypeSlug, &e.TemplateRef,
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,
-		&e.SubjectRendered, &e.BodyMJML, &e.Locale, &e.Status, &e.AdapterID, &e.SenderIdentityID,
-		&e.ProviderMessageID, &e.VariablesSnapshot, &e.InjectorsSnapshot,
+		&e.SubjectRendered, &e.Locale, &e.Status, &e.AdapterID, &e.SenderIdentityID,
+		&e.ProviderMessageID,
 		&e.SourceType, &e.SourceActorMemberID, &e.SourceActorEmail,
 		&e.OpenTrackingEnabled, &e.RetryCount, &e.MaxRetries, &e.NextRetryAt,
 		&e.CreatedAt, &e.UpdatedAt,
@@ -458,8 +499,8 @@ func collectEmail(row pgx.CollectableRow) (*domain.Email, error) {
 		&e.ID, &e.TrackingID, &e.ExternalID, &e.WorkspaceID, &e.TenantID,
 		&e.TemplateID, &e.TemplateVersionID, &e.TemplateTypeSlug, &e.TemplateRef,
 		&e.RecipientEmail, &e.CC, &e.BCC, &e.FromEmail, &e.FromName, &e.ReplyTo,
-		&e.SubjectRendered, &e.BodyMJML, &e.Locale, &e.Status, &e.AdapterID, &e.SenderIdentityID,
-		&e.ProviderMessageID, &e.VariablesSnapshot, &e.InjectorsSnapshot,
+		&e.SubjectRendered, &e.Locale, &e.Status, &e.AdapterID, &e.SenderIdentityID,
+		&e.ProviderMessageID,
 		&e.SourceType, &e.SourceActorMemberID, &e.SourceActorEmail,
 		&e.OpenTrackingEnabled, &e.RetryCount, &e.MaxRetries, &e.NextRetryAt,
 		&e.CreatedAt, &e.UpdatedAt,
@@ -468,4 +509,33 @@ func collectEmail(row pgx.CollectableRow) (*domain.Email, error) {
 		return nil, err
 	}
 	return &e, nil
+}
+
+type emailPayloadRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (r *EmailRepo) createPayload(ctx context.Context, q emailPayloadRower, email *domain.Email) error {
+	row := q.QueryRow(ctx,
+		`INSERT INTO email_payloads (
+			email_id, email_created_at, body_mjml, variables_snapshot, injectors_snapshot
+		) VALUES (
+			@email_id, @email_created_at, @body_mjml, @variables_snapshot, @injectors_snapshot
+		) RETURNING created_at, updated_at`,
+		pgx.NamedArgs{
+			"email_id":           email.ID,
+			"email_created_at":   email.CreatedAt,
+			"body_mjml":          email.BodyMJML,
+			"variables_snapshot": email.VariablesSnapshot,
+			"injectors_snapshot": email.InjectorsSnapshot,
+		},
+	)
+
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := row.Scan(&createdAt, &updatedAt); err != nil {
+		return fmt.Errorf("inserting email payload: %w", err)
+	}
+
+	return nil
 }

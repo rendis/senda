@@ -1,0 +1,7 @@
+state: done
+phase: approved
+reviewer_final: Lorentz
+worktree: /.worktrees/spec-security-perimeter-hardening
+dependency: autonomous-e2e-isolation
+updated_at: "2026-04-11T02:43:55-04:00"
+notes: Lorentz approved the stream after IPv4 special-purpose ranges were added to fail-closed media pinning and covered in unit + E2E evidence

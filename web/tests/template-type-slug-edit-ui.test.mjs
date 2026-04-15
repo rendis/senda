@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const root = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const root = repoRoot;
 
 test("template type edit dialog exposes slug reset and inline warning copy", async () => {
   const source = await readFile(

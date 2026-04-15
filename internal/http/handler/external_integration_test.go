@@ -46,6 +46,27 @@ func setupExternalIntegrationTest(cs *mockGlobalConfigStore, auths []port.Extern
 	return e
 }
 
+func TestExternalIntegrationHandler_RuntimeDependenciesIndexedByName(t *testing.T) {
+	auth := &testExternalAuthMethod{name: "signed-headers"}
+	resolver := &testExternalResolver{name: "tenant-workspace-resolver"}
+	h := handler.NewExternalIntegrationHandler(&mockGlobalConfigStore{}, []port.ExternalAuthMethod{nil, auth}, []port.ExternalWorkspaceResolver{nil, resolver})
+
+	gotAuth, ok := h.AuthMethodByName("signed-headers")
+	if !ok || gotAuth != auth {
+		t.Fatalf("expected auth method lookup to return indexed method")
+	}
+	gotResolver, ok := h.ResolverByName("tenant-workspace-resolver")
+	if !ok || gotResolver != resolver {
+		t.Fatalf("expected resolver lookup to return indexed resolver")
+	}
+	if _, ok := h.AuthMethodByName("missing"); ok {
+		t.Fatalf("did not expect missing auth method lookup to succeed")
+	}
+	if _, ok := h.ResolverByName("missing"); ok {
+		t.Fatalf("did not expect missing resolver lookup to succeed")
+	}
+}
+
 func TestExternalIntegrationHandler_Bootstrap_MinimizesResponseMetadata(t *testing.T) {
 	cfg := &domain.GlobalConfig{
 		ExternalIntegrations: []domain.ExternalIntegrationProfile{

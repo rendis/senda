@@ -1,0 +1,6 @@
+state: done
+phase: approved
+reviewer_final: James
+worktree: /.worktrees/spec-autonomous-e2e-isolation
+dependency: none
+updated_at: 2026-04-11

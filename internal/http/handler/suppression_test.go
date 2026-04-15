@@ -64,6 +64,9 @@ func (m *mockSuppressionStore) IsSuppressed(ctx context.Context, wsID uuid.UUID,
 	}
 	return false, "", nil
 }
+func (m *mockSuppressionStore) CheckBatch(_ context.Context, _ uuid.UUID, _ []string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
 
 // --- Helpers ---
 

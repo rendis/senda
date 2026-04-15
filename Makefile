@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-clean build test vet test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-backend-main ci-frontend ci-pr ci-main install-githooks clean help
+.PHONY: dev dev-stack dev-down dev-clean build test vet test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-frontend ci-pr ci-taxonomy-check install-githooks clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -18,7 +18,10 @@ E2E_ENV := SENDA_BASE_URL=$(SENDA_BASE_URL) \
 E2E_DETERMINISTIC_PATTERN := '^(TestCore|TestCRUD|TestE|TestF|TestS)'
 
 ## Development
-dev: ## Start full stack (senda + postgres)
+dev: ## Start full local stack (docker services + frontend)
+	bash scripts/dev.sh
+
+dev-stack: ## Start Docker development services only (api + postgres + keycloak + mailpit)
 	$(COMPOSE) up --build
 
 dev-down: ## Stop the stack
@@ -83,10 +86,10 @@ system-matrix: ## Generate system coverage matrix CSV into artifacts
 	mkdir -p artifacts/system
 	go run ./cmd/systemtest matrix --manifest test/system/screen-manifest.json --format csv --out artifacts/system/coverage-matrix.csv
 
-system-pr: ## Run PR system gate light (infra + API contract smoke; UI flow opt-in)
+system-pr: ## Run manual PR system gate (workflow_dispatch; infra + API contract smoke; UI flow opt-in)
 	bash test/system/system-runner.sh pr
 
-system-nightly: ## Run nightly full system gate (functional + security/chaos + a11y; visual opt-in)
+system-nightly: ## Run manual nightly system gate (workflow_dispatch; functional + security/chaos + a11y; visual opt-in)
 	bash test/system/system-runner.sh nightly
 
 system-down: ## Force-stop system E2E stack
@@ -119,17 +122,15 @@ swagger-check: ## Regenerate OpenAPI docs and fail if generated artifacts were n
 ci-backend-pr: ## Run the fast backend validation used by GitHub/local push gates (no Docker)
 	bash scripts/run-github-gates.sh backend-pr
 
-ci-backend-main: ## Run the fast backend validation used by pushes to main (no Docker)
-	bash scripts/run-github-gates.sh backend-main
-
-ci-frontend: ## Run the same frontend validation used by GitHub
+ci-frontend: ## Run the same frontend validation used by GitHub, including the canonical frontend test entrypoint
 	bash scripts/run-github-gates.sh frontend
 
 ci-pr: ## Run the same validation expected before opening/updating a PR
+	$(MAKE) ci-taxonomy-check
 	bash scripts/run-github-gates.sh pr
 
-ci-main: ## Run the same fast validation expected before pushing main/systemic changes
-	bash scripts/run-github-gates.sh main
+ci-taxonomy-check: ## Check docs, workflows, and Makefile stay in sync
+	node scripts/ci-taxonomy-check.mjs
 
 install-githooks: ## Enforce the repo pre-push validation hook locally
 	git config core.hooksPath .githooks

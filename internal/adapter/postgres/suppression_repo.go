@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/pkg/apperr"
 )
 
@@ -138,4 +139,70 @@ func (r *SuppressionRepo) IsSuppressed(ctx context.Context, wsID uuid.UUID, emai
 		return false, "", fmt.Errorf("checking combined suppression: %w", err)
 	}
 	return true, reason, nil
+}
+
+func (r *SuppressionRepo) GetSuppressionStatuses(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error) {
+	if len(emails) == 0 {
+		return map[string]port.SuppressionStatus{}, nil
+	}
+
+	rows, err := r.pool.Query(ctx,
+		`WITH requested AS (
+			SELECT DISTINCT email
+			FROM unnest(@emails::text[]) AS email
+		)
+		SELECT
+			requested.email,
+			(global_match.email IS NOT NULL OR workspace_match.email IS NOT NULL) AS suppressed,
+			COALESCE(global_match.reason::text, workspace_match.reason::text, '') AS reason
+		FROM requested
+		LEFT JOIN suppression_global AS global_match
+			ON global_match.email = requested.email AND global_match.removed_at IS NULL
+		LEFT JOIN suppression_workspace AS workspace_match
+			ON workspace_match.workspace_id = @workspace_id
+			AND workspace_match.email = requested.email
+			AND workspace_match.removed_at IS NULL`,
+		pgx.NamedArgs{
+			"workspace_id": wsID,
+			"emails":       emails,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("checking suppression set: %w", err)
+	}
+	defer rows.Close()
+
+	statuses := make(map[string]port.SuppressionStatus, len(emails))
+	for rows.Next() {
+		var email string
+		var suppressed bool
+		var reason string
+		if err := rows.Scan(&email, &suppressed, &reason); err != nil {
+			return nil, fmt.Errorf("scan suppression set row: %w", err)
+		}
+		statuses[email] = port.SuppressionStatus{
+			Suppressed: suppressed,
+			Reason:     reason,
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate suppression set rows: %w", err)
+	}
+
+	return statuses, nil
+}
+
+func (r *SuppressionRepo) CheckBatch(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]string, error) {
+	statuses, err := r.GetSuppressionStatuses(ctx, wsID, emails)
+	if err != nil {
+		return nil, err
+	}
+
+	suppressed := make(map[string]string, len(statuses))
+	for email, status := range statuses {
+		if status.Suppressed {
+			suppressed[email] = status.Reason
+		}
+	}
+	return suppressed, nil
 }

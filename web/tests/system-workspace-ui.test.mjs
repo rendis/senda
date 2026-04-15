@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const root = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const root = repoRoot;
 
 function read(path) {
   return readFileSync(join(root, path), "utf8");
@@ -28,10 +30,23 @@ test("user-facing workspace UI uses display helpers instead of raw _system label
   assert.match(switcher, /getWorkspaceDisplay(Name|Code)/, "Scope switcher must use workspace display helpers");
   assert.match(workspaces, /getWorkspaceDisplayName/, "Workspace table must use display name helper");
   assert.match(workspaces, /getWorkspaceDisplayCode/, "Workspace table must use display code helper");
-  assert.doesNotMatch(workspaces, /aria-label={`Toggle workspace \$\{row\.original\.code\} status`}/, "Workspace toggle aria-label must not expose raw technical code");
-  assert.doesNotMatch(workspaces, /aria-label={`Edit workspace \$\{row\.original\.code\}`}/, "Workspace edit aria-label must not expose raw technical code");
-  assert.doesNotMatch(workspaces, /aria-label={`Delete workspace \$\{row\.original\.code\}`}/, "Workspace delete aria-label must not expose raw technical code");
-  assert.match(indicator, /SYSTEM_WORKSPACE_LABEL/, "Scope indicator must not expose raw _system label");
+  assert.match(
+    workspaces,
+    /aria-label=\{`Toggle workspace \$\{displayCode\} status`\}/,
+    "Workspace toggle aria-label must use the display code helper",
+  );
+  assert.match(
+    workspaces,
+    /aria-label=\{`Edit workspace \$\{displayCode\}`\}/,
+    "Workspace edit aria-label must use the display code helper",
+  );
+  assert.match(
+    workspaces,
+    /aria-label=\{`Delete workspace \$\{displayCode\}`\}/,
+    "Workspace delete aria-label must use the display code helper",
+  );
+  assert.match(indicator, /labelKey: "system"/, "Scope indicator must map system scope through translated labels");
+  assert.match(indicator, /t\(config\.labelKey\)/, "Scope indicator must render the translated label");
   assert.match(dashboard, /SYSTEM_WORKSPACE_(LABEL|SCOPE_LABEL)|getWorkspaceDisplay/, "Dashboard scope summary must use system workspace display helpers");
   assert.match(members, /SYSTEM_WORKSPACE_(LABEL|SCOPE_LABEL)|getWorkspaceDisplay/, "Members UI must not build labels from raw workspace code for the system workspace");
 });

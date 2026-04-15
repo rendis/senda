@@ -1,81 +1,34 @@
 package ses
 
 import (
-	"errors"
+	"strings"
 	"testing"
-
-	"github.com/aws/smithy-go"
 )
 
-func TestIsAccessDenied_ValidatorCases(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "AccessDeniedException returns true",
-			err: &smithy.GenericAPIError{
-				Code:    "AccessDeniedException",
-				Message: "not authorized",
-				Fault:   smithy.FaultClient,
-			},
-			want: true,
-		},
-		{
-			name: "AccessDenied returns true",
-			err: &smithy.GenericAPIError{
-				Code:    "AccessDenied",
-				Message: "access denied",
-				Fault:   smithy.FaultClient,
-			},
-			want: true,
-		},
-		{
-			name: "UnauthorizedAccess returns true",
-			err: &smithy.GenericAPIError{
-				Code:    "UnauthorizedAccess",
-				Message: "unauthorized",
-				Fault:   smithy.FaultClient,
-			},
-			want: true,
-		},
-		{
-			name: "NotFoundException returns false",
-			err: &smithy.GenericAPIError{
-				Code:    "NotFoundException",
-				Message: "not found",
-				Fault:   smithy.FaultClient,
-			},
-			want: false,
-		},
-		{
-			name: "InvalidParameterException returns false",
-			err: &smithy.GenericAPIError{
-				Code:    "InvalidParameterException",
-				Message: "invalid parameter",
-				Fault:   smithy.FaultClient,
-			},
-			want: false,
-		},
-		{
-			name: "plain error returns false",
-			err:  errors.New("something went wrong"),
-			want: false,
-		},
-		{
-			name: "nil returns false",
-			err:  nil,
-			want: false,
-		},
-	}
+func TestValidationProbeName_GeneratesUniqueNames(t *testing.T) {
+	const prefix = "senda-validate-perm-check"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := IsAccessDenied(tt.err)
-			if got != tt.want {
-				t.Errorf("IsAccessDenied() = %v, want %v", got, tt.want)
-			}
-		})
+	first := validationProbeName(prefix)
+	second := validationProbeName(prefix)
+
+	if first == second {
+		t.Fatalf("expected unique probe names, got %q twice", first)
+	}
+	if !strings.HasPrefix(first, prefix+"-") {
+		t.Fatalf("expected %q to start with %q", first, prefix+"-")
+	}
+	if !strings.HasPrefix(second, prefix+"-") {
+		t.Fatalf("expected %q to start with %q", second, prefix+"-")
+	}
+	if first == prefix || second == prefix {
+		t.Fatalf("probe names must not reuse the fixed legacy name %q", prefix)
+	}
+}
+
+func TestValidationProbeTopicARN_UsesProbeName(t *testing.T) {
+	got := validationProbeTopicARN("us-east-1", "senda-validate-perm-check-abc123")
+
+	if got != "arn:aws:sns:us-east-1:000000000000:senda-validate-perm-check-abc123" {
+		t.Fatalf("unexpected probe topic arn %q", got)
 	}
 }

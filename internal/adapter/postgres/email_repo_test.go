@@ -124,6 +124,48 @@ func TestEmailRepo_GetByTrackingID(t *testing.T) {
 	}
 }
 
+func TestEmailRepo_GetByTrackingID_ColdPayloadDeferred(t *testing.T) {
+	ctx := context.Background()
+	deps := setupEmailTestDeps(ctx, t)
+
+	email := newTestEmail(deps.tenantID, deps.wsID)
+	email.BodyMJML = "<mj-text>Hello {{ name }}</mj-text>"
+	email.VariablesSnapshot = map[string]any{"name": "Ana"}
+	email.InjectorsSnapshot = map[string]map[string]any{"brand": {"name": "Acme"}}
+
+	if err := deps.repo.Create(ctx, email); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	hot, err := deps.repo.GetByTrackingID(ctx, email.TrackingID)
+	if err != nil {
+		t.Fatalf("GetByTrackingID() error: %v", err)
+	}
+	if hot.BodyMJML != "" {
+		t.Fatalf("expected hot row without BodyMJML, got %q", hot.BodyMJML)
+	}
+	if hot.VariablesSnapshot != nil {
+		t.Fatalf("expected hot row without VariablesSnapshot, got %#v", hot.VariablesSnapshot)
+	}
+	if hot.InjectorsSnapshot != nil {
+		t.Fatalf("expected hot row without InjectorsSnapshot, got %#v", hot.InjectorsSnapshot)
+	}
+
+	payload, err := deps.repo.GetPayload(ctx, email.ID)
+	if err != nil {
+		t.Fatalf("GetPayload() error: %v", err)
+	}
+	if payload.BodyMJML != email.BodyMJML {
+		t.Fatalf("expected payload BodyMJML %q, got %q", email.BodyMJML, payload.BodyMJML)
+	}
+	if got := payload.VariablesSnapshot["name"]; got != "Ana" {
+		t.Fatalf("expected payload variable name=Ana, got %#v", got)
+	}
+	if got := payload.InjectorsSnapshot["brand"]["name"]; got != "Acme" {
+		t.Fatalf("expected payload injector brand.name=Acme, got %#v", got)
+	}
+}
+
 func TestEmailRepo_GetByTrackingID_NotFound(t *testing.T) {
 	ctx := context.Background()
 	deps := setupEmailTestDeps(ctx, t)

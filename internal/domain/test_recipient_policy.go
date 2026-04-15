@@ -16,6 +16,14 @@ func (m TestRecipientMode) Valid() bool {
 	return m == TestRecipientModeReplace || m == TestRecipientModeAppend
 }
 
+func CanonicalRecipientAddress(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	return strings.ToLower(trimmed)
+}
+
 func NormalizeRecipientAddresses(values []string) []string {
 	out := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
@@ -24,7 +32,7 @@ func NormalizeRecipientAddresses(values []string) []string {
 		if trimmed == "" {
 			continue
 		}
-		key := strings.ToLower(trimmed)
+		key := CanonicalRecipientAddress(trimmed)
 		if _, ok := seen[key]; ok {
 			continue
 		}

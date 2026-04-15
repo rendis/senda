@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -87,10 +88,11 @@ func (m *mockWorkspaceStoreSend) SoftDeleteLogical(_ context.Context, _ uuid.UUI
 func (m *mockWorkspaceStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
 type mockEmailStoreSend struct {
-	createFn   func(ctx context.Context, email *domain.Email) error
-	addEventFn func(ctx context.Context, event *domain.EmailEvent) error
-	emails     []*domain.Email
-	events     []*domain.EmailEvent
+	createFn     func(ctx context.Context, email *domain.Email) error
+	addEventFn   func(ctx context.Context, event *domain.EmailEvent) error
+	getPayloadFn func(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error)
+	emails       []*domain.Email
+	events       []*domain.EmailEvent
 }
 
 func (m *mockEmailStoreSend) Create(ctx context.Context, email *domain.Email) error {
@@ -107,6 +109,12 @@ func (m *mockEmailStoreSend) GetByTrackingID(_ context.Context, _ string) (*doma
 	return nil, nil
 }
 func (m *mockEmailStoreSend) GetByProviderMessageID(_ context.Context, _ string) (*domain.Email, error) {
+	return nil, nil
+}
+func (m *mockEmailStoreSend) GetPayload(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error) {
+	if m.getPayloadFn != nil {
+		return m.getPayloadFn(ctx, emailID)
+	}
 	return nil, nil
 }
 func (m *mockEmailStoreSend) PurgeWorkspaceRuntime(_ context.Context, _ uuid.UUID) error { return nil }
@@ -147,7 +155,11 @@ func (m *mockEmailStoreSend) QueryByExternalIDGlobal(_ context.Context, _ string
 }
 
 type mockSuppressionStoreSend struct {
-	isSuppressedFn func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)
+	isSuppressedFn       func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)
+	checkBatchFn         func(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]string, error)
+	getStatusesFn        func(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error)
+	getStatusesCalls     int
+	lastGetStatusesInput []string
 }
 
 func (m *mockSuppressionStoreSend) AddGlobal(_ context.Context, _ *domain.SuppressionGlobal) error {
@@ -170,6 +182,54 @@ func (m *mockSuppressionStoreSend) IsSuppressed(ctx context.Context, wsID uuid.U
 		return m.isSuppressedFn(ctx, wsID, email)
 	}
 	return false, "", nil
+}
+func (m *mockSuppressionStoreSend) GetSuppressionStatuses(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error) {
+	m.getStatusesCalls++
+	m.lastGetStatusesInput = append([]string(nil), emails...)
+	if m.getStatusesFn != nil {
+		return m.getStatusesFn(ctx, wsID, emails)
+	}
+	if m.checkBatchFn != nil {
+		batch, err := m.checkBatchFn(ctx, wsID, emails)
+		if err != nil {
+			return nil, err
+		}
+		statuses := make(map[string]port.SuppressionStatus, len(batch))
+		for email, reason := range batch {
+			statuses[email] = port.SuppressionStatus{Suppressed: true, Reason: reason}
+		}
+		return statuses, nil
+	}
+
+	statuses := make(map[string]port.SuppressionStatus, len(emails))
+	for _, email := range emails {
+		suppressed, reason, err := m.IsSuppressed(ctx, wsID, email)
+		if err != nil {
+			return nil, err
+		}
+		statuses[email] = port.SuppressionStatus{
+			Suppressed: suppressed,
+			Reason:     reason,
+		}
+	}
+	return statuses, nil
+}
+
+func (m *mockSuppressionStoreSend) CheckBatch(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]string, error) {
+	if m.checkBatchFn != nil {
+		return m.checkBatchFn(ctx, wsID, emails)
+	}
+	statuses, err := m.GetSuppressionStatuses(ctx, wsID, emails)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(statuses))
+	for email, status := range statuses {
+		if status.Suppressed {
+			result[email] = status.Reason
+		}
+	}
+	return result, nil
 }
 
 type mockCacheSend struct {
@@ -1145,8 +1205,8 @@ func TestSendService_SuppressionStoreError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when suppression store fails")
 	}
-	if !strings.Contains(err.Error(), "check suppression") {
-		t.Fatalf("expected 'check suppression' in error, got %q", err.Error())
+	if !strings.Contains(err.Error(), "evaluate suppression batch") {
+		t.Fatalf("expected 'evaluate suppression batch' in error, got %q", err.Error())
 	}
 	if !strings.Contains(err.Error(), "suppression store unavailable") {
 		t.Fatalf("expected wrapped cause 'suppression store unavailable', got %q", err.Error())
@@ -1997,6 +2057,377 @@ func TestSendService_SendBatch_IsolatesPerItemInjectorContext(t *testing.T) {
 	}
 }
 
+func TestSendService_SendBatch_AmortizesSharedResolution(t *testing.T) {
+	f := newSendFixture()
+
+	var tenantLookups int
+	var workspaceLookups int
+	var templateTypeLookups int
+	var templateLookups int
+	var publishedVersionLookups int
+	var adapterLookups int
+	var defaultIdentityLookups int
+
+	f.tenantStore.getByCodeFn = func(_ context.Context, code string) (*domain.Tenant, error) {
+		tenantLookups++
+		if code != "latam" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Tenant{ID: f.tenantID, Code: "latam", Name: "LATAM"}, nil
+	}
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+		workspaceLookups++
+		if tenantID != f.tenantID || code != "acme" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Workspace{
+			ID:          f.workspaceID,
+			TenantID:    f.tenantID,
+			Code:        "acme",
+			Name:        "Acme",
+			Environment: domain.EnvironmentProd,
+		}, nil
+	}
+	f.templateStore.getTypeBySlugFn = func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+		templateTypeLookups++
+		if slug != "welcome" {
+			return nil, domain.ErrTemplateTypeNotFound
+		}
+		return &domain.TemplateType{
+			ID:        f.typeID,
+			Slug:      "welcome",
+			Name:      "Welcome Email",
+			AdapterID: &f.adapterID,
+		}, nil
+	}
+	f.templateStore.resolveTemplateFn = func(_ context.Context, typeID uuid.UUID, _ []uuid.NullUUID) (*domain.Template, error) {
+		templateLookups++
+		if typeID != f.typeID {
+			return nil, domain.ErrTemplateNotFound
+		}
+		return &domain.Template{ID: f.templateID, TemplateTypeID: f.typeID}, nil
+	}
+	f.templateStore.getPublishedVersionFn = func(_ context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
+		publishedVersionLookups++
+		if templateID != f.templateID {
+			return nil, domain.ErrNoPublishedVersion
+		}
+		return &domain.TemplateVersion{
+			ID:            f.versionID,
+			TemplateID:    f.templateID,
+			VersionNumber: 1,
+			Status:        domain.VersionStatusPublished,
+			Subject:       "Welcome {{ event.name }}",
+			PreviewText:   "Welcome to our platform",
+			FromName:      "{{ injector.brand.name }}",
+			BodyMJML:      "<mj-text>Hello {{ event.name }}</mj-text>",
+			DefaultLocale: "en",
+		}, nil
+	}
+	f.adapterStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+		adapterLookups++
+		if id != f.adapterID {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Adapter{
+			ID:          f.adapterID,
+			Name:        "SES Default",
+			AdapterType: domain.AdapterTypeSES,
+		}, nil
+	}
+	f.identityStore.getDefaultFn = func(_ context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error) {
+		defaultIdentityLookups++
+		if adapterID != f.adapterID {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.AdapterIdentity{
+			ID:             uuid.Must(uuid.NewV7()),
+			AdapterID:      f.adapterID,
+			Identity:       "hello@example.com",
+			IdentityType:   domain.IdentityTypeEmail,
+			Status:         domain.IdentityStatusVerified,
+			SendingEnabled: true,
+			IsDefault:      true,
+			Source:         domain.IdentitySourceManual,
+		}, nil
+	}
+
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted, got %q", resp.Status)
+	}
+
+	if tenantLookups != 1 {
+		t.Fatalf("expected 1 tenant lookup, got %d", tenantLookups)
+	}
+	if workspaceLookups != 1 {
+		t.Fatalf("expected 1 workspace lookup, got %d", workspaceLookups)
+	}
+	if templateTypeLookups != 1 {
+		t.Fatalf("expected 1 template type lookup, got %d", templateTypeLookups)
+	}
+	if templateLookups != 1 {
+		t.Fatalf("expected 1 template lookup, got %d", templateLookups)
+	}
+	if publishedVersionLookups != 1 {
+		t.Fatalf("expected 1 published version lookup, got %d", publishedVersionLookups)
+	}
+	if adapterLookups != 1 {
+		t.Fatalf("expected 1 adapter lookup, got %d", adapterLookups)
+	}
+	if defaultIdentityLookups != 1 {
+		t.Fatalf("expected 1 default identity lookup, got %d", defaultIdentityLookups)
+	}
+	if len(f.emailStore.emails) != 2 {
+		t.Fatalf("expected 2 emails to be created, got %d", len(f.emailStore.emails))
+	}
+}
+
+func TestSendService_SendBatch_AmortizesWorkspaceDefaultLocaleResolution(t *testing.T) {
+	f := newSendFixture()
+
+	var tenantLookups int
+	var workspaceLookups int
+	var templateTypeLookups int
+	var templateLookups int
+	var publishedVersionLookups int
+
+	f.tenantStore.getByCodeFn = func(_ context.Context, code string) (*domain.Tenant, error) {
+		tenantLookups++
+		if code != "latam" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Tenant{ID: f.tenantID, Code: "latam", Name: "LATAM"}, nil
+	}
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+		workspaceLookups++
+		if tenantID != f.tenantID || code != "acme" {
+			return nil, domain.ErrNotFound
+		}
+		defaultLocale := "en"
+		return &domain.Workspace{
+			ID:            f.workspaceID,
+			TenantID:      f.tenantID,
+			Code:          "acme",
+			Name:          "Acme",
+			Environment:   domain.EnvironmentProd,
+			DefaultLocale: &defaultLocale,
+		}, nil
+	}
+	f.templateStore.getTypeBySlugFn = func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+		templateTypeLookups++
+		if slug != "welcome" {
+			return nil, domain.ErrTemplateTypeNotFound
+		}
+		return &domain.TemplateType{
+			ID:        f.typeID,
+			Slug:      "welcome",
+			Name:      "Welcome Email",
+			AdapterID: &f.adapterID,
+		}, nil
+	}
+	f.templateStore.resolveTemplateFn = func(_ context.Context, typeID uuid.UUID, _ []uuid.NullUUID) (*domain.Template, error) {
+		templateLookups++
+		if typeID != f.typeID {
+			return nil, domain.ErrTemplateNotFound
+		}
+		return &domain.Template{ID: f.templateID, TemplateTypeID: f.typeID}, nil
+	}
+	f.templateStore.getPublishedVersionFn = func(_ context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
+		publishedVersionLookups++
+		if templateID != f.templateID {
+			return nil, domain.ErrNoPublishedVersion
+		}
+		return &domain.TemplateVersion{
+			ID:            f.versionID,
+			TemplateID:    f.templateID,
+			VersionNumber: 1,
+			Status:        domain.VersionStatusPublished,
+			Subject:       "Welcome {{ event.name }}",
+			PreviewText:   "Welcome to our platform",
+			FromName:      "{{ injector.brand.name }}",
+			BodyMJML:      "<mj-text>Hello {{ event.name }}</mj-text>",
+			DefaultLocale: "en",
+		}, nil
+	}
+
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted, got %q", resp.Status)
+	}
+
+	if tenantLookups != 1 {
+		t.Fatalf("expected 1 tenant lookup, got %d", tenantLookups)
+	}
+	if workspaceLookups != 1 {
+		t.Fatalf("expected 1 workspace lookup, got %d", workspaceLookups)
+	}
+	if templateTypeLookups != 1 {
+		t.Fatalf("expected default locale to reuse base template type lookup, got %d", templateTypeLookups)
+	}
+	if templateLookups != 1 {
+		t.Fatalf("expected default locale to reuse base template lookup, got %d", templateLookups)
+	}
+	if publishedVersionLookups != 1 {
+		t.Fatalf("expected default locale to reuse base published version lookup, got %d", publishedVersionLookups)
+	}
+}
+
+func TestSendService_SendBatch_UsesWorkspaceDefaultLocaleSemantics(t *testing.T) {
+	f := newSendFixture()
+
+	var templateTypeLookups int
+	var templateLookups int
+	var publishedVersionLookups int
+	var localeLookups int
+
+	defaultLocale := "es"
+	subjectES := "Asunto ES"
+	fromNameES := "Equipo ES"
+	bodyES := "<mj-text>Hola ES</mj-text>"
+
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+		if tenantID != f.tenantID || code != "acme" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Workspace{
+			ID:            f.workspaceID,
+			TenantID:      f.tenantID,
+			Code:          "acme",
+			Name:          "Acme",
+			Environment:   domain.EnvironmentProd,
+			DefaultLocale: &defaultLocale,
+		}, nil
+	}
+	f.templateStore.getTypeBySlugFn = func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+		templateTypeLookups++
+		if slug != "welcome" {
+			return nil, domain.ErrTemplateTypeNotFound
+		}
+		return &domain.TemplateType{
+			ID:        f.typeID,
+			Slug:      "welcome",
+			Name:      "Welcome Email",
+			AdapterID: &f.adapterID,
+		}, nil
+	}
+	f.templateStore.resolveTemplateFn = func(_ context.Context, typeID uuid.UUID, _ []uuid.NullUUID) (*domain.Template, error) {
+		templateLookups++
+		if typeID != f.typeID {
+			return nil, domain.ErrTemplateNotFound
+		}
+		return &domain.Template{
+			ID:             f.templateID,
+			TemplateTypeID: f.typeID,
+		}, nil
+	}
+	f.templateStore.getPublishedVersionFn = func(_ context.Context, templateID uuid.UUID) (*domain.TemplateVersion, error) {
+		publishedVersionLookups++
+		if templateID != f.templateID {
+			return nil, domain.ErrNoPublishedVersion
+		}
+		return &domain.TemplateVersion{
+			ID:            f.versionID,
+			TemplateID:    f.templateID,
+			VersionNumber: 1,
+			Status:        domain.VersionStatusPublished,
+			Subject:       "Subject EN",
+			PreviewText:   "Preview EN",
+			FromName:      "Team EN",
+			BodyMJML:      "<mj-text>Hello EN</mj-text>",
+			DefaultLocale: "en",
+		}, nil
+	}
+	f.templateStore.getLocaleFn = func(_ context.Context, versionID uuid.UUID, locale string) (*domain.TemplateVersionLocale, error) {
+		localeLookups++
+		if versionID != f.versionID {
+			return nil, domain.ErrNotFound
+		}
+		if locale != "es" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.TemplateVersionLocale{
+			ID:                uuid.Must(uuid.NewV7()),
+			TemplateVersionID: f.versionID,
+			Locale:            "es",
+			Subject:           &subjectES,
+			FromName:          &fromNameES,
+			BodyMJML:          &bodyES,
+		}, nil
+	}
+
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted, got %q", resp.Status)
+	}
+
+	if localeLookups != 1 {
+		t.Fatalf("expected 1 locale lookup for workspace default locale reuse, got %d", localeLookups)
+	}
+	if templateTypeLookups != 1 {
+		t.Fatalf("expected 1 template type lookup, got %d", templateTypeLookups)
+	}
+	if templateLookups != 1 {
+		t.Fatalf("expected 1 template lookup, got %d", templateLookups)
+	}
+	if publishedVersionLookups != 1 {
+		t.Fatalf("expected 1 published version lookup, got %d", publishedVersionLookups)
+	}
+
+	if len(f.emailStore.emails) != 2 {
+		t.Fatalf("expected 2 created emails, got %d", len(f.emailStore.emails))
+	}
+	for i, email := range f.emailStore.emails {
+		if email.SubjectRendered != subjectES {
+			t.Fatalf("email %d expected subject %q, got %q", i, subjectES, email.SubjectRendered)
+		}
+		if email.FromName != fromNameES {
+			t.Fatalf("email %d expected from name %q, got %q", i, fromNameES, email.FromName)
+		}
+		if email.BodyMJML != bodyES {
+			t.Fatalf("email %d expected body %q, got %q", i, bodyES, email.BodyMJML)
+		}
+	}
+}
+
 func TestSendService_SendBatch_PartialStatus(t *testing.T) {
 	f := newSendFixture()
 	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, email string) (bool, string, error) {
@@ -2030,6 +2461,146 @@ func TestSendService_SendBatch_PartialStatus(t *testing.T) {
 	}
 	if resp.AcceptedCount != 1 || resp.SuppressedCount != 1 || resp.FailedCount != 1 {
 		t.Fatalf("unexpected counters: %+v", resp)
+	}
+}
+
+func TestSendService_SendBatch_MarksMixedFanoutItemAsPartial(t *testing.T) {
+	f := newSendFixture()
+
+	replaceMode := domain.TestRecipientModeReplace
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+		if tenantID != f.tenantID || code != "acme" {
+			return nil, domain.ErrNotFound
+		}
+		return &domain.Workspace{
+			ID:                     f.workspaceID,
+			TenantID:               f.tenantID,
+			Code:                   "acme",
+			Name:                   "Acme Test",
+			Environment:            domain.EnvironmentTest,
+			TestRecipientMode:      replaceMode,
+			TestRecipientAddresses: []string{"fanout-accepted@user.com", "fanout-failed@user.com"},
+		}, nil
+	}
+
+	f.emailStore.createFn = func(_ context.Context, email *domain.Email) error {
+		if email.RecipientEmail == "fanout-failed@user.com" {
+			return errors.New("db down")
+		}
+		return nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "original@user.com", Variables: map[string]any{"name": "Accepted"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Status != "partial" {
+		t.Fatalf("expected partial batch status, got %q", resp.Status)
+	}
+	if resp.AcceptedCount != 0 || resp.SuppressedCount != 0 || resp.FailedCount != 1 {
+		t.Fatalf("expected partial item to count as failed item, got accepted=%d suppressed=%d failed=%d", resp.AcceptedCount, resp.SuppressedCount, resp.FailedCount)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item result, got %d", len(resp.Items))
+	}
+	if resp.Items[0].Status != "partial" {
+		t.Fatalf("expected mixed fan-out item status partial, got %q", resp.Items[0].Status)
+	}
+	if resp.Items[0].TrackingID == "" {
+		t.Fatal("expected partial item to keep a tracking id from the accepted branch")
+	}
+}
+
+func TestSendService_SendBatch_UsesSingleSetBasedSuppressionLookup(t *testing.T) {
+	f := newSendFixture()
+
+	f.suppression.isSuppressedFn = func(_ context.Context, _ uuid.UUID, _ string) (bool, string, error) {
+		return false, "", errors.New("legacy per-address suppression path should not run")
+	}
+	f.suppression.getStatusesFn = func(_ context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error) {
+		if wsID != f.workspaceID {
+			t.Fatalf("expected workspace %s, got %s", f.workspaceID, wsID)
+		}
+
+		got := append([]string(nil), emails...)
+		slices.Sort(got)
+		want := []string{
+			"accepted@user.com",
+			"blocked-bcc@user.com",
+			"blocked-cc@user.com",
+			"blocked-to@user.com",
+			"shared@user.com",
+			"visible-bcc@user.com",
+		}
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("expected unique suppression set %v, got %v", want, got)
+		}
+
+		return map[string]port.SuppressionStatus{
+			"blocked-to@user.com":  {Suppressed: true, Reason: string(domain.SuppressionComplaint)},
+			"blocked-cc@user.com":  {Suppressed: true, Reason: string(domain.SuppressionManual)},
+			"blocked-bcc@user.com": {Suppressed: true, Reason: string(domain.SuppressionHardBounce)},
+		}, nil
+	}
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	resp, err := svc.SendBatch(context.Background(), &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{
+				To:        "accepted@user.com",
+				CC:        []string{"blocked-cc@user.com", "shared@user.com"},
+				BCC:       []string{"blocked-bcc@user.com"},
+				Variables: map[string]any{"name": "Accepted"},
+			},
+			{
+				To:        "blocked-to@user.com",
+				CC:        []string{"shared@user.com", "blocked-cc@user.com"},
+				BCC:       []string{"visible-bcc@user.com"},
+				Variables: map[string]any{"name": "Blocked"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if f.suppression.getStatusesCalls != 1 {
+		t.Fatalf("expected exactly 1 set-based suppression lookup, got %d", f.suppression.getStatusesCalls)
+	}
+	if resp.Status != "accepted" {
+		t.Fatalf("expected accepted batch status, got %q", resp.Status)
+	}
+	if resp.AcceptedCount != 1 || resp.SuppressedCount != 1 || resp.FailedCount != 0 {
+		t.Fatalf("unexpected counters: %+v", resp)
+	}
+	if len(f.emailStore.emails) != 2 {
+		t.Fatalf("expected 2 persisted emails, got %d", len(f.emailStore.emails))
+	}
+	if got := f.emailStore.emails[0].CC; len(got) != 1 || got[0] != "shared@user.com" {
+		t.Fatalf("expected accepted item CC to keep only visible recipients, got %v", got)
+	}
+	if got := f.emailStore.emails[0].BCC; len(got) != 0 {
+		t.Fatalf("expected accepted item BCC to drop suppressed recipients, got %v", got)
+	}
+	if f.emailStore.emails[1].Status != domain.StatusSuppressed {
+		t.Fatalf("expected second email status %q, got %q", domain.StatusSuppressed, f.emailStore.emails[1].Status)
+	}
+	if got := f.emailStore.emails[1].CC; len(got) != 1 || got[0] != "shared@user.com" {
+		t.Fatalf("expected suppressed item CC to keep only visible recipients, got %v", got)
+	}
+	if got := f.emailStore.emails[1].BCC; len(got) != 1 || got[0] != "visible-bcc@user.com" {
+		t.Fatalf("expected suppressed item BCC to keep only visible recipients, got %v", got)
 	}
 }
 
@@ -2179,10 +2750,166 @@ func TestSendService_SendBatch_PersistsUISourcePerItem(t *testing.T) {
 	}
 }
 
+// Budget targets:
+// - SendBatch amortized path should keep shared resolution sublinear as item count grows.
+// - The batch path should beat the legacy item-by-item Send loop on allocs/op for identical input.
+func BenchmarkSendService_SendBatch_Amortized(b *testing.B) {
+	b.ReportAllocs()
+
+	cases := []struct {
+		name  string
+		items int
+	}{
+		{name: "batch_1_item", items: 1},
+		{name: "batch_10_items", items: 10},
+	}
+
+	for _, tt := range cases {
+		b.Run(tt.name, func(b *testing.B) {
+			b.Run("amortized", func(b *testing.B) {
+				runSendBatchAmortizedBenchmark(b, tt.items)
+			})
+
+			b.Run("legacy_item_by_item", func(b *testing.B) {
+				runSendLegacyBenchmark(b, tt.items)
+			})
+		})
+	}
+}
+
+func runSendBatchAmortizedBenchmark(b *testing.B, items int) {
+	b.StopTimer()
+	f, svc := newBenchmarkSendService()
+	batchReq := benchmarkBatchRequest(items)
+	b.ResetTimer()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		resetBenchmarkSendFixture(f)
+		resp, err := svc.SendBatch(context.Background(), batchReq)
+		if err != nil {
+			b.Fatalf("SendBatch() error: %v", err)
+		}
+		sinkSendBatchResponse = resp
+	}
+}
+
+func runSendLegacyBenchmark(b *testing.B, items int) {
+	b.StopTimer()
+	f, svc := newBenchmarkSendService()
+	itemReqs := benchmarkLegacyItemRequests(items)
+	b.ResetTimer()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		resetBenchmarkSendFixture(f)
+		for _, req := range itemReqs {
+			resp, err := svc.Send(context.Background(), req)
+			if err != nil {
+				b.Fatalf("Send() error: %v", err)
+			}
+			sinkSendBatchResponse = &service.SendBatchResponse{
+				Status:           resp.Status,
+				TemplateResolved: resp.TemplateResolved,
+			}
+		}
+	}
+}
+
+func newBenchmarkSendService() (*sendTestFixture, *service.SendService) {
+	f := newSendFixture()
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+	return f, f.buildService()
+}
+
+func benchmarkBatchRequest(items int) *service.SendBatchRequest {
+	req := &service.SendBatchRequest{
+		Ref:   "latam:acme:welcome",
+		Items: make([]service.SendBatchItemRequest, items),
+	}
+	for i := 0; i < items; i++ {
+		req.Items[i] = service.SendBatchItemRequest{
+			To:        benchmarkRecipient(i),
+			Variables: map[string]any{"name": "Alice"},
+		}
+	}
+	return req
+}
+
+func benchmarkLegacyItemRequests(items int) []*service.SendRequest {
+	reqs := make([]*service.SendRequest, items)
+	for i := 0; i < items; i++ {
+		reqs[i] = &service.SendRequest{
+			Ref:       "latam:acme:welcome",
+			To:        []string{benchmarkRecipient(i)},
+			Variables: map[string]any{"name": "Alice"},
+		}
+	}
+	return reqs
+}
+
+func benchmarkRecipient(i int) string {
+	if i%2 == 1 {
+		return "other@example.com"
+	}
+	return "user@example.com"
+}
+
+func resetBenchmarkSendFixture(f *sendTestFixture) {
+	f.cache.data = make(map[string][]byte)
+	f.emailStore.emails = f.emailStore.emails[:0]
+}
+
+func BenchmarkResolvedSendContext_DefaultLocaleReuse(b *testing.B) {
+	b.ReportAllocs()
+
+	f := newSendFixture()
+	f.wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+		if tenantID != f.tenantID || code != "acme" {
+			return nil, domain.ErrNotFound
+		}
+		defaultLocale := "en"
+		return &domain.Workspace{
+			ID:            f.workspaceID,
+			TenantID:      f.tenantID,
+			Code:          "acme",
+			Name:          "Acme",
+			Environment:   domain.EnvironmentProd,
+			DefaultLocale: &defaultLocale,
+		}, nil
+	}
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+
+	svc := f.buildService()
+	req := &service.SendBatchRequest{
+		Ref: "latam:acme:welcome",
+		Items: []service.SendBatchItemRequest{
+			{To: "alice@user.com", Variables: map[string]any{"name": "Alice"}},
+			{To: "bob@user.com", Variables: map[string]any{"name": "Bob"}},
+			{To: "carol@user.com", Variables: map[string]any{"name": "Carol"}},
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.cache.data = make(map[string][]byte)
+		f.emailStore.emails = f.emailStore.emails[:0]
+		resp, err := svc.SendBatch(context.Background(), req)
+		if err != nil {
+			b.Fatalf("SendBatch() error: %v", err)
+		}
+		sinkSendBatchResponse = resp
+	}
+}
+
 type stubCodeInjectorSend struct {
 	code      string
 	resolveFn port.CodeResolveFunc
 }
+
+var sinkSendBatchResponse *service.SendBatchResponse
 
 func (s *stubCodeInjectorSend) Code() string { return s.code }
 func (s *stubCodeInjectorSend) Resolve() (port.CodeResolveFunc, []string) {

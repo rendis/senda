@@ -2,6 +2,7 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=25 <26"
@@ -15,6 +16,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --test",
+    "test:all": "node scripts/run-tests.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

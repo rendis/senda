@@ -7,6 +7,9 @@ SYSTEM_UI_VISUAL="${SYSTEM_UI_VISUAL:-0}"
 SYSTEM_UI_FLOW="${SYSTEM_UI_FLOW:-}"
 SYSTEM_UI_A11Y="${SYSTEM_UI_A11Y:-0}"
 SYSTEM_SECURITY_CHAOS="${SYSTEM_SECURITY_CHAOS:-0}"
+SYSTEM_SCOPE_SPEC="${SYSTEM_SCOPE_SPEC:-system-runner}"
+SYSTEM_SCOPE_WORKTREE="${SYSTEM_SCOPE_WORKTREE:-$(basename "$ROOT_DIR")}"
+SYSTEM_SCOPE_RUN="${SYSTEM_SCOPE_RUN:-pid-$$}"
 
 case "$MODE" in
   pr|nightly)
@@ -17,8 +20,22 @@ case "$MODE" in
     ;;
 esac
 
-TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-ARTIFACT_DIR="${ARTIFACT_DIR:-$ROOT_DIR/artifacts/system/$TIMESTAMP}"
+scope_slug() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -cs '[:alnum:]' '-' \
+    | sed 's/^-*//; s/-*$//' \
+    | cut -c1-"${2:-12}"
+}
+
+scope_hash() {
+  printf '%s' "${SYSTEM_SCOPE_SPEC}|${SYSTEM_SCOPE_WORKTREE}|${MODE}|${SYSTEM_SCOPE_RUN}" \
+    | cksum \
+    | awk '{print substr($1, 1, 8)}'
+}
+
+SCOPE_ID="senda-$(scope_slug "$SYSTEM_SCOPE_SPEC" 12)-$(scope_slug "$SYSTEM_SCOPE_WORKTREE" 12)-$(scope_slug "$MODE" 8)-$(scope_hash)"
+ARTIFACT_DIR="${ARTIFACT_DIR:-$ROOT_DIR/artifacts/system/$MODE/$SCOPE_ID}"
 STAGES_DIR="$ARTIFACT_DIR/stages"
 STAGE_RESULTS="$ARTIFACT_DIR/stage-results.tsv"
 ENV_REPORT="$ARTIFACT_DIR/env-report.json"
@@ -26,6 +43,9 @@ ENV_REPORT="$ARTIFACT_DIR/env-report.json"
 mkdir -p "$STAGES_DIR"
 export SYSTEM_MODE="$MODE"
 export ARTIFACT_DIR
+export SYSTEM_SCOPE_SPEC
+export SYSTEM_SCOPE_WORKTREE
+export SYSTEM_SCOPE_RUN
 
 source "$ROOT_DIR/test/system/subagents/lib.sh"
 

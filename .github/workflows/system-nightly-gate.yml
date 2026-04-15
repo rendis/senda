@@ -1,4 +1,4 @@
-name: System Nightly Gate
+name: System Nightly Gate (Manual)
 
 on:
   workflow_dispatch:

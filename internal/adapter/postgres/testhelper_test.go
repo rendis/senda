@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -106,6 +107,10 @@ func startPostgres(ctx context.Context) (testcontainers.Container, string, error
 
 func sharedConnStr(ctx context.Context, t *testing.T) string {
 	t.Helper()
+
+	if conn := strings.TrimSpace(os.Getenv("SENDA_INTEGRATION_DATABASE_URL")); conn != "" {
+		return conn
+	}
 
 	sharedPostgresOnce.Do(func() {
 		sharedPostgresCtr, sharedPostgresConn, sharedPostgresErr = startPostgres(ctx)

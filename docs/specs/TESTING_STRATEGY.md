@@ -278,13 +278,15 @@ test-all: test test-integration test-e2e
 ### CI Pipeline (when implemented)
 
 ```
-push → lint (golangci-lint) → unit tests → integration tests → build → (optional: E2E)
+pull_request → backend gate + frontend gate + taxonomy check
+workflow_dispatch → manual system gate(s) and observational checks
 ```
 
-- Unit tests: run on every push
-- Integration tests: run on every push (TestContainers are fast)
-- E2E tests: run on PR merge to main
-- Coverage report: uploaded as an artifact
+- Unit tests: run inside the automatic backend PR gate
+- Frontend tests: run inside the automatic frontend PR gate via `pnpm --dir web test`
+- Taxonomy drift checks: run as part of PR validation so docs and workflows stay honest
+- Manual / observational system gates: run through `workflow_dispatch`, not as automatic PR blockers
+- Coverage report: uploaded as an artifact when the relevant CI path includes it
 
 ---
 

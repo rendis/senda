@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -82,22 +83,22 @@ func (m *mockIdentityGrantStore) ListGrantedIdentitiesForWorkspace(ctx context.C
 }
 
 type mockTemplateTypeUsageStore struct {
-	countTypesUsingAdapterFn        func(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error)
-	countTypesUsingSenderIdentityFn func(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error)
+	listWorkspacesUsingAdapterFn        func(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
+	listWorkspacesUsingSenderIdentityFn func(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
-func (m *mockTemplateTypeUsageStore) CountTypesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error) {
-	if m.countTypesUsingAdapterFn != nil {
-		return m.countTypesUsingAdapterFn(ctx, adapterID, workspaceID)
+func (m *mockTemplateTypeUsageStore) ListWorkspacesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if m.listWorkspacesUsingAdapterFn != nil {
+		return m.listWorkspacesUsingAdapterFn(ctx, adapterID, workspaceIDs)
 	}
-	return 0, nil
+	return nil, nil
 }
 
-func (m *mockTemplateTypeUsageStore) CountTypesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error) {
-	if m.countTypesUsingSenderIdentityFn != nil {
-		return m.countTypesUsingSenderIdentityFn(ctx, identityID, workspaceID)
+func (m *mockTemplateTypeUsageStore) ListWorkspacesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if m.listWorkspacesUsingSenderIdentityFn != nil {
+		return m.listWorkspacesUsingSenderIdentityFn(ctx, identityID, workspaceIDs)
 	}
-	return 0, nil
+	return nil, nil
 }
 
 func TestAdapterAccessService_ValidateSelection_SharedSESRequiresGrantedEmailIdentity(t *testing.T) {
@@ -364,11 +365,11 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_BlocksRevokeWhenInU
 	}
 
 	usageStore := &mockTemplateTypeUsageStore{
-		countTypesUsingSenderIdentityFn: func(_ context.Context, id uuid.UUID, wsID *uuid.UUID) (int, error) {
-			if id != identityID || wsID == nil || *wsID != workspaceID {
-				return 0, errors.New("unexpected usage lookup")
+		listWorkspacesUsingSenderIdentityFn: func(_ context.Context, id uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+			if id != identityID || len(workspaceIDs) != 1 || workspaceIDs[0] != workspaceID {
+				return nil, errors.New("unexpected usage lookup")
 			}
-			return 1, nil
+			return []uuid.UUID{workspaceID}, nil
 		},
 	}
 
@@ -604,5 +605,214 @@ func TestAdapterAccessService_ListIdentityWorkspaceAccess_UsesSystemWorkspaceEnv
 	}
 	if len(grants) != 1 || grants[0].Workspace.ID != workspaceID || !grants[0].Granted {
 		t.Fatalf("expected granted workspace %s, got %+v", workspaceID, grants)
+	}
+}
+
+func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_UsesSetBasedUsageCheck(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceAID := uuid.Must(uuid.NewV7())
+	workspaceBID := uuid.Must(uuid.NewV7())
+	workspaceCID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: uuid.Must(uuid.NewV7()), Code: "_system", IsSystem: true}
+
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWorkspaceID,
+				AdapterType: domain.AdapterTypeSES,
+				Name:        "SES Shared",
+			}, nil
+		},
+	}
+
+	identityStore := &mockAdapterIdentityStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+			if id != identityID {
+				return nil, domain.ErrIdentityNotFound
+			}
+			return &domain.AdapterIdentity{
+				ID:           identityID,
+				AdapterID:    adapterID,
+				Identity:     "a@example.dev",
+				IdentityType: domain.IdentityTypeEmail,
+				Status:       domain.IdentityStatusVerified,
+			}, nil
+		},
+	}
+
+	wsStore := &mockWorkspaceStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			if id == systemWorkspaceID {
+				return systemWorkspace, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+		listByTenantFn: func(_ context.Context, tenantID uuid.UUID, environment domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+			return []*domain.Workspace{
+				{ID: workspaceAID, TenantID: tenantID, Code: "alpha", Name: "Alpha", Environment: environment},
+				{ID: workspaceBID, TenantID: tenantID, Code: "beta", Name: "Beta", Environment: environment},
+				{ID: workspaceCID, TenantID: tenantID, Code: "gamma", Name: "Gamma", Environment: environment},
+			}, "", nil
+		},
+	}
+
+	var usageCalls int
+	var requested []uuid.UUID
+	usageStore := &mockTemplateTypeUsageStore{
+		listWorkspacesUsingSenderIdentityFn: func(_ context.Context, id uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+			usageCalls++
+			if id != identityID {
+				t.Fatalf("expected identity %s, got %s", identityID, id)
+			}
+			requested = append([]uuid.UUID(nil), workspaceIDs...)
+			return []uuid.UUID{workspaceCID}, nil
+		},
+	}
+
+	grantStore := &mockIdentityGrantStore{
+		listIdentityWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+			if id != identityID {
+				t.Fatalf("expected identity %s, got %s", identityID, id)
+			}
+			return []uuid.UUID{workspaceAID, workspaceBID, workspaceCID}, nil
+		},
+	}
+
+	svc := service.NewAdapterAccessService(
+		adapterStore,
+		identityStore,
+		wsStore,
+		&mockAdapterGrantStore{},
+		grantStore,
+		usageStore,
+	)
+
+	err := svc.ReplaceIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID, []uuid.UUID{workspaceAID})
+	if !errors.Is(err, domain.ErrSharedGrantInUse) {
+		t.Fatalf("expected ErrSharedGrantInUse, got %v", err)
+	}
+	if usageCalls != 1 {
+		t.Fatalf("expected exactly one usage lookup, got %d", usageCalls)
+	}
+	if len(requested) != 2 || requested[0] != workspaceBID || requested[1] != workspaceCID {
+		t.Fatalf("expected revoked workspaces [B C], got %v", requested)
+	}
+}
+
+func BenchmarkAdapterAccessService_ReplaceIdentityWorkspaceAccess_SetBased(b *testing.B) {
+	b.ReportAllocs()
+
+	const workspaceCount = 256
+
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+	tenantID := uuid.Must(uuid.NewV7())
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: tenantID, Code: "_system", IsSystem: true}
+
+	current := make([]uuid.UUID, 0, workspaceCount)
+	targets := make([]uuid.UUID, 0, workspaceCount/2)
+	workspaces := make([]*domain.Workspace, 0, workspaceCount)
+	for i := 0; i < workspaceCount; i++ {
+		wsID := uuid.Must(uuid.NewV7())
+		current = append(current, wsID)
+		workspaces = append(workspaces, &domain.Workspace{
+			ID:          wsID,
+			TenantID:    tenantID,
+			Code:        fmt.Sprintf("ws-%03d", i),
+			Name:        fmt.Sprintf("Workspace %03d", i),
+			Environment: domain.EnvironmentProd,
+		})
+		if i%2 == 0 {
+			targets = append(targets, wsID)
+		}
+	}
+
+	svc := service.NewAdapterAccessService(
+		&mockAdapterStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+				if id != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return &domain.Adapter{
+					ID:          adapterID,
+					WorkspaceID: &systemWorkspaceID,
+					AdapterType: domain.AdapterTypeSES,
+					Name:        "SES Shared",
+				}, nil
+			},
+		},
+		&mockAdapterIdentityStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+				if id != identityID {
+					return nil, domain.ErrIdentityNotFound
+				}
+				return &domain.AdapterIdentity{
+					ID:           identityID,
+					AdapterID:    adapterID,
+					Identity:     "a@example.dev",
+					IdentityType: domain.IdentityTypeEmail,
+					Status:       domain.IdentityStatusVerified,
+				}, nil
+			},
+		},
+		&mockWorkspaceStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+				if id != systemWorkspaceID {
+					return nil, domain.ErrNotFound
+				}
+				return systemWorkspace, nil
+			},
+			listByTenantFn: func(_ context.Context, gotTenantID uuid.UUID, environment domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+				if gotTenantID != tenantID {
+					return nil, "", domain.ErrNotFound
+				}
+				if environment != domain.EnvironmentProd {
+					return nil, "", domain.ErrNotFound
+				}
+				return workspaces, "", nil
+			},
+		},
+		&mockAdapterGrantStore{},
+		&mockIdentityGrantStore{
+			listIdentityWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+				if id != identityID {
+					return nil, domain.ErrIdentityNotFound
+				}
+				return append([]uuid.UUID(nil), current...), nil
+			},
+			replaceIdentityWorkspaceGrantsFn: func(_ context.Context, gotIdentityID uuid.UUID, workspaceIDs []uuid.UUID) error {
+				if gotIdentityID != identityID {
+					return domain.ErrIdentityNotFound
+				}
+				if len(workspaceIDs) != len(targets) {
+					return fmt.Errorf("unexpected replacement size %d", len(workspaceIDs))
+				}
+				return nil
+			},
+		},
+		&mockTemplateTypeUsageStore{
+			listWorkspacesUsingSenderIdentityFn: func(_ context.Context, gotIdentityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+				if gotIdentityID != identityID {
+					return nil, domain.ErrIdentityNotFound
+				}
+				return nil, nil
+			},
+		},
+	)
+
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := svc.ReplaceIdentityWorkspaceAccess(ctx, systemWorkspace, adapterID, identityID, targets); err != nil {
+			b.Fatalf("ReplaceIdentityWorkspaceAccess() error: %v", err)
+		}
 	}
 }

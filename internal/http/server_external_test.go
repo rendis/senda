@@ -209,6 +209,7 @@ func TestExternalIntegrationMiddleware_SuccessAndPathRewrite(t *testing.T) {
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -247,6 +248,7 @@ func TestExternalIntegrationMiddleware_AllowsPoliciesReadForBuilder(t *testing.T
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -263,6 +265,7 @@ func TestExternalIntegrationMiddleware_DisabledProfile(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -276,11 +279,27 @@ func TestExternalIntegrationMiddleware_MissingRequiredHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types", nil)
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
 	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for missing X-Tenant-Code header, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestExternalIntegrationMiddleware_QueryTokenOnlyRejected(t *testing.T) {
+	e := setupExternalRouteServer(externalProfileConfig(), &externalAuthMethod{name: "signed-headers"}, &externalResolver{name: "tenant-workspace-resolver"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/external/partner-portal/tenants/acme/workspaces/main/template-types?token=leaked-bearer-token", nil)
+	req.Header.Set("X-Tenant-Code", "acme")
+	req.Header.Set("X-Signature", "sig")
+	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for query token only, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -298,6 +317,7 @@ func TestExternalIntegrationMiddleware_AuthDenyAndError(t *testing.T) {
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -314,6 +334,7 @@ func TestExternalIntegrationMiddleware_AuthDenyAndError(t *testing.T) {
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec = httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
@@ -334,6 +355,7 @@ func TestExternalIntegrationMiddleware_ResolverMismatch(t *testing.T) {
 	req.Header.Set("X-Tenant-Code", "acme")
 	req.Header.Set("X-Signature", "sig")
 	req.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	req.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -369,6 +391,7 @@ func TestExternalIntegrationMiddleware_FallbackReadOnlyAllowsReadBlocksMutation(
 	readReq.Header.Set("X-Tenant-Code", "acme")
 	readReq.Header.Set("X-Signature", "sig")
 	readReq.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	readReq.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	readRec := httptest.NewRecorder()
 	e.ServeHTTP(readRec, readReq)
 	if readRec.Code != http.StatusOK {
@@ -387,6 +410,7 @@ func TestExternalIntegrationMiddleware_FallbackReadOnlyAllowsReadBlocksMutation(
 	mutReq.Header.Set("X-Tenant-Code", "acme")
 	mutReq.Header.Set("X-Signature", "sig")
 	mutReq.Header.Set(middleware.ExternalIntegrationEnvironmentHeader, string(domain.EnvironmentProd))
+	mutReq.Header.Set(middleware.ExternalIntegrationTokenHeader, "header-token")
 	mutRec := httptest.NewRecorder()
 	e.ServeHTTP(mutRec, mutReq)
 	if mutRec.Code != http.StatusForbidden {

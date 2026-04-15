@@ -79,6 +79,7 @@ make ci-backend-pr
 ### Frontend changes
 
 ```bash
+pnpm --dir web test
 make ci-frontend
 ```
 
@@ -87,10 +88,11 @@ make ci-frontend
 Also run:
 
 ```bash
-make ci-main
+make ci-taxonomy-check
 ```
 
 This includes changes touching infrastructure, Docker, workers, queues, auth, onboarding, adapters/providers, webhooks, or end-to-end API/UI flows.
+Use `make system-pr` and `make system-nightly` only when you intentionally need the manual / observational system harness.
 
 ### Full PR validation
 
@@ -112,7 +114,7 @@ That configures `core.hooksPath=.githooks`, and the versioned `pre-push` hook ru
 
 - `make ci-pr`
 
-`make ci-main` remains available as the fast main-branch validation gate, but the automatic pre-push hook still uses `make ci-pr` so everyday pushes stay predictable and Docker-free.
+`make ci-taxonomy-check` keeps the command, workflow, and documentation surface honest. The automatic pre-push hook still uses `make ci-pr` so everyday pushes stay predictable and Docker-free.
 
 ### Explicit Docker-backed suites
 

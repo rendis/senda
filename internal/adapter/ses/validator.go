@@ -8,10 +8,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
 const validationStatusDenied = "denied"
+
+func validationProbeName(prefix string) string {
+	return fmt.Sprintf("%s-%s", prefix, uuid.NewString())
+}
+
+func validationProbeTopicARN(region, name string) string {
+	return fmt.Sprintf("arn:aws:sns:%s:000000000000:%s", region, name)
+}
 
 // ValidationCheck represents a single permission validation result.
 type ValidationCheck struct {
@@ -52,6 +61,8 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 		checks = make([]ValidationCheck, 8)
 		valid  = true
 	)
+	probeName := validationProbeName("senda-validate-perm-check")
+	probeTopicARN := validationProbeTopicARN(awsCfg.Region, probeName)
 
 	setCheck := func(idx int, c ValidationCheck) {
 		mu.Lock()
@@ -123,7 +134,7 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "Delete configuration sets (cleanup)", Required: false, Status: "ok",
 		}
 		_, err := sesClient.DeleteConfigurationSet(gCtx, &sesv2.DeleteConfigurationSetInput{
-			ConfigurationSetName: aws.String("senda-validate-perm-check"),
+			ConfigurationSetName: aws.String(probeName),
 		})
 		if err != nil && IsAccessDenied(err) {
 			c.Status = validationStatusDenied
@@ -139,8 +150,8 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Description: "Delete event destinations from configuration sets (cleanup)", Required: false, Status: "ok",
 		}
 		_, err := sesClient.DeleteConfigurationSetEventDestination(gCtx, &sesv2.DeleteConfigurationSetEventDestinationInput{
-			ConfigurationSetName: aws.String("senda-validate-perm-check"),
-			EventDestinationName: aws.String("senda-validate-perm-check"),
+			ConfigurationSetName: aws.String(probeName),
+			EventDestinationName: aws.String(probeName),
 		})
 		if err != nil && IsAccessDenied(err) {
 			c.Status = validationStatusDenied
@@ -155,9 +166,8 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Name: "sns_unsubscribe", Permission: "sns:Unsubscribe",
 			Description: "Unsubscribe from SNS topics (cleanup)", Required: false, Status: "ok",
 		}
-		fakeARN := fmt.Sprintf("arn:aws:sns:%s:000000000000:senda-validate-perm-check", awsCfg.Region)
 		_, err := snsClient.Unsubscribe(gCtx, &sns.UnsubscribeInput{
-			SubscriptionArn: aws.String(fakeARN),
+			SubscriptionArn: aws.String(probeTopicARN),
 		})
 		if err != nil && IsAccessDenied(err) {
 			c.Status = validationStatusDenied
@@ -172,9 +182,8 @@ func ValidateCredentials(ctx context.Context, cfg Config) (*ValidationResult, er
 			Name: "sns_delete_topic", Permission: "sns:DeleteTopic",
 			Description: "Delete SNS topics (cleanup)", Required: false, Status: "ok",
 		}
-		fakeARN := fmt.Sprintf("arn:aws:sns:%s:000000000000:senda-validate-perm-check", awsCfg.Region)
 		_, err := snsClient.DeleteTopic(gCtx, &sns.DeleteTopicInput{
-			TopicArn: aws.String(fakeARN),
+			TopicArn: aws.String(probeTopicARN),
 		})
 		if err != nil && IsAccessDenied(err) {
 			c.Status = validationStatusDenied

@@ -26,7 +26,9 @@ type mockMemberStore struct {
 	listAllFn           func(ctx context.Context, opts port.ListOptions) ([]*domain.Member, string, error)
 	listInScopeFn       func(ctx context.Context, scopeType domain.ScopeType, scopeID *uuid.UUID, opts port.ListOptions) ([]*domain.Member, string, error)
 	addRoleFn           func(ctx context.Context, role *domain.MemberRole) error
+	replaceRoleFn       func(ctx context.Context, role *domain.MemberRole) error
 	removeRoleFn        func(ctx context.Context, roleID uuid.UUID) error
+	revokeAccessFn      func(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error)
 	getRolesFn          func(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 	getRolesInScopeFn   func(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
 	getRolesByMembersFn func(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]*domain.MemberRole, error)
@@ -42,6 +44,9 @@ func (m *mockMemberStore) GetByEmail(ctx context.Context, email string) (*domain
 	if m.getByEmailFn != nil {
 		return m.getByEmailFn(ctx, email)
 	}
+	return nil, nil
+}
+func (m *mockMemberStore) GetByOIDCIdentity(_ context.Context, _ string, _ string) (*domain.Member, error) {
 	return nil, nil
 }
 func (m *mockMemberStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Member, error) {
@@ -74,11 +79,23 @@ func (m *mockMemberStore) AddRole(ctx context.Context, role *domain.MemberRole) 
 	}
 	return nil
 }
+func (m *mockMemberStore) ReplaceRoleInScope(ctx context.Context, role *domain.MemberRole) error {
+	if m.replaceRoleFn != nil {
+		return m.replaceRoleFn(ctx, role)
+	}
+	return nil
+}
 func (m *mockMemberStore) RemoveRole(ctx context.Context, roleID uuid.UUID) error {
 	if m.removeRoleFn != nil {
 		return m.removeRoleFn(ctx, roleID)
 	}
 	return nil
+}
+func (m *mockMemberStore) RevokeAccessInScope(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+	if m.revokeAccessFn != nil {
+		return m.revokeAccessFn(ctx, memberID, scopeType, scopeID)
+	}
+	return 0, nil
 }
 func (m *mockMemberStore) GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error) {
 	if m.getRolesFn != nil {
@@ -166,23 +183,52 @@ func setupMemberTest(ms port.MemberStore, ts port.TenantStore, ws port.Workspace
 	e := echo.New()
 	e.HTTPErrorHandler = response.HTTPErrorHandler
 	e.Use(middleware.RequestID())
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			if actorID := c.Request().Header.Get("X-Test-Actor-Member-ID"); actorID != "" {
+				parsedID, err := uuid.Parse(actorID)
+				if err != nil {
+					return err
+				}
+				c.Set(middleware.ContextKeyMember, &domain.Member{ID: parsedID, Email: "actor@senda.dev"})
+			}
+			if c.Request().Header.Get("X-Test-Actor-Global-Superadmin") == "true" {
+				actorID := uuid.MustParse(c.Request().Header.Get("X-Test-Actor-Member-ID"))
+				c.Set(middleware.ContextKeyRoles, []*domain.MemberRole{{
+					ID:        uuid.New(),
+					MemberID:  actorID,
+					Role:      domain.RoleSuperadmin,
+					ScopeType: domain.ScopeGlobal,
+				}})
+			}
+			return next(c)
+		}
+	})
 
 	h := handler.NewMemberHandler(ms, ts, ws)
 	e.GET("/api/v1/manage/members", h.List)
 	e.POST("/api/v1/manage/members", h.Create)
 	e.GET("/api/v1/manage/members/:member_id", h.Get)
+	e.DELETE("/api/v1/manage/members/:member_id/access", h.RemoveAccess)
+	e.PUT("/api/v1/manage/members/:member_id/role", h.ReplaceRole)
 	e.POST("/api/v1/manage/members/:member_id/roles", h.AddRole)
 	e.DELETE("/api/v1/manage/members/:member_id/roles/:role_id", h.RemoveRole)
 
 	e.GET("/api/v1/manage/tenants/:tenant_code/members", h.ListTenant)
 	e.POST("/api/v1/manage/tenants/:tenant_code/members", h.Create)
 	e.GET("/api/v1/manage/tenants/:tenant_code/members/:member_id", h.GetTenant)
+	e.DELETE("/api/v1/manage/tenants/:tenant_code/members/:member_id/access", h.RemoveAccessTenant)
+	e.PUT("/api/v1/manage/tenants/:tenant_code/members/:member_id/role", h.ReplaceRoleTenant)
 	e.POST("/api/v1/manage/tenants/:tenant_code/members/:member_id/roles", h.AddRoleTenant)
 	e.DELETE("/api/v1/manage/tenants/:tenant_code/members/:member_id/roles/:role_id", h.RemoveRoleTenant)
 
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members", h.ListWorkspace)
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members", h.Create)
 	e.GET("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id", h.GetWorkspace)
+	e.DELETE("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/access", h.RemoveAccessWorkspace)
+	e.DELETE("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/access", h.RemoveAccessWorkspace)
+	e.PUT("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/role", h.ReplaceRoleWorkspace)
+	e.PUT("/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/role", h.ReplaceRoleWorkspace)
 	e.POST("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/roles", h.AddRoleWorkspace)
 	e.DELETE("/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/roles/:role_id", h.RemoveRoleWorkspace)
 	return e
@@ -352,6 +398,514 @@ func TestMemberHandler_Create_TenantScope_RejectsInvalidRole(t *testing.T) {
 	}
 	if created {
 		t.Fatal("expected member not to be created")
+	}
+}
+
+func TestMemberHandler_ReplaceRole_Global_CreatesAssignment(t *testing.T) {
+	memberID := uuid.New()
+	now := time.Now().UTC()
+	var replaced *domain.MemberRole
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "admin@senda.dev", CreatedAt: now, UpdatedAt: now}, nil
+		},
+		replaceRoleFn: func(_ context.Context, role *domain.MemberRole) error {
+			replaced = role
+			role.CreatedAt = now
+			return nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	body := `{"role":"superadmin","scope_type":"global"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/members/"+memberID.String()+"/role", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if replaced == nil {
+		t.Fatal("expected replace role to be called")
+	}
+	if replaced.MemberID != memberID {
+		t.Fatalf("expected member id %s, got %s", memberID, replaced.MemberID)
+	}
+	if replaced.Role != domain.RoleSuperadmin || replaced.ScopeType != domain.ScopeGlobal {
+		t.Fatalf("unexpected role assignment: %+v", replaced)
+	}
+}
+
+func TestMemberHandler_ReplaceRole_Global_IdempotentReturnsExistingAssignment(t *testing.T) {
+	memberID := uuid.New()
+	roleID := uuid.New()
+	createdAt := time.Now().UTC().Add(-time.Hour)
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "admin@senda.dev", CreatedAt: createdAt, UpdatedAt: createdAt}, nil
+		},
+		replaceRoleFn: func(_ context.Context, role *domain.MemberRole) error {
+			role.ID = roleID
+			role.CreatedAt = createdAt
+			return nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	body := `{"role":"superadmin","scope_type":"global"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/members/"+memberID.String()+"/role", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp response.MemberRoleResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if resp.ID != roleID.String() {
+		t.Fatalf("expected existing role id %s, got %s", roleID, resp.ID)
+	}
+	if resp.CreatedAt != createdAt.Format("2006-01-02T15:04:05Z07:00") {
+		t.Fatalf("expected existing created_at %s, got %s", createdAt.Format("2006-01-02T15:04:05Z07:00"), resp.CreatedAt)
+	}
+}
+
+func TestMemberHandler_ReplaceRole_Tenant_UsesRouteScope(t *testing.T) {
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	var replaced *domain.MemberRole
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "tenant@senda.dev"}, nil
+		},
+		replaceRoleFn: func(_ context.Context, role *domain.MemberRole) error {
+			replaced = role
+			role.CreatedAt = time.Now().UTC()
+			return nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, &memberMockWorkspaceStore{})
+
+	body := `{"role":"tenant_admin","scope_type":"tenant"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/members/"+memberID.String()+"/role", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if replaced == nil {
+		t.Fatal("expected replace role to be called")
+	}
+	if replaced.ScopeType != domain.ScopeTenant {
+		t.Fatalf("expected tenant scope, got %s", replaced.ScopeType)
+	}
+	if replaced.TenantID == nil || *replaced.TenantID != tenantID {
+		t.Fatalf("expected tenant id %s, got %v", tenantID, replaced.TenantID)
+	}
+}
+
+func TestMemberHandler_ReplaceRole_Workspace_RejectsRoleOutsideRouteScope(t *testing.T) {
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	workspaceID := uuid.New()
+	replaced := false
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "workspace@senda.dev"}, nil
+		},
+		replaceRoleFn: func(_ context.Context, role *domain.MemberRole) error {
+			replaced = true
+			return nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+	ws := &memberMockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+			return &domain.Workspace{ID: workspaceID, TenantID: tid, Code: code}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, ws)
+
+	body := `{"role":"tenant_admin","scope_type":"tenant"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/main/members/"+memberID.String()+"/role", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if replaced {
+		t.Fatal("expected replace role not to be called")
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Global_Success(t *testing.T) {
+	memberID := uuid.New()
+	var revokedMemberID uuid.UUID
+	var revokedScopeType domain.ScopeType
+	var revokedScopeID *uuid.UUID
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			return &domain.Member{ID: memberID, Email: "admin@senda.dev"}, nil
+		},
+		getRolesInScopeFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			if scopeType != domain.ScopeGlobal {
+				t.Fatalf("expected global scope, got %s", scopeType)
+			}
+			if scopeID != nil {
+				t.Fatalf("expected nil scope id for global access revoke, got %v", scopeID)
+			}
+			return []*domain.MemberRole{{ID: uuid.New(), MemberID: memberID, Role: domain.RoleSuperadmin, ScopeType: domain.ScopeGlobal}}, nil
+		},
+		revokeAccessFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+			revokedMemberID = id
+			revokedScopeType = scopeType
+			revokedScopeID = scopeID
+			return 1, nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/members/"+memberID.String()+"/access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if revokedMemberID != memberID {
+		t.Fatalf("expected revoke for member %s, got %s", memberID, revokedMemberID)
+	}
+	if revokedScopeType != domain.ScopeGlobal {
+		t.Fatalf("expected global scope revoke, got %s", revokedScopeType)
+	}
+	if revokedScopeID != nil {
+		t.Fatalf("expected nil scope id for global revoke, got %v", revokedScopeID)
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Global_RejectsSelfRevoke(t *testing.T) {
+	memberID := uuid.New()
+	revokeCalled := false
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			return &domain.Member{ID: memberID, Email: "admin@senda.dev"}, nil
+		},
+		revokeAccessFn: func(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) (int64, error) {
+			revokeCalled = true
+			return 1, nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/members/"+memberID.String()+"/access", nil)
+	req.Header.Set("X-Test-Actor-Member-ID", memberID.String())
+	req.Header.Set("X-Test-Actor-Global-Superadmin", "true")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if revokeCalled {
+		t.Fatal("expected revoke access NOT to be called on global self-revoke")
+	}
+
+	var resp response.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Error.Message != "cannot revoke your own global superadmin access" {
+		t.Fatalf("unexpected error message: %q", resp.Error.Message)
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Global_AllowsOtherMember(t *testing.T) {
+	actorID := uuid.New()
+	targetID := uuid.New()
+	revokeCalled := false
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			if id != targetID {
+				t.Fatalf("expected member id %s, got %s", targetID, id)
+			}
+			return &domain.Member{ID: targetID, Email: "target@senda.dev"}, nil
+		},
+		revokeAccessFn: func(_ context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+			revokeCalled = true
+			if memberID != targetID {
+				t.Fatalf("expected revoke for member %s, got %s", targetID, memberID)
+			}
+			if scopeType != domain.ScopeGlobal {
+				t.Fatalf("expected global scope revoke, got %s", scopeType)
+			}
+			if scopeID != nil {
+				t.Fatalf("expected nil global scope id, got %v", scopeID)
+			}
+			return 1, nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/members/"+targetID.String()+"/access", nil)
+	req.Header.Set("X-Test-Actor-Member-ID", actorID.String())
+	req.Header.Set("X-Test-Actor-Global-Superadmin", "true")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !revokeCalled {
+		t.Fatal("expected revoke access to be called for another member")
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Tenant_Success(t *testing.T) {
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	var revokedMemberID uuid.UUID
+	var revokedScopeType domain.ScopeType
+	var revokedScopeID *uuid.UUID
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			return &domain.Member{ID: memberID, Email: "tenant@senda.dev"}, nil
+		},
+		getRolesInScopeFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			if scopeType != domain.ScopeTenant {
+				t.Fatalf("expected tenant scope, got %s", scopeType)
+			}
+			if scopeID == nil || *scopeID != tenantID {
+				t.Fatalf("expected tenant scope id %s, got %v", tenantID, scopeID)
+			}
+			return []*domain.MemberRole{{ID: uuid.New(), MemberID: memberID, Role: domain.RoleTenantAdmin, ScopeType: domain.ScopeTenant, TenantID: &tenantID}}, nil
+		},
+		revokeAccessFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+			revokedMemberID = id
+			revokedScopeType = scopeType
+			revokedScopeID = scopeID
+			return 1, nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, &memberMockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/tenants/acme/members/"+memberID.String()+"/access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if revokedMemberID != memberID {
+		t.Fatalf("expected revoke for member %s, got %s", memberID, revokedMemberID)
+	}
+	if revokedScopeType != domain.ScopeTenant {
+		t.Fatalf("expected tenant scope revoke, got %s", revokedScopeType)
+	}
+	if revokedScopeID == nil || *revokedScopeID != tenantID {
+		t.Fatalf("expected tenant scope id %s, got %v", tenantID, revokedScopeID)
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Workspace_Success(t *testing.T) {
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	workspaceID := uuid.New()
+	var revokedMemberID uuid.UUID
+	var revokedScopeType domain.ScopeType
+	var revokedScopeID *uuid.UUID
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			return &domain.Member{ID: memberID, Email: "workspace@senda.dev"}, nil
+		},
+		getRolesInScopeFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error) {
+			if id != memberID {
+				t.Fatalf("expected member id %s, got %s", memberID, id)
+			}
+			if scopeType != domain.ScopeWorkspace {
+				t.Fatalf("expected workspace scope, got %s", scopeType)
+			}
+			if scopeID == nil || *scopeID != workspaceID {
+				t.Fatalf("expected workspace scope id %s, got %v", workspaceID, scopeID)
+			}
+			return []*domain.MemberRole{{ID: uuid.New(), MemberID: memberID, Role: domain.RoleWorkspaceEditor, ScopeType: domain.ScopeWorkspace, TenantID: &tenantID, WorkspaceID: &workspaceID}}, nil
+		},
+		revokeAccessFn: func(_ context.Context, id uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+			revokedMemberID = id
+			revokedScopeType = scopeType
+			revokedScopeID = scopeID
+			return 1, nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+	ws := &memberMockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+			if tid != tenantID {
+				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
+			}
+			if environment != domain.EnvironmentTest {
+				t.Fatalf("expected test environment, got %s", environment)
+			}
+			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code, Environment: domain.EnvironmentTest}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, ws)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/environments/test/tenants/acme/workspaces/main/members/"+memberID.String()+"/access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if revokedMemberID != memberID {
+		t.Fatalf("expected revoke for member %s, got %s", memberID, revokedMemberID)
+	}
+	if revokedScopeType != domain.ScopeWorkspace {
+		t.Fatalf("expected workspace scope revoke, got %s", revokedScopeType)
+	}
+	if revokedScopeID == nil || *revokedScopeID != workspaceID {
+		t.Fatalf("expected workspace scope id %s, got %v", workspaceID, revokedScopeID)
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Workspace_IdempotentWhenNoAccessInScope(t *testing.T) {
+	memberID := uuid.New()
+	tenantID := uuid.New()
+	workspaceID := uuid.New()
+	revokeCalled := false
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "workspace-no-access@senda.dev"}, nil
+		},
+		revokeAccessFn: func(_ context.Context, _ uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error) {
+			revokeCalled = true
+			if scopeType != domain.ScopeWorkspace {
+				t.Fatalf("expected workspace scope revoke, got %s", scopeType)
+			}
+			if scopeID == nil || *scopeID != workspaceID {
+				t.Fatalf("expected workspace scope id %s, got %v", workspaceID, scopeID)
+			}
+			return 0, nil
+		},
+	}
+	ts := &memberMockTenantStore{
+		getByCodeFn: func(_ context.Context, code string) (*domain.Tenant, error) {
+			return &domain.Tenant{ID: tenantID, Code: code}, nil
+		},
+	}
+	ws := &memberMockWorkspaceStore{
+		getByTenantAndCodeFn: func(_ context.Context, tid uuid.UUID, code string, environment domain.Environment) (*domain.Workspace, error) {
+			if tid != tenantID {
+				t.Fatalf("expected tenant id %s, got %s", tenantID, tid)
+			}
+			if environment != domain.EnvironmentTest {
+				t.Fatalf("expected test environment, got %s", environment)
+			}
+			return &domain.Workspace{ID: workspaceID, TenantID: tenantID, Code: code, Environment: domain.EnvironmentTest}, nil
+		},
+	}
+
+	e := setupMemberTest(ms, ts, ws)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/environments/test/tenants/acme/workspaces/main/members/"+memberID.String()+"/access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !revokeCalled {
+		t.Fatal("expected revoke access to be called even when workspace scope has no access")
+	}
+}
+
+func TestMemberHandler_RemoveAccess_Global_IdempotentWhenNoAccessInScope(t *testing.T) {
+	memberID := uuid.New()
+	revokeCalled := false
+	ms := &mockMemberStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Member, error) {
+			return &domain.Member{ID: id, Email: "missing-access@senda.dev"}, nil
+		},
+		getRolesInScopeFn: func(_ context.Context, _ uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error) {
+			if scopeType != domain.ScopeGlobal {
+				t.Fatalf("expected global scope, got %s", scopeType)
+			}
+			if scopeID != nil {
+				t.Fatalf("expected nil scope id, got %v", scopeID)
+			}
+			return nil, nil
+		},
+		revokeAccessFn: func(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) (int64, error) {
+			revokeCalled = true
+			return 0, nil
+		},
+	}
+
+	e := setupMemberTest(ms, &memberMockTenantStore{}, &memberMockWorkspaceStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/manage/members/"+memberID.String()+"/access", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !revokeCalled {
+		t.Fatal("expected revoke access to be called even when scope has no access")
 	}
 }
 

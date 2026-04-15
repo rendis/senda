@@ -27,13 +27,16 @@ export interface MemberRoleDetail {
 export interface InviteMemberRequest {
   email: string;
   display_name?: string;
-  role: Role;
+  role?: Role;
 }
 
-/** Add role to member request */
-export interface AddMemberRoleRequest {
+/** Replace the single local role for the current scope */
+export interface ReplaceMemberRoleRequest {
   role: Role;
   scope_type: ScopeLevel;
   tenant_id?: string;
   workspace_id?: string;
 }
+
+/** @deprecated Use ReplaceMemberRoleRequest */
+export type AddMemberRoleRequest = ReplaceMemberRoleRequest;

@@ -2,23 +2,19 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/rendis/senda/internal/domain"
+	seswebhook "github.com/rendis/senda/internal/adapter/ses/webhook"
+	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
 )
-
-// snsSubscribeURLHostRe validates that SubscribeURL hosts are SNS endpoints.
-var snsSubscribeURLHostRe = regexp.MustCompile(`^sns\.[a-z]{2}(-[a-z]+-\d+)\.amazonaws\.com$`)
 
 // SNSVerifier verifies the authenticity of SNS messages.
 type SNSVerifier interface {
@@ -37,8 +33,15 @@ type SESWebhookHandler struct {
 	processor                 *service.EventProcessor
 	verifier                  SNSVerifier
 	confirmer                 SubscriptionConfirmer
+	translator                seswebhook.Translator
+	replayStore               port.SNSReplayStore
+	replayWindow              time.Duration
 	logger                    *slog.Logger
+	expectedTopicArn          string
+	expectedAccountID         string
 	skipSignatureVerification bool
+	bindingMu                 sync.RWMutex
+	registeredTopicArns       map[string]struct{}
 }
 
 // SESWebhookHandlerOption configures optional behavior for the SES webhook handler.
@@ -48,6 +51,34 @@ type SESWebhookHandlerOption func(*SESWebhookHandler)
 // Intended only for isolated test harnesses that replay trusted envelopes.
 func WithSkipSignatureVerification(skip bool) SESWebhookHandlerOption {
 	return func(h *SESWebhookHandler) { h.skipSignatureVerification = skip }
+}
+
+// WithSNSBinding binds inbound messages to an exact TopicArn.
+func WithSNSBinding(expectedTopicArn, _ string) SESWebhookHandlerOption {
+	return func(h *SESWebhookHandler) {
+		h.RegisterSNSBinding(expectedTopicArn)
+	}
+}
+
+// WithExpectedSNSDestination configures the strict security-perimeter SNS destination.
+// Unlike WithSNSBinding, mismatches are treated as invalid requests (400) instead of
+// late-bound binding denials (403).
+func WithExpectedSNSDestination(topicArn, accountID string) SESWebhookHandlerOption {
+	return func(h *SESWebhookHandler) {
+		h.expectedTopicArn = strings.TrimSpace(topicArn)
+		h.expectedAccountID = strings.TrimSpace(accountID)
+		if h.expectedTopicArn != "" {
+			h.RegisterSNSBinding(h.expectedTopicArn)
+		}
+	}
+}
+
+// WithSNSReplayStore enables persistent replay protection for SNS envelopes.
+func WithSNSReplayStore(store port.SNSReplayStore, replayWindow time.Duration) SESWebhookHandlerOption {
+	return func(h *SESWebhookHandler) {
+		h.replayStore = store
+		h.replayWindow = replayWindow
+	}
 }
 
 // NewSESWebhookHandler creates a new SES webhook handler.
@@ -62,10 +93,12 @@ func NewSESWebhookHandler(
 		logger = slog.Default()
 	}
 	h := &SESWebhookHandler{
-		processor: processor,
-		verifier:  verifier,
-		confirmer: confirmer,
-		logger:    logger,
+		processor:           processor,
+		verifier:            verifier,
+		confirmer:           confirmer,
+		translator:          seswebhook.NewTranslator(),
+		logger:              logger,
+		registeredTopicArns: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -73,51 +106,18 @@ func NewSESWebhookHandler(
 	return h
 }
 
-// snsMessage represents the SNS message envelope.
-type snsMessage struct {
-	Type             string `json:"Type"`
-	MessageId        string `json:"MessageId"`
-	TopicArn         string `json:"TopicArn"`
-	Message          string `json:"Message"`
-	Timestamp        string `json:"Timestamp"`
-	SignatureVersion string `json:"SignatureVersion"`
-	Signature        string `json:"Signature"`
-	SigningCertURL   string `json:"SigningCertURL"`
-	SubscribeURL     string `json:"SubscribeURL,omitempty"`
-}
-
-// sesNotification represents the SES event inside the SNS Message field.
-type sesNotification struct {
-	NotificationType string        `json:"notificationType"`
-	Mail             sesMail       `json:"mail"`
-	Bounce           *sesBounce    `json:"bounce,omitempty"`
-	Complaint        *sesComplaint `json:"complaint,omitempty"`
-	Delivery         *sesDelivery  `json:"delivery,omitempty"`
-}
-
-type sesMail struct {
-	MessageId string `json:"messageId"`
-}
-
-type sesBounce struct {
-	BounceType        string `json:"bounceType"`
-	BouncedRecipients []struct {
-		EmailAddress string `json:"emailAddress"`
-	} `json:"bouncedRecipients"`
-	Timestamp string `json:"timestamp"`
-}
-
-type sesComplaint struct {
-	ComplaintFeedbackType string `json:"complaintFeedbackType"`
-	ComplainedRecipients  []struct {
-		EmailAddress string `json:"emailAddress"`
-	} `json:"complainedRecipients"`
-	FeedbackId string `json:"feedbackId,omitempty"`
-	Timestamp  string `json:"timestamp"`
-}
-
-type sesDelivery struct {
-	Timestamp string `json:"timestamp"`
+// RegisterSNSBinding adds a TopicArn to the exact-match allowlist for inbound SNS.
+func (h *SESWebhookHandler) RegisterSNSBinding(topicArn string) {
+	topicArn = strings.TrimSpace(topicArn)
+	if topicArn == "" {
+		return
+	}
+	h.bindingMu.Lock()
+	defer h.bindingMu.Unlock()
+	if h.registeredTopicArns == nil {
+		h.registeredTopicArns = make(map[string]struct{})
+	}
+	h.registeredTopicArns[topicArn] = struct{}{}
 }
 
 const maxBodySize = 256 * 1024 // 256 KB
@@ -141,56 +141,69 @@ func (h *SESWebhookHandler) HandleInbound(c *echo.Context) error {
 		}
 	}
 
-	// 3. Parse SNS envelope.
-	var msg snsMessage
-	if err := json.Unmarshal(body, &msg); err != nil {
-		h.logger.ErrorContext(ctx, "failed to parse SNS message", "error", err)
-		return c.NoContent(http.StatusBadRequest)
+	parsed, err := h.translator.Translate(body)
+	if err != nil {
+		switch {
+		case seswebhook.IsBadRequest(err):
+			h.logger.WarnContext(ctx, "invalid SNS webhook payload", "error", err)
+			return c.NoContent(http.StatusBadRequest)
+		case seswebhook.IsMalformedNotification(err):
+			h.logger.ErrorContext(ctx, "failed to parse SES notification", "error", err)
+			return c.NoContent(http.StatusOK)
+		default:
+			h.logger.ErrorContext(ctx, "failed to translate SES webhook payload", "error", err)
+			return c.NoContent(http.StatusOK)
+		}
 	}
 
-	// 3.5. Validate TopicArn format.
-	if !strings.HasPrefix(msg.TopicArn, "arn:aws:sns:") {
-		h.logger.WarnContext(ctx, "SNS message with invalid TopicArn",
-			"topic_arn", msg.TopicArn,
-			"message_id", msg.MessageId,
-		)
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	// 4. Handle message type.
-	switch msg.Type {
-	case "SubscriptionConfirmation":
-		return h.handleSubscriptionConfirmation(ctx, c, &msg)
-
-	case "Notification":
-		return h.handleNotification(ctx, c, &msg, body)
-
-	default:
-		h.logger.WarnContext(ctx, "unknown SNS message type", "type", msg.Type)
-		// Return 200 to prevent SNS retries.
-		return c.NoContent(http.StatusOK)
-	}
-}
-
-// handleSubscriptionConfirmation auto-confirms the SNS subscription.
-func (h *SESWebhookHandler) handleSubscriptionConfirmation(ctx context.Context, c *echo.Context, msg *snsMessage) error {
-	if msg.SubscribeURL == "" {
-		h.logger.WarnContext(ctx, "subscription confirmation missing SubscribeURL")
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	// SSRF protection: validate SubscribeURL before fetching.
-	if err := validateSubscribeURL(msg.SubscribeURL); err != nil {
-		h.logger.WarnContext(ctx, "subscription confirmation URL validation failed",
-			"subscribe_url", msg.SubscribeURL,
+	if err := h.validateExpectedSNSDestination(parsed.TopicArn); err != nil {
+		h.logger.WarnContext(ctx, "SNS message rejected by topic policy",
+			"message_id", parsed.MessageID,
+			"topic_arn", parsed.TopicArn,
 			"error", err,
 		)
 		return c.NoContent(http.StatusBadRequest)
 	}
 
+	if err := h.validateSNSBinding(parsed.TopicArn); err != nil {
+		h.logger.WarnContext(ctx, "SNS message rejected by binding policy",
+			"message_id", parsed.MessageID,
+			"topic_arn", parsed.TopicArn,
+			"error", err,
+		)
+		return c.NoContent(http.StatusForbidden)
+	}
+
+	if ok, err := h.claimSNSReplay(ctx, c, parsed); err != nil {
+		return err
+	} else if !ok {
+		return nil
+	}
+
+	switch parsed.Kind {
+	case seswebhook.KindSubscriptionConfirmation:
+		return h.handleSubscriptionConfirmation(ctx, c, parsed)
+	case seswebhook.KindNotification:
+		return h.handleNotification(ctx, c, parsed)
+	default:
+		if parsed.NotificationType == "Send" {
+			h.logger.DebugContext(ctx, "ignoring SES Send notification (no provider event mapping needed)",
+				"notification_type", parsed.NotificationType,
+			)
+		} else {
+			h.logger.WarnContext(ctx, "unhandled SES notification type",
+				"notification_type", parsed.NotificationType,
+			)
+		}
+		return c.NoContent(http.StatusOK)
+	}
+}
+
+// handleSubscriptionConfirmation auto-confirms the SNS subscription.
+func (h *SESWebhookHandler) handleSubscriptionConfirmation(ctx context.Context, c *echo.Context, msg *seswebhook.ParsedMessage) error {
 	h.logger.InfoContext(ctx, "confirming SNS subscription",
 		"topic_arn", msg.TopicArn,
-		"subscribe_url", msg.SubscribeURL,
+		"subscribe_url", redactURL(msg.SubscribeURL),
 	)
 
 	if h.confirmer != nil {
@@ -207,58 +220,132 @@ func (h *SESWebhookHandler) handleSubscriptionConfirmation(ctx context.Context, 
 	return c.NoContent(http.StatusOK)
 }
 
-// validateSubscribeURL validates that the SubscribeURL points to an actual SNS endpoint.
-// This prevents SSRF attacks where an attacker crafts a malicious SubscribeURL.
-func validateSubscribeURL(subscribeURL string) error {
-	parsed, err := url.Parse(subscribeURL)
+func (h *SESWebhookHandler) validateSNSBinding(topicArn string) error {
+	h.bindingMu.RLock()
+	defer h.bindingMu.RUnlock()
+
+	if len(h.registeredTopicArns) == 0 {
+		if strings.TrimSpace(h.expectedTopicArn) == "" {
+			return fmt.Errorf("SNS binding is not configured")
+		}
+		return nil
+	}
+	if _, ok := h.registeredTopicArns[topicArn]; !ok {
+		return fmt.Errorf("unexpected TopicArn")
+	}
+	return nil
+}
+
+func (h *SESWebhookHandler) validateExpectedSNSDestination(topicArn string) error {
+	expectedTopicArn := strings.TrimSpace(h.expectedTopicArn)
+	if expectedTopicArn == "" {
+		return nil
+	}
+	if topicArn != expectedTopicArn {
+		return fmt.Errorf("unexpected SNS TopicArn %q", topicArn)
+	}
+
+	expectedAccountID := strings.TrimSpace(h.expectedAccountID)
+	if expectedAccountID == "" {
+		var err error
+		expectedAccountID, err = snsAccountIDFromArn(expectedTopicArn)
+		if err != nil {
+			return err
+		}
+	}
+
+	actualAccountID, err := snsAccountIDFromArn(topicArn)
 	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
+		return err
 	}
-
-	if parsed.Scheme != "https" {
-		return fmt.Errorf("scheme must be https, got %q", parsed.Scheme)
-	}
-
-	if !snsSubscribeURLHostRe.MatchString(parsed.Host) {
-		return fmt.Errorf("host %q is not a valid SNS endpoint", parsed.Host)
+	if actualAccountID != expectedAccountID {
+		return fmt.Errorf("unexpected SNS account %q", actualAccountID)
 	}
 
 	return nil
 }
 
-// handleNotification processes an SES event notification.
-func (h *SESWebhookHandler) handleNotification(ctx context.Context, c *echo.Context, msg *snsMessage, rawBody []byte) error {
-	// Parse SES notification from the Message field.
-	var notification sesNotification
-	if err := json.Unmarshal([]byte(msg.Message), &notification); err != nil {
-		h.logger.ErrorContext(ctx, "failed to parse SES notification",
-			"message_id", msg.MessageId,
+func (h *SESWebhookHandler) claimSNSReplay(ctx context.Context, c *echo.Context, msg *seswebhook.ParsedMessage) (bool, error) {
+	if msg == nil {
+		return false, c.NoContent(http.StatusBadRequest)
+	}
+	if h.replayStore == nil {
+		h.logger.ErrorContext(ctx, "SNS replay policy is not configured",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+		)
+		return false, c.NoContent(http.StatusInternalServerError)
+	}
+	if h.replayWindow <= 0 {
+		h.logger.ErrorContext(ctx, "SNS replay window is invalid",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+			"replay_window", h.replayWindow,
+		)
+		return false, c.NoContent(http.StatusInternalServerError)
+	}
+	if strings.TrimSpace(msg.MessageID) == "" {
+		h.logger.WarnContext(ctx, "SNS replay envelope missing MessageId",
+			"topic_arn", msg.TopicArn,
+		)
+		return false, c.NoContent(http.StatusBadRequest)
+	}
+
+	messageTimestamp, err := parseSNSReplayTimestamp(msg.Timestamp)
+	if err != nil {
+		h.logger.WarnContext(ctx, "SNS replay envelope has invalid Timestamp",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+			"timestamp", msg.Timestamp,
 			"error", err,
 		)
-		// Return 200 to prevent SNS retries on malformed messages.
-		return c.NoContent(http.StatusOK)
+		return false, c.NoContent(http.StatusBadRequest)
 	}
 
-	// Map SES notification to ProviderEvent.
-	event := h.mapSESToProviderEvent(&notification, rawBody)
-	if event == nil {
-		if notification.NotificationType == "Send" {
-			h.logger.DebugContext(ctx, "ignoring SES Send notification (no provider event mapping needed)",
-				"notification_type", notification.NotificationType,
-			)
-		} else {
-			h.logger.WarnContext(ctx, "unhandled SES notification type",
-				"notification_type", notification.NotificationType,
-			)
-		}
-		return c.NoContent(http.StatusOK)
+	decision, err := h.replayStore.Claim(ctx, msg.TopicArn, msg.MessageID, messageTimestamp, h.replayWindow)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "SNS replay claim failed",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+			"error", err,
+		)
+		return false, c.NoContent(http.StatusInternalServerError)
 	}
 
+	switch decision {
+	case port.SNSReplayDecisionAccepted:
+		return true, nil
+	case port.SNSReplayDecisionDuplicate:
+		h.logger.WarnContext(ctx, "duplicate SNS replay rejected",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+		)
+		return false, c.NoContent(http.StatusOK)
+	case port.SNSReplayDecisionStale:
+		h.logger.WarnContext(ctx, "stale SNS replay rejected",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+			"timestamp", messageTimestamp,
+			"replay_window", h.replayWindow,
+		)
+		return false, c.NoContent(http.StatusOK)
+	default:
+		h.logger.ErrorContext(ctx, "unknown SNS replay decision",
+			"topic_arn", msg.TopicArn,
+			"message_id", msg.MessageID,
+			"decision", decision,
+		)
+		return false, c.NoContent(http.StatusInternalServerError)
+	}
+}
+
+// handleNotification processes an SES event notification.
+func (h *SESWebhookHandler) handleNotification(ctx context.Context, c *echo.Context, msg *seswebhook.ParsedMessage) error {
 	// Process the event (updates status, suppression, webhooks).
-	if err := h.processor.Process(ctx, event); err != nil {
+	if err := h.processor.Process(ctx, msg.Event); err != nil {
 		h.logger.ErrorContext(ctx, "failed to process SES event",
-			"notification_type", notification.NotificationType,
-			"provider_message_id", event.ProviderMessageID,
+			"notification_type", msg.NotificationType,
+			"provider_message_id", msg.Event.ProviderMessageID,
 			"error", err,
 		)
 		// Return 200 to prevent SNS retries — we log the error.
@@ -267,85 +354,31 @@ func (h *SESWebhookHandler) handleNotification(ctx context.Context, c *echo.Cont
 	return c.NoContent(http.StatusOK)
 }
 
-// mapSESToProviderEvent converts an SES notification to a ProviderEvent.
-func (h *SESWebhookHandler) mapSESToProviderEvent(n *sesNotification, rawBody []byte) *domain.ProviderEvent {
-	event := &domain.ProviderEvent{
-		ProviderMessageID: n.Mail.MessageId,
-		RawPayload:        rawBody,
+func parseSNSReplayTimestamp(value string) (time.Time, error) {
+	ts := strings.TrimSpace(value)
+	if ts == "" {
+		return time.Time{}, fmt.Errorf("missing timestamp")
 	}
-
-	switch n.NotificationType {
-	case "Delivery":
-		event.Type = domain.EventDelivered
-		if n.Delivery != nil {
-			event.Timestamp = parseSESTimestamp(n.Delivery.Timestamp)
-		}
-
-	case "Bounce":
-		event.Type = domain.EventBounced
-		if n.Bounce != nil {
-			event.Timestamp = parseSESTimestamp(n.Bounce.Timestamp)
-
-			bounceType := "soft"
-			if n.Bounce.BounceType == "Permanent" {
-				bounceType = "hard"
-			}
-
-			recipients := make([]string, 0, len(n.Bounce.BouncedRecipients))
-			for _, r := range n.Bounce.BouncedRecipients {
-				recipients = append(recipients, r.EmailAddress)
-			}
-
-			event.BounceDetail = &domain.BounceDetail{
-				BounceType: bounceType,
-				Recipients: recipients,
-			}
-		}
-
-	case "Complaint":
-		event.Type = domain.EventComplained
-		if n.Complaint != nil {
-			event.Timestamp = parseSESTimestamp(n.Complaint.Timestamp)
-
-			recipients := make([]string, 0, len(n.Complaint.ComplainedRecipients))
-			for _, r := range n.Complaint.ComplainedRecipients {
-				recipients = append(recipients, r.EmailAddress)
-			}
-
-			event.ComplaintDetail = &domain.ComplaintDetail{
-				ComplaintType: n.Complaint.ComplaintFeedbackType,
-				FeedbackID:    n.Complaint.FeedbackId,
-				Recipients:    recipients,
-			}
-		}
-
-	case "Send":
-		// Send events are subscribed for completeness but don't map to a provider event.
-		// Status is already set by the SendWorker.
-		return nil
-
-	default:
-		return nil
+	parsed, err := time.Parse(time.RFC3339Nano, ts)
+	if err == nil {
+		return parsed.UTC(), nil
 	}
-
-	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now().UTC()
+	parsed, err = time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return time.Time{}, err
 	}
-
-	return event
+	return parsed.UTC(), nil
 }
 
-// parseSESTimestamp parses an SES timestamp string (ISO 8601).
-func parseSESTimestamp(ts string) time.Time {
-	t, err := time.Parse(time.RFC3339, ts)
-	if err != nil {
-		// SES sometimes uses a different format
-		t, err = time.Parse("2006-01-02T15:04:05.000Z", ts)
-		if err != nil {
-			return time.Time{}
-		}
+func snsAccountIDFromArn(topicArn string) (string, error) {
+	parts := strings.Split(topicArn, ":")
+	if len(parts) < 6 || parts[0] != "arn" || parts[1] != "aws" || parts[2] != "sns" {
+		return "", fmt.Errorf("invalid SNS TopicArn %q", topicArn)
 	}
-	return t
+	if parts[4] == "" {
+		return "", fmt.Errorf("invalid SNS TopicArn %q", topicArn)
+	}
+	return parts[4], nil
 }
 
 // HTTPSubscriptionConfirmer confirms SNS subscriptions by making an HTTP GET to the SubscribeURL.

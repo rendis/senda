@@ -266,3 +266,153 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_BlocksRevokeWhenInU
 		t.Fatalf("expected ErrSharedGrantInUse, got %v", err)
 	}
 }
+
+func TestTemplateTypeUsageRepo_ListWorkspacesUsingSenderIdentity_Integration(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	adapterRepo := pgadapter.NewAdapterRepo(pool)
+	identityRepo := pgadapter.NewAdapterIdentityRepo(pool)
+	templateRepo := pgadapter.NewTemplateRepo(pool)
+	usageRepo := pgadapter.NewTemplateTypeUsageRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+	systemWS := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
+	wsA := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "alpha", Name: "Alpha"}
+	wsB := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "beta", Name: "Beta"}
+	wsC := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "gamma", Name: "Gamma"}
+	for _, ws := range []*domain.Workspace{systemWS, wsA, wsB, wsC} {
+		if err := wsRepo.Create(ctx, ws); err != nil {
+			t.Fatalf("create workspace %s: %v", ws.Code, err)
+		}
+	}
+
+	adapter := &domain.Adapter{
+		ID:                 uuid.New(),
+		WorkspaceID:        &systemWS.ID,
+		Name:               "System SES",
+		AdapterType:        domain.AdapterTypeSES,
+		ConfigEncrypted:    []byte("ses"),
+		RateLimitPerSecond: 10,
+	}
+	if err := adapterRepo.Create(ctx, adapter); err != nil {
+		t.Fatalf("create adapter: %v", err)
+	}
+
+	identity := &domain.AdapterIdentity{
+		ID:             uuid.New(),
+		AdapterID:      adapter.ID,
+		Identity:       "a@example.dev",
+		IdentityType:   domain.IdentityTypeEmail,
+		Status:         domain.IdentityStatusVerified,
+		SendingEnabled: true,
+		Source:         domain.IdentitySourceManual,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if err := identityRepo.Create(ctx, identity); err != nil {
+		t.Fatalf("create identity: %v", err)
+	}
+
+	templateTypeA := &domain.TemplateType{
+		ID:               uuid.New(),
+		Slug:             "welcome-a",
+		Name:             "Welcome A",
+		WorkspaceID:      &wsA.ID,
+		AdapterID:        &adapter.ID,
+		SenderIdentityID: &identity.ID,
+	}
+	templateTypeB := &domain.TemplateType{
+		ID:               uuid.New(),
+		Slug:             "welcome-b",
+		Name:             "Welcome B",
+		WorkspaceID:      &wsB.ID,
+		AdapterID:        &adapter.ID,
+		SenderIdentityID: &identity.ID,
+	}
+	for _, tt := range []*domain.TemplateType{templateTypeA, templateTypeB} {
+		if err := templateRepo.CreateType(ctx, tt); err != nil {
+			t.Fatalf("create template type %s: %v", tt.Slug, err)
+		}
+	}
+
+	identityGrantRepo := pgadapter.NewAdapterIdentityGrantRepo(pool)
+	if err := identityGrantRepo.ReplaceIdentityWorkspaceGrants(ctx, identity.ID, []uuid.UUID{wsA.ID, wsB.ID}); err != nil {
+		t.Fatalf("grant identity: %v", err)
+	}
+
+	got, err := usageRepo.ListWorkspacesUsingSenderIdentity(ctx, identity.ID, []uuid.UUID{wsA.ID, wsC.ID, wsB.ID, wsA.ID})
+	if err != nil {
+		t.Fatalf("ListWorkspacesUsingSenderIdentity() error: %v", err)
+	}
+
+	want := []uuid.UUID{wsA.ID, wsB.ID}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d workspaces in use, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("workspace[%d] = %s, want %s (got=%v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestTemplateTypeUsageRepo_ListWorkspacesUsingAdapter_Integration(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	adapterRepo := pgadapter.NewAdapterRepo(pool)
+	templateRepo := pgadapter.NewTemplateRepo(pool)
+	usageRepo := pgadapter.NewTemplateTypeUsageRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+	systemWS := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
+	wsA := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "alpha", Name: "Alpha"}
+	wsB := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "beta", Name: "Beta"}
+	wsC := &domain.Workspace{ID: uuid.New(), TenantID: tenant.ID, Code: "gamma", Name: "Gamma"}
+	for _, ws := range []*domain.Workspace{systemWS, wsA, wsB, wsC} {
+		if err := wsRepo.Create(ctx, ws); err != nil {
+			t.Fatalf("create workspace %s: %v", ws.Code, err)
+		}
+	}
+
+	adapter := &domain.Adapter{
+		ID:                 uuid.New(),
+		WorkspaceID:        &systemWS.ID,
+		Name:               "System Gmail",
+		AdapterType:        domain.AdapterTypeGmail,
+		ConfigEncrypted:    []byte("gmail"),
+		RateLimitPerSecond: 10,
+	}
+	if err := adapterRepo.Create(ctx, adapter); err != nil {
+		t.Fatalf("create adapter: %v", err)
+	}
+
+	for _, tt := range []*domain.TemplateType{
+		{ID: uuid.New(), Slug: "welcome-a", Name: "Welcome A", WorkspaceID: &wsA.ID, AdapterID: &adapter.ID},
+		{ID: uuid.New(), Slug: "welcome-b", Name: "Welcome B", WorkspaceID: &wsB.ID, AdapterID: &adapter.ID},
+	} {
+		if err := templateRepo.CreateType(ctx, tt); err != nil {
+			t.Fatalf("create template type %s: %v", tt.Slug, err)
+		}
+	}
+
+	got, err := usageRepo.ListWorkspacesUsingAdapter(ctx, adapter.ID, []uuid.UUID{wsC.ID, wsA.ID, wsB.ID, wsA.ID})
+	if err != nil {
+		t.Fatalf("ListWorkspacesUsingAdapter() error: %v", err)
+	}
+
+	want := []uuid.UUID{wsA.ID, wsB.ID}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d workspaces in use, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("workspace[%d] = %s, want %s (got=%v)", i, got[i], want[i], got)
+		}
+	}
+}

@@ -102,82 +102,6 @@ type TrackingEntry struct {
 	Error      string `json:"error,omitempty"` // populated when Status is "failed"
 }
 
-// SendBatch executes one send per batch item, isolating variables, locale,
-// external_id, and injector context for each logical message.
-func (s *SendService) SendBatch(ctx context.Context, req *SendBatchRequest) (*SendBatchResponse, error) {
-	resp := &SendBatchResponse{
-		Status:           "accepted",
-		TemplateResolved: req.Ref,
-		Items:            make([]SendBatchItemResult, 0, len(req.Items)),
-	}
-
-	for i, item := range req.Items {
-		itemReq := &SendRequest{
-			Ref:             req.Ref,
-			To:              []string{item.To},
-			CC:              item.CC,
-			BCC:             item.BCC,
-			Variables:       item.Variables,
-			Injectors:       item.Injectors,
-			ExternalID:      item.ExternalID,
-			Locale:          item.Locale,
-			AuthWorkspaceID: req.AuthWorkspaceID,
-			Headers:         req.Headers,
-			Source:          req.Source,
-		}
-
-		result := SendBatchItemResult{
-			Index:      i,
-			To:         item.To,
-			ExternalID: item.ExternalID,
-		}
-
-		sendResp, err := s.Send(ctx, itemReq)
-		if err != nil {
-			result.Status = "failed"
-			result.Error = err.Error()
-			resp.FailedCount++
-			resp.Items = append(resp.Items, result)
-			continue
-		}
-
-		if len(sendResp.TrackingIDs) == 0 {
-			result.Status = "failed"
-			result.Error = "missing tracking entry"
-			resp.FailedCount++
-			resp.Items = append(resp.Items, result)
-			continue
-		}
-
-		entry := sendResp.TrackingIDs[0]
-		result.TrackingID = entry.TrackingID
-		result.Status = entry.Status
-		result.Error = entry.Error
-
-		switch result.Status {
-		case "accepted":
-			resp.AcceptedCount++
-		case "suppressed":
-			resp.SuppressedCount++
-		default:
-			resp.FailedCount++
-		}
-
-		resp.Items = append(resp.Items, result)
-	}
-
-	switch {
-	case resp.FailedCount == len(req.Items):
-		resp.Status = "failed"
-	case resp.FailedCount > 0:
-		resp.Status = "partial"
-	default:
-		resp.Status = "accepted"
-	}
-
-	return resp, nil
-}
-
 // SendService orchestrates the full email send pipeline.
 type SendService struct {
 	templateResolver *resolution.TemplateResolver
@@ -192,6 +116,10 @@ type SendService struct {
 	tenantStore      port.TenantStore
 	wsStore          port.WorkspaceStore
 	pool             *pgxpool.Pool
+}
+
+type suppressionSetLookup interface {
+	GetSuppressionStatuses(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error)
 }
 
 // SetAdapterAccessService wires runtime adapter access validation without widening constructor churn.
@@ -353,23 +281,12 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	// Filter CC and BCC through suppression before the recipient loop so that
-	// each email record only carries addresses that are not suppressed.
-	filteredCC, err := s.filterSuppressed(ctx, ws.ID, effectiveCC)
-	if err != nil {
-		return nil, err
-	}
-	filteredBCC, err := s.filterSuppressed(ctx, ws.ID, effectiveBCC)
+	suppressionResult, err := NewSuppressionBatchEvaluator(s.suppression).Evaluate(ctx, ws.ID, effectiveTo, effectiveCC, effectiveBCC)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, recipient := range effectiveTo {
-		// Check suppression
-		suppressed, reason, err := s.suppression.IsSuppressed(ctx, ws.ID, recipient)
-		if err != nil {
-			return nil, fmt.Errorf("check suppression for %s: %w", recipient, err)
-		}
+	for _, recipient := range suppressionResult.To {
 
 		trackingID := generateTrackingID()
 
@@ -383,9 +300,9 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			TemplateVersionID:   resolved.Version.ID,
 			TemplateTypeSlug:    ref.TemplateType,
 			TemplateRef:         req.Ref,
-			RecipientEmail:      recipient,
-			CC:                  filteredCC,
-			BCC:                 filteredBCC,
+			RecipientEmail:      recipient.Address,
+			CC:                  suppressionResult.CC,
+			BCC:                 suppressionResult.BCC,
 			FromEmail:           fromEmail,
 			FromName:            renderedFromName,
 			ReplyTo:             resolved.Version.ReplyTo,
@@ -405,14 +322,14 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			UpdatedAt:           now,
 		}
 
-		if suppressed {
+		if recipient.Suppressed {
 			email.Status = domain.StatusSuppressed
-			if err := s.createSuppressed(ctx, email, now, reason); err != nil {
+			if err := s.createSuppressed(ctx, email, now, recipient.Reason); err != nil {
 				failCount++
 				lastErr = err
-				slog.Error("failed to create suppressed email", "recipient", recipient, "error", err)
+				slog.Error("failed to create suppressed email", "recipient", recipient.Address, "error", err)
 				response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
-					To:         recipient,
+					To:         recipient.Address,
 					TrackingID: trackingID,
 					Status:     "failed",
 					Error:      err.Error(),
@@ -420,7 +337,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 				continue
 			}
 			response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
-				To:         recipient,
+				To:         recipient.Address,
 				TrackingID: trackingID,
 				Status:     "suppressed",
 			})
@@ -430,9 +347,9 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 			if createErr := s.createAndEnqueue(ctx, email, trackingID, adapter.Adapter.ID); createErr != nil {
 				failCount++
 				lastErr = createErr
-				slog.Error("failed to create and enqueue email", "recipient", recipient, "error", createErr)
+				slog.Error("failed to create and enqueue email", "recipient", recipient.Address, "error", createErr)
 				response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
-					To:         recipient,
+					To:         recipient.Address,
 					TrackingID: trackingID,
 					Status:     "failed",
 					Error:      createErr.Error(),
@@ -442,7 +359,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 
 			metrics.EmailsEnqueued.Inc()
 			response.TrackingIDs = append(response.TrackingIDs, TrackingEntry{
-				To:         recipient,
+				To:         recipient.Address,
 				TrackingID: trackingID,
 				Status:     "accepted",
 			})
@@ -548,59 +465,7 @@ func getLocalizedField(resolved *resolution.ResolvedTemplate, field string) stri
 // wrapped in a DB transaction. Falls back to non-transactional path when pool
 // is nil (e.g., in unit tests).
 func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email, trackingID string, adapterID uuid.UUID) error {
-	sendJob := &port.SendJob{
-		EmailID:    email.ID,
-		TrackingID: trackingID,
-		AdapterID:  adapterID,
-	}
-
-	now := time.Now().UTC()
-	queuedEvent := &domain.EmailEvent{
-		ID:         uuid.Must(uuid.NewV7()),
-		EmailID:    email.ID,
-		EventType:  domain.EventTypeQueued,
-		OccurredAt: now,
-		CreatedAt:  now,
-	}
-
-	if s.pool != nil {
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("begin tx: %w", err)
-		}
-
-		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("create email: %w", err)
-		}
-
-		if err := s.queue.EnqueueSendTx(ctx, tx, sendJob); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("enqueue send: %w", err)
-		}
-
-		if err := s.emailStore.AddEventTx(ctx, tx, queuedEvent); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("add queued event: %w", err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			return fmt.Errorf("commit tx: %w", err)
-		}
-		return nil
-	}
-
-	// Non-transactional fallback (unit tests without pool).
-	if err := s.emailStore.Create(ctx, email); err != nil {
-		return fmt.Errorf("create email: %w", err)
-	}
-	if err := s.emailStore.AddEvent(ctx, queuedEvent); err != nil {
-		slog.Error("failed to add queued event", "email_id", email.ID, "error", err)
-	}
-	if err := s.queue.EnqueueSend(ctx, sendJob); err != nil {
-		return fmt.Errorf("enqueue send: %w", err)
-	}
-	return nil
+	return s.persistenceWriter().CreateQueued(ctx, email, trackingID, adapterID)
 }
 
 // createSuppressed atomically creates the email record and the suppression event.
@@ -608,46 +473,7 @@ func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email,
 // cannot be partially applied. Falls back to non-transactional path when pool is
 // nil (e.g., in unit tests).
 func (s *SendService) createSuppressed(ctx context.Context, email *domain.Email, now time.Time, reason string) error {
-	suppressionEvent := &domain.EmailEvent{
-		ID:         uuid.Must(uuid.NewV7()),
-		EmailID:    email.ID,
-		EventType:  domain.EventTypeSuppressed,
-		OccurredAt: now,
-		Metadata:   map[string]any{"reason": reason},
-		CreatedAt:  now,
-	}
-
-	if s.pool != nil {
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("begin tx: %w", err)
-		}
-
-		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("create suppressed email: %w", err)
-		}
-
-		if err := s.emailStore.AddEventTx(ctx, tx, suppressionEvent); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("add suppression event: %w", err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			return fmt.Errorf("commit tx: %w", err)
-		}
-
-		return nil
-	}
-
-	// Non-transactional fallback (unit tests without pool).
-	if err := s.emailStore.Create(ctx, email); err != nil {
-		return err
-	}
-	if err := s.emailStore.AddEvent(ctx, suppressionEvent); err != nil {
-		slog.Error("failed to add suppression event", "email_id", email.ID, "error", err)
-	}
-	return nil
+	return s.persistenceWriter().CreateSuppressed(ctx, email, now, reason)
 }
 
 // getLocalizedBody returns the MJML body, preferring locale override if present.
@@ -658,23 +484,82 @@ func getLocalizedBody(resolved *resolution.ResolvedTemplate) string {
 	return resolved.Version.BodyMJML
 }
 
-// filterSuppressed returns only the addresses that are NOT on the suppression
-// list. It preserves order. If addrs is empty it returns nil.
-func (s *SendService) filterSuppressed(ctx context.Context, wsID uuid.UUID, addrs []string) ([]string, error) {
-	if len(addrs) == 0 {
-		return nil, nil
+func (s *SendService) getSuppressionStatuses(ctx context.Context, wsID uuid.UUID, addrs []string) (map[string]port.SuppressionStatus, error) {
+	unique := uniqueRecipientAddresses(addrs)
+	if len(unique) == 0 {
+		return map[string]port.SuppressionStatus{}, nil
 	}
-	result := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		suppressed, _, err := s.suppression.IsSuppressed(ctx, wsID, addr)
+
+	canonicalByOriginal := make(map[string]string, len(unique))
+	lookup := make([]string, 0, len(unique))
+	seenCanonical := make(map[string]struct{}, len(unique))
+	for _, addr := range unique {
+		canonical := domain.CanonicalRecipientAddress(addr)
+		if canonical == "" {
+			continue
+		}
+		canonicalByOriginal[addr] = canonical
+		if _, ok := seenCanonical[canonical]; ok {
+			continue
+		}
+		seenCanonical[canonical] = struct{}{}
+		lookup = append(lookup, canonical)
+	}
+	if len(lookup) == 0 {
+		return map[string]port.SuppressionStatus{}, nil
+	}
+
+	if batchLookup, ok := s.suppression.(suppressionSetLookup); ok {
+		statuses, err := batchLookup.GetSuppressionStatuses(ctx, wsID, lookup)
+		if err != nil {
+			return nil, fmt.Errorf("check suppression set: %w", err)
+		}
+		if statuses == nil {
+			return map[string]port.SuppressionStatus{}, nil
+		}
+
+		result := make(map[string]port.SuppressionStatus, len(unique))
+		for _, addr := range unique {
+			result[addr] = statuses[canonicalByOriginal[addr]]
+		}
+		return result, nil
+	}
+
+	statuses := make(map[string]port.SuppressionStatus, len(unique))
+	for _, addr := range unique {
+		suppressed, reason, err := s.suppression.IsSuppressed(ctx, wsID, canonicalByOriginal[addr])
 		if err != nil {
 			return nil, fmt.Errorf("check suppression for %s: %w", addr, err)
 		}
-		if !suppressed {
-			result = append(result, addr)
+		statuses[addr] = port.SuppressionStatus{
+			Suppressed: suppressed,
+			Reason:     reason,
 		}
 	}
-	return result, nil
+	return statuses, nil
+}
+
+func uniqueRecipientAddresses(addrs []string) []string {
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(addrs))
+	result := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		if _, ok := seen[addr]; ok {
+			continue
+		}
+		seen[addr] = struct{}{}
+		result = append(result, addr)
+	}
+	return result
+}
+
+// filterSuppressed returns only the addresses that are NOT on the suppression
+// list. It preserves order. If addrs is empty it returns nil.
+func (s *SendService) persistenceWriter() *SendPersistenceWriter {
+	return NewSendPersistenceWriter(s.emailStore, s.queue, s.pool)
 }
 
 // generateTrackingID creates a "trk_" prefixed unique tracking ID.

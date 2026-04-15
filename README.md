@@ -72,18 +72,14 @@ Senda supports **selective sharing** from a tenant `_system` workspace:
 ```bash
 git clone https://github.com/rendis/senda.git
 cd senda
+corepack enable
+(cd web && corepack install)
+pnpm --dir web install
 make dev
 curl http://localhost:8081/health
 ```
 
-Start the frontend:
-
-```bash
-corepack enable
-(cd web && corepack install)
-pnpm --dir web install
-pnpm --dir web dev
-```
+`make dev` now starts the Docker services and the Next.js frontend together. If you only want the Docker services, use `make dev-stack`.
 
 Example data-plane send:
 
@@ -105,7 +101,7 @@ For local validation, prefer the repo gates used by CI:
 make ci-backend-pr
 make ci-frontend      # if you changed web/
 make ci-pr            # backend + frontend
-make ci-main          # systemic flows
+make ci-taxonomy-check # docs/workflows/Makefile drift guard
 make install-githooks
 ```
 
@@ -201,9 +197,12 @@ For data-plane MCP usage, authenticate with a raw workspace API key such as `sen
 | `make test-integration` | Integration tests |
 | `make test-e2e` | Deterministic E2E gate |
 | `make test-e2e-chaos` | Chaos/resilience E2E gate |
-| `make system-pr` | System browser/API gate |
+| `make system-pr` | Manual / observational system browser/API gate |
+| `make system-nightly` | Manual / observational nightly system gate |
 | `make lint` | Go linting |
+| `make ci-taxonomy-check` | Drift check for commands, docs, and workflows |
 | `pnpm --dir web typecheck` | Frontend typecheck |
+| `pnpm --dir web test` | Canonical frontend test entrypoint |
 | `pnpm --dir web lint` | Frontend lint |
 
 ## Project structure

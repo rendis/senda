@@ -2,6 +2,8 @@ package handler
 
 import (
 	"bytes"
+	"container/list"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -16,8 +18,8 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -25,19 +27,27 @@ import (
 )
 
 const (
-	maxDownloadBytes  = 10 * 1024 * 1024 // 10 MB
-	downloadTimeout   = 10 * time.Second
-	cacheControlValue = "public, max-age=86400"
-	maxCacheEntries   = 500
+	maxDownloadBytes             = 10 * 1024 * 1024 // 10 MB
+	defaultDownloadTimeout       = 10 * time.Second
+	defaultThumbnailCacheTTL     = 24 * time.Hour
+	defaultThumbnailCacheEntries = 500
 )
+
+var defaultAllowedThumbnailHosts = []string{"img.youtube.com", "i.ytimg.com"}
 
 // MediaHandler serves public media utility endpoints.
 type MediaHandler struct {
-	logger    *slog.Logger
-	cache     sync.Map // map[string][]byte — keyed by thumbnail URL, stores PNG bytes
-	cacheSize atomic.Int64
-	client    *http.Client
-	skipSSRF  bool
+	logger                  *slog.Logger
+	cache                   *thumbnailCache
+	skipSSRF                bool
+	allowedThumbnailHosts   []string
+	allowedThumbnailHostSet map[string]struct{}
+	cacheTTL                time.Duration
+	cacheMaxEntries         int
+	fetchTimeout            time.Duration
+	clock                   func() time.Time
+	lookupIP                func(context.Context, string) ([]net.IP, error)
+	dialAddress             func(context.Context, string, string, net.IP) (string, error)
 }
 
 // MediaHandlerOption configures optional MediaHandler settings.
@@ -48,49 +58,100 @@ func WithSkipSSRF() MediaHandlerOption {
 	return func(h *MediaHandler) { h.skipSSRF = true }
 }
 
+// WithAllowedThumbnailHosts sets the host allowlist for public thumbnail fetches.
+func WithAllowedThumbnailHosts(hosts ...string) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.allowedThumbnailHosts = append([]string(nil), hosts...)
+	}
+}
+
+// WithAllowedHosts preserves the security-hardening option name while mapping
+// to the thumbnail-specific allowlist.
+func WithAllowedHosts(hosts ...string) MediaHandlerOption {
+	return WithAllowedThumbnailHosts(hosts...)
+}
+
+// WithThumbnailCachePolicy sets the cache TTL and maximum number of entries.
+func WithThumbnailCachePolicy(ttl time.Duration, maxEntries int) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.cacheTTL = ttl
+		h.cacheMaxEntries = maxEntries
+	}
+}
+
+// WithThumbnailFetchTimeout sets the upstream fetch timeout.
+func WithThumbnailFetchTimeout(timeout time.Duration) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.fetchTimeout = timeout
+	}
+}
+
+// WithLookupIPFunc overrides host resolution for SSRF validation and pinning.
+func WithLookupIPFunc(fn func(context.Context, string) ([]net.IP, error)) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.lookupIP = fn
+	}
+}
+
+// WithDialAddressFunc overrides how a pinned destination is translated into a dial address.
+func WithDialAddressFunc(fn func(context.Context, string, string, net.IP) (string, error)) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.dialAddress = fn
+	}
+}
+
+// WithClock injects a clock for deterministic TTL tests.
+func WithClock(now func() time.Time) MediaHandlerOption {
+	return func(h *MediaHandler) {
+		h.clock = now
+	}
+}
+
 // NewMediaHandler creates a new MediaHandler.
 func NewMediaHandler(logger *slog.Logger, opts ...MediaHandlerOption) *MediaHandler {
 	h := &MediaHandler{
-		logger: logger,
+		logger:          logger,
+		cacheTTL:        defaultThumbnailCacheTTL,
+		cacheMaxEntries: defaultThumbnailCacheEntries,
+		fetchTimeout:    defaultDownloadTimeout,
+		clock:           time.Now,
+		lookupIP: func(ctx context.Context, host string) ([]net.IP, error) {
+			return net.DefaultResolver.LookupIP(ctx, "ip", host)
+		},
+		dialAddress: func(_ context.Context, _ string, port string, pinnedIP net.IP) (string, error) {
+			if pinnedIP == nil {
+				return "", fmt.Errorf("missing pinned IP")
+			}
+			return net.JoinHostPort(pinnedIP.String(), port), nil
+		},
 	}
 	for _, opt := range opts {
 		opt(h)
 	}
-	h.client = &http.Client{
-		Timeout: downloadTimeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if !h.skipSSRF {
-				if err := checkSSRF(req.URL); err != nil {
-					return err
-				}
-			}
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
+	if len(h.allowedThumbnailHosts) == 0 {
+		h.allowedThumbnailHosts = append([]string(nil), defaultAllowedThumbnailHosts...)
 	}
+	allowedSet := make(map[string]struct{}, len(h.allowedThumbnailHosts))
+	for _, host := range h.allowedThumbnailHosts {
+		if host = strings.ToLower(strings.TrimSpace(host)); host != "" {
+			allowedSet[host] = struct{}{}
+		}
+	}
+	h.allowedThumbnailHostSet = allowedSet
+	if h.cacheTTL <= 0 {
+		h.cacheTTL = defaultThumbnailCacheTTL
+	}
+	if h.cacheMaxEntries <= 0 {
+		h.cacheMaxEntries = defaultThumbnailCacheEntries
+	}
+	if h.fetchTimeout <= 0 {
+		h.fetchTimeout = defaultDownloadTimeout
+	}
+	if h.clock == nil {
+		h.clock = time.Now
+	}
+	h.cache = newThumbnailCache(h.cacheTTL, h.cacheMaxEntries, h.clock)
 	return h
-}
-
-// checkSSRF resolves the host of u and returns an error if any resolved address
-// is a loopback, private, link-local, or otherwise disallowed address.
-func checkSSRF(u *url.URL) error {
-	host := u.Hostname()
-	addrs, err := net.LookupHost(host)
-	if err != nil {
-		return fmt.Errorf("could not resolve host %q: %w", host, err)
-	}
-	for _, addr := range addrs {
-		ip := net.ParseIP(addr)
-		if ip == nil {
-			return fmt.Errorf("could not parse resolved address %q", addr)
-		}
-		if isDisallowedIP(ip) {
-			return fmt.Errorf("url resolves to a disallowed address")
-		}
-	}
-	return nil
 }
 
 // isDisallowedIP returns true if ip is loopback, private, link-local,
@@ -116,9 +177,19 @@ func isDisallowedIP(ip net.IP) bool {
 		"192.168.0.0/16",
 		"100.64.0.0/10",   // Carrier-grade NAT
 		"192.0.0.0/24",    // IETF Protocol Assignments
+		"192.0.2.0/24",    // Documentation
 		"198.18.0.0/15",   // Benchmarking
 		"198.51.100.0/24", // Documentation
 		"203.0.113.0/24",  // Documentation
+		"64:ff9b:1::/48",  // IPv6 NAT64 well-known prefix (local use / reserved)
+		"100::/64",        // Discard-only / reserved
+		"2001::/23",       // Teredo / infrastructure / reserved space
+		"2001:db8::/32",   // Documentation
+		"2001:10::/28",    // ORCHIDv2 / reserved
+		"2002::/16",       // 6to4
+		"fc00::/7",        // Unique local addresses
+		"fe80::/10",       // Link-local unicast
+		"0.0.0.0/8",       // Current network / special-purpose
 		"240.0.0.0/4",     // Reserved
 	}
 	for _, cidr := range privateRanges {
@@ -148,47 +219,302 @@ func (h *MediaHandler) HandleVideoThumbnail(c *echo.Context) error {
 		return sendaresponse.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "url must use http or https scheme")
 	}
 
-	// SSRF check — reject requests to private/internal addresses.
-	if !h.skipSSRF {
-		if err := checkSSRF(parsed); err != nil {
+	if !h.isAllowedThumbnailHost(parsed.Hostname()) {
+		return sendaresponse.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "url host is not allowlisted")
+	}
+
+	session := h.newFetchSession()
+	if err := session.validateURL(c.Request().Context(), parsed); err != nil {
+		if strings.Contains(err.Error(), "not allowlisted") {
+			return sendaresponse.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "url host is not allowlisted")
+		}
+		if strings.Contains(err.Error(), "disallowed") {
 			return sendaresponse.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "url resolves to a disallowed address")
 		}
+		return sendaresponse.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 	}
 
 	// Serve from cache if available.
-	if cached, ok := h.cache.Load(rawURL); ok {
-		pngBytes := cached.([]byte)
-		c.Response().Header().Set("Cache-Control", cacheControlValue)
-		return c.Blob(http.StatusOK, "image/png", pngBytes)
+	if cached, ok := h.cache.Get(rawURL); ok {
+		c.Response().Header().Set("Cache-Control", h.cacheControlHeader())
+		return c.Blob(http.StatusOK, "image/png", cached)
 	}
 
 	// Download the thumbnail.
-	pngBytes, err := h.buildComposite(rawURL)
+	pngBytes, err := h.buildComposite(c.Request().Context(), session, rawURL)
 	if err != nil {
 		h.logger.Warn("media: failed to build video thumbnail composite",
-			"url", rawURL,
+			"url", redactURL(rawURL),
 			"error", err,
 		)
 		return sendaresponse.WriteError(c, http.StatusBadGateway, "BAD_GATEWAY", "could not retrieve thumbnail")
 	}
 
-	// Store in cache only if under the entry cap.
-	if h.cacheSize.Load() < maxCacheEntries {
-		h.cache.Store(rawURL, pngBytes)
-		h.cacheSize.Add(1)
+	h.cache.Set(rawURL, pngBytes)
+
+	c.Response().Header().Set("Cache-Control", h.cacheControlHeader())
+	return c.Blob(http.StatusOK, "image/png", pngBytes)
+}
+
+func (h *MediaHandler) isAllowedThumbnailHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	if h.allowedThumbnailHostSet == nil {
+		return false
+	}
+	_, ok := h.allowedThumbnailHostSet[strings.ToLower(host)]
+	return ok
+}
+
+func (h *MediaHandler) cacheControlHeader() string {
+	seconds := int(h.cacheTTL.Seconds())
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("public, max-age=%d", seconds)
+}
+
+type mediaFetchSession struct {
+	handler *MediaHandler
+	pins    map[string]net.IP
+	mu      sync.Mutex
+	dialer  net.Dialer
+}
+
+func (h *MediaHandler) newFetchSession() *mediaFetchSession {
+	return &mediaFetchSession{
+		handler: h,
+		pins:    make(map[string]net.IP),
+		dialer:  net.Dialer{Timeout: h.fetchTimeout},
+	}
+}
+
+func (s *mediaFetchSession) client() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = s.dialContext
+	transport.MaxIdleConns = 0
+	transport.IdleConnTimeout = 0
+
+	return &http.Client{
+		Timeout:   s.handler.fetchTimeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			return s.validateURL(req.Context(), req.URL)
+		},
+	}
+}
+
+func (s *mediaFetchSession) validateURL(ctx context.Context, u *url.URL) error {
+	if u == nil {
+		return fmt.Errorf("thumbnail URL is nil")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("thumbnail URL must use http or https")
 	}
 
-	c.Response().Header().Set("Cache-Control", cacheControlValue)
-	return c.Blob(http.StatusOK, "image/png", pngBytes)
+	host := u.Hostname()
+	if !s.handler.isAllowedThumbnailHost(host) {
+		return fmt.Errorf("thumbnail host %q is not allowlisted", host)
+	}
+
+	_, err := s.ensurePinned(ctx, host)
+	return err
+}
+
+func (s *mediaFetchSession) ensurePinned(ctx context.Context, host string) (net.IP, error) {
+	host = strings.TrimSpace(strings.ToLower(host))
+	if host == "" {
+		return nil, fmt.Errorf("thumbnail host is empty")
+	}
+
+	s.mu.Lock()
+	if pinned, ok := s.pins[host]; ok {
+		s.mu.Unlock()
+		return cloneIP(pinned), nil
+	}
+	s.mu.Unlock()
+
+	ips, err := s.handler.lookupIP(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve host %q: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("resolve host %q: no addresses returned", host)
+	}
+
+	chosen, err := choosePinnedIP(ips, s.handler.skipSSRF)
+	if err != nil {
+		return nil, err
+	}
+
+	pinned := cloneIP(chosen)
+	s.mu.Lock()
+	if existing, ok := s.pins[host]; ok {
+		s.mu.Unlock()
+		return cloneIP(existing), nil
+	}
+	s.pins[host] = pinned
+	s.mu.Unlock()
+
+	return cloneIP(pinned), nil
+}
+
+func (s *mediaFetchSession) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("split address %q: %w", addr, err)
+	}
+
+	pinnedIP, err := s.ensurePinned(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	dialAddr, err := s.handler.dialAddress(ctx, host, port, pinnedIP)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.dialer.DialContext(ctx, network, dialAddr)
+}
+
+func cloneIP(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+	return append(net.IP(nil), ip...)
+}
+
+func choosePinnedIP(ips []net.IP, skipSSRF bool) (net.IP, error) {
+	if skipSSRF {
+		for _, ip := range ips {
+			if ip != nil {
+				return ip, nil
+			}
+		}
+		return nil, fmt.Errorf("no resolved addresses available")
+	}
+
+	var chosen net.IP
+	for _, ip := range ips {
+		if ip == nil {
+			continue
+		}
+		if isDisallowedIP(ip) {
+			return nil, fmt.Errorf("url resolves to a disallowed address")
+		}
+		if chosen == nil {
+			chosen = ip
+		}
+	}
+	if chosen == nil {
+		return nil, fmt.Errorf("no resolved addresses available")
+	}
+	return chosen, nil
+}
+
+func redactURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "[invalid-url]"
+	}
+	if parsed.Host == "" {
+		return "[invalid-url]"
+	}
+	return parsed.Scheme + "://" + parsed.Host + parsed.Path
+}
+
+type thumbnailCache struct {
+	mu         sync.Mutex
+	items      map[string]*list.Element
+	order      *list.List
+	ttl        time.Duration
+	maxEntries int
+	now        func() time.Time
+}
+
+type thumbnailCacheEntry struct {
+	key       string
+	value     []byte
+	createdAt time.Time
+}
+
+func newThumbnailCache(ttl time.Duration, maxEntries int, now func() time.Time) *thumbnailCache {
+	if now == nil {
+		now = time.Now
+	}
+	return &thumbnailCache{
+		items:      make(map[string]*list.Element, maxEntries),
+		order:      list.New(),
+		ttl:        ttl,
+		maxEntries: maxEntries,
+		now:        now,
+	}
+}
+
+func (c *thumbnailCache) Get(key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem, ok := c.items[key]
+	if !ok {
+		return nil, false
+	}
+
+	entry := elem.Value.(*thumbnailCacheEntry)
+	if c.now().Sub(entry.createdAt) >= c.ttl {
+		c.removeElement(elem)
+		return nil, false
+	}
+
+	c.order.MoveToFront(elem)
+	return append([]byte(nil), entry.value...), true
+}
+
+func (c *thumbnailCache) Set(key string, value []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if elem, ok := c.items[key]; ok {
+		entry := elem.Value.(*thumbnailCacheEntry)
+		entry.value = append(entry.value[:0], value...)
+		entry.createdAt = c.now()
+		c.order.MoveToFront(elem)
+		return
+	}
+
+	if c.order.Len() >= c.maxEntries {
+		back := c.order.Back()
+		if back != nil {
+			c.removeElement(back)
+		}
+	}
+
+	elem := c.order.PushFront(&thumbnailCacheEntry{
+		key:       key,
+		value:     append([]byte(nil), value...),
+		createdAt: c.now(),
+	})
+	c.items[key] = elem
+}
+
+func (c *thumbnailCache) removeElement(elem *list.Element) {
+	entry := elem.Value.(*thumbnailCacheEntry)
+	delete(c.items, entry.key)
+	c.order.Remove(elem)
 }
 
 // buildComposite downloads the image at rawURL, draws the play-button overlay,
 // and returns the result encoded as PNG bytes.
-func (h *MediaHandler) buildComposite(rawURL string) ([]byte, error) {
+func (h *MediaHandler) buildComposite(ctx context.Context, session *mediaFetchSession, rawURL string) ([]byte, error) {
 	candidates := thumbnailCandidates(rawURL)
 	var lastErr error
 	for _, candidate := range candidates {
-		pngBytes, err := h.buildCompositeForURL(candidate)
+		pngBytes, err := h.buildCompositeForURL(ctx, session, candidate)
 		if err == nil {
 			return pngBytes, nil
 		}
@@ -200,24 +526,38 @@ func (h *MediaHandler) buildComposite(rawURL string) ([]byte, error) {
 	return nil, lastErr
 }
 
-func (h *MediaHandler) buildCompositeForURL(rawURL string) ([]byte, error) {
-	resp, err := h.client.Get(rawURL) //nolint:noctx
+func (h *MediaHandler) buildCompositeForURL(ctx context.Context, session *mediaFetchSession, rawURL string) ([]byte, error) {
+	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("download %s: %w", rawURL, err)
+		return nil, fmt.Errorf("parse thumbnail URL %q: %w", redactURL(rawURL), err)
+	}
+	if err := session.validateURL(ctx, parsed); err != nil {
+		return nil, err
+	}
+
+	client := session.client()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download %s: %w", redactURL(rawURL), err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download %s: %w", redactURL(rawURL), err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("download %s: upstream returned %d", rawURL, resp.StatusCode)
+		return nil, fmt.Errorf("download %s: upstream returned %d", redactURL(rawURL), resp.StatusCode)
 	}
 
 	// Guard against oversized images.
 	limited := io.LimitReader(resp.Body, maxDownloadBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, fmt.Errorf("read body %s: %w", rawURL, err)
+		return nil, fmt.Errorf("read body %s: %w", redactURL(rawURL), err)
 	}
 	if len(data) > maxDownloadBytes {
 		return nil, fmt.Errorf("thumbnail exceeds 10 MB limit")
@@ -226,7 +566,7 @@ func (h *MediaHandler) buildCompositeForURL(rawURL string) ([]byte, error) {
 	// Decode the image (JPEG and PNG are the common thumbnail formats).
 	src, err := decodeImage(data)
 	if err != nil {
-		return nil, fmt.Errorf("decode image %s: %w", rawURL, err)
+		return nil, fmt.Errorf("decode image %s: %w", redactURL(rawURL), err)
 	}
 
 	// Composite: draw thumbnail + play-button overlay onto an RGBA canvas.
