@@ -276,10 +276,12 @@ func (h *MediaHandler) cacheControlHeader() string {
 }
 
 type mediaFetchSession struct {
-	handler *MediaHandler
-	pins    map[string]net.IP
-	mu      sync.Mutex
-	dialer  net.Dialer
+	handler    *MediaHandler
+	pins       map[string]net.IP
+	mu         sync.Mutex
+	dialer     net.Dialer
+	clientOnce sync.Once
+	clientRef  *http.Client
 }
 
 func (h *MediaHandler) newFetchSession() *mediaFetchSession {
@@ -291,21 +293,25 @@ func (h *MediaHandler) newFetchSession() *mediaFetchSession {
 }
 
 func (s *mediaFetchSession) client() *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DialContext = s.dialContext
-	transport.MaxIdleConns = 0
-	transport.IdleConnTimeout = 0
+	s.clientOnce.Do(func() {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DialContext = s.dialContext
+		transport.MaxIdleConns = 0
+		transport.IdleConnTimeout = 0
 
-	return &http.Client{
-		Timeout:   s.handler.fetchTimeout,
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return s.validateURL(req.Context(), req.URL)
-		},
-	}
+		s.clientRef = &http.Client{
+			Timeout:   s.handler.fetchTimeout,
+			Transport: transport,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("too many redirects")
+				}
+				return s.validateURL(req.Context(), req.URL)
+			},
+		}
+	})
+
+	return s.clientRef
 }
 
 func (s *mediaFetchSession) validateURL(ctx context.Context, u *url.URL) error {
