@@ -42,9 +42,13 @@ const (
 )
 
 type Options struct {
-	ProjectRoot string
-	Mode        Mode
-	OutPath     string
+	ProjectRoot   string
+	Mode          Mode
+	OutPath       string
+	Scope         Scope
+	ScopeSpec     string
+	ScopeWorktree string
+	ScopeRun      string
 }
 
 type Report struct {
@@ -68,6 +72,8 @@ type RuntimeReport struct {
 	KeycloakRealm               string            `json:"keycloak_realm"`
 	JWTSecret                   string            `json:"jwt_secret"`
 	SkipSNSignatureVerification bool              `json:"skip_sns_signature_verification"`
+	ArtifactDir                 string            `json:"artifact_dir,omitempty"`
+	Scope                       ScopeReport       `json:"scope"`
 }
 
 type resourceNames struct {
@@ -84,20 +90,22 @@ func Up(ctx context.Context, opts Options) (*Report, error) { //nolint:funlen //
 	if opts.ProjectRoot == "" {
 		return nil, fmt.Errorf("project root is required")
 	}
-	if opts.Mode == "" {
-		opts.Mode = ModePR
+	scope, err := resolveScope(opts)
+	if err != nil {
+		return nil, err
 	}
-	if opts.Mode != ModePR && opts.Mode != ModeNightly {
-		return nil, fmt.Errorf("unsupported mode %q", opts.Mode)
-	}
+	opts.Mode = scope.Mode
 
 	if err := os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true"); err != nil {
 		return nil, fmt.Errorf("disable ryuk: %w", err)
 	}
 
-	names := makeResourceNames(opts.Mode)
+	names := makeResourceNames(scope)
 	cleanupNamedResources(ctx, names)
 
+	if opts.OutPath == "" {
+		opts.OutPath = scope.EnvReportPath(opts.ProjectRoot)
+	}
 	if err := os.MkdirAll(filepath.Dir(opts.OutPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create report dir: %w", err)
 	}
@@ -131,7 +139,7 @@ func Up(ctx context.Context, opts Options) (*Report, error) { //nolint:funlen //
 	}
 
 	report := &Report{
-		Mode: string(opts.Mode),
+		Mode: string(scope.Mode),
 		Runtime: RuntimeReport{
 			Network: names.Network,
 			Containers: map[string]string{
@@ -144,7 +152,9 @@ func Up(ctx context.Context, opts Options) (*Report, error) { //nolint:funlen //
 			},
 			KeycloakRealm:               DefaultRealm,
 			JWTSecret:                   DefaultJWTSecret,
-			SkipSNSignatureVerification: opts.Mode == ModeNightly,
+			SkipSNSignatureVerification: scope.Mode == ModeNightly,
+			ArtifactDir:                 filepath.Dir(opts.OutPath),
+			Scope:                       scope.RuntimeReport(),
 		},
 	}
 
@@ -191,13 +201,22 @@ func Up(ctx context.Context, opts Options) (*Report, error) { //nolint:funlen //
 }
 
 func Down(ctx context.Context, outPath string) error {
+	if strings.TrimSpace(outPath) == "" {
+		return fmt.Errorf("report path is required")
+	}
 	if err := os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true"); err != nil {
 		return fmt.Errorf("disable ryuk: %w", err)
 	}
 
-	var names []resourceNames
-	if report, err := LoadReport(outPath); err == nil && report != nil {
-		names = append(names, resourceNames{
+	report, err := LoadReport(outPath)
+	if err != nil {
+		return fmt.Errorf("load report: %w", err)
+	}
+	var names resourceNames
+	if report.Runtime.Scope.Hash != "" || report.Runtime.Scope.Spec != "" || report.Runtime.Scope.Worktree != "" || report.Runtime.Scope.Run != "" {
+		names = makeResourceNames(ScopeFromReport(report.Runtime.Scope))
+	} else if report.Runtime.Network != "" || len(report.Runtime.Containers) > 0 {
+		names = resourceNames{
 			Network:       report.Runtime.Network,
 			Postgres:      report.Runtime.Containers["postgres"],
 			Keycloak:      report.Runtime.Containers["keycloak"],
@@ -205,17 +224,11 @@ func Down(ctx context.Context, outPath string) error {
 			AWSSim:        report.Runtime.Containers["aws_sim"],
 			AWSSimBackend: report.Runtime.Containers["aws_sim_backend"],
 			App:           report.Runtime.Containers["senda"],
-		})
+		}
+	} else {
+		return fmt.Errorf("report is missing scope and runtime container names")
 	}
-	if len(names) == 0 {
-		names = append(names, makeResourceNames(ModePR), makeResourceNames(ModeNightly))
-	}
-	for _, set := range names {
-		cleanupNamedResources(ctx, set)
-	}
-	if outPath != "" {
-		_ = os.Remove(outPath)
-	}
+	cleanupNamedResources(ctx, names)
 	return nil
 }
 
@@ -234,16 +247,23 @@ func LoadReport(path string) (*Report, error) {
 	return &report, nil
 }
 
-func makeResourceNames(mode Mode) resourceNames {
-	prefix := "senda-stack-" + string(mode)
+func makeResourceNames(scope Scope) resourceNames {
+	base := fmt.Sprintf(
+		"senda-e2e-%s-%s-%s-%s-%s",
+		dockerModeToken(scope.Mode),
+		dockerSafeToken(scope.Spec, dockerSpecMax),
+		dockerSafeToken(scope.Worktree, dockerWorktreeMax),
+		dockerSafeToken(scope.Run, dockerRunMax),
+		scope.Hash(),
+	)
 	return resourceNames{
-		Network:       prefix + "-net",
-		Postgres:      prefix + "-postgres",
-		Keycloak:      prefix + "-keycloak",
-		Mailpit:       prefix + "-mailpit",
-		AWSSim:        prefix + "-aws-sim",
-		AWSSimBackend: prefix + "-aws-sim-backend",
-		App:           prefix + "-app",
+		Network:       base + "-net",
+		Postgres:      base + "-postgres",
+		Keycloak:      base + "-keycloak",
+		Mailpit:       base + "-mailpit",
+		AWSSim:        base + "-aws-sim",
+		AWSSimBackend: base + "-aws-sim-bk",
+		App:           base + "-app",
 	}
 }
 
@@ -496,6 +516,9 @@ func postgresURL(ctx context.Context, ctr testcontainers.Container, port string)
 }
 
 func writeReport(path string, report *Report) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create report dir: %w", err)
+	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal report: %w", err)

@@ -61,6 +61,19 @@ crypto:
   # Env: SENDA_MASTER_KEY
   master_key: "change-me-to-a-secure-key-at-least-32-chars"
 
+sns:
+  # Exact SNS TopicArn expected by the SES inbound webhook.
+  # Env: SENDA_SNS_EXPECTED_TOPIC_ARN
+  expected_topic_arn: "arn:aws:sns:us-east-1:123456789012:SES-Events"
+
+  # AWS account ID embedded in the TopicArn.
+  # Env: SENDA_SNS_EXPECTED_ACCOUNT_ID
+  expected_account_id: "123456789012"
+
+  # Replay window for durable SNS deduplication.
+  # Env: SENDA_SNS_REPLAY_WINDOW
+  replay_window: "15m"
+
 log:
   # Log level: debug, info, warn, error
   level: "info"

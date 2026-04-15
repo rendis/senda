@@ -30,6 +30,9 @@ func cmdStackUp(args []string) error {
 	fs := flag.NewFlagSet("stack up", flag.ContinueOnError)
 	mode := fs.String("mode", "pr", "stack mode: pr or nightly")
 	out := fs.String("out", "", "path to env-report json")
+	scopeSpec := fs.String("scope-spec", "", "logical scope spec/suite identifier")
+	scopeWorktree := fs.String("scope-worktree", "", "scope worktree identifier")
+	scopeRun := fs.String("scope-run", "", "scope run identifier")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -49,6 +52,11 @@ func cmdStackUp(args []string) error {
 		ProjectRoot: root,
 		Mode:        teststack.Mode(*mode),
 		OutPath:     *out,
+		Scope: teststack.Scope{
+			Spec:     *scopeSpec,
+			Worktree: *scopeWorktree,
+			Run:      *scopeRun,
+		},
 	})
 	return err
 }

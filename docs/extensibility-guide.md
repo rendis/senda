@@ -1,4 +1,3 @@
-
 # Extensibility Guide
 
 Senda can be embedded as a Go library via `github.com/rendis/senda/sdk`.
@@ -8,6 +7,17 @@ This guide covers the public seams embedders can rely on without forking Senda.
 ```bash
 go get github.com/rendis/senda
 ```
+
+## Surface boundaries
+
+The public SDK only supports four extension seams:
+
+- **management**: OIDC-protected management routes owned by Senda core
+- **data-plane**: API-key send and email-query routes owned by Senda core
+- **external-integration**: embeddable bootstrap/auth/resolver seams registered through the SDK
+- **public-sdk**: injector, init, auth, resolver, and lifecycle registrations in `sdk/`
+
+The SDK does **not** expose internal bootstrap types, middleware internals, provider adapters, queue wiring, or crypto primitives.
 
 ## Extension points summary
 
@@ -25,12 +35,35 @@ go get github.com/rendis/senda
 ```go
 engine := sdk.NewWithConfig("settings/config.yaml")
 
-engine.SetInitFunc(MyInit())
-engine.RegisterInjector(&StudentInjector{})
+engine.SetInitFunc(func(ctx context.Context, injCtx *sdk.InjectorContext) (any, error) {
+    return connectMongo(ctx)
+})
+
+engine.RegisterInjector(sdk.InjectorRegistration{
+    Code:        "student",
+    Name:        "Student",
+    Description: "Resolved student data",
+    Static:      true,
+    Fields: []sdk.InjectorFieldSpec{
+        {Name: "name", Type: sdk.FieldTypeText, Description: "Student full name"},
+        {Name: "email", Type: sdk.FieldTypeText, Description: "Primary email"},
+    },
+    Resolve: func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error) {
+        student, err := loadStudent(ctx, injCtx.Header("X-Student-ID"))
+        if err != nil {
+            return nil, err
+        }
+        return map[string]any{
+            "name":  student.Name,
+            "email": student.Email,
+        }, nil
+    },
+})
+
 engine.RegisterExternalAuthMethod(&PortalAuthMethod{})
 engine.RegisterExternalWorkspaceResolver(&PortalWorkspaceResolver{})
-engine.OnStart(func(ctx context.Context) error { return connectMongo(ctx) })
-engine.OnShutdown(func(ctx context.Context) error { return closeMongo(ctx) })
+engine.OnStart(func(ctx context.Context) error { return warmExternalClients(ctx) })
+engine.OnShutdown(func(ctx context.Context) error { return closeExternalClients(ctx) })
 
 if err := engine.Run(); err != nil {
     return err
@@ -42,12 +75,7 @@ if err := engine.Run(); err != nil {
 Injectors provide code-defined template fields.
 
 ```go
-type Injector interface {
-    Code() string
-    Resolve() (sdk.ResolveFunc, []string)
-    IsCritical() bool
-    Timeout() time.Duration
-}
+type ResolveFunc func(ctx context.Context, injCtx *sdk.InjectorContext) (map[string]any, error)
 ```
 
 ### When injectors run
@@ -188,4 +216,5 @@ Use it for:
 - Keep auth and workspace resolution separate.
 - Use `InitFunc` to avoid duplicated per-request loads.
 - Use `injCtx.Environment()` / `req.Environment` as the environment source of truth.
+- Depend only on `sdk` contracts. Do **not** import or rely on `internal/app`, `internal/http`, or `internal/port` from consumers.
 - Do not try to replace Senda internals like providers, queue, crypto, or middleware through the SDK. Those remain configuration-driven internals.

@@ -7,29 +7,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/rendis/senda/config"
-	"github.com/rendis/senda/internal/adapter/crypto"
-	"github.com/rendis/senda/internal/adapter/mjml"
-	"github.com/rendis/senda/internal/adapter/oidcauth"
 	"github.com/rendis/senda/internal/adapter/pgcache"
 	"github.com/rendis/senda/internal/adapter/postgres"
 	"github.com/rendis/senda/internal/adapter/river"
-	sesadapter "github.com/rendis/senda/internal/adapter/ses"
-	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
-	"github.com/rendis/senda/internal/adapter/sns"
-	"github.com/rendis/senda/internal/adapter/testauth"
-	"github.com/rendis/senda/internal/domain"
 	sendahttp "github.com/rendis/senda/internal/http"
-	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/port"
-	"github.com/rendis/senda/internal/resolution"
-	"github.com/rendis/senda/internal/service"
 )
 
 // App holds the top-level application components for lifecycle management.
@@ -42,7 +30,7 @@ type App struct {
 
 // Bootstrap wires all dependencies and returns a ready-to-start App.
 // ext may be nil when running without SDK extensions.
-func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext *Extensions) (*App, error) { //nolint:funlen // full dependency wiring
+func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext *Extensions) (*App, error) {
 	// 1. Database connection.
 	pool, err := postgres.Connect(ctx, cfg.Database)
 	if err != nil {
@@ -73,245 +61,50 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		return nil, fmt.Errorf("app: river migrations: %w", err)
 	}
 
-	// 4. Infrastructure adapters.
-	cache := pgcache.NewPGCache(pool)
-	aesCrypto, err := crypto.NewAESCrypto(cfg.Crypto.MasterKey)
+	infra, err := newInfraBundle(cfg, logger, pool)
 	if err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("app: init crypto: %w", err)
-	}
-	rateLimiter := postgres.NewProviderRateLimiter(pool)
-	compiler := mjml.NewCompiler(mjml.WithPublicBaseURL(cfg.Tracking.BaseURL))
-	renderer := service.NewVariableRenderer()
-
-	// 5. Repository layer.
-	tenantRepo := postgres.NewTenantRepo(pool)
-	wsRepo := postgres.NewWorkspaceRepo(pool)
-	memberRepo := postgres.NewMemberRepo(pool)
-	apiKeyRepo := postgres.NewAPIKeyRepo(pool)
-	emailRepo := postgres.NewEmailRepo(pool)
-	templateRepo := postgres.NewTemplateRepo(pool)
-	injectorRepo := postgres.NewInjectorRepo(pool)
-	adapterRepo := postgres.NewAdapterRepo(pool)
-	webhookRepo := postgres.NewWebhookRepo(pool)
-	suppressionRepo := postgres.NewSuppressionRepo(pool)
-	auditRepo := postgres.NewAuditRepo(pool)
-	dashboardRepo := postgres.NewDashboardRepo(pool)
-	configRepo := postgres.NewGlobalConfigRepo(pool)
-	adapterIdentityRepo := postgres.NewAdapterIdentityRepo(pool)
-	adapterGrantRepo := postgres.NewAdapterGrantRepo(pool)
-	adapterIdentityGrantRepo := postgres.NewAdapterIdentityGrantRepo(pool)
-	templateTypeUsageRepo := postgres.NewTemplateTypeUsageRepo(pool)
-
-	// 6. Resolution engine.
-	chainResolver := resolution.NewChainResolver(wsRepo, cache)
-	templateResolver := resolution.NewTemplateResolver(templateRepo, cache, chainResolver)
-	var codeInjectors []port.CodeInjector
-	var codeInitFunc port.CodeInitFunc
-	if ext != nil {
-		codeInjectors = ext.Injectors
-		codeInitFunc = ext.InitFunc
-	}
-	if len(codeInjectors) > 0 || codeInitFunc != nil {
-		logger.Info("registered runtime code injector extensions", "injector_count", len(codeInjectors), "has_init_func", codeInitFunc != nil)
-	}
-	injectorMerger := resolution.NewInjectorMerger(injectorRepo, chainResolver, cache, codeInjectors, codeInitFunc)
-	adapterResolver := resolution.NewAdapterResolver(adapterRepo, cache)
-
-	// 7. Email sender (SMTP for dev/E2E, SES for production).
-	var emailSender port.EmailSender
-	if cfg.SMTP.Host != "" {
-		emailSender = smtpadapter.NewAdapter(cfg.SMTP.Host, cfg.SMTP.Port)
-		logger.Info("using SMTP email sender", "host", cfg.SMTP.Host, "port", cfg.SMTP.Port)
-	} else {
-		logger.Info("no static email sender configured; send worker will resolve adapter senders at runtime")
+		return nil, fmt.Errorf("app: %w", err)
 	}
 
-	// 8. River workers.
-	sendWorkerOpts := []river.SendWorkerOption{
-		river.WithAdapterRuntime(adapterRepo, aesCrypto, river.DefaultAdapterSenderFactory),
-	}
-	if cfg.Tracking.BaseURL != "" {
-		sendWorkerOpts = append(sendWorkerOpts,
-			river.WithTrackingBaseURL(cfg.Tracking.BaseURL),
-		)
-		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)
-	}
-	sendWorker := river.NewSendWorker(emailRepo, compiler, renderer, rateLimiter, emailSender, sendWorkerOpts...)
-	webhookWorker := river.NewWebhookWorker(webhookRepo, nil)
+	repos := newRepositoryBundle(pool)
+	resolvers := newResolutionBundle(repos, infra.cache, ext, logger)
 
-	riverClient, err := river.NewClient(pool, sendWorker, webhookWorker)
+	riverClient, err := newRiverClient(cfg, logger, pool, repos, infra)
 	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("app: river client: %w", err)
 	}
 
-	// 9. Services.
-	webhookSvc := service.NewWebhookService(webhookRepo, riverClient)
-	identitySvc := service.NewIdentityService(adapterIdentityRepo, adapterRepo, aesCrypto, DefaultIdentityProviderFactory)
-	adapterAccessSvc := service.NewAdapterAccessService(
-		adapterRepo,
-		adapterIdentityRepo,
-		wsRepo,
-		adapterGrantRepo,
-		adapterIdentityGrantRepo,
-		templateTypeUsageRepo,
-	)
-	sendSvc := service.NewSendService(
-		templateResolver, injectorMerger, adapterResolver,
-		identitySvc,
-		emailRepo, suppressionRepo, riverClient, renderer,
-		tenantRepo, wsRepo,
-		pool,
-	)
+	services := newServiceBundle(cfg, pool, repos, infra, resolvers, riverClient, logger)
+
+	oidcVerifier, err := newOIDCVerifier(ctx, cfg, logger)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("app: %w", err)
+	}
+
+	handlers, err := newServerHandlerBundle(ctx, cfg, logger, ext, repos, infra, resolvers, services, oidcVerifier)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("app: handlers: %w", err)
+	}
 	apiKeyPepper := deriveAPIKeyPepper(cfg.Crypto.MasterKey)
-	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, apiKeyPepper)
-	templateTypeSvc := service.NewTemplateTypeService(templateRepo)
-	templateSvc := service.NewTemplateService(templateRepo, compiler)
-	onboardingSvc := service.NewOnboardingService(pool, memberRepo, tenantRepo, wsRepo, auditRepo)
-
-	// 10. OIDC verifier.
-	var oidcVerifier port.OIDCVerifier
-	switch cfg.OIDC.Mode {
-	case "test":
-		oidcVerifier = testauth.NewTestOIDCVerifier(cfg.OIDC.TestSecret)
-		logger.Info("using test OIDC verifier (HS256 JWT)")
-	case "dual":
-		// Dual mode: try real OIDC first (Keycloak), fall back to test HS256.
-		// Used in E2E so both the frontend (Keycloak tokens) and test suite (HS256) work.
-		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID, cfg.OIDC.SkipIssuerCheck)
-		if oidcErr != nil {
-			pool.Close()
-			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
-		}
-		testVerifier := testauth.NewTestOIDCVerifier(cfg.OIDC.TestSecret)
-		oidcVerifier = testauth.NewChainVerifier(realVerifier, testVerifier)
-		logger.Info("using dual OIDC verifier (real + test fallback)", "discovery_url", cfg.OIDC.DiscoveryURL)
-	default:
-		realVerifier, oidcErr := oidcauth.New(ctx, cfg.OIDC.DiscoveryURL, cfg.OIDC.ClientID, cfg.OIDC.SkipIssuerCheck)
-		if oidcErr != nil {
-			pool.Close()
-			return nil, fmt.Errorf("app: OIDC verifier: %w", oidcErr)
-		}
-		oidcVerifier = realVerifier
-		logger.Info("using real OIDC verifier", "discovery_url", cfg.OIDC.DiscoveryURL)
-	}
-
-	// 11. HTTP handlers.
-	tenantH := handler.NewTenantHandler(tenantRepo, wsRepo, adapterRepo)
-	workspaceH := handler.NewWorkspaceHandler(tenantRepo, wsRepo, emailRepo)
-	workspacePolicyH := handler.NewWorkspacePolicyHandler(tenantRepo, wsRepo)
-	memberH := handler.NewMemberHandler(memberRepo, tenantRepo, wsRepo)
-	configH := handler.NewConfigHandler(configRepo, handler.OIDCInfo{
-		DiscoveryURL:    cfg.OIDC.DiscoveryURL,
-		ClientID:        cfg.OIDC.ClientID,
-		ClientSecretSet: cfg.OIDC.ClientSecret != "",
-	})
-	externalIntegrationH := handler.NewExternalIntegrationHandler(configRepo, extExternalAuthMethods(ext), extExternalResolvers(ext))
-	injectorH := handler.NewInjectorHandler(injectorRepo, tenantRepo, wsRepo, injectorMerger)
-	// Tracking auto-provisioner (nil if no tracking base URL) — used for deprovision on adapter delete.
-	provisioningStepRepo := postgres.NewProvisioningStepRepo(pool)
-	var trackingProvisioner *sesadapter.TrackingProvisioner
-	if cfg.Tracking.BaseURL != "" {
-		trackingProvisioner = sesadapter.NewTrackingProvisioner(adapterRepo, aesCrypto, cfg.Tracking.BaseURL, logger, provisioningStepRepo)
-	}
-	testSendSenderFactory := river.DefaultAdapterSenderFactory
-	if emailSender != nil {
-		testSendSenderFactory = func(context.Context, *domain.Adapter, []byte) (port.EmailSender, error) {
-			return emailSender, nil
-		}
-	}
-	adapterH := handler.NewAdapterHandler(adapterRepo, aesCrypto, tenantRepo, wsRepo,
-		river.DefaultAdapterSenderFactory, adapterIdentityRepo, trackingProvisioner, logger)
-	cacheInvalidator := resolution.NewCacheInvalidator(cache, wsRepo)
-	templateTypeH := handler.NewTemplateTypeHandler(templateTypeSvc, tenantRepo, wsRepo, cacheInvalidator)
-	testSendSvc := service.NewTestSendService(
-		templateRepo,
-		adapterRepo,
-		adapterIdentityRepo,
-		aesCrypto,
-		compiler,
-		renderer,
-		testSendSenderFactory,
-		injectorMerger,
-		tenantRepo,
-		wsRepo,
-	)
-	templateH := handler.NewTemplateHandler(templateSvc, templateRepo, tenantRepo, wsRepo, testSendSvc, sendSvc, auditRepo, cfg.Send.BatchMaxItems, injectorMerger, cacheInvalidator)
-	sendH := handler.NewSendHandler(sendSvc, cfg.Send.BatchMaxItems)
-	emailH := handler.NewEmailHandler(emailRepo, tenantRepo, wsRepo)
-	dataPlaneEmailH := handler.NewDataPlaneEmailHandler(emailRepo)
-	suppressionH := handler.NewSuppressionHandler(suppressionRepo, tenantRepo, wsRepo)
-	auditH := handler.NewAuditHandler(auditRepo, tenantRepo, wsRepo)
-	webhookH := handler.NewWebhookHandler(webhookRepo, webhookSvc, tenantRepo, wsRepo)
-	onboardingH := handler.NewOnboardingHandler(onboardingSvc, oidcVerifier)
-	identityH := handler.NewIdentityHandler(identitySvc, adapterIdentityRepo, tenantRepo, wsRepo)
-	adapterSetupH := handler.NewAdapterSetupHandler(adapterRepo, tenantRepo, wsRepo, cfg.Tracking.BaseURL, trackingProvisioner, provisioningStepRepo)
-	apiKeyH := handler.NewAPIKeyHandler(apiKeySvc, tenantRepo, wsRepo)
-	dashboardH := handler.NewDashboardHandler(dashboardRepo, auditRepo, tenantRepo, wsRepo)
-	adapterH.SetAdapterAccessService(adapterAccessSvc)
-	adapterH.SetAuditStore(auditRepo)
-	templateTypeH.SetAdapterAccessService(adapterAccessSvc)
-	identityH.SetAdapterAccessService(adapterAccessSvc)
-	identityH.SetAuditStore(auditRepo)
-	sendSvc.SetAdapterAccessService(adapterAccessSvc)
-
-	// 12. Event processor (shared by SES webhook + open-tracking pixel).
-	eventProcessor := service.NewEventProcessor(emailRepo, emailRepo, suppressionRepo, webhookSvc, logger)
-
-	// 13. SES webhook handler (only for SES mode, skip in SMTP/test mode).
-	var sesOpts []sendahttp.ServerOption
-	if cfg.SMTP.Host == "" {
-		snsVerifier := sns.NewVerifier(&http.Client{})
-		snsConfirmer := handler.NewHTTPSubscriptionConfirmer(&http.Client{})
-		sesH := handler.NewSESWebhookHandler(
-			eventProcessor,
-			snsVerifier,
-			snsConfirmer,
-			logger,
-			handler.WithSkipSignatureVerification(cfg.SNS.SkipSignatureVerification),
-		)
-		sesOpts = append(sesOpts, sendahttp.WithSESWebhookHandler(sesH))
-	}
-
-	// 14. Open-tracking handler.
-	trackingH := handler.NewTrackingHandler(ctx, emailRepo, eventProcessor, logger)
-
-	// 14b. Media handler (video thumbnail composite).
-	mediaH := handler.NewMediaHandler(logger)
 
 	// 15. Assemble server.
-	opts := []sendahttp.ServerOption{
-		sendahttp.WithPinger(&dbPinger{pool: pool}),
-		sendahttp.WithAuthDeps(apiKeyRepo, memberRepo, oidcVerifier, apiKeyPepper),
-		sendahttp.WithTenantStore(tenantRepo),
-		sendahttp.WithWorkspaceStore(wsRepo),
-		sendahttp.WithConfigStore(configRepo),
-		sendahttp.WithTenantHandler(tenantH),
-		sendahttp.WithWorkspaceHandler(workspaceH),
-		sendahttp.WithWorkspacePolicyHandler(workspacePolicyH),
-		sendahttp.WithMemberHandler(memberH),
-		sendahttp.WithConfigHandler(configH),
-		sendahttp.WithExternalIntegrationHandler(externalIntegrationH),
-		sendahttp.WithInjectorHandler(injectorH),
-		sendahttp.WithAdapterHandler(adapterH),
-		sendahttp.WithIdentityHandler(identityH),
-		sendahttp.WithTemplateTypeHandler(templateTypeH),
-		sendahttp.WithTemplateHandler(templateH),
-		sendahttp.WithSendHandler(sendH),
-		sendahttp.WithDataPlaneEmailHandler(dataPlaneEmailH),
-		sendahttp.WithEmailHandler(emailH),
-		sendahttp.WithSuppressionHandler(suppressionH),
-		sendahttp.WithAuditHandler(auditH),
-		sendahttp.WithWebhookHandler(webhookH),
-		sendahttp.WithOnboardingHandler(onboardingH),
-		sendahttp.WithAPIKeyHandler(apiKeyH),
-		sendahttp.WithAdapterSetupHandler(adapterSetupH),
-		sendahttp.WithTrackingHandler(trackingH),
-		sendahttp.WithMediaHandler(mediaH),
-		sendahttp.WithDashboardHandler(dashboardH),
-	}
-	opts = append(opts, sesOpts...)
+	opts := newServerOptions(
+		serverSharedDeps{
+			pinger:         &dbPinger{pool: pool},
+			apiKeyStore:    repos.apiKeyRepo,
+			memberStore:    repos.memberRepo,
+			oidcVerifier:   oidcVerifier,
+			apiKeyPepper:   apiKeyPepper,
+			tenantStore:    repos.tenantRepo,
+			workspaceStore: repos.workspaceRepo,
+			configStore:    repos.configRepo,
+		},
+		handlers,
+	)
 
 	srv := sendahttp.NewServer(cfg, logger, opts...)
 
@@ -319,7 +112,7 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 		Server:      srv,
 		RiverClient: riverClient,
 		Pool:        pool,
-		cache:       cache,
+		cache:       infra.cache,
 	}, nil
 }
 

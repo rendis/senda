@@ -9,20 +9,19 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	dockernetwork "github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/client"
+	"github.com/rendis/senda/internal/teststack"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
-	coreHarnessNetworkName = "senda-e2e-net"
-	coreHarnessPostgres    = "senda-e2e-postgres"
-	coreHarnessMailpit     = "senda-e2e-mailpit"
-	coreHarnessApp         = "senda-e2e-senda"
-
 	coreHarnessPostgresDB   = "senda"
 	coreHarnessPostgresUser = "senda"
 	coreHarnessPostgresPass = "senda"
@@ -46,6 +45,11 @@ type coreHarness struct {
 }
 
 var (
+	coreHarnessNetworkName = "senda-e2e-net"
+	coreHarnessPostgres    = "senda-e2e-postgres"
+	coreHarnessMailpit     = "senda-e2e-mailpit"
+	coreHarnessApp         = "senda-e2e-senda"
+
 	coreHarnessOnce sync.Once
 	coreHarnessInst *coreHarness
 	coreHarnessErr  error
@@ -65,14 +69,23 @@ func ensureCoreHarness(ctx context.Context) (*coreHarness, error) {
 
 func startCoreHarness(ctx context.Context) (*coreHarness, error) {
 	root := projectRoot()
+	scope := resolveCoreHarnessScope(root)
+	coreHarnessNetworkName = scope.DockerName("net")
+	coreHarnessPostgres = scope.DockerName("postgres")
+	coreHarnessMailpit = scope.DockerName("mailpit")
+	coreHarnessApp = scope.DockerName("app")
 	h := &coreHarness{
 		projectDir:  root,
 		networkName: coreHarnessNetworkName,
 	}
 
+	if err := removeStaleCoreHarnessNetwork(ctx, h.networkName); err != nil {
+		return nil, err
+	}
+
 	network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
 		NetworkRequest: testcontainers.NetworkRequest{
-			Name:       coreHarnessNetworkName,
+			Name:       h.networkName,
 			Driver:     "bridge",
 			Attachable: true,
 		},
@@ -82,7 +95,7 @@ func startCoreHarness(ctx context.Context) (*coreHarness, error) {
 	}
 	h.network = network
 
-	postgresCtr, dbURL, err := startPostgresContainer(ctx, root, coreHarnessNetworkName)
+	postgresCtr, dbURL, err := startPostgresContainer(ctx, root, h.networkName, scope.DockerName("postgres"))
 	if err != nil {
 		_ = testcontainers.TerminateContainer(postgresCtr)
 		_ = network.Remove(ctx)
@@ -91,7 +104,7 @@ func startCoreHarness(ctx context.Context) (*coreHarness, error) {
 	h.postgres = postgresCtr
 	h.dbURL = dbURL
 
-	mailpitCtr, mailpitURL, err := startMailpitContainer(ctx, coreHarnessNetworkName)
+	mailpitCtr, mailpitURL, err := startMailpitContainer(ctx, h.networkName, scope.DockerName("mailpit"))
 	if err != nil {
 		_ = testcontainers.TerminateContainer(postgresCtr)
 		_ = testcontainers.TerminateContainer(mailpitCtr)
@@ -101,7 +114,7 @@ func startCoreHarness(ctx context.Context) (*coreHarness, error) {
 	h.mailpit = mailpitCtr
 	h.mailpitURL = mailpitURL
 
-	appCtr, baseURL, err := startAppContainer(ctx, root, coreHarnessNetworkName)
+	appCtr, baseURL, err := startAppContainer(ctx, root, h.networkName, scope.DockerName("app"))
 	if err != nil {
 		_ = testcontainers.TerminateContainer(appCtr)
 		_ = testcontainers.TerminateContainer(mailpitCtr)
@@ -125,7 +138,45 @@ func startCoreHarness(ctx context.Context) (*coreHarness, error) {
 	return h, nil
 }
 
-func startPostgresContainer(ctx context.Context, rootDir, networkName string) (testcontainers.Container, string, error) {
+func resolveCoreHarnessScope(root string) teststack.Scope {
+	spec := os.Getenv("SENDA_TEST_SCOPE_SPEC")
+	if spec == "" {
+		spec = "core-e2e"
+	}
+	run := os.Getenv("SENDA_TEST_SCOPE_RUN")
+	if run == "" {
+		run = "pid-" + strconv.Itoa(os.Getpid())
+	}
+	return teststack.ResolveScope(teststack.ScopeInput{
+		ProjectRoot: root,
+		Spec:        spec,
+		Worktree:    os.Getenv("SENDA_TEST_SCOPE_WORKTREE"),
+		Mode:        teststack.Mode("e2e"),
+		Run:         run,
+	})
+}
+
+func removeStaleCoreHarnessNetwork(ctx context.Context, networkName string) error {
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("create docker client for network cleanup: %w", err)
+	}
+	defer dockerClient.Close()
+
+	network, err := dockerClient.NetworkInspect(ctx, networkName, dockernetwork.InspectOptions{})
+	if err != nil {
+		return nil
+	}
+	if len(network.Containers) > 0 {
+		return nil
+	}
+	if err := dockerClient.NetworkRemove(ctx, networkName); err != nil {
+		return fmt.Errorf("remove stale core harness network: %w", err)
+	}
+	return nil
+}
+
+func startPostgresContainer(ctx context.Context, rootDir, networkName, containerName string) (testcontainers.Container, string, error) {
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    filepath.Join(rootDir, "docker", "postgres"),
@@ -149,7 +200,7 @@ func startPostgresContainer(ctx context.Context, rootDir, networkName string) (t
 		Tmpfs: map[string]string{
 			"/var/lib/postgresql/data": "rw",
 		},
-		Name: coreHarnessPostgres,
+		Name: containerName,
 		WaitingFor: wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).
 			WithStartupTimeout(2 * time.Minute),
@@ -180,7 +231,7 @@ func startPostgresContainer(ctx context.Context, rootDir, networkName string) (t
 	return ctr, dbURL, nil
 }
 
-func startMailpitContainer(ctx context.Context, networkName string) (testcontainers.Container, string, error) {
+func startMailpitContainer(ctx context.Context, networkName, containerName string) (testcontainers.Container, string, error) {
 	req := testcontainers.ContainerRequest{
 		Image:        "axllent/mailpit:latest",
 		ExposedPorts: []string{"1025/tcp", "8025/tcp"},
@@ -188,7 +239,7 @@ func startMailpitContainer(ctx context.Context, networkName string) (testcontain
 		NetworkAliases: map[string][]string{
 			networkName: []string{"mailpit"},
 		},
-		Name: coreHarnessMailpit,
+		Name: containerName,
 		WaitingFor: wait.ForHTTP("/api/v1/messages").
 			WithPort(coreHarnessMailpitUI).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
@@ -217,7 +268,7 @@ func startMailpitContainer(ctx context.Context, networkName string) (testcontain
 	return ctr, fmt.Sprintf("http://%s:%s", host, mappedPort.Port()), nil
 }
 
-func startAppContainer(ctx context.Context, rootDir, networkName string) (testcontainers.Container, string, error) {
+func startAppContainer(ctx context.Context, rootDir, networkName, containerName string) (testcontainers.Container, string, error) {
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    rootDir,
@@ -233,7 +284,7 @@ func startAppContainer(ctx context.Context, rootDir, networkName string) (testco
 		NetworkAliases: map[string][]string{
 			networkName: []string{"senda"},
 		},
-		Name: coreHarnessApp,
+		Name: containerName,
 		WaitingFor: wait.ForHTTP("/health").
 			WithPort(coreHarnessAppPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).

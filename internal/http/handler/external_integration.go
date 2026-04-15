@@ -16,9 +16,15 @@ import (
 // ExternalIntegrationHandler exposes the bootstrap surface for
 // embeddable external integrations.
 type ExternalIntegrationHandler struct {
-	store               port.GlobalConfigStore
-	externalAuthMethods []port.ExternalAuthMethod
-	externalResolvers   []port.ExternalWorkspaceResolver
+	store       port.GlobalConfigStore
+	runtimeDeps externalIntegrationRuntimeDependencies
+}
+
+// externalIntegrationRuntimeDependencies indexes the runtime seams required by
+// the external surface so handlers and middleware do not scan raw extension slices.
+type externalIntegrationRuntimeDependencies struct {
+	authMethods map[string]port.ExternalAuthMethod
+	resolvers   map[string]port.ExternalWorkspaceResolver
 }
 
 // NewExternalIntegrationHandler creates a new handler for the external surface.
@@ -28,9 +34,8 @@ func NewExternalIntegrationHandler(
 	resolvers []port.ExternalWorkspaceResolver,
 ) *ExternalIntegrationHandler {
 	return &ExternalIntegrationHandler{
-		store:               store,
-		externalAuthMethods: authMethods,
-		externalResolvers:   resolvers,
+		store:       store,
+		runtimeDeps: newExternalIntegrationRuntimeDependencies(authMethods, resolvers),
 	}
 }
 
@@ -93,22 +98,12 @@ func (h *ExternalIntegrationHandler) LoadProfileBySlug(ctx context.Context, slug
 
 // AuthMethodByName returns a registered auth method by name.
 func (h *ExternalIntegrationHandler) AuthMethodByName(name string) (port.ExternalAuthMethod, bool) {
-	for _, method := range h.externalAuthMethods {
-		if method != nil && method.Name() == name {
-			return method, true
-		}
-	}
-	return nil, false
+	return h.runtimeDeps.authMethod(name)
 }
 
 // ResolverByName returns a registered workspace resolver by name.
 func (h *ExternalIntegrationHandler) ResolverByName(name string) (port.ExternalWorkspaceResolver, bool) {
-	for _, resolver := range h.externalResolvers {
-		if resolver != nil && resolver.Name() == name {
-			return resolver, true
-		}
-	}
-	return nil, false
+	return h.runtimeDeps.resolver(name)
 }
 
 func (h *ExternalIntegrationHandler) loadProfile(c *echo.Context) (domain.ExternalIntegrationProfile, response.ExternalIntegrationProfileResponse, error) {
@@ -166,4 +161,34 @@ func applyExternalFrameHeaders(c *echo.Context, frameAncestors []string) {
 	header := c.Response().Header()
 	header.Del("X-Frame-Options")
 	header.Set("Content-Security-Policy", "frame-ancestors "+strings.Join(frameAncestors, " "))
+}
+
+func newExternalIntegrationRuntimeDependencies(authMethods []port.ExternalAuthMethod, resolvers []port.ExternalWorkspaceResolver) externalIntegrationRuntimeDependencies {
+	deps := externalIntegrationRuntimeDependencies{
+		authMethods: make(map[string]port.ExternalAuthMethod, len(authMethods)),
+		resolvers:   make(map[string]port.ExternalWorkspaceResolver, len(resolvers)),
+	}
+	for _, method := range authMethods {
+		if method == nil {
+			continue
+		}
+		deps.authMethods[method.Name()] = method
+	}
+	for _, resolver := range resolvers {
+		if resolver == nil {
+			continue
+		}
+		deps.resolvers[resolver.Name()] = resolver
+	}
+	return deps
+}
+
+func (d externalIntegrationRuntimeDependencies) authMethod(name string) (port.ExternalAuthMethod, bool) {
+	method, ok := d.authMethods[name]
+	return method, ok
+}
+
+func (d externalIntegrationRuntimeDependencies) resolver(name string) (port.ExternalWorkspaceResolver, bool) {
+	resolver, ok := d.resolvers[name]
+	return resolver, ok
 }

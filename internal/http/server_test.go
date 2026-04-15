@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v5/echotest"
 	"github.com/rendis/senda/config"
 	sendahttp "github.com/rendis/senda/internal/http"
+	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/http/middleware"
 	"github.com/rendis/senda/internal/http/response"
 )
@@ -271,5 +272,51 @@ func TestWriteErrorHelper(t *testing.T) {
 	}
 	if errResp.Error.Details[0].Field != "email" {
 		t.Fatalf("expected field 'email', got %q", errResp.Error.Details[0].Field)
+	}
+}
+
+func TestServer_RouteContractRemainsPartitionableBySurface(t *testing.T) {
+	srv := sendahttp.NewServer(
+		testConfig(),
+		testLogger(),
+		sendahttp.WithTenantHandler(new(handler.TenantHandler)),
+		sendahttp.WithWorkspaceHandler(new(handler.WorkspaceHandler)),
+		sendahttp.WithWorkspacePolicyHandler(new(handler.WorkspacePolicyHandler)),
+		sendahttp.WithMemberHandler(new(handler.MemberHandler)),
+		sendahttp.WithConfigHandler(new(handler.ConfigHandler)),
+		sendahttp.WithSendHandler(new(handler.SendHandler)),
+		sendahttp.WithDataPlaneEmailHandler(new(handler.DataPlaneEmailHandler)),
+		sendahttp.WithExternalIntegrationHandler(new(handler.ExternalIntegrationHandler)),
+		sendahttp.WithTemplateTypeHandler(new(handler.TemplateTypeHandler)),
+		sendahttp.WithTemplateHandler(new(handler.TemplateHandler)),
+		sendahttp.WithInjectorHandler(new(handler.InjectorHandler)),
+		sendahttp.WithSESWebhookHandler(new(handler.SESWebhookHandler)),
+		sendahttp.WithTrackingHandler(new(handler.TrackingHandler)),
+		sendahttp.WithMediaHandler(new(handler.MediaHandler)),
+	)
+
+	routes := make(map[string]struct{})
+	for _, route := range srv.Echo().Router().Routes() {
+		routes[route.Method+" "+route.Path] = struct{}{}
+	}
+
+	expected := []string{
+		"GET /health",
+		"GET /t/o/:tracking_id",
+		"GET /public/video-thumbnail",
+		"POST /api/v1/send",
+		"GET /api/v1/emails",
+		"POST /api/v1/webhooks/ses/inbound",
+		"GET /api/v1/external/:profile_slug/bootstrap",
+		"GET /api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code/template-types",
+		"GET /api/v1/manage/tenants",
+		"GET /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/template-types",
+		"GET /api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/template-types",
+	}
+
+	for _, route := range expected {
+		if _, ok := routes[route]; !ok {
+			t.Fatalf("expected route %s to remain registered", route)
+		}
 	}
 }

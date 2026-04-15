@@ -38,6 +38,16 @@ oidc:
   discovery_url: "https://auth.example.com/.well-known/openid-configuration"
   client_id: "my-client"
   client_secret: "my-secret"
+sns:
+  expected_topic_arn: "arn:aws:sns:us-east-1:123456789012:SES-Events"
+  expected_account_id: "123456789012"
+media:
+  thumbnail_allowed_hosts:
+    - "img.youtube.com"
+    - "i.ytimg.com"
+  thumbnail_cache_ttl: "24h"
+  thumbnail_cache_max_entries: 500
+  thumbnail_fetch_timeout: "10s"
 crypto:
   master_key: "this-is-a-32-char-master-key!!!!"
 log:
@@ -96,6 +106,27 @@ log:
 	}
 	if cfg.OIDC.ClientSecret != "my-secret" {
 		t.Errorf("OIDC.ClientSecret = %q", cfg.OIDC.ClientSecret)
+	}
+	if cfg.SNS.ExpectedTopicArn != "arn:aws:sns:us-east-1:123456789012:SES-Events" {
+		t.Errorf("SNS.ExpectedTopicArn = %q", cfg.SNS.ExpectedTopicArn)
+	}
+	if cfg.SNS.ExpectedAccountID != "123456789012" {
+		t.Errorf("SNS.ExpectedAccountID = %q", cfg.SNS.ExpectedAccountID)
+	}
+	if len(cfg.Media.ThumbnailAllowedHosts) != 2 {
+		t.Fatalf("Media.ThumbnailAllowedHosts length = %d, want 2", len(cfg.Media.ThumbnailAllowedHosts))
+	}
+	if cfg.Media.ThumbnailAllowedHosts[0] != "img.youtube.com" || cfg.Media.ThumbnailAllowedHosts[1] != "i.ytimg.com" {
+		t.Errorf("Media.ThumbnailAllowedHosts = %#v", cfg.Media.ThumbnailAllowedHosts)
+	}
+	if cfg.Media.ThumbnailCacheTTL != 24*time.Hour {
+		t.Errorf("Media.ThumbnailCacheTTL = %v, want 24h", cfg.Media.ThumbnailCacheTTL)
+	}
+	if cfg.Media.ThumbnailCacheMaxEntries != 500 {
+		t.Errorf("Media.ThumbnailCacheMaxEntries = %d, want 500", cfg.Media.ThumbnailCacheMaxEntries)
+	}
+	if cfg.Media.ThumbnailFetchTimeout != 10*time.Second {
+		t.Errorf("Media.ThumbnailFetchTimeout = %v, want 10s", cfg.Media.ThumbnailFetchTimeout)
 	}
 
 	// Crypto
@@ -168,6 +199,9 @@ crypto:
 	if cfg.SNS.SkipSignatureVerification {
 		t.Errorf("default SNS.SkipSignatureVerification = %v, want false", cfg.SNS.SkipSignatureVerification)
 	}
+	if cfg.SNS.ReplayWindow != 15*time.Minute {
+		t.Errorf("default SNS.ReplayWindow = %v, want %v", cfg.SNS.ReplayWindow, 15*time.Minute)
+	}
 }
 
 func TestLoad_EnvVarOverrides(t *testing.T) {
@@ -194,6 +228,7 @@ crypto:
 	t.Setenv("SENDA_OIDC_CLIENT_SECRET", "env-secret")
 	t.Setenv("SENDA_MASTER_KEY", "env-master-key-that-is-at-least-32-chars!!")
 	t.Setenv("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION", "true")
+	t.Setenv("SENDA_SNS_REPLAY_WINDOW", "45m")
 	t.Setenv("SENDA_SEND_BATCH_MAX_ITEMS", "333")
 
 	cfg, err := Load(path)
@@ -224,6 +259,9 @@ crypto:
 	}
 	if !cfg.SNS.SkipSignatureVerification {
 		t.Errorf("env override SNS.SkipSignatureVerification = %v, want true", cfg.SNS.SkipSignatureVerification)
+	}
+	if cfg.SNS.ReplayWindow != 45*time.Minute {
+		t.Errorf("env override SNS.ReplayWindow = %v, want %v", cfg.SNS.ReplayWindow, 45*time.Minute)
 	}
 	if cfg.Send.BatchMaxItems != 333 {
 		t.Errorf("env override Send.BatchMaxItems = %d, want %d", cfg.Send.BatchMaxItems, 333)
@@ -294,11 +332,46 @@ crypto:
 	}
 }
 
+func TestLoad_ProductionRequiresMetricsToken(t *testing.T) {
+	yaml := `
+environment: "production"
+database:
+  url: "postgres://localhost/senda"
+oidc:
+  discovery_url: "https://auth.example.com"
+  client_id: "client"
+  client_secret: "secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error when metrics token is missing in production")
+	}
+	if !strings.Contains(err.Error(), "server.metrics_token is required in production") {
+		t.Fatalf("expected metrics token validation error, got %v", err)
+	}
+}
+
 func TestLoad_InvalidYAML(t *testing.T) {
 	path := writeYAML(t, `{{{invalid yaml:::`)
 	_, err := Load(path)
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoad_ConfigExampleYAML(t *testing.T) {
+	t.Setenv("SENDA_DATABASE_URL", "postgres://senda:senda@localhost:5432/senda?sslmode=disable")
+	t.Setenv("SENDA_OIDC_DISCOVERY_URL", "http://localhost:9090/realms/senda/.well-known/openid-configuration")
+	t.Setenv("SENDA_OIDC_CLIENT_ID", "senda-web")
+	t.Setenv("SENDA_OIDC_CLIENT_SECRET", "senda-dev-secret")
+	t.Setenv("SENDA_MASTER_KEY", "dev-master-key-change-in-production")
+
+	_, err := Load("config.example.yaml")
+	if err != nil {
+		t.Fatalf("expected config.example.yaml to load, got error: %v", err)
 	}
 }
 
@@ -446,5 +519,78 @@ crypto:
 
 	if !strings.Contains(err.Error(), "SENDA_PORT") {
 		t.Errorf("error should mention SENDA_PORT, got: %v", err)
+	}
+}
+
+func TestLoad_ProductionRejectsHttpDiscoveryURL(t *testing.T) {
+	yaml := `
+database:
+  url: "postgres://localhost/senda"
+oidc:
+  discovery_url: "http://auth.example.com/.well-known/openid-configuration"
+  client_id: "client"
+  client_secret: "secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+	t.Setenv("SENDA_ENVIRONMENT", "production")
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected production config to reject http OIDC discovery URL")
+	}
+	if !strings.Contains(err.Error(), "oidc.discovery_url") {
+		t.Fatalf("expected error to mention oidc.discovery_url, got: %v", err)
+	}
+}
+
+func TestLoad_ProductionRejectsHttpAllowedOrigins(t *testing.T) {
+	yaml := `
+server:
+  allowed_origins:
+    - "http://app.example.com"
+database:
+  url: "postgres://localhost/senda"
+oidc:
+  discovery_url: "https://auth.example.com/.well-known/openid-configuration"
+  client_id: "client"
+  client_secret: "secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+	t.Setenv("SENDA_ENVIRONMENT", "production")
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected production config to reject http allowed origins")
+	}
+	if !strings.Contains(err.Error(), "allowed_origins") {
+		t.Fatalf("expected error to mention allowed_origins, got: %v", err)
+	}
+}
+
+func TestLoad_ProductionRejectsSNSSkipSignatureVerification(t *testing.T) {
+	yaml := `
+database:
+  url: "postgres://localhost/senda"
+oidc:
+  discovery_url: "https://auth.example.com/.well-known/openid-configuration"
+  client_id: "client"
+  client_secret: "secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+	t.Setenv("SENDA_ENVIRONMENT", "production")
+	t.Setenv("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION", "true")
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected production config to reject SNS signature verification bypass")
+	}
+	if !strings.Contains(err.Error(), "SENDA_SNS_SKIP_SIGNATURE_VERIFICATION") {
+		t.Fatalf("expected error to mention SENDA_SNS_SKIP_SIGNATURE_VERIFICATION, got: %v", err)
 	}
 }

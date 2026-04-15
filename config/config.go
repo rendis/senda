@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -22,6 +23,7 @@ type Config struct {
 	Crypto        CryptoConfig   `yaml:"crypto"`
 	SMTP          SMTPConfig     `yaml:"smtp"`
 	SNS           SNSConfig      `yaml:"sns"`
+	Media         MediaConfig    `yaml:"media"`
 	Log           LogConfig      `yaml:"log"`
 	Tracking      TrackingConfig `yaml:"tracking"`
 	Environment   string         `yaml:"environment" env:"SENDA_ENVIRONMENT"`
@@ -29,7 +31,17 @@ type Config struct {
 }
 
 type SNSConfig struct {
-	SkipSignatureVerification bool `yaml:"skip_signature_verification" env:"SENDA_SNS_SKIP_SIGNATURE_VERIFICATION" default:"false"`
+	SkipSignatureVerification bool          `yaml:"skip_signature_verification" env:"SENDA_SNS_SKIP_SIGNATURE_VERIFICATION" default:"false"`
+	ExpectedTopicArn          string        `yaml:"expected_topic_arn" env:"SENDA_SNS_EXPECTED_TOPIC_ARN"`
+	ExpectedAccountID         string        `yaml:"expected_account_id" env:"SENDA_SNS_EXPECTED_ACCOUNT_ID"`
+	ReplayWindow              time.Duration `yaml:"replay_window" env:"SENDA_SNS_REPLAY_WINDOW" default:"15m"`
+}
+
+type MediaConfig struct {
+	ThumbnailAllowedHosts    []string      `yaml:"thumbnail_allowed_hosts" env:"SENDA_MEDIA_THUMBNAIL_ALLOWED_HOSTS"`
+	ThumbnailCacheTTL        time.Duration `yaml:"thumbnail_cache_ttl" env:"SENDA_MEDIA_THUMBNAIL_CACHE_TTL" default:"24h"`
+	ThumbnailCacheMaxEntries int           `yaml:"thumbnail_cache_max_entries" env:"SENDA_MEDIA_THUMBNAIL_CACHE_MAX_ENTRIES" default:"500"`
+	ThumbnailFetchTimeout    time.Duration `yaml:"thumbnail_fetch_timeout" env:"SENDA_MEDIA_THUMBNAIL_FETCH_TIMEOUT" default:"10s"`
 }
 
 type TrackingConfig struct {
@@ -119,6 +131,16 @@ func Load(path string) (*Config, error) {
 			}
 		}
 		cfg.Server.AllowedOrigins = origins
+	}
+
+	if v, ok := os.LookupEnv("SENDA_MEDIA_THUMBNAIL_ALLOWED_HOSTS"); ok && v != "" {
+		var hosts []string
+		for _, h := range strings.Split(v, ",") {
+			if trimmed := strings.TrimSpace(h); trimmed != "" {
+				hosts = append(hosts, trimmed)
+			}
+		}
+		cfg.Media.ThumbnailAllowedHosts = hosts
 	}
 
 	if err := validate(&cfg); err != nil {
@@ -242,6 +264,10 @@ func validate(cfg *Config) error {
 
 	validateRequired(reflect.ValueOf(cfg).Elem(), "", &errs)
 
+	if err := validateRuntimeEnvironment(cfg.Environment); err != nil {
+		errs = append(errs, err)
+	}
+
 	if cfg.Database.URL != "" &&
 		!strings.HasPrefix(cfg.Database.URL, "postgres://") &&
 		!strings.HasPrefix(cfg.Database.URL, "postgresql://") {
@@ -295,6 +321,31 @@ func validate(cfg *Config) error {
 		errs = append(errs, fmt.Errorf("crypto.master_key must be at least 32 characters, got %d", len(cfg.Crypto.MasterKey)))
 	}
 
+	if err := validateDiscoveryURL(cfg.OIDC.DiscoveryURL, cfg.Environment); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateAllowedOrigins(cfg.Server.AllowedOrigins, cfg.Environment); err != nil {
+		errs = append(errs, err)
+	}
+	if cfg.Media.ThumbnailCacheTTL <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_cache_ttl must be greater than zero"))
+	}
+	if cfg.Media.ThumbnailCacheMaxEntries <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_cache_max_entries must be greater than zero"))
+	}
+	if cfg.Media.ThumbnailFetchTimeout <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_fetch_timeout must be greater than zero"))
+	}
+	if isProductionEnvironment(cfg.Environment) && strings.TrimSpace(cfg.Server.MetricsToken) == "" {
+		errs = append(errs, fmt.Errorf("server.metrics_token is required in production"))
+	}
+	if isProductionEnvironment(cfg.Environment) && cfg.SNS.SkipSignatureVerification {
+		errs = append(errs, fmt.Errorf("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION cannot be enabled when environment is %q", cfg.Environment))
+	}
+	if cfg.SNS.ReplayWindow <= 0 {
+		errs = append(errs, fmt.Errorf("sns.replay_window must be greater than zero"))
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -322,4 +373,100 @@ func validateRequired(v reflect.Value, prefix string, errs *[]error) {
 			*errs = append(*errs, fmt.Errorf("%s is required", fullName))
 		}
 	}
+}
+
+func validateRuntimeEnvironment(raw string) error {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if raw == "" {
+		return nil
+	}
+
+	switch raw {
+	case "production", "prod", "development", "dev", "test", "testing", "ci":
+		return nil
+	default:
+		return fmt.Errorf("environment must be one of production, development, or test, got %q", raw)
+	}
+}
+
+func isProductionEnvironment(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "production", "prod":
+		return true
+	default:
+		return false
+	}
+}
+
+func isNonProductionEnvironment(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "development", "dev", "test", "testing", "ci":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateDiscoveryURL(discoveryURL, environment string) error {
+	if discoveryURL == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(discoveryURL)
+	if err != nil {
+		return fmt.Errorf("oidc.discovery_url is invalid: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("oidc.discovery_url must start with http:// or https://")
+	}
+	if isProductionEnvironment(environment) && parsed.Scheme != "https" {
+		return fmt.Errorf("oidc.discovery_url must use https:// in production")
+	}
+
+	return nil
+}
+
+func validateAllowedOrigins(origins []string, environment string) error {
+	if len(origins) == 0 {
+		return nil
+	}
+
+	prod := isProductionEnvironment(environment)
+	var errs []error
+	for _, origin := range origins {
+		if err := validateAllowedOrigin(origin, prod); err != nil {
+			errs = append(errs, fmt.Errorf("server.allowed_origins %q: %w", origin, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func validateAllowedOrigin(origin string, prod bool) error {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return fmt.Errorf("invalid origin: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https")
+	}
+	if prod && parsed.Scheme != "https" {
+		return fmt.Errorf("scheme must be https in production")
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("userinfo is not allowed")
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return fmt.Errorf("origin must not include a path")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("origin must not include query or fragment")
+	}
+	if origin != parsed.Scheme+"://"+parsed.Host && origin != parsed.Scheme+"://"+parsed.Host+"/" {
+		return fmt.Errorf("origin must be a bare origin")
+	}
+	return nil
 }

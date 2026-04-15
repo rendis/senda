@@ -55,11 +55,43 @@ oidc:
   # Env: SENDA_OIDC_CLIENT_SECRET
   client_secret: "your-client-secret"
 
+media:
+  # Allowed thumbnail hostnames for /public/video-thumbnail.
+  # Env: SENDA_MEDIA_THUMBNAIL_ALLOWED_HOSTS (comma-separated)
+  thumbnail_allowed_hosts:
+    - "img.youtube.com"
+    - "i.ytimg.com"
+
+  # Cache TTL for generated thumbnails.
+  # Env: SENDA_MEDIA_THUMBNAIL_CACHE_TTL
+  thumbnail_cache_ttl: "24h"
+
+  # Maximum number of cached thumbnails.
+  # Env: SENDA_MEDIA_THUMBNAIL_CACHE_MAX_ENTRIES
+  thumbnail_cache_max_entries: 500
+
+  # Upstream fetch timeout for thumbnail downloads.
+  # Env: SENDA_MEDIA_THUMBNAIL_FETCH_TIMEOUT
+  thumbnail_fetch_timeout: "10s"
+
 crypto:
   # Master key for AES-256-GCM encryption of adapter credentials.
   # Must be at least 32 characters. (required)
   # Env: SENDA_MASTER_KEY
   master_key: "change-me-to-a-secure-key-at-least-32-chars"
+
+sns:
+  # Exact SNS TopicArn expected by the SES inbound webhook.
+  # Env: SENDA_SNS_EXPECTED_TOPIC_ARN
+  expected_topic_arn: "arn:aws:sns:us-east-1:123456789012:SES-Events"
+
+  # AWS account ID embedded in the TopicArn.
+  # Env: SENDA_SNS_EXPECTED_ACCOUNT_ID
+  expected_account_id: "123456789012"
+
+  # Replay window for durable SNS deduplication.
+  # Env: SENDA_SNS_REPLAY_WINDOW
+  replay_window: "15m"
 
 log:
   # Log level: debug, info, warn, error
