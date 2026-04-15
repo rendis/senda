@@ -1,0 +1,11 @@
+state: planned
+phase: proposal
+reviewer_final: "Kuhn + Lorentz"
+worktree: main
+dependency: security-perimeter-hardening closed
+percent: 0
+updated_at: "2026-04-15T21:15:00-04:00"
+notes: "This follow-up owns the media-thumbnail performance work that no longer belongs inside perimeter-identity-default-deny. The goal is to reduce transport churn and unnecessary buffer copies on /public/video-thumbnail while keeping the current allowlist, SSRF guard, pinning, redaction, cache semantics, and HTTP responses unchanged."
+verification:
+  last_run: null
+  commands: []

@@ -1,11 +1,12 @@
 # Status
 
 - state: in_progress
-- percent: 55%
+- percent: 85%
 - dependency: cycle-2 closed
-- worktree: `/.worktrees/spec-perimeter-identity-default-deny`
+- worktree: `main`
 - reviewer_final: Lorentz
 - notes:
-  - ya quedó aplicado el binding OIDC por `sub+iss`, el origen público seguro para logout, `/metrics` obligatorio en prod, SNS default-deny cuando no hay binding configurado y probes SES/SNS no destructivos
-  - pendiente: rematar hot path/pinning/redaction del thumbnail endpoint y luego correr el slice de verificación final
-- DoD: perímetro default-deny + validación negativa representativa + signoff de seguridad
+  - ya quedó absorbido en `main` el lookup OIDC por `issuer + subject`, el origen seguro para logout federado, `/metrics` obligatorio en producción, SNS default-deny cuando no hay binding configurado y el pinning/redaction del endpoint público de thumbnails
+  - este batch reencuadra el stream y deja explícito que el runtime actual mantiene fallback controlado por email solo para members aún unbound; NO se cambia comportamiento productivo en este batch
+  - el hot path de thumbnails sale del stream y pasa al follow-up `media-thumbnail-hotpath-optimization`; el único remanente aquí es el signoff de política sobre si el fallback de unbound members se acepta como transición o migra a un modelo futuro más estricto
+- DoD: política de identidad explícita + docs del perímetro alineadas con el runtime real + signoff de seguridad
