@@ -16,7 +16,7 @@ Mark everything you actually ran.
 - [ ] `make ci-backend-pr` (if backend, infra, migrations, or tests changed)
 - [ ] `make ci-frontend` (if `web/` changed)
 - [ ] `make ci-pr` (if both backend and frontend changed)
-- [ ] `make ci-main` (required for pushes to `main` and systemic/cross-layer changes; fast gate, no Docker)
+- [ ] `make ci-taxonomy-check` (if you changed docs, workflows, Makefile targets, or CI helper scripts that define the public validation contract)
 
 Optional deeper checks when you intentionally want Docker-backed coverage:
 
