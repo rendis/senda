@@ -50,6 +50,8 @@ const docs = [
   "docs/DEVELOPMENT.md",
   "docs/specs/TESTING_STRATEGY.md",
   "web/README.md",
+  ".github/pull_request_template.md",
+  "AGENTS.md",
 ];
 
 for (const file of docs) {
@@ -99,6 +101,8 @@ requireMatch("docs/specs/TESTING_STRATEGY.md", /pnpm --dir web test/, "Testing s
 requireMatch("docs/specs/TESTING_STRATEGY.md", /workflow_dispatch|manual\s*\/\s*observational/i, "Testing strategy must separate manual and automatic system gates");
 
 requireMatch("web/README.md", /pnpm --dir web test/, "web/README must document the canonical frontend test entrypoint");
+requireMatch(".github/pull_request_template.md", /make ci-taxonomy-check/, "PR template must document the taxonomy check when CI contracts change");
+requireMatch("AGENTS.md", /make ci-taxonomy-check/, "AGENTS must document the taxonomy check when CI contracts change");
 
 if (errors.length > 0) {
   console.error("CI taxonomy check failed:");

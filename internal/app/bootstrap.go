@@ -115,37 +115,50 @@ type serviceBundle struct {
 }
 
 func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []sendahttp.ServerOption {
-	return []sendahttp.ServerOption{
+	opts := []sendahttp.ServerOption{
 		sendahttp.WithPinger(shared.pinger),
 		sendahttp.WithAuthDeps(shared.apiKeyStore, shared.memberStore, shared.oidcVerifier, shared.apiKeyPepper),
 		sendahttp.WithTenantStore(shared.tenantStore),
 		sendahttp.WithWorkspaceStore(shared.workspaceStore),
 		sendahttp.WithConfigStore(shared.configStore),
-		sendahttp.WithTenantHandler(handlers.tenantHandler),
-		sendahttp.WithWorkspaceHandler(handlers.workspaceHandler),
-		sendahttp.WithWorkspacePolicyHandler(handlers.workspacePolicyHandler),
-		sendahttp.WithMemberHandler(handlers.memberHandler),
-		sendahttp.WithConfigHandler(handlers.configHandler),
-		sendahttp.WithExternalIntegrationHandler(handlers.externalIntegrationHandler),
-		sendahttp.WithInjectorHandler(handlers.injectorHandler),
-		sendahttp.WithAdapterHandler(handlers.adapterHandler),
-		sendahttp.WithIdentityHandler(handlers.identityHandler),
-		sendahttp.WithTemplateTypeHandler(handlers.templateTypeHandler),
-		sendahttp.WithTemplateHandler(handlers.templateHandler),
-		sendahttp.WithSendHandler(handlers.sendHandler),
-		sendahttp.WithDataPlaneEmailHandler(handlers.dataPlaneEmailHandler),
-		sendahttp.WithEmailHandler(handlers.emailHandler),
-		sendahttp.WithSuppressionHandler(handlers.suppressionHandler),
-		sendahttp.WithAuditHandler(handlers.auditHandler),
-		sendahttp.WithWebhookHandler(handlers.webhookHandler),
-		sendahttp.WithOnboardingHandler(handlers.onboardingHandler),
-		sendahttp.WithAPIKeyHandler(handlers.apiKeyHandler),
-		sendahttp.WithAdapterSetupHandler(handlers.adapterSetupHandler),
-		sendahttp.WithTrackingHandler(handlers.trackingHandler),
-		sendahttp.WithMediaHandler(handlers.mediaHandler),
-		sendahttp.WithDashboardHandler(handlers.dashboardHandler),
-		sendahttp.WithSESWebhookHandler(handlers.sesWebhookHandler),
 	}
+	opts = append(opts, managementSurfaceOptions(managementSurfaceHandlers{
+		tenant:          handlers.tenantHandler,
+		workspace:       handlers.workspaceHandler,
+		workspacePolicy: handlers.workspacePolicyHandler,
+		member:          handlers.memberHandler,
+		config:          handlers.configHandler,
+		injector:        handlers.injectorHandler,
+		adapter:         handlers.adapterHandler,
+		identity:        handlers.identityHandler,
+		adapterSetup:    handlers.adapterSetupHandler,
+		templateType:    handlers.templateTypeHandler,
+		template:        handlers.templateHandler,
+		email:           handlers.emailHandler,
+		suppression:     handlers.suppressionHandler,
+		audit:           handlers.auditHandler,
+		webhook:         handlers.webhookHandler,
+		apiKey:          handlers.apiKeyHandler,
+		dashboard:       handlers.dashboardHandler,
+	})...)
+	opts = append(opts, dataPlaneSurfaceOptions(dataPlaneSurfaceHandlers{
+		send:           handlers.sendHandler,
+		dataPlaneEmail: handlers.dataPlaneEmailHandler,
+		sesWebhook:     handlers.sesWebhookHandler,
+		onboarding:     handlers.onboardingHandler,
+	})...)
+	opts = append(opts, externalIntegrationSurfaceOptions(externalIntegrationSurfaceHandlers{
+		externalIntegration: handlers.externalIntegrationHandler,
+		injector:            handlers.injectorHandler,
+		workspacePolicy:     handlers.workspacePolicyHandler,
+		templateType:        handlers.templateTypeHandler,
+		template:            handlers.templateHandler,
+	})...)
+	opts = append(opts, publicSurfaceOptions(publicSurfaceHandlers{
+		tracking: handlers.trackingHandler,
+		media:    handlers.mediaHandler,
+	})...)
+	return opts
 }
 
 func newInfraBundle(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool) (*infraBundle, error) {

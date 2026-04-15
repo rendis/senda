@@ -1,12 +1,14 @@
-state: in_progress
-phase: apply
-reviewer_final: James
-worktree: /.worktrees/spec-ci-drift-and-cache-pagination
+state: done
+phase: approved
+reviewer_final: "worker verification"
+worktree: main
 dependency: cycle-2 closed
-percent: 25
-updated_at: "2026-04-11T17:47:00-0400"
-notes: "Direct execution is in progress. Tenant cache invalidation now exhausts pagination cursors instead of assuming a single page. Remaining work is to extend taxonomy drift detection to PR template and AGENTS contract sources, then verify and close."
+percent: 100
+updated_at: "2026-04-15T20:30:00-04:00"
+notes: "Tenant cache invalidation pagination was already complete on main. This closure batch extended ci-taxonomy-check to the PR template and AGENTS, removed stale ci-main references from those contract sources, and added explicit verification evidence without touching runtime code."
 verification:
-  last_run: "2026-04-11T17:44:00-0400"
+  last_run: "2026-04-15T20:30:00-04:00"
   commands:
-    - "go test ./internal/resolution -run TestCacheInvalidator_InvalidateTenantWorkspaces"
+    - "node scripts/ci-taxonomy-check.mjs"
+    - "rg -n '\bci-main\b|\bci-backend-main\b' .github/pull_request_template.md AGENTS.md"
+    - "go test ./internal/resolution -run TestCacheInvalidator_InvalidateTenantWorkspaces_PaginatesAllTenantWorkspaces"

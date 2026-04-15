@@ -241,7 +241,7 @@ func (h *MediaHandler) HandleVideoThumbnail(c *echo.Context) error {
 	}
 
 	// Download the thumbnail.
-	pngBytes, err := h.buildComposite(c.Request().Context(), session, rawURL)
+	pngBytes, err := h.buildComposite(c.Request().Context(), session, rawURL, parsed)
 	if err != nil {
 		h.logger.Warn("media: failed to build video thumbnail composite",
 			"url", redactURL(rawURL),
@@ -276,10 +276,12 @@ func (h *MediaHandler) cacheControlHeader() string {
 }
 
 type mediaFetchSession struct {
-	handler *MediaHandler
-	pins    map[string]net.IP
-	mu      sync.Mutex
-	dialer  net.Dialer
+	handler    *MediaHandler
+	pins       map[string]net.IP
+	mu         sync.Mutex
+	dialer     net.Dialer
+	clientOnce sync.Once
+	clientRef  *http.Client
 }
 
 func (h *MediaHandler) newFetchSession() *mediaFetchSession {
@@ -291,21 +293,25 @@ func (h *MediaHandler) newFetchSession() *mediaFetchSession {
 }
 
 func (s *mediaFetchSession) client() *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DialContext = s.dialContext
-	transport.MaxIdleConns = 0
-	transport.IdleConnTimeout = 0
+	s.clientOnce.Do(func() {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DialContext = s.dialContext
+		transport.MaxIdleConns = 0
+		transport.IdleConnTimeout = 0
 
-	return &http.Client{
-		Timeout:   s.handler.fetchTimeout,
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return s.validateURL(req.Context(), req.URL)
-		},
-	}
+		s.clientRef = &http.Client{
+			Timeout:   s.handler.fetchTimeout,
+			Transport: transport,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("too many redirects")
+				}
+				return s.validateURL(req.Context(), req.URL)
+			},
+		}
+	})
+
+	return s.clientRef
 }
 
 func (s *mediaFetchSession) validateURL(ctx context.Context, u *url.URL) error {
@@ -472,7 +478,7 @@ func (c *thumbnailCache) Get(key string) ([]byte, bool) {
 	}
 
 	c.order.MoveToFront(elem)
-	return append([]byte(nil), entry.value...), true
+	return entry.value, true
 }
 
 func (c *thumbnailCache) Set(key string, value []byte) {
@@ -510,11 +516,11 @@ func (c *thumbnailCache) removeElement(elem *list.Element) {
 
 // buildComposite downloads the image at rawURL, draws the play-button overlay,
 // and returns the result encoded as PNG bytes.
-func (h *MediaHandler) buildComposite(ctx context.Context, session *mediaFetchSession, rawURL string) ([]byte, error) {
+func (h *MediaHandler) buildComposite(ctx context.Context, session *mediaFetchSession, rawURL string, initialParsed *url.URL) ([]byte, error) {
 	candidates := thumbnailCandidates(rawURL)
 	var lastErr error
 	for _, candidate := range candidates {
-		pngBytes, err := h.buildCompositeForURL(ctx, session, candidate)
+		pngBytes, err := h.buildCompositeForCandidate(ctx, session, candidate, initialParsedForCandidate(rawURL, candidate, initialParsed))
 		if err == nil {
 			return pngBytes, nil
 		}
@@ -526,17 +532,35 @@ func (h *MediaHandler) buildComposite(ctx context.Context, session *mediaFetchSe
 	return nil, lastErr
 }
 
-func (h *MediaHandler) buildCompositeForURL(ctx context.Context, session *mediaFetchSession, rawURL string) ([]byte, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse thumbnail URL %q: %w", redactURL(rawURL), err)
+func initialParsedForCandidate(initialRawURL, candidate string, initialParsed *url.URL) *url.URL {
+	if initialParsed == nil || candidate != initialRawURL {
+		return nil
 	}
-	if err := session.validateURL(ctx, parsed); err != nil {
+	return initialParsed
+}
+
+func (h *MediaHandler) validatedThumbnailURL(ctx context.Context, session *mediaFetchSession, rawURL string, parsed *url.URL) (*url.URL, error) {
+	if parsed == nil {
+		var err error
+		parsed, err = url.Parse(rawURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse thumbnail URL %q: %w", redactURL(rawURL), err)
+		}
+		if err := session.validateURL(ctx, parsed); err != nil {
+			return nil, err
+		}
+	}
+	return parsed, nil
+}
+
+func (h *MediaHandler) buildCompositeForCandidate(ctx context.Context, session *mediaFetchSession, rawURL string, parsed *url.URL) ([]byte, error) {
+	validatedURL, err := h.validatedThumbnailURL(ctx, session, rawURL, parsed)
+	if err != nil {
 		return nil, err
 	}
 
 	client := session.client()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, validatedURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", redactURL(rawURL), err)
 	}

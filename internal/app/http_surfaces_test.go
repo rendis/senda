@@ -54,6 +54,26 @@ func TestExternalIntegrationSurfaceOptions_RegisterOnlyExternalRoutes(t *testing
 	}
 }
 
+func TestPublicSurfaceOptions_RegisterOnlyPublicRoutes(t *testing.T) {
+	srv := sendahttp.NewServer(testSurfaceConfig(), testSurfaceLogger(), publicSurfaceOptions(publicSurfaceHandlers{
+		tracking: &handler.TrackingHandler{},
+		media:    &handler.MediaHandler{},
+	})...)
+
+	if !appRouteExists(srv, http.MethodGet, "/t/o/:tracking_id") {
+		t.Fatalf("expected public tracking route to be registered")
+	}
+	if !appRouteExists(srv, http.MethodGet, "/public/video-thumbnail") {
+		t.Fatalf("expected public media thumbnail route to be registered")
+	}
+	if appRouteExists(srv, http.MethodPost, "/api/v1/send") {
+		t.Fatalf("did not expect data-plane route in public-only surface")
+	}
+	if appRouteExists(srv, http.MethodGet, "/api/v1/manage/config") {
+		t.Fatalf("did not expect management route in public-only surface")
+	}
+}
+
 func testSurfaceConfig() *config.Config {
 	return &config.Config{Server: config.ServerConfig{Host: "0.0.0.0", Port: 8080}}
 }

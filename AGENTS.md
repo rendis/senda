@@ -548,10 +548,12 @@ Do NOT wait for GitHub Actions to catch basic breakage. If you are pushing a bra
 And also run:
 
 ```bash
-make ci-main
+make ci-taxonomy-check
 ```
 
-when the change touches end-to-end flows or systemic behavior, including:
+when the change touches docs, workflows, Makefile targets, or helper scripts that define the repo's public validation contract.
+
+For end-to-end flows or other systemic behavior, keep using the applicable local gate above (`make ci-backend-pr`, `make ci-frontend`, or `make ci-pr`) and add the deeper explicit suites when needed, especially for:
 
 - infrastructure and Docker
 - adapters/providers (SES, Gmail, SMTP)

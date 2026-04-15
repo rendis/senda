@@ -1,0 +1,14 @@
+state: done
+phase: approved
+reviewer_final: "worker verification"
+worktree: main
+dependency: security-perimeter-hardening closed
+percent: 100
+updated_at: "2026-04-15T17:18:54-04:00"
+notes: "This documentation-only closeout records that the media thumbnail hot-path follow-up is already on main: a single fetch client is reused per request, the initial parsed URL is reused to avoid duplicate validation on the first candidate, and cache hits no longer pay an extra body copy. Security semantics stay unchanged: allowlist, SSRF guard, per-request pinning, redirect validation, redaction, and HTTP responses remain covered by the focused thumbnail suite."
+verification:
+  last_run: "documented-from-prior-verified-runs"
+  commands:
+    - "go test ./internal/http/handler -run 'TestHandleVideoThumbnail_(CacheHit_PreservesHeadersAndBody|ConcurrentCacheHits_PreserveHeadersAndBody|Pinning_IsScopedPerRequest|InvalidOrOversizedImage_RemainsBadGateway)$'"
+    - "go test -count=1 ./internal/http/handler -run 'TestHandleVideoThumbnail'"
+    - "go test -race ./internal/http/handler -run 'TestHandleVideoThumbnail_(ConcurrentCacheHits_PreserveHeadersAndBody|ConcurrentSameURL|Pinning_IsScopedPerRequest)$'"

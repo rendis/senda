@@ -3,7 +3,7 @@
 - state: planned
 - percent: 0%
 - dependency: cycle-2 closed
-- worktree: `/.worktrees/spec-sdk-and-http-composition-decoupling`
+- worktree: `main`
 - reviewer_final: Volta
 - notes:
   - ciclo 3 de arquitectura para desacoplar el SDK del dominio interno y reducir el composer/wiring monolítico

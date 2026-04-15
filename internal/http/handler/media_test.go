@@ -395,6 +395,151 @@ func TestHandleVideoThumbnail_RejectsRedirectToNonAllowlistedHost(t *testing.T) 
 // TestHandleVideoThumbnail_CacheHit verifies that the second request for the
 // same URL is served from cache (the upstream server is shut down before the
 // second request).
+
+func TestHandleVideoThumbnail_CacheHit_PreservesHeadersAndBody(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+
+	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
+
+	req1 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	c1, rec1 := echotest.ContextConfig{Request: req1}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c1); err != nil {
+		t.Fatalf("first request: unexpected error: %v", err)
+	}
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec1.Code)
+	}
+
+	firstHeaders := rec1.Header().Clone()
+	firstBody := append([]byte(nil), rec1.Body.Bytes()...)
+
+	thumbServer.Close()
+
+	req2 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	c2, rec2 := echotest.ContextConfig{Request: req2}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c2); err != nil {
+		t.Fatalf("second request: unexpected error: %v", err)
+	}
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second request: expected 200, got %d — body: %s", rec2.Code, rec2.Body.String())
+	}
+
+	if got := rec2.Header().Get("Content-Type"); got != firstHeaders.Get("Content-Type") {
+		t.Fatalf("expected cached Content-Type %q, got %q", firstHeaders.Get("Content-Type"), got)
+	}
+	if got := rec2.Header().Get("Cache-Control"); got != firstHeaders.Get("Cache-Control") {
+		t.Fatalf("expected cached Cache-Control %q, got %q", firstHeaders.Get("Cache-Control"), got)
+	}
+	if !bytes.Equal(rec2.Body.Bytes(), firstBody) {
+		t.Fatalf("expected cached body to match original response exactly")
+	}
+	if reqCount != 1 {
+		t.Fatalf("expected exactly 1 upstream request, got %d", reqCount)
+	}
+}
+
+func TestHandleVideoThumbnail_Pinning_IsScopedPerRequest(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+	defer thumbServer.Close()
+
+	var mu sync.Mutex
+	lookupCount := 0
+	pinnedByRequest := []string{}
+	lookup := func(_ context.Context, host string) ([]net.IP, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		lookupCount++
+		if host != "media.example.test" {
+			return nil, fmt.Errorf("unexpected host %q", host)
+		}
+		if lookupCount == 1 {
+			return []net.IP{net.ParseIP("8.8.8.8")}, nil
+		}
+		return []net.IP{net.ParseIP("8.8.4.4")}, nil
+	}
+
+	dial := func(_ context.Context, host, port string, pinnedIP net.IP) (string, error) {
+		mu.Lock()
+		pinnedByRequest = append(pinnedByRequest, pinnedIP.String())
+		mu.Unlock()
+		if host != "media.example.test" {
+			return "", fmt.Errorf("unexpected dial host %q", host)
+		}
+		return thumbServer.Listener.Addr().String(), nil
+	}
+
+	h := newPinnedMediaHandler(t, lookup, dial, "media.example.test")
+
+	for i := 0; i < 2; i++ {
+		rawURL := fmt.Sprintf("http://media.example.test/thumb-%d.jpg", i+1)
+		req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(rawURL), nil)
+		c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+		if err := h.HandleVideoThumbnail(c); err != nil {
+			t.Fatalf("request %d: unexpected error: %v", i+1, err)
+		}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d — body: %s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+
+	if lookupCount != 2 {
+		t.Fatalf("expected one fresh lookup per request, got %d lookups", lookupCount)
+	}
+	wantPins := []string{"8.8.8.8", "8.8.4.4"}
+	if fmt.Sprintf("%v", pinnedByRequest) != fmt.Sprintf("%v", wantPins) {
+		t.Fatalf("expected request-scoped pins %v, got %v", wantPins, pinnedByRequest)
+	}
+}
+
+func TestHandleVideoThumbnail_InvalidOrOversizedImage_RemainsBadGateway(t *testing.T) {
+	overLimit := bytes.Repeat([]byte("a"), 10*1024*1024+1)
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "invalid image", body: []byte("not-an-image")},
+		{name: "oversized image", body: overLimit},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "image/jpeg")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(tt.body)
+			}))
+			defer thumbServer.Close()
+
+			thumbURL := thumbServer.URL + "/thumb.jpg"
+			h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
+			req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+			c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+			if err := h.HandleVideoThumbnail(c); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusBadGateway {
+				t.Fatalf("expected 502, got %d — body: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHandleVideoThumbnail_CacheHit(t *testing.T) {
 	jpegBytes := makeTestJPEG(t)
 
@@ -434,6 +579,90 @@ func TestHandleVideoThumbnail_CacheHit(t *testing.T) {
 
 	if reqCount != 1 {
 		t.Fatalf("expected exactly 1 upstream request (cache hit for second), got %d", reqCount)
+	}
+}
+
+func TestHandleVideoThumbnail_ConcurrentCacheHits_PreserveHeadersAndBody(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+
+	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
+
+	primeReq := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	primeCtx, primeRec := echotest.ContextConfig{Request: primeReq}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(primeCtx); err != nil {
+		t.Fatalf("prime request: unexpected error: %v", err)
+	}
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime request: expected 200, got %d", primeRec.Code)
+	}
+
+	expectedContentType := primeRec.Header().Get("Content-Type")
+	expectedCacheControl := primeRec.Header().Get("Cache-Control")
+	expectedBody := append([]byte(nil), primeRec.Body.Bytes()...)
+
+	thumbServer.Close()
+
+	const goroutines = 8
+	type result struct {
+		code         int
+		contentType  string
+		cacheControl string
+		body         []byte
+		err          error
+	}
+
+	results := make([]result, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+			c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+			err := h.HandleVideoThumbnail(c)
+			results[i] = result{
+				code:         rec.Code,
+				contentType:  rec.Header().Get("Content-Type"),
+				cacheControl: rec.Header().Get("Cache-Control"),
+				body:         append([]byte(nil), rec.Body.Bytes()...),
+				err:          err,
+			}
+		}()
+	}
+	wg.Wait()
+
+	for i, result := range results {
+		if result.err != nil {
+			t.Fatalf("cache hit %d: unexpected error: %v", i, result.err)
+		}
+		if result.code != http.StatusOK {
+			t.Fatalf("cache hit %d: expected 200, got %d", i, result.code)
+		}
+		if result.contentType != expectedContentType {
+			t.Fatalf("cache hit %d: expected Content-Type %q, got %q", i, expectedContentType, result.contentType)
+		}
+		if result.cacheControl != expectedCacheControl {
+			t.Fatalf("cache hit %d: expected Cache-Control %q, got %q", i, expectedCacheControl, result.cacheControl)
+		}
+		if !bytes.Equal(result.body, expectedBody) {
+			t.Fatalf("cache hit %d: expected body to match primed cache response", i)
+		}
+	}
+
+	if reqCount != 1 {
+		t.Fatalf("expected concurrent cache hits to avoid new upstream requests, got %d total", reqCount)
 	}
 }
 
