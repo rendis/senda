@@ -1452,6 +1452,50 @@ func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspa
 // @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id} [get]
 func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id() {}
 
+// doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_access auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access [delete]
+func doc_delete_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_access() {}
+
+// doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_role auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role [put]
+func doc_put_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_role() {}
+
 // doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles auto-generated route documentation.
 // @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -3285,6 +3329,44 @@ func doc_post_api_v1_manage_members() {}
 // @Router       /api/v1/manage/members/{member_id} [get]
 func doc_get_api_v1_manage_members_member_id() {}
 
+// doc_delete_api_v1_manage_members_member_id_access auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/members/{member_id}/access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         members
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/members/{member_id}/access [delete]
+func doc_delete_api_v1_manage_members_member_id_access() {}
+
+// doc_put_api_v1_manage_members_member_id_role auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/members/{member_id}/role
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         members
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/members/{member_id}/role [put]
+func doc_put_api_v1_manage_members_member_id_role() {}
+
 // doc_post_api_v1_manage_members_member_id_roles auto-generated route documentation.
 // @Summary      POST /api/v1/manage/members/{member_id}/roles
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -3494,6 +3576,46 @@ func doc_post_api_v1_manage_tenants_tenant_code_members() {}
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/members/{member_id} [get]
 func doc_get_api_v1_manage_tenants_tenant_code_members_member_id() {}
+
+// doc_delete_api_v1_manage_tenants_tenant_code_members_member_id_access auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/members/{member_id}/access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         members
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/members/{member_id}/access [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_members_member_id_access() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_members_member_id_role auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/members/{member_id}/role
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         members
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/members/{member_id}/role [put]
+func doc_put_api_v1_manage_tenants_tenant_code_members_member_id_role() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_members_member_id_roles auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/members/{member_id}/roles
@@ -4401,6 +4523,48 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_member
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id} [get]
 func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id() {}
+
+// doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_access auto-generated route documentation.
+// @Summary      DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Success      204  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access [delete]
+func doc_delete_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_access() {}
+
+// doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_role auto-generated route documentation.
+// @Summary      PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        member_id  path  string  true  "member_id path parameter"
+// @Param        body  body  DocGenericBody  true  "Request body"
+// @Success      200  {object}  DocGenericObject
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role [put]
+func doc_put_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_role() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_members_member_id_roles auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles

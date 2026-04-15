@@ -6519,6 +6519,212 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access": {
+            "delete": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "environment path parameter",
+                        "name": "environment",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "environment path parameter",
+                        "name": "environment",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles": {
             "post": {
                 "security": [
@@ -14706,6 +14912,170 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/manage/members/{member_id}/access": {
+            "delete": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "members"
+                ],
+                "summary": "DELETE /api/v1/manage/members/{member_id}/access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/members/{member_id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "members"
+                ],
+                "summary": "PUT /api/v1/manage/members/{member_id}/role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/manage/members/{member_id}/roles": {
             "post": {
                 "security": [
@@ -15552,6 +15922,184 @@ const docTemplate = `{
                         "name": "member_id",
                         "in": "path",
                         "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/tenants/{tenant_code}/members/{member_id}/access": {
+            "delete": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "members"
+                ],
+                "summary": "DELETE /api/v1/manage/tenants/{tenant_code}/members/{member_id}/access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/tenants/{tenant_code}/members/{member_id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "members"
+                ],
+                "summary": "PUT /api/v1/manage/tenants/{tenant_code}/members/{member_id}/role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                        }
                     }
                 ],
                 "responses": {
@@ -19631,6 +20179,198 @@ const docTemplate = `{
                         "name": "member_id",
                         "in": "path",
                         "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access": {
+            "delete": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericObject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "ManagementBearer": []
+                    }
+                ],
+                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tenant_code path parameter",
+                        "name": "tenant_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "workspace_code path parameter",
+                        "name": "workspace_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "member_id path parameter",
+                        "name": "member_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_senda.DocGenericBody"
+                        }
                     }
                 ],
                 "responses": {

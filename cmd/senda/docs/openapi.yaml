@@ -7040,6 +7040,178 @@ paths:
             summary: GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}
             tags:
                 - workspaces
+    /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access:
+        delete:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: environment path parameter
+                  in: path
+                  name: environment
+                  required: true
+                  schema:
+                    type: string
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: DELETE /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access
+            tags:
+                - workspaces
+    /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role:
+        put:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: environment path parameter
+                  in: path
+                  name: environment
+                  required: true
+                  schema:
+                    type: string
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: PUT /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role
+            tags:
+                - workspaces
     /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles:
         post:
             description: Auto-generated route stub for OpenAPI + MCP discovery.
@@ -13900,6 +14072,142 @@ paths:
             summary: GET /api/v1/manage/members/{member_id}
             tags:
                 - members
+    /api/v1/manage/members/{member_id}/access:
+        delete:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: DELETE /api/v1/manage/members/{member_id}/access
+            tags:
+                - members
+    /api/v1/manage/members/{member_id}/role:
+        put:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: PUT /api/v1/manage/members/{member_id}/role
+            tags:
+                - members
     /api/v1/manage/members/{member_id}/roles:
         post:
             description: Auto-generated route stub for OpenAPI + MCP discovery.
@@ -14649,6 +14957,154 @@ paths:
             security:
                 - ManagementBearer: []
             summary: GET /api/v1/manage/tenants/{tenant_code}/members/{member_id}
+            tags:
+                - members
+    /api/v1/manage/tenants/{tenant_code}/members/{member_id}/access:
+        delete:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: DELETE /api/v1/manage/tenants/{tenant_code}/members/{member_id}/access
+            tags:
+                - members
+    /api/v1/manage/tenants/{tenant_code}/members/{member_id}/role:
+        put:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: PUT /api/v1/manage/tenants/{tenant_code}/members/{member_id}/role
             tags:
                 - members
     /api/v1/manage/tenants/{tenant_code}/members/{member_id}/roles:
@@ -18069,6 +18525,166 @@ paths:
             security:
                 - ManagementBearer: []
             summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}
+            tags:
+                - workspaces
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access:
+        delete:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: DELETE /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/access
+            tags:
+                - workspaces
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role:
+        put:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: member_id path parameter
+                  in: path
+                  name: member_id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/cmd_senda.DocGenericBody'
+                description: Request body
+                required: true
+                x-originalParamName: body
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocGenericObject'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: PUT /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/role
             tags:
                 - workspaces
     /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/members/{member_id}/roles:
