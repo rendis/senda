@@ -18,29 +18,33 @@ const WORKSPACE_SCOPE_CODE = "system-main";
 const TENANT_ROLE_ID = "tenant-role";
 const WORKSPACE_ROLE_ID = "workspace-role";
 const REVOKE_ACCESS_ACTION = "revoke-access";
+const CHANGE_ROLE_ACTION = "change-role";
+const CHANGE_ROLE_LABEL = "Change role";
+const GLOBAL_SCOPE = "global";
+const TENANT_SCOPE = "tenant";
 const WORKSPACE_SCOPE = "workspace";
 
 test("member row actions stay simple and only allow changing roles in workspace scope", () => {
   assert.deepEqual(
-    getMemberRowActions("global").map((action) => action.kind),
+    getMemberRowActions(GLOBAL_SCOPE).map((action) => action.kind),
     [REVOKE_ACCESS_ACTION],
   );
   assert.deepEqual(
-    getMemberRowActions("tenant").map((action) => action.kind),
+    getMemberRowActions(TENANT_SCOPE).map((action) => action.kind),
     [REVOKE_ACCESS_ACTION],
   );
   assert.deepEqual(
     getMemberRowActions(WORKSPACE_SCOPE).map((action) => action.kind),
-    ["change-role", REVOKE_ACCESS_ACTION],
+    [CHANGE_ROLE_ACTION, REVOKE_ACCESS_ACTION],
   );
   assert.equal(
     getMemberRowActions(WORKSPACE_SCOPE).filter((action) => action.destructive).length,
     1,
   );
   assert.equal(
-    getMemberRowActions(WORKSPACE_SCOPE).find((action) => action.kind === "change-role")
+    getMemberRowActions(WORKSPACE_SCOPE).find((action) => action.kind === CHANGE_ROLE_ACTION)
       ?.label,
-    "Change role",
+    CHANGE_ROLE_LABEL,
   );
 });
 
@@ -73,7 +77,7 @@ test("revoke access is only available for members with a global grant in global 
           },
         ],
       },
-      { level: "global" },
+      { level: GLOBAL_SCOPE },
     ),
     false,
   );
@@ -91,7 +95,7 @@ test("revoke access is only available for members with a global grant in global 
           },
         ],
       },
-      { level: "global" },
+      { level: GLOBAL_SCOPE },
     ),
     true,
   );
@@ -209,7 +213,7 @@ test("members table derives the visible role and scope from the current scope", 
   const member = {
     roles: [
       {
-        id: "workspace-role",
+        id: WORKSPACE_ROLE_ID,
         member_id: MEMBER_ID,
         role: "workspace_admin" as const,
         scope_type: "workspace" as const,
@@ -218,7 +222,7 @@ test("members table derives the visible role and scope from the current scope", 
         created_at: CREATED_AT,
       },
       {
-        id: "tenant-role",
+        id: TENANT_ROLE_ID,
         member_id: MEMBER_ID,
         role: "tenant_admin" as const,
         scope_type: "tenant" as const,
@@ -244,7 +248,7 @@ test("members table derives the visible role and scope from the current scope", 
       level: "tenant",
       tenantCode: TENANT_CODE,
     })?.id,
-    "tenant-role",
+    TENANT_ROLE_ID,
   );
   assert.equal(
     getPrimaryMemberRoleInScope(member, {
@@ -252,7 +256,7 @@ test("members table derives the visible role and scope from the current scope", 
       tenantCode: TENANT_CODE,
       workspaceCode: WORKSPACE_CODE,
     })?.id,
-    "workspace-role",
+    WORKSPACE_ROLE_ID,
   );
 });
 
@@ -303,7 +307,7 @@ test("members outside the current scope are excluded from scoped roles", () => {
   const member = {
     roles: [
       {
-        id: "tenant-role",
+        id: TENANT_ROLE_ID,
         member_id: MEMBER_ID,
         role: "tenant_admin" as const,
         scope_type: "tenant" as const,
@@ -311,7 +315,7 @@ test("members outside the current scope are excluded from scoped roles", () => {
         created_at: CREATED_AT,
       },
       {
-        id: "workspace-role",
+        id: WORKSPACE_ROLE_ID,
         member_id: MEMBER_ID,
         role: "workspace_admin" as const,
         scope_type: "workspace" as const,
@@ -330,7 +334,7 @@ test("members outside the current scope are excluded from scoped roles", () => {
     getMemberRolesInScope(member, { level: "tenant", tenantCode: TENANT_CODE }).map(
       (role) => role.id,
     ),
-    ["tenant-role"],
+    [TENANT_ROLE_ID],
   );
   assert.deepEqual(
     getMemberRolesInScope(member, {
@@ -338,6 +342,6 @@ test("members outside the current scope are excluded from scoped roles", () => {
       tenantCode: TENANT_CODE,
       workspaceCode: WORKSPACE_CODE,
     }).map((role) => role.id),
-    ["workspace-role"],
+    [WORKSPACE_ROLE_ID],
   );
 });
