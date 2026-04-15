@@ -318,6 +318,68 @@ SELECT count(*)
 	return count, nil
 }
 
+// ListWorkspacesUsingAdapter returns the subset of requested workspaces that currently
+// have template types using the provided adapter.
+func (r *TemplateTypeUsageRepo) ListWorkspacesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(workspaceIDs) == 0 {
+		return nil, nil
+	}
+
+	rows, err := r.pool.Query(ctx, `
+WITH requested AS (
+	SELECT workspace_id, MIN(ord) AS ord
+	  FROM unnest(@workspace_ids::uuid[]) WITH ORDINALITY AS req(workspace_id, ord)
+	 GROUP BY workspace_id
+)
+SELECT req.workspace_id
+  FROM requested req
+  JOIN template_types tt
+    ON tt.adapter_id = @adapter_id
+   AND tt.deleted_at IS NULL
+   AND tt.workspace_id = req.workspace_id
+ ORDER BY req.ord`,
+		pgx.NamedArgs{"adapter_id": adapterID, "workspace_ids": workspaceIDs},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing workspaces using adapter: %w", err)
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (uuid.UUID, error) {
+		var id uuid.UUID
+		return id, row.Scan(&id)
+	})
+}
+
+// ListWorkspacesUsingSenderIdentity returns the subset of requested workspaces that currently
+// have template types using the provided sender identity.
+func (r *TemplateTypeUsageRepo) ListWorkspacesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(workspaceIDs) == 0 {
+		return nil, nil
+	}
+
+	rows, err := r.pool.Query(ctx, `
+WITH requested AS (
+	SELECT workspace_id, MIN(ord) AS ord
+	  FROM unnest(@workspace_ids::uuid[]) WITH ORDINALITY AS req(workspace_id, ord)
+	 GROUP BY workspace_id
+)
+SELECT req.workspace_id
+  FROM requested req
+  JOIN template_types tt
+    ON tt.sender_identity_id = @identity_id
+   AND tt.deleted_at IS NULL
+   AND tt.workspace_id = req.workspace_id
+ ORDER BY req.ord`,
+		pgx.NamedArgs{"identity_id": identityID, "workspace_ids": workspaceIDs},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing workspaces using sender identity: %w", err)
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (uuid.UUID, error) {
+		var id uuid.UUID
+		return id, row.Scan(&id)
+	})
+}
+
 var (
 	_ port.AdapterGrantStore         = (*AdapterGrantRepo)(nil)
 	_ port.AdapterIdentityGrantStore = (*AdapterIdentityGrantRepo)(nil)

@@ -121,6 +121,7 @@ type EmailStore interface {
 	CreateTx(ctx context.Context, tx pgx.Tx, email *domain.Email) error
 	GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error)
 	GetByProviderMessageID(ctx context.Context, providerMessageID string) (*domain.Email, error)
+	GetPayload(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error)
 	PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
 	UpdateRetry(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
@@ -143,13 +144,16 @@ type EmailStore interface {
 type MemberStore interface {
 	Create(ctx context.Context, member *domain.Member) error
 	GetByEmail(ctx context.Context, email string) (*domain.Member, error)
+	GetByOIDCIdentity(ctx context.Context, issuer, subject string) (*domain.Member, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Member, error)
 	CountAll(ctx context.Context) (int64, error) // For onboarding check
 	ListAll(ctx context.Context, opts ListOptions) ([]*domain.Member, string, error)
 	ListInScope(ctx context.Context, scopeType domain.ScopeType, scopeID *uuid.UUID, opts ListOptions) ([]*domain.Member, string, error)
 
 	AddRole(ctx context.Context, role *domain.MemberRole) error
+	ReplaceRoleInScope(ctx context.Context, role *domain.MemberRole) error
 	RemoveRole(ctx context.Context, roleID uuid.UUID) error
+	RevokeAccessInScope(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) (int64, error)
 	GetRoles(ctx context.Context, memberID uuid.UUID) ([]*domain.MemberRole, error)
 	GetRolesInScope(ctx context.Context, memberID uuid.UUID, scopeType domain.ScopeType, scopeID *uuid.UUID) ([]*domain.MemberRole, error)
 
@@ -170,6 +174,15 @@ type SuppressionStore interface {
 
 	// Combined check (optimized)
 	IsSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error) // returns (suppressed, reason, err)
+
+	// Batch combined check. Returned map contains only suppressed recipients keyed by normalized email.
+	CheckBatch(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]string, error)
+}
+
+// SuppressionStatus captures whether an email is suppressed and why.
+type SuppressionStatus struct {
+	Suppressed bool
+	Reason     string
 }
 
 // AdapterStore manages email adapter persistence.
@@ -218,8 +231,8 @@ type AdapterIdentityGrantStore interface {
 
 // TemplateTypeUsageStore provides lightweight usage checks for shared access revocation.
 type TemplateTypeUsageStore interface {
-	CountTypesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error)
-	CountTypesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error)
+	ListWorkspacesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
+	ListWorkspacesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
 // WebhookStore manages webhook endpoint persistence.
@@ -241,6 +254,23 @@ type WebhookStore interface {
 
 	// GetActiveByWorkspace returns all enabled webhooks for event dispatch.
 	GetActiveByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Webhook, error)
+}
+
+// SNSReplayDecision classifies the outcome of attempting to claim an SNS replay key.
+type SNSReplayDecision string
+
+const (
+	SNSReplayDecisionAccepted  SNSReplayDecision = "accepted"
+	SNSReplayDecisionDuplicate SNSReplayDecision = "duplicate"
+	SNSReplayDecisionStale     SNSReplayDecision = "stale"
+)
+
+// SNSReplayStore persists SNS replay keys and enforces the replay window.
+type SNSReplayStore interface {
+	// Claim stores the replay key for the given SNS message if it is new and
+	// inside the replay window. It returns a decision describing whether the
+	// message was accepted, already seen, or stale.
+	Claim(ctx context.Context, topicArn, messageID string, messageTimestamp time.Time, replayWindow time.Duration) (SNSReplayDecision, error)
 }
 
 // APIKeyStore manages API key persistence.

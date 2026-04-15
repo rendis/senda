@@ -22,15 +22,18 @@ import (
 // --- Manual mocks ---
 
 type mockEmailStore struct {
-	getByTrackingIDFn        func(ctx context.Context, trackingID string) (*domain.Email, error)
-	updateStatusFn           func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
-	updateRetryFn            func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
-	addEventFn               func(ctx context.Context, event *domain.EmailEvent) error
-	setProviderMessageIDFn   func(ctx context.Context, id uuid.UUID, providerMsgID string) error
+	getByTrackingIDFn      func(ctx context.Context, trackingID string) (*domain.Email, error)
+	getPayloadFn           func(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error)
+	updateStatusFn         func(ctx context.Context, id uuid.UUID, newStatus, expectedStatus domain.EmailStatus) error
+	updateRetryFn          func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
+	addEventFn             func(ctx context.Context, event *domain.EmailEvent) error
+	setProviderMessageIDFn func(ctx context.Context, id uuid.UUID, providerMsgID string) error
 
 	updateStatusCalls []updateStatusCall
 	addEventCalls     []addEventCall
 	updateRetryCalls  []updateRetryCall
+	getPayloadCalls   []uuid.UUID
+	lastEmail         *domain.Email
 }
 
 type updateStatusCall struct {
@@ -47,14 +50,34 @@ type updateRetryCall struct {
 	RetryCount int
 }
 
-func (m *mockEmailStore) Create(_ context.Context, _ *domain.Email) error { return nil }
+func (m *mockEmailStore) Create(_ context.Context, _ *domain.Email) error             { return nil }
 func (m *mockEmailStore) CreateTx(_ context.Context, _ pgx.Tx, _ *domain.Email) error { return nil }
 func (m *mockEmailStore) GetByProviderMessageID(_ context.Context, _ string) (*domain.Email, error) {
 	return nil, domain.ErrNotFound
 }
 func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string) (*domain.Email, error) {
 	if m.getByTrackingIDFn != nil {
-		return m.getByTrackingIDFn(ctx, trackingID)
+		email, err := m.getByTrackingIDFn(ctx, trackingID)
+		if err == nil {
+			m.lastEmail = email
+		}
+		return email, err
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockEmailStore) GetPayload(ctx context.Context, emailID uuid.UUID) (*domain.EmailPayload, error) {
+	m.getPayloadCalls = append(m.getPayloadCalls, emailID)
+	if m.getPayloadFn != nil {
+		return m.getPayloadFn(ctx, emailID)
+	}
+	if m.lastEmail != nil && m.lastEmail.ID == emailID {
+		return &domain.EmailPayload{
+			EmailID:           m.lastEmail.ID,
+			EmailCreatedAt:    m.lastEmail.CreatedAt,
+			BodyMJML:          m.lastEmail.BodyMJML,
+			VariablesSnapshot: m.lastEmail.VariablesSnapshot,
+			InjectorsSnapshot: m.lastEmail.InjectorsSnapshot,
+		}, nil
 	}
 	return nil, domain.ErrNotFound
 }
@@ -129,7 +152,9 @@ func (m *mockRenderer) Render(template string, injectors map[string]map[string]a
 }
 
 type mockRateLimiter struct {
-	tryAcquireFn func(ctx context.Context, adapterID uuid.UUID) (bool, error)
+	tryAcquireFn      func(ctx context.Context, adapterID uuid.UUID) (bool, error)
+	acquireBurstFn    func(ctx context.Context, adapterID uuid.UUID, requested int) (int, error)
+	acquireBurstCalls []acquireBurstCall
 }
 
 func (m *mockRateLimiter) TryAcquire(ctx context.Context, adapterID uuid.UUID) (bool, error) {
@@ -138,14 +163,37 @@ func (m *mockRateLimiter) TryAcquire(ctx context.Context, adapterID uuid.UUID) (
 	}
 	return true, nil
 }
+
+type acquireBurstCall struct {
+	AdapterID uuid.UUID
+	Requested int
+}
+
+func (m *mockRateLimiter) AcquireBurst(ctx context.Context, adapterID uuid.UUID, requested int) (int, error) {
+	m.acquireBurstCalls = append(m.acquireBurstCalls, acquireBurstCall{AdapterID: adapterID, Requested: requested})
+	if m.acquireBurstFn != nil {
+		return m.acquireBurstFn(ctx, adapterID, requested)
+	}
+	if m.tryAcquireFn != nil {
+		allowed, err := m.tryAcquireFn(ctx, adapterID)
+		if err != nil {
+			return 0, err
+		}
+		if allowed {
+			return 1, nil
+		}
+		return 0, nil
+	}
+	return requested, nil
+}
 func (m *mockRateLimiter) SyncBucket(ctx context.Context, adapterID uuid.UUID, maxPerSecond int) error {
 	return nil
 }
 
 type mockSender struct {
-	sendFn                   func(ctx context.Context, msg *port.OutgoingEmail) (string, error)
-	isPermanentSendErrorFn   func(err error) bool
-	calls                    []sendCall
+	sendFn                 func(ctx context.Context, msg *port.OutgoingEmail) (string, error)
+	isPermanentSendErrorFn func(err error) bool
+	calls                  []sendCall
 }
 
 type sendCall struct {
@@ -530,6 +578,238 @@ func TestSendWorker_RateLimited_Snoozes(t *testing.T) {
 	// so no status updates should have occurred — email stays "queued".
 	if len(emailStore.updateStatusCalls) != 0 {
 		t.Errorf("expected 0 status updates when rate limited, got %d", len(emailStore.updateStatusCalls))
+	}
+	if len(emailStore.getPayloadCalls) != 0 {
+		t.Errorf("expected 0 payload loads when rate limited, got %d", len(emailStore.getPayloadCalls))
+	}
+}
+
+func TestSendWorker_LoadsColdPayloadOnlyAfterHotPathChecks(t *testing.T) {
+	email := newTestEmail()
+	email.BodyMJML = ""
+	email.VariablesSnapshot = nil
+	email.InjectorsSnapshot = nil
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+			return email, nil
+		},
+		getPayloadFn: func(_ context.Context, emailID uuid.UUID) (*domain.EmailPayload, error) {
+			if emailID != email.ID {
+				t.Fatalf("expected payload load for %s, got %s", email.ID, emailID)
+			}
+			return &domain.EmailPayload{
+				EmailID:           email.ID,
+				BodyMJML:          "<mj-text>Hello {{ name }}</mj-text>",
+				VariablesSnapshot: map[string]any{"name": "Ana"},
+				InjectorsSnapshot: map[string]map[string]any{"brand": {"name": "Acme"}},
+			}, nil
+		},
+	}
+	renderer := &mockRenderer{
+		renderFn: func(template string, injectors map[string]map[string]any, eventVars map[string]any) (string, error) {
+			if got := eventVars["name"]; got != "Ana" {
+				t.Fatalf("expected cold payload variables, got %#v", eventVars)
+			}
+			if got := injectors["brand"]["name"]; got != "Acme" {
+				t.Fatalf("expected cold payload injectors, got %#v", injectors)
+			}
+			return strings.ReplaceAll(template, "{{ name }}", "Ana"), nil
+		},
+	}
+	sender := &mockSender{}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, renderer, &mockRateLimiter{}, sender)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(emailStore.getPayloadCalls) != 1 {
+		t.Fatalf("expected 1 payload load, got %d", len(emailStore.getPayloadCalls))
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sender.calls))
+	}
+	if !strings.Contains(sender.calls[0].Msg.BodyHTML, "Hello Ana") {
+		t.Fatalf("expected compiled HTML from cold payload, got %q", sender.calls[0].Msg.BodyHTML)
+	}
+}
+
+func TestSendWorker_ReusesBurstReservationAcrossJobsForSameAdapter(t *testing.T) {
+	email1 := newTestEmail()
+	email2 := newTestEmail()
+	email2.AdapterID = email1.AdapterID
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			switch trackingID {
+			case email1.TrackingID:
+				return email1, nil
+			case email2.TrackingID:
+				return email2, nil
+			default:
+				return nil, domain.ErrNotFound
+			}
+		},
+	}
+
+	rateLimiter := &mockRateLimiter{
+		acquireBurstFn: func(_ context.Context, adapterID uuid.UUID, requested int) (int, error) {
+			if adapterID != email1.AdapterID {
+				t.Fatalf("expected adapter %s, got %s", email1.AdapterID, adapterID)
+			}
+			if requested < 2 {
+				t.Fatalf("expected burst request >= 2, got %d", requested)
+			}
+			return 2, nil
+		},
+	}
+	sender := &mockSender{}
+	worker := newTestSendWorker(emailStore, &mockCompiler{}, &mockRenderer{}, rateLimiter, sender)
+
+	job1 := makeJob(SendJobArgs{EmailID: email1.ID, TrackingID: email1.TrackingID, AdapterID: email1.AdapterID}, 1)
+	job2 := makeJob(SendJobArgs{EmailID: email2.ID, TrackingID: email2.TrackingID, AdapterID: email2.AdapterID}, 1)
+
+	if err := worker.Work(context.Background(), job1); err != nil {
+		t.Fatalf("unexpected error on first job: %v", err)
+	}
+	if err := worker.Work(context.Background(), job2); err != nil {
+		t.Fatalf("unexpected error on second job: %v", err)
+	}
+
+	if len(rateLimiter.acquireBurstCalls) != 1 {
+		t.Fatalf("expected 1 burst acquisition for same adapter, got %d", len(rateLimiter.acquireBurstCalls))
+	}
+	if len(sender.calls) != 2 {
+		t.Fatalf("expected 2 sends, got %d", len(sender.calls))
+	}
+}
+
+func TestSendWorker_UsesConfiguredBurstSize(t *testing.T) {
+	email := newTestEmail()
+	rateLimiter := &mockRateLimiter{
+		acquireBurstFn: func(_ context.Context, _ uuid.UUID, requested int) (int, error) {
+			return requested, nil
+		},
+	}
+	worker := newTestSendWorker(
+		&mockEmailStore{
+			getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+				return email, nil
+			},
+		},
+		&mockCompiler{},
+		&mockRenderer{},
+		rateLimiter,
+		&mockSender{},
+		WithRateLimitBurstSize(2),
+	)
+
+	job := makeJob(SendJobArgs{EmailID: email.ID, TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rateLimiter.acquireBurstCalls) != 1 {
+		t.Fatalf("expected 1 burst acquisition, got %d", len(rateLimiter.acquireBurstCalls))
+	}
+	if rateLimiter.acquireBurstCalls[0].Requested != 2 {
+		t.Fatalf("expected configured burst size 2, got %d", rateLimiter.acquireBurstCalls[0].Requested)
+	}
+}
+
+func TestSendWorker_ReacquiresBurstAfterReservationTTLExpires(t *testing.T) {
+	email := newTestEmail()
+	base := time.Date(2026, time.April, 11, 12, 0, 0, 0, time.UTC)
+	rateLimiter := &mockRateLimiter{
+		acquireBurstFn: func(_ context.Context, _ uuid.UUID, requested int) (int, error) {
+			return requested, nil
+		},
+	}
+	worker := newTestSendWorker(
+		&mockEmailStore{
+			getByTrackingIDFn: func(_ context.Context, _ string) (*domain.Email, error) {
+				return email, nil
+			},
+		},
+		&mockCompiler{},
+		&mockRenderer{},
+		rateLimiter,
+		&mockSender{},
+	)
+	worker.now = func() time.Time { return base }
+	worker.rateLimitReservationTTL = time.Minute
+	worker.rateLimitCleanupInterval = 0
+
+	job := makeJob(SendJobArgs{EmailID: email.ID, TrackingID: email.TrackingID, AdapterID: email.AdapterID}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error on first work: %v", err)
+	}
+	if len(rateLimiter.acquireBurstCalls) != 1 {
+		t.Fatalf("expected first work to reserve once, got %d calls", len(rateLimiter.acquireBurstCalls))
+	}
+
+	base = base.Add(2 * time.Minute)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error on second work: %v", err)
+	}
+	if len(rateLimiter.acquireBurstCalls) != 2 {
+		t.Fatalf("expected stale reservation to trigger reacquire, got %d calls", len(rateLimiter.acquireBurstCalls))
+	}
+}
+
+func TestSendWorker_PrunesStaleRateLimitReservations(t *testing.T) {
+	worker := newTestSendWorker(&mockEmailStore{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+	base := time.Date(2026, time.April, 11, 12, 0, 0, 0, time.UTC)
+	staleAdapterID := uuid.Must(uuid.NewV7())
+	activeAdapterID := uuid.Must(uuid.NewV7())
+
+	worker.rateLimitReservationTTL = time.Minute
+	worker.rateLimits.Store(staleAdapterID, &rateLimitReservation{
+		available:   1,
+		lastTouched: base.Add(-2 * time.Minute),
+	})
+	worker.rateLimits.Store(activeAdapterID, &rateLimitReservation{
+		available:   1,
+		lastTouched: base,
+	})
+
+	worker.cleanupExpiredRateLimitReservations(base)
+
+	if _, ok := worker.rateLimits.Load(staleAdapterID); ok {
+		t.Fatal("expected stale adapter reservation to be pruned")
+	}
+	if _, ok := worker.rateLimits.Load(activeAdapterID); !ok {
+		t.Fatal("expected active adapter reservation to remain")
+	}
+}
+
+func TestSendWorker_DoesNotPruneReservationWithOutstandingReference(t *testing.T) {
+	worker := newTestSendWorker(&mockEmailStore{}, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, &mockSender{})
+	base := time.Date(2026, time.April, 11, 12, 0, 0, 0, time.UTC)
+	adapterID := uuid.Must(uuid.NewV7())
+	state := &rateLimitReservation{
+		available:   1,
+		lastTouched: base.Add(-2 * time.Minute),
+	}
+	state.refs.Add(1)
+	worker.rateLimitReservationTTL = time.Minute
+	worker.rateLimits.Store(adapterID, state)
+
+	worker.cleanupExpiredRateLimitReservations(base)
+
+	if _, ok := worker.rateLimits.Load(adapterID); !ok {
+		t.Fatal("expected reservation with outstanding reference to remain in map")
+	}
+	if state.deleting.Load() {
+		t.Fatal("expected deleting flag to be released after skipped prune")
 	}
 }
 
@@ -1006,5 +1286,5 @@ type plainMockSender struct{}
 func (p *plainMockSender) Send(_ context.Context, _ *port.OutgoingEmail) (string, error) {
 	return "", nil
 }
-func (p *plainMockSender) Name() string                       { return "plain" }
+func (p *plainMockSender) Name() string                        { return "plain" }
 func (p *plainMockSender) HealthCheck(_ context.Context) error { return nil }

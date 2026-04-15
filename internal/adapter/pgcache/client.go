@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rendis/senda/pkg/apperr"
@@ -63,9 +64,10 @@ func (c *PGCache) Delete(ctx context.Context, key string) error {
 }
 
 // DeletePattern removes all cached values matching a glob pattern.
-// Converts glob wildcards (*) to SQL LIKE wildcards (%).
+// Converts glob wildcards (*) to SQL LIKE wildcards (%) and escapes literal
+// LIKE metacharacters so scope prefixes are matched exactly.
 func (c *PGCache) DeletePattern(ctx context.Context, pattern string) error {
-	likePattern := strings.ReplaceAll(pattern, "*", "%")
+	likePattern := escapeLikePattern(pattern)
 	_, err := c.pool.Exec(ctx, "DELETE FROM cache WHERE key LIKE $1", likePattern)
 	if err != nil {
 		return fmt.Errorf("pgcache delete pattern %q: %w", pattern, err)
@@ -73,3 +75,46 @@ func (c *PGCache) DeletePattern(ctx context.Context, pattern string) error {
 	return nil
 }
 
+// DeleteResolvedTemplatesByWorkspace removes cached resolved templates for one workspace
+// using the structured cache key segments instead of a prefix pattern sweep.
+func (c *PGCache) DeleteResolvedTemplatesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := c.pool.Exec(ctx,
+		`DELETE FROM cache
+		  WHERE split_part(key, ':', 1) = 'resolved_template'
+		    AND split_part(key, ':', 2) = $1`,
+		workspaceID.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("pgcache delete resolved templates for workspace %s: %w", workspaceID, err)
+	}
+	return nil
+}
+
+// DeleteAllResolvedTemplates removes all resolved template entries without relying on LIKE prefix scans.
+func (c *PGCache) DeleteAllResolvedTemplates(ctx context.Context) error {
+	_, err := c.pool.Exec(ctx,
+		`DELETE FROM cache
+		  WHERE split_part(key, ':', 1) = 'resolved_template'`,
+	)
+	if err != nil {
+		return fmt.Errorf("pgcache delete all resolved templates: %w", err)
+	}
+	return nil
+}
+
+func escapeLikePattern(pattern string) string {
+	var b strings.Builder
+	b.Grow(len(pattern) * 2)
+	for _, r := range pattern {
+		switch r {
+		case '\\', '%', '_':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case '*':
+			b.WriteByte('%')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}

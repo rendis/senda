@@ -21,17 +21,17 @@ import (
 // --- Mock EmailStore ---
 
 type mockEmailStore struct {
-	createFn              func(ctx context.Context, email *domain.Email) error
-	getByTrackingIDFn     func(ctx context.Context, trackingID string) (*domain.Email, error)
-	updateStatusFn        func(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
-	updateRetryFn         func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
-	addEventFn            func(ctx context.Context, event *domain.EmailEvent) error
-	getEventsFn           func(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error)
-	queryByExternalIDFn   func(ctx context.Context, wsID uuid.UUID, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
-	queryByRecipientFn    func(ctx context.Context, wsID uuid.UUID, email string, cursor string, limit int) ([]*domain.Email, string, error)
-	queryByWorkspaceFn    func(ctx context.Context, wsID uuid.UUID, filters port.EmailFilters, cursor string, limit int) ([]*domain.Email, string, error)
+	createFn                  func(ctx context.Context, email *domain.Email) error
+	getByTrackingIDFn         func(ctx context.Context, trackingID string) (*domain.Email, error)
+	updateStatusFn            func(ctx context.Context, id uuid.UUID, status domain.EmailStatus) error
+	updateRetryFn             func(ctx context.Context, id uuid.UUID, retryCount int, nextRetryAt *time.Time) error
+	addEventFn                func(ctx context.Context, event *domain.EmailEvent) error
+	getEventsFn               func(ctx context.Context, emailID uuid.UUID) ([]*domain.EmailEvent, error)
+	queryByExternalIDFn       func(ctx context.Context, wsID uuid.UUID, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
+	queryByRecipientFn        func(ctx context.Context, wsID uuid.UUID, email string, cursor string, limit int) ([]*domain.Email, string, error)
+	queryByWorkspaceFn        func(ctx context.Context, wsID uuid.UUID, filters port.EmailFilters, cursor string, limit int) ([]*domain.Email, string, error)
 	queryByExternalIDGlobalFn func(ctx context.Context, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
-	purgeWorkspaceFn      func(ctx context.Context, workspaceID uuid.UUID) error
+	purgeWorkspaceFn          func(ctx context.Context, workspaceID uuid.UUID) error
 }
 
 func (m *mockEmailStore) Create(ctx context.Context, email *domain.Email) error {
@@ -49,6 +49,9 @@ func (m *mockEmailStore) GetByTrackingID(ctx context.Context, trackingID string)
 		return m.getByTrackingIDFn(ctx, trackingID)
 	}
 	return nil, domain.ErrNotFound
+}
+func (m *mockEmailStore) GetPayload(_ context.Context, _ uuid.UUID) (*domain.EmailPayload, error) {
+	return nil, nil
 }
 func (m *mockEmailStore) PurgeWorkspaceRuntime(ctx context.Context, workspaceID uuid.UUID) error {
 	if m.purgeWorkspaceFn != nil {

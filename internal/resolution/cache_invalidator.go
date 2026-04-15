@@ -17,6 +17,11 @@ type CacheInvalidator struct {
 	workspaceStore port.WorkspaceStore
 }
 
+type resolvedTemplateScopeCache interface {
+	DeleteResolvedTemplatesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error
+	DeleteAllResolvedTemplates(ctx context.Context) error
+}
+
 // NewCacheInvalidator creates a CacheInvalidator with the given dependencies.
 func NewCacheInvalidator(cache port.Cache, ws port.WorkspaceStore) *CacheInvalidator {
 	return &CacheInvalidator{
@@ -46,15 +51,25 @@ func (c *CacheInvalidator) InvalidateDomainValidation(ctx context.Context, works
 // to a global invalidation so stale data is never served.
 func (c *CacheInvalidator) InvalidateTenantWorkspaces(ctx context.Context, tenantID uuid.UUID) {
 	for _, environment := range domain.Environments() {
-		workspaces, _, err := c.workspaceStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{Limit: 1000})
-		if err != nil {
-			slog.Error("failed to list workspaces for cache invalidation, falling back to global",
-				"tenant_id", tenantID, "environment", environment, "error", err)
-			c.InvalidateGlobal(ctx)
-			return
-		}
-		for _, ws := range workspaces {
-			c.InvalidateWorkspace(ctx, ws.ID)
+		cursor := ""
+		for {
+			workspaces, nextCursor, err := c.workspaceStore.ListByTenant(ctx, tenantID, environment, port.ListOptions{
+				Limit:  1000,
+				Cursor: cursor,
+			})
+			if err != nil {
+				slog.Error("failed to list workspaces for cache invalidation, falling back to global",
+					"tenant_id", tenantID, "environment", environment, "error", err)
+				c.InvalidateGlobal(ctx)
+				return
+			}
+			for _, ws := range workspaces {
+				c.InvalidateWorkspace(ctx, ws.ID)
+			}
+			if nextCursor == "" {
+				break
+			}
+			cursor = nextCursor
 		}
 	}
 }
@@ -62,17 +77,27 @@ func (c *CacheInvalidator) InvalidateTenantWorkspaces(ctx context.Context, tenan
 // InvalidateResolvedTemplates removes cached resolved templates for a workspace.
 // Call this when a template is published, disabled, or its type changes.
 func (c *CacheInvalidator) InvalidateResolvedTemplates(ctx context.Context, workspaceID uuid.UUID) {
-	_ = c.cache.DeletePattern(ctx, fmt.Sprintf("resolved_template:%s:*", workspaceID.String()))
+	cache, ok := c.cache.(resolvedTemplateScopeCache)
+	if !ok {
+		slog.Warn("resolved template cache does not support explicit workspace invalidation", "workspace_id", workspaceID)
+		return
+	}
+	_ = cache.DeleteResolvedTemplatesByWorkspace(ctx, workspaceID)
 }
 
 // InvalidateAllResolvedTemplates removes all cached resolved templates across all workspaces.
 func (c *CacheInvalidator) InvalidateAllResolvedTemplates(ctx context.Context) {
-	_ = c.cache.DeletePattern(ctx, "resolved_template:*")
+	cache, ok := c.cache.(resolvedTemplateScopeCache)
+	if !ok {
+		slog.Warn("resolved template cache does not support explicit global invalidation")
+		return
+	}
+	_ = cache.DeleteAllResolvedTemplates(ctx)
 }
 
 // InvalidateGlobal removes all cached resolution chains, adapter data, and resolved templates.
 func (c *CacheInvalidator) InvalidateGlobal(ctx context.Context) {
 	_ = c.cache.DeletePattern(ctx, "chain:*")
 	_ = c.cache.DeletePattern(ctx, "adapter:*")
-	_ = c.cache.DeletePattern(ctx, "resolved_template:*")
+	c.InvalidateAllResolvedTemplates(ctx)
 }

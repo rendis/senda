@@ -211,14 +211,16 @@ func (s *AdapterAccessService) ReplaceAdapterWorkspaceAccess(ctx context.Context
 	if err != nil {
 		return err
 	}
-	for _, revoked := range subtractUUIDs(current, validTargets) {
-		count, err := s.templateTypeUsages.CountTypesUsingAdapter(ctx, adapterID, &revoked)
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return domain.ErrSharedGrantInUse
-		}
+	revoked := subtractUUIDs(current, validTargets)
+	if len(revoked) == 0 {
+		return s.adapterGrants.ReplaceAdapterWorkspaceGrants(ctx, adapterID, validTargets)
+	}
+	inUse, err := s.templateTypeUsages.ListWorkspacesUsingAdapter(ctx, adapterID, revoked)
+	if err != nil {
+		return err
+	}
+	if len(inUse) > 0 {
+		return domain.ErrSharedGrantInUse
 	}
 	return s.adapterGrants.ReplaceAdapterWorkspaceGrants(ctx, adapterID, validTargets)
 }
@@ -250,14 +252,16 @@ func (s *AdapterAccessService) ReplaceIdentityWorkspaceAccess(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	for _, revoked := range subtractUUIDs(current, validTargets) {
-		count, err := s.templateTypeUsages.CountTypesUsingSenderIdentity(ctx, identityID, &revoked)
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return domain.ErrSharedGrantInUse
-		}
+	revoked := subtractUUIDs(current, validTargets)
+	if len(revoked) == 0 {
+		return s.identityGrants.ReplaceIdentityWorkspaceGrants(ctx, identityID, validTargets)
+	}
+	inUse, err := s.templateTypeUsages.ListWorkspacesUsingSenderIdentity(ctx, identityID, revoked)
+	if err != nil {
+		return err
+	}
+	if len(inUse) > 0 {
+		return domain.ErrSharedGrantInUse
 	}
 	return s.identityGrants.ReplaceIdentityWorkspaceGrants(ctx, identityID, validTargets)
 }

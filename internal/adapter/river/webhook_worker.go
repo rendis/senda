@@ -54,6 +54,13 @@ func NewWebhookWorker(webhookStore port.WebhookStore, httpClient HTTPClient, opt
 			Timeout: 10 * time.Second,
 		}
 	}
+	if client, ok := httpClient.(*http.Client); ok {
+		cloned := *client
+		cloned.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		httpClient = &cloned
+	}
 	w := &WebhookWorker{
 		webhookStore: webhookStore,
 		httpClient:   httpClient,
@@ -125,7 +132,7 @@ func (w *WebhookWorker) Work(ctx context.Context, job *goriver.Job[WebhookJobArg
 		return w.handleFailure(ctx, wh, fmt.Errorf("webhook: transient error status=%d", resp.StatusCode))
 
 	default:
-		// 4xx (not 429) — permanent failure.
+		// 3xx/4xx (not 429) — permanent failure.
 		return w.handlePermanentFailure(ctx, wh, fmt.Errorf("webhook: permanent error status=%d", resp.StatusCode))
 	}
 }

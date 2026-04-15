@@ -2,17 +2,22 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v5/echotest"
 	"github.com/rendis/senda/internal/http/handler"
@@ -56,6 +61,26 @@ func newSilentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
+func mediaHandlerForURLHost(t *testing.T, rawURL string, opts ...handler.MediaHandlerOption) *handler.MediaHandler {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse host for allowlist: %v", err)
+	}
+	opts = append([]handler.MediaHandlerOption{handler.WithAllowedThumbnailHosts(parsed.Hostname())}, opts...)
+	return handler.NewMediaHandler(newSilentLogger(), opts...)
+}
+
+func newPinnedMediaHandler(t *testing.T, lookup func(context.Context, string) ([]net.IP, error), dial func(context.Context, string, string, net.IP) (string, error), hosts ...string) *handler.MediaHandler {
+	t.Helper()
+	opts := []handler.MediaHandlerOption{
+		handler.WithAllowedHosts(hosts...),
+		handler.WithLookupIPFunc(lookup),
+		handler.WithDialAddressFunc(dial),
+	}
+	return handler.NewMediaHandler(newSilentLogger(), opts...)
+}
+
 // TestHandleVideoThumbnail_MissingURL verifies that omitting the url parameter
 // returns 400 Bad Request.
 func TestHandleVideoThumbnail_MissingURL(t *testing.T) {
@@ -71,6 +96,20 @@ func TestHandleVideoThumbnail_MissingURL(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleVideoThumbnail_DenyByDefaultWithoutAllowlist(t *testing.T) {
+	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
+
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape("http://127.0.0.1/thumb.jpg"), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 without allowlist, got %d — body: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -125,9 +164,8 @@ func TestHandleVideoThumbnail_Success_JPEG(t *testing.T) {
 	}))
 	defer thumbServer.Close()
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
-
 	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
 	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
 
@@ -174,9 +212,8 @@ func TestHandleVideoThumbnail_Success_PNG(t *testing.T) {
 	}))
 	defer thumbServer.Close()
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
-
 	thumbURL := thumbServer.URL + "/thumb.png"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
 	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
 
@@ -220,9 +257,8 @@ func TestHandleVideoThumbnail_YouTubeFallback(t *testing.T) {
 	}))
 	defer thumbServer.Close()
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
-
 	thumbURL := thumbServer.URL + "/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
 	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
 
@@ -255,9 +291,8 @@ func TestHandleVideoThumbnail_UpstreamError(t *testing.T) {
 	}))
 	defer thumbServer.Close()
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
-
 	thumbURL := thumbServer.URL + "/missing.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
 	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
 
@@ -267,6 +302,93 @@ func TestHandleVideoThumbnail_UpstreamError(t *testing.T) {
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("expected status 502, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestHandleVideoThumbnail_RejectsHostNotInAllowlist verifies the explicit
+// allowlist blocks unrelated hosts even when SSRF checks are bypassed.
+func TestHandleVideoThumbnail_RejectsHostNotInAllowlist(t *testing.T) {
+	h := handler.NewMediaHandler(
+		newSilentLogger(),
+		handler.WithSkipSSRF(),
+		handler.WithAllowedThumbnailHosts("allowed.example"),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape("https://blocked.example/thumb.jpg"), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for non-allowlisted host, got %d", rec.Code)
+	}
+}
+
+// TestHandleVideoThumbnail_RejectsRedirectToNonAllowlistedHost verifies that
+// each redirect hop is checked against the allowlist, not only the initial URL.
+func TestHandleVideoThumbnail_RejectsRedirectToNonAllowlistedHost(t *testing.T) {
+	originalDefaultTransport := http.DefaultTransport
+	t.Cleanup(func() {
+		http.DefaultTransport = originalDefaultTransport
+	})
+
+	redirectTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(makeTestJPEG(t))
+	}))
+	defer redirectTarget.Close()
+
+	targetAddr := redirectTarget.Listener.Addr().String()
+	allowlistedURL, err := url.Parse(redirectTarget.URL)
+	if err != nil {
+		t.Fatalf("parse target url: %v", err)
+	}
+
+	baseTransport := originalDefaultTransport.(*http.Transport).Clone()
+	baseTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if host, _, splitErr := net.SplitHostPort(addr); splitErr == nil && host == "blocked.example" {
+			addr = targetAddr
+		}
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, network, addr)
+	}
+	http.DefaultTransport = baseTransport
+
+	var targetReqCount int
+	redirectTarget.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetReqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(makeTestJPEG(t))
+	})
+
+	redirectSource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://blocked.example:"+allowlistedURL.Port()+"/thumb.jpg", http.StatusFound)
+	}))
+	defer redirectSource.Close()
+
+	h := handler.NewMediaHandler(
+		newSilentLogger(),
+		handler.WithSkipSSRF(),
+		handler.WithAllowedThumbnailHosts(urlMustHost(t, redirectSource.URL+"/thumb.jpg")),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(redirectSource.URL+"/thumb.jpg"), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected status 502 for redirect to non-allowlisted host, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+
+	if targetReqCount != 0 {
+		t.Fatalf("expected redirect target to remain unrequested, got %d requests", targetReqCount)
 	}
 }
 
@@ -284,8 +406,8 @@ func TestHandleVideoThumbnail_CacheHit(t *testing.T) {
 		_, _ = w.Write(jpegBytes)
 	}))
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
 	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 
 	// First request — populates cache.
 	req1 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
@@ -313,6 +435,314 @@ func TestHandleVideoThumbnail_CacheHit(t *testing.T) {
 	if reqCount != 1 {
 		t.Fatalf("expected exactly 1 upstream request (cache hit for second), got %d", reqCount)
 	}
+}
+
+// TestHandleVideoThumbnail_CacheExpiresAfterTTL verifies that cached thumbnails
+// expire once the configured TTL elapses.
+func TestHandleVideoThumbnail_CacheExpiresAfterTTL(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+	defer thumbServer.Close()
+
+	thumbURL := thumbServer.URL + "/thumb.jpg"
+	now := time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC)
+	h := handler.NewMediaHandler(
+		newSilentLogger(),
+		handler.WithSkipSSRF(),
+		handler.WithAllowedThumbnailHosts(urlMustHost(t, thumbURL)),
+		handler.WithThumbnailCachePolicy(time.Minute, 4),
+		handler.WithClock(func() time.Time { return now }),
+	)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	c1, rec1 := echotest.ContextConfig{Request: req1}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c1); err != nil {
+		t.Fatalf("first request: unexpected error: %v", err)
+	}
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec1.Code)
+	}
+
+	now = now.Add(2 * time.Minute)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	c2, rec2 := echotest.ContextConfig{Request: req2}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c2); err != nil {
+		t.Fatalf("second request: unexpected error: %v", err)
+	}
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second request: expected 200, got %d", rec2.Code)
+	}
+
+	if reqCount != 2 {
+		t.Fatalf("expected cache expiry to trigger a second upstream request, got %d", reqCount)
+	}
+}
+
+// TestHandleVideoThumbnail_EvictsOldestEntryWhenCacheFull verifies that the
+// cache respects its maximum entry count and evicts the oldest thumbnail.
+func TestHandleVideoThumbnail_EvictsOldestEntryWhenCacheFull(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+	defer thumbServer.Close()
+
+	allowedHost := urlMustHost(t, thumbServer.URL+"/one.jpg")
+	h := handler.NewMediaHandler(
+		newSilentLogger(),
+		handler.WithSkipSSRF(),
+		handler.WithAllowedThumbnailHosts(allowedHost),
+		handler.WithThumbnailCachePolicy(time.Hour, 1),
+	)
+
+	url1 := thumbServer.URL + "/one.jpg"
+	url2 := thumbServer.URL + "/two.jpg"
+
+	req1 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(url1), nil)
+	c1, rec1 := echotest.ContextConfig{Request: req1}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c1); err != nil {
+		t.Fatalf("first request: unexpected error: %v", err)
+	}
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(url2), nil)
+	c2, rec2 := echotest.ContextConfig{Request: req2}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c2); err != nil {
+		t.Fatalf("second request: unexpected error: %v", err)
+	}
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second request: expected 200, got %d", rec2.Code)
+	}
+
+	req3 := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(url1), nil)
+	c3, rec3 := echotest.ContextConfig{Request: req3}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(c3); err != nil {
+		t.Fatalf("third request: unexpected error: %v", err)
+	}
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("third request: expected 200, got %d", rec3.Code)
+	}
+
+	if reqCount != 3 {
+		t.Fatalf("expected eviction to force a third upstream request, got %d", reqCount)
+	}
+}
+
+func TestHandleVideoThumbnail_RedirectToPrivateDestinationRejected(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect.jpg":
+			http.Redirect(w, r, "http://cdn.example.test/final.jpg", http.StatusFound)
+		case "/final.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(jpegBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer thumbServer.Close()
+
+	var lookupCalls []string
+	lookup := func(_ context.Context, host string) ([]net.IP, error) {
+		lookupCalls = append(lookupCalls, host)
+		switch host {
+		case "media.example.test":
+			return []net.IP{net.ParseIP("8.8.8.8")}, nil
+		case "cdn.example.test":
+			return []net.IP{net.ParseIP("10.0.0.1")}, nil
+		default:
+			return nil, fmt.Errorf("unexpected host %q", host)
+		}
+	}
+
+	dial := func(_ context.Context, host, port string, pinnedIP net.IP) (string, error) {
+		if host != "media.example.test" {
+			return "", fmt.Errorf("unexpected dial host %q", host)
+		}
+		if pinnedIP == nil || pinnedIP.String() != "8.8.8.8" {
+			return "", fmt.Errorf("unexpected pinned ip %v", pinnedIP)
+		}
+		return thumbServer.Listener.Addr().String(), nil
+	}
+
+	h := newPinnedMediaHandler(t, lookup, dial, "media.example.test", "cdn.example.test")
+
+	reqURL := "http://media.example.test/redirect.jpg"
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(reqURL), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 for redirect to private destination, got %d", rec.Code)
+	}
+	if len(lookupCalls) != 2 || strings.Join(lookupCalls, ",") != "media.example.test,cdn.example.test" {
+		t.Fatalf("expected both hosts to be evaluated, got %v", lookupCalls)
+	}
+}
+
+func TestHandleVideoThumbnail_PinsResolvedDestinationAcrossRedirects(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect.jpg":
+			http.Redirect(w, r, "http://media.example.test/final.jpg", http.StatusFound)
+		case "/final.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(jpegBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer thumbServer.Close()
+
+	lookupCount := map[string]int{}
+	lookup := func(_ context.Context, host string) ([]net.IP, error) {
+		lookupCount[host]++
+		if host != "media.example.test" {
+			return nil, fmt.Errorf("unexpected host %q", host)
+		}
+		if lookupCount[host] == 1 {
+			return []net.IP{net.ParseIP("8.8.8.8")}, nil
+		}
+		return []net.IP{net.ParseIP("10.0.0.1")}, nil
+	}
+
+	dial := func(_ context.Context, host, port string, pinnedIP net.IP) (string, error) {
+		if host != "media.example.test" {
+			return "", fmt.Errorf("unexpected dial host %q", host)
+		}
+		if pinnedIP == nil || pinnedIP.String() != "8.8.8.8" {
+			return "", fmt.Errorf("unexpected pinned ip %v", pinnedIP)
+		}
+		return thumbServer.Listener.Addr().String(), nil
+	}
+
+	h := newPinnedMediaHandler(t, lookup, dial, "media.example.test")
+
+	reqURL := "http://media.example.test/redirect.jpg"
+	req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(reqURL), nil)
+	c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+	if err := h.HandleVideoThumbnail(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for pinned redirect flow, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if lookupCount["media.example.test"] != 1 {
+		t.Fatalf("expected lookup to be pinned after first resolution, got %d lookups", lookupCount["media.example.test"])
+	}
+}
+
+func TestHandleVideoThumbnail_MixedDNSAnswersFailClosed(t *testing.T) {
+	tests := []struct {
+		name string
+		ips  []net.IP
+	}{
+		{name: "mixed_ipv4_private", ips: []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("10.0.0.1")}},
+		{name: "mixed_ipv6_reserved", ips: []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("fc00::1")}},
+		{name: "mixed_ipv4_special_purpose", ips: []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("192.0.2.1")}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lookupCalls := 0
+			lookup := func(_ context.Context, host string) ([]net.IP, error) {
+				lookupCalls++
+				if host != "media.example.test" {
+					return nil, fmt.Errorf("unexpected host %q", host)
+				}
+				return tt.ips, nil
+			}
+
+			dial := func(_ context.Context, host, port string, pinnedIP net.IP) (string, error) {
+				t.Fatalf("dial must not be reached for mixed DNS answers: host=%s port=%s ip=%v", host, port, pinnedIP)
+				return "", nil
+			}
+
+			h := newPinnedMediaHandler(t, lookup, dial, "media.example.test")
+			req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape("http://media.example.test/redirect.jpg"), nil)
+			c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+			if err := h.HandleVideoThumbnail(c); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for mixed DNS answers, got %d — body: %s", rec.Code, rec.Body.String())
+			}
+			if lookupCalls != 1 {
+				t.Fatalf("expected a single lookup, got %d", lookupCalls)
+			}
+		})
+	}
+}
+
+func TestHandleVideoThumbnail_SSRFSpecialPurposeIPv4Blocked(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		ip   string
+	}{
+		{name: "zero_net", host: "0.0.0.1", ip: "0.0.0.1"},
+		{name: "documentation_net", host: "192.0.2.1", ip: "192.0.2.1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lookup := func(_ context.Context, host string) ([]net.IP, error) {
+				if host != tt.host {
+					return nil, fmt.Errorf("unexpected host %q", host)
+				}
+				return []net.IP{net.ParseIP(tt.ip)}, nil
+			}
+			dial := func(_ context.Context, host, port string, pinnedIP net.IP) (string, error) {
+				t.Fatalf("dial must not be reached for special-purpose IPv4: host=%s port=%s ip=%v", host, port, pinnedIP)
+				return "", nil
+			}
+
+			h := newPinnedMediaHandler(t, lookup, dial, tt.host)
+			req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape("http://"+tt.host+"/thumb.jpg"), nil)
+			c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+			if err := h.HandleVideoThumbnail(c); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for special-purpose IPv4 %q, got %d — body: %s", tt.host, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func urlMustHost(t *testing.T, raw string) string {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	return parsed.Hostname()
 }
 
 // TestHandleVideoThumbnail_SSRFBlocked verifies that URLs resolving to private
@@ -359,8 +789,8 @@ func TestHandleVideoThumbnail_ConcurrentSameURL(t *testing.T) {
 	}))
 	defer thumbServer.Close()
 
-	h := handler.NewMediaHandler(newSilentLogger(), handler.WithSkipSSRF())
 	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
 
 	const goroutines = 10
 

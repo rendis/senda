@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,9 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 
 // senderCacheTTL is the duration a cached sender is considered valid.
 const senderCacheTTL = 10 * time.Minute
+const defaultRateLimitBurstSize = 4
+const defaultRateLimitReservationTTL = 10 * time.Minute
+const defaultRateLimitCleanupInterval = time.Minute
 
 // staleProcessingThreshold is how long an email can sit in StatusProcessing
 // without a ProviderMessageID before it is considered crashed (not in-flight).
@@ -57,6 +61,14 @@ const staleProcessingThreshold = 10 * time.Minute
 type cachedSender struct {
 	sender    port.EmailSender
 	createdAt time.Time
+}
+
+type rateLimitReservation struct {
+	mu          sync.Mutex
+	available   int
+	lastTouched time.Time
+	refs        atomic.Int32
+	deleting    atomic.Bool
 }
 
 // errorClassifier is implemented by adapters that can classify send errors
@@ -69,16 +81,23 @@ type errorClassifier interface {
 type SendWorker struct {
 	goriver.WorkerDefaults[SendJobArgs]
 
-	emailStore      port.EmailStore
-	compiler        port.TemplateCompiler
-	renderer        port.VariableRenderer
-	rateLimiter     port.RateLimiter
-	sender          port.EmailSender
-	adapterStore    port.AdapterStore
-	crypto          port.Crypto
-	senderFactory   port.SenderFactory
-	trackingBaseURL string
-	senderCache     sync.Map // uuid.UUID -> *cachedSender
+	emailStore               port.EmailStore
+	compiler                 port.TemplateCompiler
+	renderer                 port.VariableRenderer
+	rateLimiter              port.RateLimiter
+	sender                   port.EmailSender
+	adapterStore             port.AdapterStore
+	crypto                   port.Crypto
+	senderFactory            port.SenderFactory
+	trackingBaseURL          string
+	rateLimitBurstSize       int
+	rateLimitReservationTTL  time.Duration
+	rateLimitCleanupInterval time.Duration
+	now                      func() time.Time
+	senderCache              sync.Map // uuid.UUID -> *cachedSender
+	rateLimits               sync.Map // uuid.UUID -> *rateLimitReservation
+	rateLimitCleanupRunning  atomic.Bool
+	lastRateLimitCleanupUnix atomic.Int64
 }
 
 // NewSendWorker creates a new send worker with all dependencies.
@@ -91,11 +110,15 @@ func NewSendWorker(
 	opts ...SendWorkerOption,
 ) *SendWorker {
 	w := &SendWorker{
-		emailStore:  emailStore,
-		compiler:    compiler,
-		renderer:    renderer,
-		rateLimiter: rateLimiter,
-		sender:      sender,
+		emailStore:               emailStore,
+		compiler:                 compiler,
+		renderer:                 renderer,
+		rateLimiter:              rateLimiter,
+		sender:                   sender,
+		rateLimitBurstSize:       defaultRateLimitBurstSize,
+		rateLimitReservationTTL:  defaultRateLimitReservationTTL,
+		rateLimitCleanupInterval: defaultRateLimitCleanupInterval,
+		now:                      func() time.Time { return time.Now().UTC() },
 	}
 	for _, o := range opts {
 		o(w)
@@ -117,6 +140,15 @@ func WithAdapterRuntime(adapterStore port.AdapterStore, crypto port.Crypto, send
 		w.adapterStore = adapterStore
 		w.crypto = crypto
 		w.senderFactory = senderFactory
+	}
+}
+
+// WithRateLimitBurstSize overrides the local reservation size used per adapter.
+func WithRateLimitBurstSize(size int) SendWorkerOption {
+	return func(w *SendWorker) {
+		if size > 0 {
+			w.rateLimitBurstSize = size
+		}
 	}
 }
 
@@ -153,7 +185,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	}
 
 	// 2. Rate limiter check (before status transition so email stays "queued" if denied).
-	allowed, err := w.rateLimiter.TryAcquire(ctx, args.AdapterID)
+	allowed, err := w.acquireRateLimitToken(ctx, args.AdapterID)
 	if err != nil {
 		return fmt.Errorf("send: rate limiter error: %w", err)
 	}
@@ -183,24 +215,30 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		}
 	}
 
-	// 4. Render MJML body with variables.
-	renderedBody, err := w.renderer.Render(email.BodyMJML, email.InjectorsSnapshot, email.VariablesSnapshot)
+	// 4. Load cold payload only when the worker actually needs to render/send.
+	payload, err := w.emailStore.GetPayload(ctx, email.ID)
+	if err != nil {
+		return w.failPermanently(ctx, email, fmt.Errorf("send: load email payload: %w", err))
+	}
+
+	// 5. Render MJML body with variables.
+	renderedBody, err := w.renderer.Render(payload.BodyMJML, payload.InjectorsSnapshot, payload.VariablesSnapshot)
 	if err != nil {
 		return w.failPermanently(ctx, email, fmt.Errorf("send: render body: %w", err))
 	}
 
-	// 5. Compile rendered MJML to HTML.
+	// 6. Compile rendered MJML to HTML.
 	bodyHTML, err := w.compiler.Compile(ctx, renderedBody)
 	if err != nil {
 		return w.failPermanently(ctx, email, fmt.Errorf("send: compile mjml: %w", err))
 	}
 
-	// 6. Inject open-tracking pixel if email has it enabled (denormalized from workspace at enqueue time).
+	// 7. Inject open-tracking pixel if email has it enabled (denormalized from workspace at enqueue time).
 	if w.trackingBaseURL != "" && email.OpenTrackingEnabled {
 		bodyHTML = tracking.InjectOpenPixel(bodyHTML, w.trackingBaseURL, email.TrackingID)
 	}
 
-	// 7. Build outgoing email.
+	// 8. Build outgoing email.
 	outgoing := &port.OutgoingEmail{
 		From:       port.EmailAddress{Name: email.FromName, Address: email.FromEmail},
 		To:         port.EmailAddress{Address: email.RecipientEmail},
@@ -221,7 +259,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		outgoing.ReplyTo = &port.EmailAddress{Address: *email.ReplyTo}
 	}
 
-	// 8. Send via provider adapter.
+	// 9. Send via provider adapter.
 	sender, err := w.resolveSender(ctx, email.AdapterID)
 	if err != nil {
 		if errors.Is(err, domain.ErrValidation) || errors.Is(err, domain.ErrNotFound) {
@@ -236,14 +274,14 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.handleSendError(ctx, email, sender, job.Attempt, job.MaxAttempts, err)
 	}
 
-	// 9. Persist provider message ID for webhook event matching.
+	// 10. Persist provider message ID for webhook event matching.
 	if providerMsgID != "" {
 		if err := w.emailStore.SetProviderMessageID(ctx, email.ID, providerMsgID); err != nil {
 			return fmt.Errorf("send: set provider_message_id: %w", err)
 		}
 	}
 
-	// 10. Success: update status to sent, add event.
+	// 11. Success: update status to sent, add event.
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent, domain.StatusProcessing); err != nil {
 		return fmt.Errorf("send: update status to sent: %w", err)
 	}
@@ -266,6 +304,110 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	)...)
 
 	return nil
+}
+
+func (w *SendWorker) acquireRateLimitToken(ctx context.Context, adapterID uuid.UUID) (bool, error) {
+	if w.rateLimiter == nil {
+		return true, nil
+	}
+
+	now := w.now()
+	for {
+		stateAny, _ := w.rateLimits.LoadOrStore(adapterID, &rateLimitReservation{})
+		state := stateAny.(*rateLimitReservation)
+		state.refs.Add(1)
+
+		if state.deleting.Load() {
+			state.refs.Add(-1)
+			continue
+		}
+
+		state.mu.Lock()
+		if state.deleting.Load() {
+			state.mu.Unlock()
+			state.refs.Add(-1)
+			continue
+		}
+
+		if state.lastTouched.IsZero() {
+			state.lastTouched = now
+		}
+		if w.rateLimitReservationTTL > 0 && now.Sub(state.lastTouched) >= w.rateLimitReservationTTL {
+			state.available = 0
+		}
+
+		if state.available > 0 {
+			state.available--
+			state.lastTouched = now
+			state.mu.Unlock()
+			state.refs.Add(-1)
+			return true, nil
+		}
+
+		reserved, err := w.rateLimiter.AcquireBurst(ctx, adapterID, w.rateLimitBurstSize)
+		if err != nil {
+			state.mu.Unlock()
+			state.refs.Add(-1)
+			return false, err
+		}
+		if reserved < 1 {
+			state.mu.Unlock()
+			state.refs.Add(-1)
+			return false, nil
+		}
+
+		state.available = reserved - 1
+		state.lastTouched = now
+		state.mu.Unlock()
+		state.refs.Add(-1)
+		w.maybeScheduleRateLimitCleanup(now)
+		return true, nil
+	}
+}
+
+func (w *SendWorker) maybeScheduleRateLimitCleanup(now time.Time) {
+	if w.rateLimitReservationTTL <= 0 || w.rateLimitCleanupInterval <= 0 {
+		return
+	}
+
+	lastUnix := w.lastRateLimitCleanupUnix.Load()
+	if lastUnix != 0 && now.Sub(time.Unix(0, lastUnix)) < w.rateLimitCleanupInterval {
+		return
+	}
+	if !w.rateLimitCleanupRunning.CompareAndSwap(false, true) {
+		return
+	}
+
+	w.lastRateLimitCleanupUnix.Store(now.UnixNano())
+	go func(cleanupAt time.Time) {
+		defer w.rateLimitCleanupRunning.Store(false)
+		w.cleanupExpiredRateLimitReservations(cleanupAt)
+	}(now)
+}
+
+func (w *SendWorker) cleanupExpiredRateLimitReservations(now time.Time) {
+	w.rateLimits.Range(func(key, value any) bool {
+		reservation := value.(*rateLimitReservation)
+		if !reservation.deleting.CompareAndSwap(false, true) {
+			return true
+		}
+		if reservation.refs.Load() != 0 {
+			reservation.deleting.Store(false)
+			return true
+		}
+		reservation.mu.Lock()
+		stale := w.rateLimitReservationTTL > 0 &&
+			!reservation.lastTouched.IsZero() &&
+			now.Sub(reservation.lastTouched) >= w.rateLimitReservationTTL
+		refs := reservation.refs.Load()
+		reservation.mu.Unlock()
+		if stale && refs == 0 {
+			_ = w.rateLimits.CompareAndDelete(key, reservation)
+			return true
+		}
+		reservation.deleting.Store(false)
+		return true
+	})
 }
 
 // sendBackoff returns the exponential backoff duration for a given attempt: 60s * 2^(attempt-1).

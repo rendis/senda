@@ -86,6 +86,16 @@ type Email struct {
 	UpdatedAt           time.Time
 }
 
+type EmailPayload struct {
+	EmailID           uuid.UUID
+	EmailCreatedAt    time.Time
+	BodyMJML          string
+	VariablesSnapshot map[string]any
+	InjectorsSnapshot map[string]map[string]any
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type EmailEvent struct {
 	ID         uuid.UUID
 	EmailID    uuid.UUID

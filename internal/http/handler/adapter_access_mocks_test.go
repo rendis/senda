@@ -96,20 +96,20 @@ func (m *mockIdentityGrantStoreHandler) ListGrantedIdentitiesForWorkspace(ctx co
 }
 
 type mockTemplateTypeUsageStoreHandler struct {
-	countTypesUsingAdapterFn        func(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error)
-	countTypesUsingSenderIdentityFn func(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error)
+	listWorkspacesUsingAdapterFn        func(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
+	listWorkspacesUsingSenderIdentityFn func(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
-func (m *mockTemplateTypeUsageStoreHandler) CountTypesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceID *uuid.UUID) (int, error) {
-	if m.countTypesUsingAdapterFn != nil {
-		return m.countTypesUsingAdapterFn(ctx, adapterID, workspaceID)
+func (m *mockTemplateTypeUsageStoreHandler) ListWorkspacesUsingAdapter(ctx context.Context, adapterID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if m.listWorkspacesUsingAdapterFn != nil {
+		return m.listWorkspacesUsingAdapterFn(ctx, adapterID, workspaceIDs)
 	}
-	return 0, nil
+	return nil, nil
 }
 
-func (m *mockTemplateTypeUsageStoreHandler) CountTypesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceID *uuid.UUID) (int, error) {
-	if m.countTypesUsingSenderIdentityFn != nil {
-		return m.countTypesUsingSenderIdentityFn(ctx, identityID, workspaceID)
+func (m *mockTemplateTypeUsageStoreHandler) ListWorkspacesUsingSenderIdentity(ctx context.Context, identityID uuid.UUID, workspaceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if m.listWorkspacesUsingSenderIdentityFn != nil {
+		return m.listWorkspacesUsingSenderIdentityFn(ctx, identityID, workspaceIDs)
 	}
-	return 0, nil
+	return nil, nil
 }

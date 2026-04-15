@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -46,9 +47,9 @@ type mockWebhookStore struct {
 	incrementFailureCountFn func(ctx context.Context, id uuid.UUID) (int, bool, error)
 	resetFailureCountFn     func(ctx context.Context, id uuid.UUID) error
 
-	updateCalls             []*domain.Webhook
-	incrementFailureCalls   []uuid.UUID
-	resetFailureCalls       []uuid.UUID
+	updateCalls           []*domain.Webhook
+	incrementFailureCalls []uuid.UUID
+	resetFailureCalls     []uuid.UUID
 }
 
 func (m *mockWebhookStore) Create(ctx context.Context, wh *domain.Webhook) error { return nil }
@@ -162,6 +163,49 @@ func TestWebhookWorker_SuccessfulDelivery(t *testing.T) {
 	}
 	if req.Header.Get("Content-Type") != "application/json" {
 		t.Errorf("Content-Type = %q, want %q", req.Header.Get("Content-Type"), "application/json")
+	}
+}
+
+func TestWebhookWorker_RedirectResponse_DoesNotFollowAndCancelsJob(t *testing.T) {
+	targetHits := 0
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetHits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, targetServer.URL+"/target", http.StatusFound)
+	}))
+	defer redirectServer.Close()
+
+	wh := newTestWebhook()
+	wh.URL = redirectServer.URL
+	store := &mockWebhookStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Webhook, error) {
+			if id == wh.ID {
+				return wh, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	client := redirectServer.Client()
+	worker := NewWebhookWorker(store, client, WithSSRFChecker(noopSSRFChecker))
+
+	job := makeWebhookJob(wh.ID, "email.delivered", []byte(`{"id":"abc"}`))
+	err := worker.Work(context.Background(), job)
+	if err == nil {
+		t.Fatal("expected redirect to fail, got nil")
+	}
+
+	var cancelErr *goriver.JobCancelError
+	if !errors.As(err, &cancelErr) {
+		t.Fatalf("expected JobCancelError for redirect, got %T: %v", err, err)
+	}
+
+	if targetHits != 0 {
+		t.Fatalf("expected no follow-up request to redirect target, got %d", targetHits)
 	}
 }
 

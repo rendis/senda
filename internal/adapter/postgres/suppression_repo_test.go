@@ -290,6 +290,51 @@ func TestSuppressionRepo_IsSuppressed_NotSuppressed(t *testing.T) {
 	}
 }
 
+func TestSuppressionRepo_GetSuppressionStatuses(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	if err := deps.repo.AddGlobal(ctx, &domain.SuppressionGlobal{
+		ID:     uuid.New(),
+		Email:  "global@test.com",
+		Reason: domain.SuppressionHardBounce,
+	}); err != nil {
+		t.Fatalf("AddGlobal() error: %v", err)
+	}
+
+	if err := deps.repo.AddWorkspace(ctx, &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       "workspace@test.com",
+		Reason:      domain.SuppressionComplaint,
+	}); err != nil {
+		t.Fatalf("AddWorkspace() error: %v", err)
+	}
+
+	statuses, err := deps.repo.GetSuppressionStatuses(ctx, deps.wsID, []string{
+		"clean@test.com",
+		"global@test.com",
+		"workspace@test.com",
+		"workspace@test.com",
+	})
+	if err != nil {
+		t.Fatalf("GetSuppressionStatuses() error: %v", err)
+	}
+
+	if len(statuses) != 3 {
+		t.Fatalf("expected 3 unique suppression results, got %d", len(statuses))
+	}
+	if got := statuses["clean@test.com"]; got.Suppressed || got.Reason != "" {
+		t.Fatalf("expected clean@test.com to be clean, got %+v", got)
+	}
+	if got := statuses["global@test.com"]; !got.Suppressed || got.Reason != string(domain.SuppressionHardBounce) {
+		t.Fatalf("expected global suppression, got %+v", got)
+	}
+	if got := statuses["workspace@test.com"]; !got.Suppressed || got.Reason != string(domain.SuppressionComplaint) {
+		t.Fatalf("expected workspace suppression, got %+v", got)
+	}
+}
+
 func TestSuppressionRepo_AddGlobal_ReactivatesRemoved(t *testing.T) {
 	ctx := context.Background()
 	deps := setupSuppressionTestDeps(ctx, t)

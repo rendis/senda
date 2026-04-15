@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pgadapter "github.com/rendis/senda/internal/adapter/pgcache"
 	"github.com/rendis/senda/internal/adapter/postgres"
@@ -29,7 +31,7 @@ func migrationsPath() string {
 	return filepath.Join(projectRoot(), "migrations")
 }
 
-func startPostgres(ctx context.Context, t *testing.T) (testcontainers.Container, string) {
+func startPostgres(ctx context.Context, t testing.TB) (testcontainers.Container, string) {
 	t.Helper()
 
 	dockerfilePath := filepath.Join(projectRoot(), "docker", "postgres")
@@ -85,7 +87,7 @@ func startPostgres(ctx context.Context, t *testing.T) (testcontainers.Container,
 	return ctr, connStr
 }
 
-func setupCache(t *testing.T) (*pgadapter.PGCache, *pgxpool.Pool) {
+func setupCache(t testing.TB) (*pgadapter.PGCache, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -109,7 +111,7 @@ func setupCache(t *testing.T) (*pgadapter.PGCache, *pgxpool.Pool) {
 	return pgadapter.NewPGCache(pool), pool
 }
 
-func mustJSON(t *testing.T, v any) []byte {
+func mustJSON(t testing.TB, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -264,6 +266,115 @@ func TestPGCache_DeletePattern(t *testing.T) {
 	}
 }
 
+func TestPGCache_DeletePattern_RespectsLiteralWildcardCharacters(t *testing.T) {
+	cache, _ := setupCache(t)
+	ctx := context.Background()
+
+	keys := map[string][]byte{
+		"scope:a_b:one": mustJSON(t, "literal"),
+		"scope:axb:one": mustJSON(t, "similar"),
+		"scope:a_b:two": mustJSON(t, "literal-2"),
+	}
+
+	for k, v := range keys {
+		if err := cache.Set(ctx, k, v, 10*time.Second); err != nil {
+			t.Fatalf("Set(%s) error: %v", k, err)
+		}
+	}
+
+	if err := cache.DeletePattern(ctx, "scope:a_b:*"); err != nil {
+		t.Fatalf("DeletePattern() error: %v", err)
+	}
+
+	for _, k := range []string{"scope:a_b:one", "scope:a_b:two"} {
+		_, err := cache.Get(ctx, k)
+		if err == nil {
+			t.Fatalf("Get(%s) expected error after DeletePattern, got nil", k)
+		}
+	}
+
+	got, err := cache.Get(ctx, "scope:axb:one")
+	if err != nil {
+		t.Fatalf("Get(scope:axb:one) error: %v", err)
+	}
+	var actual string
+	if err := json.Unmarshal(got, &actual); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if actual != "similar" {
+		t.Fatalf("Get(scope:axb:one) = %q, want %q", actual, "similar")
+	}
+}
+
+func TestPGCache_DeleteResolvedTemplatesByWorkspace(t *testing.T) {
+	cache, _ := setupCache(t)
+	ctx := context.Background()
+
+	workspaceID := uuid.New()
+	otherWorkspaceID := uuid.New()
+	keys := map[string][]byte{
+		fmt.Sprintf("resolved_template:%s:welcome:_default", workspaceID):      mustJSON(t, "welcome"),
+		fmt.Sprintf("resolved_template:%s:receipt:es", workspaceID):            mustJSON(t, "receipt"),
+		fmt.Sprintf("resolved_template:%s:welcome:_default", otherWorkspaceID): mustJSON(t, "other-workspace"),
+		"chain:keep-me": mustJSON(t, "chain"),
+	}
+	for k, v := range keys {
+		if err := cache.Set(ctx, k, v, 10*time.Second); err != nil {
+			t.Fatalf("Set(%s) error: %v", k, err)
+		}
+	}
+
+	if err := cache.DeleteResolvedTemplatesByWorkspace(ctx, workspaceID); err != nil {
+		t.Fatalf("DeleteResolvedTemplatesByWorkspace() error: %v", err)
+	}
+
+	for _, k := range []string{
+		fmt.Sprintf("resolved_template:%s:welcome:_default", workspaceID),
+		fmt.Sprintf("resolved_template:%s:receipt:es", workspaceID),
+	} {
+		if _, err := cache.Get(ctx, k); err == nil {
+			t.Fatalf("expected %s to be deleted", k)
+		}
+	}
+	if _, err := cache.Get(ctx, fmt.Sprintf("resolved_template:%s:welcome:_default", otherWorkspaceID)); err != nil {
+		t.Fatalf("expected other workspace key to remain, got %v", err)
+	}
+	if _, err := cache.Get(ctx, "chain:keep-me"); err != nil {
+		t.Fatalf("expected non-template key to remain, got %v", err)
+	}
+}
+
+func TestPGCache_DeleteAllResolvedTemplates(t *testing.T) {
+	cache, _ := setupCache(t)
+	ctx := context.Background()
+
+	keys := map[string][]byte{
+		fmt.Sprintf("resolved_template:%s:welcome:_default", uuid.New()): mustJSON(t, "welcome"),
+		fmt.Sprintf("resolved_template:%s:receipt:es", uuid.New()):       mustJSON(t, "receipt"),
+		"adapter:keep-me": mustJSON(t, "adapter"),
+	}
+	for k, v := range keys {
+		if err := cache.Set(ctx, k, v, 10*time.Second); err != nil {
+			t.Fatalf("Set(%s) error: %v", k, err)
+		}
+	}
+
+	if err := cache.DeleteAllResolvedTemplates(ctx); err != nil {
+		t.Fatalf("DeleteAllResolvedTemplates() error: %v", err)
+	}
+
+	for k := range keys {
+		if strings.HasPrefix(k, "resolved_template:") {
+			if _, err := cache.Get(ctx, k); err == nil {
+				t.Fatalf("expected %s to be deleted", k)
+			}
+		}
+	}
+	if _, err := cache.Get(ctx, "adapter:keep-me"); err != nil {
+		t.Fatalf("expected non-template key to remain, got %v", err)
+	}
+}
+
 func TestPGCache_GetMiss(t *testing.T) {
 	cache, _ := setupCache(t)
 	ctx := context.Background()
@@ -281,3 +392,85 @@ func TestPGCache_GetMiss(t *testing.T) {
 	}
 }
 
+func BenchmarkPGCache_DeletePattern(b *testing.B) {
+	b.ReportAllocs()
+
+	cases := []struct {
+		name    string
+		pattern string
+		keys    []string
+	}{
+		{
+			name:    "plain_prefix",
+			pattern: "chain:*",
+			keys:    []string{"chain:a", "chain:b", "chain:c", "other:x"},
+		},
+		{
+			name:    "escaped_prefix",
+			pattern: "scope:a_b:*",
+			keys:    []string{"scope:a_b:one", "scope:a_b:two", "scope:axb:one", "other:y"},
+		},
+	}
+
+	for _, tt := range cases {
+		b.Run(tt.name, func(b *testing.B) {
+			cache, _ := setupCache(b)
+			ctx := context.Background()
+
+			seed := func() {
+				b.Helper()
+				for _, key := range tt.keys {
+					if err := cache.Set(ctx, key, mustJSON(b, key), 10*time.Second); err != nil {
+						b.Fatalf("Set(%s) error: %v", key, err)
+					}
+				}
+			}
+
+			seed()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := cache.DeletePattern(ctx, tt.pattern); err != nil {
+					b.Fatalf("DeletePattern(%s) error: %v", tt.pattern, err)
+				}
+				b.StopTimer()
+				seed()
+				b.StartTimer()
+			}
+		})
+	}
+}
+
+func BenchmarkPGCache_DeleteResolvedTemplatesByWorkspace(b *testing.B) {
+	b.ReportAllocs()
+
+	cache, _ := setupCache(b)
+	ctx := context.Background()
+	workspaceID := uuid.New()
+	otherWorkspaceID := uuid.New()
+	keys := []string{
+		fmt.Sprintf("resolved_template:%s:welcome:_default", workspaceID),
+		fmt.Sprintf("resolved_template:%s:receipt:es", workspaceID),
+		fmt.Sprintf("resolved_template:%s:welcome:_default", otherWorkspaceID),
+		"chain:keep-me",
+	}
+
+	seed := func() {
+		b.Helper()
+		for _, key := range keys {
+			if err := cache.Set(ctx, key, mustJSON(b, key), 10*time.Second); err != nil {
+				b.Fatalf("Set(%s) error: %v", key, err)
+			}
+		}
+	}
+
+	seed()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := cache.DeleteResolvedTemplatesByWorkspace(ctx, workspaceID); err != nil {
+			b.Fatalf("DeleteResolvedTemplatesByWorkspace() error: %v", err)
+		}
+		b.StopTimer()
+		seed()
+		b.StartTimer()
+	}
+}

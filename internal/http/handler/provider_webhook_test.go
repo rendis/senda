@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v5/echotest"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
 )
 
@@ -104,11 +105,37 @@ func (m *mockWebhookDispatcherPW) Dispatch(_ context.Context, wsID uuid.UUID, ev
 	return nil
 }
 
+// mockSNSReplayStorePW implements the SNS replay store contract for provider webhook tests.
+type mockSNSReplayStorePW struct {
+	calls []struct {
+		TopicArn         string
+		MessageID        string
+		MessageTimestamp time.Time
+		ReplayWindow     time.Duration
+	}
+	decisionFn func(topicArn, messageID string, messageTimestamp time.Time, replayWindow time.Duration) (port.SNSReplayDecision, error)
+}
+
+func (m *mockSNSReplayStorePW) Claim(_ context.Context, topicArn, messageID string, messageTimestamp time.Time, replayWindow time.Duration) (port.SNSReplayDecision, error) {
+	m.calls = append(m.calls, struct {
+		TopicArn         string
+		MessageID        string
+		MessageTimestamp time.Time
+		ReplayWindow     time.Duration
+	}{topicArn, messageID, messageTimestamp, replayWindow})
+	if m.decisionFn != nil {
+		return m.decisionFn(topicArn, messageID, messageTimestamp, replayWindow)
+	}
+	return port.SNSReplayDecisionAccepted, nil
+}
+
 // --- Provider webhook test fixture ---
 
 type providerWebhookFixture struct {
-	emailID     uuid.UUID
-	workspaceID uuid.UUID
+	emailID          uuid.UUID
+	workspaceID      uuid.UUID
+	expectedTopicArn string
+	expectedAccount  string
 
 	verifier   *mockSNSVerifier
 	confirmer  *mockSubscriptionConfirmer
@@ -116,6 +143,7 @@ type providerWebhookFixture struct {
 	updater    *mockEmailUpdaterPW
 	suppressor *mockSuppressionWriterPW
 	dispatcher *mockWebhookDispatcherPW
+	replay     *mockSNSReplayStorePW
 }
 
 func newProviderWebhookFixture() *providerWebhookFixture {
@@ -123,14 +151,17 @@ func newProviderWebhookFixture() *providerWebhookFixture {
 	wsID := uuid.Must(uuid.NewV7())
 
 	f := &providerWebhookFixture{
-		emailID:     emailID,
-		workspaceID: wsID,
-		verifier:    &mockSNSVerifier{},
-		confirmer:   &mockSubscriptionConfirmer{},
-		lookup:      &mockEmailLookupPW{},
-		updater:     &mockEmailUpdaterPW{},
-		suppressor:  &mockSuppressionWriterPW{},
-		dispatcher:  &mockWebhookDispatcherPW{},
+		emailID:          emailID,
+		workspaceID:      wsID,
+		expectedTopicArn: "arn:aws:sns:us-east-1:123456789012:SES-Events",
+		expectedAccount:  "123456789012",
+		verifier:         &mockSNSVerifier{},
+		confirmer:        &mockSubscriptionConfirmer{},
+		lookup:           &mockEmailLookupPW{},
+		updater:          &mockEmailUpdaterPW{},
+		suppressor:       &mockSuppressionWriterPW{},
+		dispatcher:       &mockWebhookDispatcherPW{},
+		replay:           &mockSNSReplayStorePW{},
 	}
 
 	f.lookup.getByProviderMessageIDFn = func(_ context.Context, msgID string) (*domain.Email, error) {
@@ -157,7 +188,48 @@ func (f *providerWebhookFixture) buildHandler() *handler.SESWebhookHandler {
 		f.dispatcher,
 		nil,
 	)
-	return handler.NewSESWebhookHandler(processor, f.verifier, f.confirmer, nil)
+	return handler.NewSESWebhookHandler(
+		processor,
+		f.verifier,
+		f.confirmer,
+		nil,
+		handler.WithExpectedSNSDestination(f.expectedTopicArn, f.expectedAccount),
+		handler.WithSNSReplayStore(f.replay, 15*time.Minute),
+	)
+}
+
+func (f *providerWebhookFixture) buildBoundHandler(expectedTopicArn, expectedAccountID string) *handler.SESWebhookHandler {
+	processor := service.NewEventProcessor(
+		f.lookup,
+		f.updater,
+		f.suppressor,
+		f.dispatcher,
+		nil,
+	)
+	return handler.NewSESWebhookHandler(
+		processor,
+		f.verifier,
+		f.confirmer,
+		nil,
+		handler.WithSNSBinding(expectedTopicArn, expectedAccountID),
+	)
+}
+
+func (f *providerWebhookFixture) buildUnboundHandler() *handler.SESWebhookHandler {
+	processor := service.NewEventProcessor(
+		f.lookup,
+		f.updater,
+		f.suppressor,
+		f.dispatcher,
+		nil,
+	)
+	return handler.NewSESWebhookHandler(
+		processor,
+		f.verifier,
+		f.confirmer,
+		nil,
+		handler.WithSNSReplayStore(f.replay, 15*time.Minute),
+	)
 }
 
 func (f *providerWebhookFixture) snsDeliveryNotification() []byte {
@@ -277,9 +349,131 @@ func TestSESWebhook_Delivery_HappyPath(t *testing.T) {
 		t.Fatalf("expected status 'delivered', got %v", f.updater.statuses)
 	}
 
+	if len(f.replay.calls) != 1 {
+		t.Fatalf("expected 1 replay claim, got %d", len(f.replay.calls))
+	}
+
 	// Verify webhook was dispatched
 	if len(f.dispatcher.calls) != 1 || f.dispatcher.calls[0].EventType != "email.delivered" {
 		t.Fatalf("expected webhook for 'email.delivered', got %v", f.dispatcher.calls)
+	}
+}
+
+func TestSESWebhook_Delivery_DuplicateReplay_Returns200AndSkipsProcessing(t *testing.T) {
+	f := newProviderWebhookFixture()
+	f.replay.decisionFn = func(_ string, _ string, _ time.Time, _ time.Duration) (port.SNSReplayDecision, error) {
+		return port.SNSReplayDecisionDuplicate, nil
+	}
+	h := f.buildHandler()
+
+	body := f.snsDeliveryNotification()
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+	c.Request().Header.Set("Content-Type", "application/json")
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for duplicate replay, got %d", rec.Code)
+	}
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no processing for duplicate replay, got %v", f.updater.statuses)
+	}
+}
+
+func TestSESWebhook_Delivery_StaleReplay_Returns200AndSkipsProcessing(t *testing.T) {
+	f := newProviderWebhookFixture()
+	f.replay.decisionFn = func(_ string, _ string, _ time.Time, _ time.Duration) (port.SNSReplayDecision, error) {
+		return port.SNSReplayDecisionStale, nil
+	}
+	h := f.buildHandler()
+
+	body := f.snsDeliveryNotification()
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+	c.Request().Header.Set("Content-Type", "application/json")
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for stale replay, got %d", rec.Code)
+	}
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no processing for stale replay, got %v", f.updater.statuses)
+	}
+}
+
+func TestSESWebhook_Delivery_WrongTopicArn_Returns400(t *testing.T) {
+	f := newProviderWebhookFixture()
+	h := f.buildHandler()
+
+	msg := map[string]any{
+		"Type":             "Notification",
+		"MessageId":        "sns-msg-wrong-topic",
+		"TopicArn":         "arn:aws:sns:us-east-1:123456789012:OTHER-Topic",
+		"Message":          `{"notificationType":"Delivery","mail":{"messageId":"ses-msg-id-001"},"delivery":{"timestamp":"2026-02-17T10:00:00.000Z"}}`,
+		"Timestamp":        "2026-02-17T10:00:01.000Z",
+		"SignatureVersion": "1",
+		"Signature":        "sig==",
+		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
+	}
+	body, _ := json.Marshal(msg)
+
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+	c.Request().Header.Set("Content-Type", "application/json")
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for wrong TopicArn, got %d", rec.Code)
+	}
+
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no status updates for wrong TopicArn, got %v", f.updater.statuses)
+	}
+}
+
+func TestSESWebhook_Delivery_WrongAccount_Returns400(t *testing.T) {
+	f := newProviderWebhookFixture()
+	h := f.buildHandler()
+
+	msg := map[string]any{
+		"Type":             "Notification",
+		"MessageId":        "sns-msg-wrong-account",
+		"TopicArn":         "arn:aws:sns:us-east-1:999999999999:SES-Events",
+		"Message":          `{"notificationType":"Delivery","mail":{"messageId":"ses-msg-id-001"},"delivery":{"timestamp":"2026-02-17T10:00:00.000Z"}}`,
+		"Timestamp":        "2026-02-17T10:00:01.000Z",
+		"SignatureVersion": "1",
+		"Signature":        "sig==",
+		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
+	}
+	body, _ := json.Marshal(msg)
+
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+	c.Request().Header.Set("Content-Type", "application/json")
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for wrong account, got %d", rec.Code)
+	}
+
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no status updates for wrong account, got %v", f.updater.statuses)
 	}
 }
 
@@ -429,6 +623,8 @@ func TestSESWebhook_SkipSignatureVerificationOption(t *testing.T) {
 		f.verifier,
 		f.confirmer,
 		nil,
+		handler.WithExpectedSNSDestination(f.expectedTopicArn, f.expectedAccount),
+		handler.WithSNSReplayStore(f.replay, 15*time.Minute),
 		handler.WithSkipSignatureVerification(true),
 	)
 
@@ -623,7 +819,14 @@ func TestSESWebhook_NilVerifier(t *testing.T) {
 		f.dispatcher,
 		nil,
 	)
-	h := handler.NewSESWebhookHandler(processor, nil, f.confirmer, nil) // nil verifier
+	h := handler.NewSESWebhookHandler(
+		processor,
+		nil,
+		f.confirmer,
+		nil,
+		handler.WithExpectedSNSDestination(f.expectedTopicArn, f.expectedAccount),
+		handler.WithSNSReplayStore(f.replay, 15*time.Minute),
+	) // nil verifier
 
 	body := f.snsDeliveryNotification()
 	c, rec := echotest.ContextConfig{
@@ -705,6 +908,69 @@ func TestSESWebhook_InvalidTopicArn_Returns400(t *testing.T) {
 	// No email processing should occur
 	if len(f.updater.statuses) != 0 {
 		t.Fatalf("expected no status updates for invalid TopicArn, got %d", len(f.updater.statuses))
+	}
+}
+
+func TestSESWebhook_RejectsUnexpectedRegisteredTopicArnOrAccount(t *testing.T) {
+	f := newProviderWebhookFixture()
+	h := f.buildBoundHandler(
+		"arn:aws:sns:us-east-1:123456789012:SES-Events",
+		"123456789012",
+	)
+
+	msg := map[string]any{
+		"Type":             "Notification",
+		"MessageId":        "sns-msg-bad-binding",
+		"TopicArn":         "arn:aws:sns:us-east-1:999999999999:SES-Events",
+		"Message":          `{"notificationType":"Delivery","mail":{"messageId":"ses-msg-id-001"},"delivery":{"timestamp":"2026-02-17T10:00:00.000Z"}}`,
+		"Timestamp":        "2026-02-17T10:00:01.000Z",
+		"SignatureVersion": "1",
+		"Signature":        "sig==",
+		"SigningCertURL":   "https://sns.us-east-1.amazonaws.com/cert.pem",
+	}
+	body, _ := json.Marshal(msg)
+
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for unexpected SNS binding, got %d", rec.Code)
+	}
+
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no status updates for unexpected SNS binding, got %d", len(f.updater.statuses))
+	}
+	if len(f.confirmer.calls) != 0 {
+		t.Fatalf("expected no confirmation calls for unexpected SNS binding, got %d", len(f.confirmer.calls))
+	}
+}
+
+func TestSESWebhook_RejectsUnconfiguredSNSBinding(t *testing.T) {
+	f := newProviderWebhookFixture()
+	h := f.buildUnboundHandler()
+	body := f.snsDeliveryNotification()
+
+	c, rec := echotest.ContextConfig{
+		Request: httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/ses/inbound", bytes.NewReader(body)),
+	}.ToContextRecorder(t)
+
+	if err := h.HandleInbound(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for unconfigured SNS binding, got %d", rec.Code)
+	}
+	if len(f.updater.statuses) != 0 {
+		t.Fatalf("expected no status updates for unconfigured SNS binding, got %d", len(f.updater.statuses))
+	}
+	if len(f.confirmer.calls) != 0 {
+		t.Fatalf("expected no confirmation calls for unconfigured SNS binding, got %d", len(f.confirmer.calls))
 	}
 }
 
@@ -822,8 +1088,8 @@ func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.records = append(h.records, r)
 	return nil
 }
-func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler  { return h }
-func (h *captureHandler) WithGroup(_ string) slog.Handler       { return h }
+func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *captureHandler) WithGroup(_ string) slog.Handler      { return h }
 
 // snsSendNotification builds an SNS notification wrapping an SES "Send" event.
 func snsSendNotification() []byte {
@@ -854,7 +1120,14 @@ func TestSESWebhook_SendNotification_NoWarnLog(t *testing.T) {
 	logger := slog.New(capture)
 
 	processor := service.NewEventProcessor(f.lookup, f.updater, f.suppressor, f.dispatcher, nil)
-	h := handler.NewSESWebhookHandler(processor, f.verifier, f.confirmer, logger)
+	h := handler.NewSESWebhookHandler(
+		processor,
+		f.verifier,
+		f.confirmer,
+		logger,
+		handler.WithExpectedSNSDestination(f.expectedTopicArn, f.expectedAccount),
+		handler.WithSNSReplayStore(f.replay, 15*time.Minute),
+	)
 
 	body := snsSendNotification()
 	c, rec := echotest.ContextConfig{
