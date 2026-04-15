@@ -80,3 +80,15 @@ func externalIntegrationSurfaceOptions(h externalIntegrationSurfaceHandlers) []s
 		sendahttp.WithTemplateHandler(h.template),
 	}
 }
+
+type publicSurfaceHandlers struct {
+	tracking *handler.TrackingHandler
+	media    *handler.MediaHandler
+}
+
+func publicSurfaceOptions(h publicSurfaceHandlers) []sendahttp.ServerOption {
+	return []sendahttp.ServerOption{
+		sendahttp.WithTrackingHandler(h.tracking),
+		sendahttp.WithMediaHandler(h.media),
+	}
+}
