@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const root = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const root = repoRoot;
 
 test("template editor wires a dedicated Bulk Send action and modal", async () => {
   const source = await readFile(
@@ -14,7 +16,7 @@ test("template editor wires a dedicated Bulk Send action and modal", async () =>
   assert.match(source, /BulkSendModal/);
   assert.match(source, /showBulkSend/);
   assert.match(source, /Bulk Send/);
-  assert.match(source, /bulkSendEnabled = scope\.level === "workspace"/);
+  assert.match(source, /bulkSendEnabled = showBulkSend && scope\.level === "workspace" && !forceReadOnly/);
 });
 
 test("template version hooks expose bulk send endpoints", async () => {

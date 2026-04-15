@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const root = process.cwd();
+import { repoRoot } from "./test-root.mjs";
+
+const root = repoRoot;
 
 function read(path) {
   return readFileSync(join(root, path), "utf8");
@@ -110,8 +112,8 @@ test("tenant workspaces list exposes a confirmed status toggle in the table", ()
 
   assert.match(
     source,
-    /aria-label=\{`Toggle workspace \$\{row\.original\.code\} status`\}/,
-    "Workspace status toggle should expose an accessible row-specific label",
+    /aria-label=\{`Toggle workspace \$\{displayCode\} status`\}/,
+    "Workspace status toggle should expose an accessible display-code label",
   );
 
   assert.match(

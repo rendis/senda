@@ -1,30 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import { auth } from "@/auth";
 import { buildFederatedLogoutUrl } from "./logout-url";
-
-function getPublicOrigin(request: NextRequest): string {
-  return process.env.AUTH_URL || `https://${request.headers.get("host")}` || request.nextUrl.origin;
-}
-
-function sanitizeCallbackUrl(
-  request: NextRequest,
-  rawCallbackUrl: string | null,
-): URL {
-  const origin = getPublicOrigin(request);
-  try {
-    const candidate = new URL(rawCallbackUrl ?? "/login", origin);
-    if (candidate.origin !== new URL(origin).origin) {
-      return new URL("/login", origin);
-    }
-
-    return new URL(
-      `${candidate.pathname}${candidate.search}${candidate.hash}`,
-      origin,
-    );
-  } catch {
-    return new URL("/login", origin);
-  }
-}
+import { sanitizeCallbackUrl } from "./origin";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
