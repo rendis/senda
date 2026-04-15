@@ -2767,77 +2767,98 @@ func BenchmarkSendService_SendBatch_Amortized(b *testing.B) {
 	for _, tt := range cases {
 		b.Run(tt.name, func(b *testing.B) {
 			b.Run("amortized", func(b *testing.B) {
-				b.StopTimer()
-				f := newSendFixture()
-				f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
-				f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
-
-				svc := f.buildService()
-				batchReq := &service.SendBatchRequest{
-					Ref:   "latam:acme:welcome",
-					Items: make([]service.SendBatchItemRequest, tt.items),
-				}
-				for i := 0; i < tt.items; i++ {
-					to := "user@example.com"
-					if i%2 == 1 {
-						to = "other@example.com"
-					}
-					batchReq.Items[i] = service.SendBatchItemRequest{
-						To:        to,
-						Variables: map[string]any{"name": "Alice"},
-					}
-				}
-				b.ResetTimer()
-				b.StartTimer()
-				for i := 0; i < b.N; i++ {
-					f.cache.data = make(map[string][]byte)
-					f.emailStore.emails = f.emailStore.emails[:0]
-					resp, err := svc.SendBatch(context.Background(), batchReq)
-					if err != nil {
-						b.Fatalf("SendBatch() error: %v", err)
-					}
-					sinkSendBatchResponse = resp
-				}
+				runSendBatchAmortizedBenchmark(b, tt.items)
 			})
 
 			b.Run("legacy_item_by_item", func(b *testing.B) {
-				b.StopTimer()
-				f := newSendFixture()
-				f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
-				f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
-
-				svc := f.buildService()
-				itemReqs := make([]*service.SendRequest, tt.items)
-				for i := 0; i < tt.items; i++ {
-					to := "user@example.com"
-					if i%2 == 1 {
-						to = "other@example.com"
-					}
-					itemReqs[i] = &service.SendRequest{
-						Ref:       "latam:acme:welcome",
-						To:        []string{to},
-						Variables: map[string]any{"name": "Alice"},
-					}
-				}
-				b.ResetTimer()
-				b.StartTimer()
-				for i := 0; i < b.N; i++ {
-					f.cache.data = make(map[string][]byte)
-					f.emailStore.emails = f.emailStore.emails[:0]
-					for _, req := range itemReqs {
-						resp, err := svc.Send(context.Background(), req)
-						if err != nil {
-							b.Fatalf("Send() error: %v", err)
-						}
-						sinkSendBatchResponse = &service.SendBatchResponse{
-							Status:           resp.Status,
-							TemplateResolved: resp.TemplateResolved,
-						}
-					}
-				}
+				runSendLegacyBenchmark(b, tt.items)
 			})
 		})
 	}
+}
+
+func runSendBatchAmortizedBenchmark(b *testing.B, items int) {
+	b.StopTimer()
+	f, svc := newBenchmarkSendService()
+	batchReq := benchmarkBatchRequest(items)
+	b.ResetTimer()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		resetBenchmarkSendFixture(f)
+		resp, err := svc.SendBatch(context.Background(), batchReq)
+		if err != nil {
+			b.Fatalf("SendBatch() error: %v", err)
+		}
+		sinkSendBatchResponse = resp
+	}
+}
+
+func runSendLegacyBenchmark(b *testing.B, items int) {
+	b.StopTimer()
+	f, svc := newBenchmarkSendService()
+	itemReqs := benchmarkLegacyItemRequests(items)
+	b.ResetTimer()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		resetBenchmarkSendFixture(f)
+		for _, req := range itemReqs {
+			resp, err := svc.Send(context.Background(), req)
+			if err != nil {
+				b.Fatalf("Send() error: %v", err)
+			}
+			sinkSendBatchResponse = &service.SendBatchResponse{
+				Status:           resp.Status,
+				TemplateResolved: resp.TemplateResolved,
+			}
+		}
+	}
+}
+
+func newBenchmarkSendService() (*sendTestFixture, *service.SendService) {
+	f := newSendFixture()
+	f.emailStore.createFn = func(_ context.Context, _ *domain.Email) error { return nil }
+	f.jq.enqueueSendFn = func(_ context.Context, _ *port.SendJob) error { return nil }
+	return f, f.buildService()
+}
+
+func benchmarkBatchRequest(items int) *service.SendBatchRequest {
+	req := &service.SendBatchRequest{
+		Ref:   "latam:acme:welcome",
+		Items: make([]service.SendBatchItemRequest, items),
+	}
+	for i := 0; i < items; i++ {
+		req.Items[i] = service.SendBatchItemRequest{
+			To:        benchmarkRecipient(i),
+			Variables: map[string]any{"name": "Alice"},
+		}
+	}
+	return req
+}
+
+func benchmarkLegacyItemRequests(items int) []*service.SendRequest {
+	reqs := make([]*service.SendRequest, items)
+	for i := 0; i < items; i++ {
+		reqs[i] = &service.SendRequest{
+			Ref:       "latam:acme:welcome",
+			To:        []string{benchmarkRecipient(i)},
+			Variables: map[string]any{"name": "Alice"},
+		}
+	}
+	return reqs
+}
+
+func benchmarkRecipient(i int) string {
+	if i%2 == 1 {
+		return "other@example.com"
+	}
+	return "user@example.com"
+}
+
+func resetBenchmarkSendFixture(f *sendTestFixture) {
+	f.cache.data = make(map[string][]byte)
+	f.emailStore.emails = f.emailStore.emails[:0]
 }
 
 func BenchmarkResolvedSendContext_DefaultLocaleReuse(b *testing.B) {

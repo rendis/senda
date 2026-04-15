@@ -257,9 +257,62 @@ func (s *SendService) executeSendPlan(ctx context.Context, shared *ResolvedSendC
 		ExternalID: plan.ExternalID,
 	}
 
-	resolved, err := shared.templateForLocale(ctx, s, plan.Locale)
+	execCtx, err := s.prepareSendPlanExecution(ctx, shared, plan)
 	if err != nil {
 		return result, err
+	}
+
+	outcome := s.processSendPlanRecipients(ctx, shared, plan, execCtx)
+	return finalizeSendPlanResult(result, execCtx.effectiveTo, outcome)
+}
+
+type sendPlanExecution struct {
+	resolved         *resolution.ResolvedTemplate
+	injectors        map[string]map[string]any
+	renderedSubject  string
+	renderedFromName string
+	bodyMJML         string
+	now              time.Time
+	effectiveTo      []string
+	filteredCC       []string
+	filteredBCC      []string
+}
+
+type sendPlanOutcome struct {
+	lastErr          error
+	failCount        int
+	firstTracking    TrackingEntry
+	hasFirstTracking bool
+}
+
+func (s *SendService) prepareSendPlanExecution(ctx context.Context, shared *ResolvedSendContext, plan SendPlan) (*sendPlanExecution, error) {
+	resolved, injectors, renderedSubject, renderedFromName, err := s.resolveSendPlanTemplate(ctx, shared, plan)
+	if err != nil {
+		return nil, err
+	}
+
+	effectiveTo, effectiveCC, effectiveBCC, err := applyTestRecipientPolicy(shared.Workspace, resolved.TemplateType, []string{plan.To}, plan.CC, plan.BCC)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sendPlanExecution{
+		resolved:         resolved,
+		injectors:        injectors,
+		renderedSubject:  renderedSubject,
+		renderedFromName: renderedFromName,
+		bodyMJML:         getLocalizedBody(resolved),
+		now:              time.Now().UTC(),
+		effectiveTo:      effectiveTo,
+		filteredCC:       filterSuppressedWithStatuses(effectiveCC, shared.suppressionStatuses),
+		filteredBCC:      filterSuppressedWithStatuses(effectiveBCC, shared.suppressionStatuses),
+	}, nil
+}
+
+func (s *SendService) resolveSendPlanTemplate(ctx context.Context, shared *ResolvedSendContext, plan SendPlan) (*resolution.ResolvedTemplate, map[string]map[string]any, string, string, error) {
+	resolved, err := shared.templateForLocale(ctx, s, plan.Locale)
+	if err != nil {
+		return nil, nil, "", "", err
 	}
 
 	injCtx := port.NewInjectorContext(
@@ -274,139 +327,130 @@ func (s *SendService) executeSendPlan(ctx context.Context, shared *ResolvedSendC
 	injCtx.SetRequestInjectors(plan.Injectors)
 	injectors, err := s.injectorMerger.ResolveWithContext(ctx, shared.Workspace.ID, injCtx)
 	if err != nil {
-		return result, err
+		return nil, nil, "", "", err
 	}
 
-	subject := getLocalizedField(resolved, "subject")
-	fromName := getLocalizedField(resolved, "from_name")
-
-	renderedSubject, err := s.renderer.Render(subject, injectors, plan.Variables)
+	renderedSubject, err := s.renderer.Render(getLocalizedField(resolved, "subject"), injectors, plan.Variables)
 	if err != nil {
-		return result, fmt.Errorf("render subject: %w", err)
+		return nil, nil, "", "", fmt.Errorf("render subject: %w", err)
 	}
-	renderedFromName, err := s.renderer.Render(fromName, injectors, plan.Variables)
+	renderedFromName, err := s.renderer.Render(getLocalizedField(resolved, "from_name"), injectors, plan.Variables)
 	if err != nil {
-		return result, fmt.Errorf("render from_name: %w", err)
+		return nil, nil, "", "", fmt.Errorf("render from_name: %w", err)
 	}
 
-	bodyMJML := getLocalizedBody(resolved)
+	return resolved, injectors, renderedSubject, renderedFromName, nil
+}
 
-	now := time.Now().UTC()
-	source := shared.Source
-	effectiveTo, effectiveCC, effectiveBCC, err := applyTestRecipientPolicy(shared.Workspace, resolved.TemplateType, []string{plan.To}, plan.CC, plan.BCC)
-	if err != nil {
-		return result, err
-	}
+func (s *SendService) processSendPlanRecipients(ctx context.Context, shared *ResolvedSendContext, plan SendPlan, execCtx *sendPlanExecution) sendPlanOutcome {
+	var outcome sendPlanOutcome
 
-	filteredCC := filterSuppressedWithStatuses(effectiveCC, shared.suppressionStatuses)
-	filteredBCC := filterSuppressedWithStatuses(effectiveBCC, shared.suppressionStatuses)
-
-	var lastErr error
-	var failCount int
-	var firstTracking TrackingEntry
-	var hasFirstTracking bool
-
-	for _, recipient := range effectiveTo {
-		status := shared.suppressionStatuses[recipient]
-		suppressed := status.Suppressed
-		reason := status.Reason
-
+	for _, recipient := range execCtx.effectiveTo {
 		trackingID := generateTrackingID()
-		email := &domain.Email{
-			ID:                  uuid.Must(uuid.NewV7()),
-			TrackingID:          trackingID,
-			ExternalID:          plan.ExternalID,
-			WorkspaceID:         shared.Workspace.ID,
-			TenantID:            shared.Tenant.ID,
-			TemplateID:          resolved.Template.ID,
-			TemplateVersionID:   resolved.Version.ID,
-			TemplateTypeSlug:    shared.TemplateType.Slug,
-			TemplateRef:         shared.Ref,
-			RecipientEmail:      recipient,
-			CC:                  filteredCC,
-			BCC:                 filteredBCC,
-			FromEmail:           shared.FromEmail,
-			FromName:            renderedFromName,
-			ReplyTo:             resolved.Version.ReplyTo,
-			SubjectRendered:     renderedSubject,
-			Locale:              plan.Locale,
-			AdapterID:           shared.Adapter.Adapter.ID,
-			SenderIdentityID:    resolved.TemplateType.SenderIdentityID,
-			VariablesSnapshot:   plan.Variables,
-			InjectorsSnapshot:   injectors,
-			SourceType:          source.Type,
-			SourceActorMemberID: source.ActorMemberID,
-			SourceActorEmail:    source.ActorEmail,
-			BodyMJML:            bodyMJML,
-			OpenTrackingEnabled: shared.Workspace.OpenTrackingEnabled,
-			MaxRetries:          3,
-			CreatedAt:           now,
-			UpdatedAt:           now,
-		}
-
-		if suppressed {
-			email.Status = domain.StatusSuppressed
-			if err := s.createSuppressed(ctx, email, now, reason); err != nil {
-				failCount++
-				lastErr = err
-				if !hasFirstTracking {
-					firstTracking = TrackingEntry{To: recipient, TrackingID: trackingID, Status: "failed", Error: err.Error()}
-					hasFirstTracking = true
-				}
-				continue
-			}
-			if !hasFirstTracking {
-				firstTracking = TrackingEntry{To: recipient, TrackingID: trackingID, Status: "suppressed"}
-				hasFirstTracking = true
-			}
+		status := shared.suppressionStatuses[recipient]
+		email := s.buildSendPlanEmail(shared, plan, execCtx, recipient, trackingID)
+		if status.Suppressed {
+			s.persistSuppressedPlanRecipient(ctx, email, execCtx.now, status.Reason, trackingID, recipient, &outcome)
 			continue
 		}
-
-		email.Status = domain.StatusQueued
-		if err := s.createAndEnqueue(ctx, email, trackingID, shared.Adapter.Adapter.ID); err != nil {
-			failCount++
-			lastErr = err
-			if !hasFirstTracking {
-				firstTracking = TrackingEntry{To: recipient, TrackingID: trackingID, Status: "failed", Error: err.Error()}
-				hasFirstTracking = true
-			}
-			continue
-		}
-
-		if !hasFirstTracking {
-			firstTracking = TrackingEntry{To: recipient, TrackingID: trackingID, Status: "accepted"}
-			hasFirstTracking = true
-		}
+		s.persistQueuedPlanRecipient(ctx, email, shared.Adapter.Adapter.ID, trackingID, recipient, &outcome)
 	}
 
-	if failCount == len(effectiveTo) {
-		return result, fmt.Errorf("all recipients failed: %w", lastErr)
-	}
+	return outcome
+}
 
-	if failCount > 0 {
+func (s *SendService) buildSendPlanEmail(shared *ResolvedSendContext, plan SendPlan, execCtx *sendPlanExecution, recipient, trackingID string) *domain.Email {
+	source := shared.Source
+	return &domain.Email{
+		ID:                  uuid.Must(uuid.NewV7()),
+		TrackingID:          trackingID,
+		ExternalID:          plan.ExternalID,
+		WorkspaceID:         shared.Workspace.ID,
+		TenantID:            shared.Tenant.ID,
+		TemplateID:          execCtx.resolved.Template.ID,
+		TemplateVersionID:   execCtx.resolved.Version.ID,
+		TemplateTypeSlug:    shared.TemplateType.Slug,
+		TemplateRef:         shared.Ref,
+		RecipientEmail:      recipient,
+		CC:                  execCtx.filteredCC,
+		BCC:                 execCtx.filteredBCC,
+		FromEmail:           shared.FromEmail,
+		FromName:            execCtx.renderedFromName,
+		ReplyTo:             execCtx.resolved.Version.ReplyTo,
+		SubjectRendered:     execCtx.renderedSubject,
+		Locale:              plan.Locale,
+		AdapterID:           shared.Adapter.Adapter.ID,
+		SenderIdentityID:    execCtx.resolved.TemplateType.SenderIdentityID,
+		VariablesSnapshot:   plan.Variables,
+		InjectorsSnapshot:   execCtx.injectors,
+		SourceType:          source.Type,
+		SourceActorMemberID: source.ActorMemberID,
+		SourceActorEmail:    source.ActorEmail,
+		BodyMJML:            execCtx.bodyMJML,
+		OpenTrackingEnabled: shared.Workspace.OpenTrackingEnabled,
+		MaxRetries:          3,
+		CreatedAt:           execCtx.now,
+		UpdatedAt:           execCtx.now,
+	}
+}
+
+func (s *SendService) persistSuppressedPlanRecipient(ctx context.Context, email *domain.Email, now time.Time, reason, trackingID, recipient string, outcome *sendPlanOutcome) {
+	email.Status = domain.StatusSuppressed
+	if err := s.createSuppressed(ctx, email, now, reason); err != nil {
+		recordSendPlanFailure(outcome, err, recipient, trackingID)
+		return
+	}
+	recordSendPlanFirstTracking(outcome, TrackingEntry{To: recipient, TrackingID: trackingID, Status: "suppressed"})
+}
+
+func (s *SendService) persistQueuedPlanRecipient(ctx context.Context, email *domain.Email, adapterID uuid.UUID, trackingID, recipient string, outcome *sendPlanOutcome) {
+	email.Status = domain.StatusQueued
+	if err := s.createAndEnqueue(ctx, email, trackingID, adapterID); err != nil {
+		recordSendPlanFailure(outcome, err, recipient, trackingID)
+		return
+	}
+	recordSendPlanFirstTracking(outcome, TrackingEntry{To: recipient, TrackingID: trackingID, Status: "accepted"})
+}
+
+func recordSendPlanFailure(outcome *sendPlanOutcome, err error, recipient, trackingID string) {
+	outcome.failCount++
+	outcome.lastErr = err
+	recordSendPlanFirstTracking(outcome, TrackingEntry{To: recipient, TrackingID: trackingID, Status: "failed", Error: err.Error()})
+}
+
+func recordSendPlanFirstTracking(outcome *sendPlanOutcome, entry TrackingEntry) {
+	if outcome.hasFirstTracking {
+		return
+	}
+	outcome.firstTracking = entry
+	outcome.hasFirstTracking = true
+}
+
+func finalizeSendPlanResult(result SendBatchItemResult, effectiveTo []string, outcome sendPlanOutcome) (SendBatchItemResult, error) {
+	if outcome.failCount == len(effectiveTo) {
+		return result, fmt.Errorf("all recipients failed: %w", outcome.lastErr)
+	}
+	if outcome.failCount > 0 {
 		result.Status = "partial"
-		if lastErr != nil {
-			result.Error = lastErr.Error()
+		if outcome.lastErr != nil {
+			result.Error = outcome.lastErr.Error()
 		}
-	} else if hasFirstTracking {
-		result.Status = firstTracking.Status
-		result.TrackingID = firstTracking.TrackingID
-		result.Error = firstTracking.Error
+	} else if outcome.hasFirstTracking {
+		result.Status = outcome.firstTracking.Status
+		result.TrackingID = outcome.firstTracking.TrackingID
+		result.Error = outcome.firstTracking.Error
 		return result, nil
 	}
-
-	if hasFirstTracking {
-		result.TrackingID = firstTracking.TrackingID
+	if outcome.hasFirstTracking {
+		result.TrackingID = outcome.firstTracking.TrackingID
 		if result.Status == "" {
-			result.Status = firstTracking.Status
-			result.Error = firstTracking.Error
+			result.Status = outcome.firstTracking.Status
+			result.Error = outcome.firstTracking.Error
 		}
 	}
-
 	if result.Status == "" {
 		result.Status = "accepted"
 	}
-
 	return result, nil
 }
 

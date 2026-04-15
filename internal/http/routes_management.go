@@ -1,3 +1,4 @@
+//nolint:dupl // route registration intentionally mirrors CRUD surfaces across scopes
 package http
 
 import (
@@ -112,6 +113,12 @@ func (s *Server) hasManagementSurface() bool {
 }
 
 func (s *Server) registerManagementWorkspaceRoutes(ws *echo.Group) {
+	s.registerWorkspaceBuilderRoutes(ws)
+	s.registerWorkspaceTemplateRoutes(ws)
+	s.registerWorkspaceOperationsRoutes(ws)
+}
+
+func (s *Server) registerWorkspaceBuilderRoutes(ws *echo.Group) {
 	if s.injectorHandler != nil {
 		ws.POST("/injectors", s.injectorHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 		ws.GET("/injectors", s.injectorHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -148,7 +155,9 @@ func (s *Server) registerManagementWorkspaceRoutes(ws *echo.Group) {
 		ws.GET("/adapters/:id/identities/:identity_id/workspace-access", s.identityHandler.GetWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 		ws.PUT("/adapters/:id/identities/:identity_id/workspace-access", s.identityHandler.UpdateWorkspaceAccess, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 	}
+}
 
+func (s *Server) registerWorkspaceTemplateRoutes(ws *echo.Group) {
 	if s.templateTypeHandler != nil {
 		ws.POST("/template-types", s.templateTypeHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 		ws.GET("/template-types", s.templateTypeHandler.List, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
@@ -181,7 +190,9 @@ func (s *Server) registerManagementWorkspaceRoutes(ws *echo.Group) {
 		ws.DELETE("/templates/:template_id", s.templateHandler.DeleteTemplate, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 		ws.DELETE("/templates/:template_id/versions/:version_id", s.templateHandler.DeleteVersion, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 	}
+}
 
+func (s *Server) registerWorkspaceOperationsRoutes(ws *echo.Group) {
 	if s.apiKeyHandler != nil {
 		ws.POST("/api-keys", s.apiKeyHandler.Create, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))
 		ws.GET("/api-keys", s.apiKeyHandler.List, middleware.RequireRole(domain.RoleWorkspaceAdmin, s.tenantStore, s.wsStore))

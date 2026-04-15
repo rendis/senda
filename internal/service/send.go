@@ -465,59 +465,7 @@ func getLocalizedField(resolved *resolution.ResolvedTemplate, field string) stri
 // wrapped in a DB transaction. Falls back to non-transactional path when pool
 // is nil (e.g., in unit tests).
 func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email, trackingID string, adapterID uuid.UUID) error {
-	sendJob := &port.SendJob{
-		EmailID:    email.ID,
-		TrackingID: trackingID,
-		AdapterID:  adapterID,
-	}
-
-	now := time.Now().UTC()
-	queuedEvent := &domain.EmailEvent{
-		ID:         uuid.Must(uuid.NewV7()),
-		EmailID:    email.ID,
-		EventType:  domain.EventTypeQueued,
-		OccurredAt: now,
-		CreatedAt:  now,
-	}
-
-	if s.pool != nil {
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("begin tx: %w", err)
-		}
-
-		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("create email: %w", err)
-		}
-
-		if err := s.queue.EnqueueSendTx(ctx, tx, sendJob); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("enqueue send: %w", err)
-		}
-
-		if err := s.emailStore.AddEventTx(ctx, tx, queuedEvent); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("add queued event: %w", err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			return fmt.Errorf("commit tx: %w", err)
-		}
-		return nil
-	}
-
-	// Non-transactional fallback (unit tests without pool).
-	if err := s.emailStore.Create(ctx, email); err != nil {
-		return fmt.Errorf("create email: %w", err)
-	}
-	if err := s.emailStore.AddEvent(ctx, queuedEvent); err != nil {
-		slog.Error("failed to add queued event", "email_id", email.ID, "error", err)
-	}
-	if err := s.queue.EnqueueSend(ctx, sendJob); err != nil {
-		return fmt.Errorf("enqueue send: %w", err)
-	}
-	return nil
+	return s.persistenceWriter().CreateQueued(ctx, email, trackingID, adapterID)
 }
 
 // createSuppressed atomically creates the email record and the suppression event.
@@ -525,46 +473,7 @@ func (s *SendService) createAndEnqueue(ctx context.Context, email *domain.Email,
 // cannot be partially applied. Falls back to non-transactional path when pool is
 // nil (e.g., in unit tests).
 func (s *SendService) createSuppressed(ctx context.Context, email *domain.Email, now time.Time, reason string) error {
-	suppressionEvent := &domain.EmailEvent{
-		ID:         uuid.Must(uuid.NewV7()),
-		EmailID:    email.ID,
-		EventType:  domain.EventTypeSuppressed,
-		OccurredAt: now,
-		Metadata:   map[string]any{"reason": reason},
-		CreatedAt:  now,
-	}
-
-	if s.pool != nil {
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("begin tx: %w", err)
-		}
-
-		if err := s.emailStore.CreateTx(ctx, tx, email); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("create suppressed email: %w", err)
-		}
-
-		if err := s.emailStore.AddEventTx(ctx, tx, suppressionEvent); err != nil {
-			_ = tx.Rollback(ctx)
-			return fmt.Errorf("add suppression event: %w", err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			return fmt.Errorf("commit tx: %w", err)
-		}
-
-		return nil
-	}
-
-	// Non-transactional fallback (unit tests without pool).
-	if err := s.emailStore.Create(ctx, email); err != nil {
-		return err
-	}
-	if err := s.emailStore.AddEvent(ctx, suppressionEvent); err != nil {
-		slog.Error("failed to add suppression event", "email_id", email.ID, "error", err)
-	}
-	return nil
+	return s.persistenceWriter().CreateSuppressed(ctx, email, now, reason)
 }
 
 // getLocalizedBody returns the MJML body, preferring locale override if present.
@@ -649,22 +558,8 @@ func uniqueRecipientAddresses(addrs []string) []string {
 
 // filterSuppressed returns only the addresses that are NOT on the suppression
 // list. It preserves order. If addrs is empty it returns nil.
-func (s *SendService) filterSuppressed(ctx context.Context, wsID uuid.UUID, addrs []string) ([]string, error) {
-	if len(addrs) == 0 {
-		return nil, nil
-	}
-	statuses, err := s.getSuppressionStatuses(ctx, wsID, addrs)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		if !statuses[addr].Suppressed {
-			result = append(result, addr)
-		}
-	}
-	return result, nil
+func (s *SendService) persistenceWriter() *SendPersistenceWriter {
+	return NewSendPersistenceWriter(s.emailStore, s.queue, s.pool)
 }
 
 // generateTrackingID creates a "trk_" prefixed unique tracking ID.

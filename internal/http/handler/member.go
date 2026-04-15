@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/mail"
@@ -452,120 +453,45 @@ func (h *MemberHandler) ReplaceRoleWorkspace(c *echo.Context) error {
 	return h.replaceRole(c, scope)
 }
 
-func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
-	memberID, err := uuid.Parse(c.Param("member_id"))
-	if err != nil {
-		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid member ID")
-	}
-
-	ctx := c.Request().Context()
-	if _, err := h.store.GetByID(ctx, memberID); err != nil {
-		return mapStoreError(c, err)
-	}
-
-	var req request.AddRoleRequest
-	if err := c.Bind(&req); err != nil {
-		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
-	}
-
-	var fieldErrors []response.FieldError
-	role := domain.Role(req.Role)
-	if !scope.allowedRole(role) {
-		fieldErrors = append(fieldErrors, response.FieldError{
-			Field:   "role",
-			Message: "role is not allowed for this scope",
-		})
-	}
-
-	if scope != nil {
-		if req.ScopeType != "" && domain.ScopeType(req.ScopeType) != scope.scopeType {
-			fieldErrors = append(fieldErrors, response.FieldError{
-				Field:   "scope_type",
-				Message: "scope_type must match the route scope",
-			})
-		}
-		if req.TenantID != nil {
-			parsedTenantID, err := uuid.Parse(*req.TenantID)
-			if err != nil {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must be a valid UUID"})
-			} else if scope.tenantID != nil && parsedTenantID != *scope.tenantID {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must match the route tenant"})
-			}
-		}
-		if req.WorkspaceID != nil {
-			parsedWorkspaceID, err := uuid.Parse(*req.WorkspaceID)
-			if err != nil {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must be a valid UUID"})
-			} else if scope.workspaceID != nil && parsedWorkspaceID != *scope.workspaceID {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must match the route workspace"})
-			}
-		}
-	}
-
-	scopeType := domain.ScopeType(req.ScopeType)
-	if scope != nil {
-		scopeType = scope.scopeType
-	}
-	if !scope.allowedScopeType(scopeType) {
-		fieldErrors = append(fieldErrors, response.FieldError{
-			Field:   "scope_type",
-			Message: "scope_type is not allowed for this route",
-		})
-	}
-
-	if scope == nil {
-		if !isValidScopeType(scopeType) {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "must be one of: global, tenant, workspace"})
-		}
-	} else {
-		if scopeType == domain.ScopeWorkspace && scope.workspaceID == nil {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "workspace scope requires a workspace"})
-		}
-		if scopeType == domain.ScopeTenant && scope.tenantID == nil {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "tenant scope requires a tenant"})
-		}
-	}
-
-	if len(fieldErrors) > 0 {
-		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
-	}
-
-	mr := &domain.MemberRole{
-		ID:        uuid.Must(uuid.NewV7()),
-		MemberID:  memberID,
-		Role:      role,
-		ScopeType: scopeType,
-		CreatedAt: time.Now().UTC(),
-	}
-
-	if scope != nil {
-		if scope.tenantID != nil {
-			tenantID := *scope.tenantID
-			mr.TenantID = &tenantID
-		}
-		if scope.workspaceID != nil {
-			workspaceID := *scope.workspaceID
-			mr.WorkspaceID = &workspaceID
-		}
-	} else {
-		mr.TenantID, err = parseOptionalUUID(req.TenantID)
-		if err != nil {
-			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid tenant_id")
-		}
-		mr.WorkspaceID, err = parseOptionalUUID(req.WorkspaceID)
-		if err != nil {
-			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid workspace_id")
-		}
-	}
-
-	if err := h.store.AddRole(ctx, mr); err != nil {
-		return mapStoreError(c, err)
-	}
-
-	return c.JSON(http.StatusCreated, response.NewMemberRoleResponse(mr))
+func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error {
+	return h.mutateRole(c, scope, roleMutation{
+		persist: func(ctx context.Context, role *domain.MemberRole) error {
+			return h.store.AddRole(ctx, role)
+		},
+		status: http.StatusCreated,
+	})
 }
 
-func (h *MemberHandler) replaceRole(c *echo.Context, scope *memberScope) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
+func (h *MemberHandler) replaceRole(c *echo.Context, scope *memberScope) error {
+	return h.mutateRole(c, scope, roleMutation{
+		persist: func(ctx context.Context, role *domain.MemberRole) error {
+			return h.store.ReplaceRoleInScope(ctx, role)
+		},
+		status: http.StatusOK,
+	})
+}
+
+type roleMutation struct {
+	persist func(context.Context, *domain.MemberRole) error
+	status  int
+}
+
+type roleAssignmentRequest struct {
+	Role        string  `json:"role"`
+	ScopeType   string  `json:"scope_type"`
+	TenantID    *string `json:"tenant_id"`
+	WorkspaceID *string `json:"workspace_id"`
+}
+
+type roleAssignmentParseError struct {
+	message string
+}
+
+func (e roleAssignmentParseError) Error() string {
+	return e.message
+}
+
+func (h *MemberHandler) mutateRole(c *echo.Context, scope *memberScope, mutation roleMutation) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
 	memberID, err := uuid.Parse(c.Param("member_id"))
 	if err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid member ID")
@@ -576,72 +502,37 @@ func (h *MemberHandler) replaceRole(c *echo.Context, scope *memberScope) error {
 		return mapStoreError(c, err)
 	}
 
-	var req request.ReplaceRoleRequest
+	var req roleAssignmentRequest
 	if err := c.Bind(&req); err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 	}
 
-	var fieldErrors []response.FieldError
+	mr, fieldErrors, err := buildMemberRole(memberID, scope, req)
+	if err != nil {
+		var parseErr roleAssignmentParseError
+		if errors.As(err, &parseErr) {
+			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", parseErr.message)
+		}
+		return err
+	}
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	if err := mutation.persist(ctx, mr); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.JSON(mutation.status, response.NewMemberRoleResponse(mr))
+}
+
+func buildMemberRole(memberID uuid.UUID, scope *memberScope, req roleAssignmentRequest) (*domain.MemberRole, []response.FieldError, error) {
 	role := domain.Role(req.Role)
-	if !scope.allowedRole(role) {
-		fieldErrors = append(fieldErrors, response.FieldError{
-			Field:   "role",
-			Message: "role is not allowed for this scope",
-		})
-	}
-
-	if scope != nil {
-		if req.ScopeType != "" && domain.ScopeType(req.ScopeType) != scope.scopeType {
-			fieldErrors = append(fieldErrors, response.FieldError{
-				Field:   "scope_type",
-				Message: "scope_type must match the route scope",
-			})
-		}
-		if req.TenantID != nil {
-			parsedTenantID, err := uuid.Parse(*req.TenantID)
-			if err != nil {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must be a valid UUID"})
-			} else if scope.tenantID != nil && parsedTenantID != *scope.tenantID {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must match the route tenant"})
-			}
-		}
-		if req.WorkspaceID != nil {
-			parsedWorkspaceID, err := uuid.Parse(*req.WorkspaceID)
-			if err != nil {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must be a valid UUID"})
-			} else if scope.workspaceID != nil && parsedWorkspaceID != *scope.workspaceID {
-				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must match the route workspace"})
-			}
-		}
-	}
-
 	scopeType := domain.ScopeType(req.ScopeType)
 	if scope != nil {
 		scopeType = scope.scopeType
 	}
-	if !scope.allowedScopeType(scopeType) {
-		fieldErrors = append(fieldErrors, response.FieldError{
-			Field:   "scope_type",
-			Message: "scope_type is not allowed for this route",
-		})
-	}
-
-	if scope == nil {
-		if !isValidScopeType(scopeType) {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "must be one of: global, tenant, workspace"})
-		}
-	} else {
-		if scopeType == domain.ScopeWorkspace && scope.workspaceID == nil {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "workspace scope requires a workspace"})
-		}
-		if scopeType == domain.ScopeTenant && scope.tenantID == nil {
-			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "tenant scope requires a tenant"})
-		}
-	}
-
-	if len(fieldErrors) > 0 {
-		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
-	}
+	fieldErrors := validateRoleAssignment(scope, req, role, scopeType)
 
 	mr := &domain.MemberRole{
 		ID:        uuid.Must(uuid.NewV7()),
@@ -660,22 +551,81 @@ func (h *MemberHandler) replaceRole(c *echo.Context, scope *memberScope) error {
 			workspaceID := *scope.workspaceID
 			mr.WorkspaceID = &workspaceID
 		}
-	} else {
-		mr.TenantID, err = parseOptionalUUID(req.TenantID)
-		if err != nil {
-			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid tenant_id")
-		}
-		mr.WorkspaceID, err = parseOptionalUUID(req.WorkspaceID)
-		if err != nil {
-			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid workspace_id")
-		}
+		return mr, fieldErrors, nil
 	}
 
-	if err := h.store.ReplaceRoleInScope(ctx, mr); err != nil {
-		return mapStoreError(c, err)
+	var err error
+	mr.TenantID, err = parseOptionalUUID(req.TenantID)
+	if err != nil {
+		return nil, nil, roleAssignmentParseError{message: "invalid tenant_id"}
+	}
+	mr.WorkspaceID, err = parseOptionalUUID(req.WorkspaceID)
+	if err != nil {
+		return nil, nil, roleAssignmentParseError{message: "invalid workspace_id"}
 	}
 
-	return c.JSON(http.StatusOK, response.NewMemberRoleResponse(mr))
+	return mr, fieldErrors, nil
+}
+
+func validateRoleAssignment(scope *memberScope, req roleAssignmentRequest, role domain.Role, scopeType domain.ScopeType) []response.FieldError {
+	var fieldErrors []response.FieldError
+	if !scope.allowedRole(role) {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "role", Message: "role is not allowed for this scope"})
+	}
+	fieldErrors = append(fieldErrors, validateScopedRoleAssignment(scope, req)...)
+	fieldErrors = append(fieldErrors, validateRoleScopeType(scope, scopeType)...)
+	return fieldErrors
+}
+
+func validateScopedRoleAssignment(scope *memberScope, req roleAssignmentRequest) []response.FieldError {
+	if scope == nil {
+		return nil
+	}
+
+	var fieldErrors []response.FieldError
+	if req.ScopeType != "" && domain.ScopeType(req.ScopeType) != scope.scopeType {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "scope_type must match the route scope"})
+	}
+	fieldErrors = append(fieldErrors, validateScopedUUID(req.TenantID, scope.tenantID, "tenant_id", "tenant")...)
+	fieldErrors = append(fieldErrors, validateScopedUUID(req.WorkspaceID, scope.workspaceID, "workspace_id", "workspace")...)
+	return fieldErrors
+}
+
+func validateScopedUUID(raw *string, expected *uuid.UUID, field string, target string) []response.FieldError {
+	if raw == nil {
+		return nil
+	}
+
+	parsed, err := uuid.Parse(*raw)
+	if err != nil {
+		return []response.FieldError{{Field: field, Message: "must be a valid UUID"}}
+	}
+	if expected != nil && parsed != *expected {
+		return []response.FieldError{{Field: field, Message: "must match the route " + target}}
+	}
+	return nil
+}
+
+func validateRoleScopeType(scope *memberScope, scopeType domain.ScopeType) []response.FieldError {
+	var fieldErrors []response.FieldError
+	if !scope.allowedScopeType(scopeType) {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "scope_type is not allowed for this route"})
+	}
+
+	if scope == nil {
+		if !isValidScopeType(scopeType) {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "must be one of: global, tenant, workspace"})
+		}
+		return fieldErrors
+	}
+
+	if scopeType == domain.ScopeWorkspace && scope.workspaceID == nil {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "workspace scope requires a workspace"})
+	}
+	if scopeType == domain.ScopeTenant && scope.tenantID == nil {
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "tenant scope requires a tenant"})
+	}
+	return fieldErrors
 }
 
 // RemoveRole handles DELETE /api/v1/manage/members/:member_id/roles/:role_id.

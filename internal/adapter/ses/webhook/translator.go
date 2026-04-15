@@ -138,7 +138,7 @@ func (translator) Translate(rawBody []byte) (*ParsedMessage, error) {
 	}
 
 	if !strings.HasPrefix(msg.TopicArn, "arn:aws:sns:") {
-		return nil, badRequestError("invalid TopicArn", fmt.Errorf("topic arn %q must start with arn:aws:sns:", msg.TopicArn))
+		return nil, badRequestError("invalid TopicArn", fmt.Errorf("topic arn %q must start with arn:aws:sns", msg.TopicArn))
 	}
 
 	switch msg.Type {

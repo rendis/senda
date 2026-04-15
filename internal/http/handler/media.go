@@ -154,26 +154,6 @@ func NewMediaHandler(logger *slog.Logger, opts ...MediaHandlerOption) *MediaHand
 	return h
 }
 
-// checkSSRF resolves the host of u and returns an error if any resolved address
-// is a loopback, private, link-local, or otherwise disallowed address.
-func checkSSRF(u *url.URL) error {
-	host := u.Hostname()
-	addrs, err := net.LookupHost(host)
-	if err != nil {
-		return fmt.Errorf("could not resolve host %q: %w", host, err)
-	}
-	for _, addr := range addrs {
-		ip := net.ParseIP(addr)
-		if ip == nil {
-			return fmt.Errorf("could not parse resolved address %q", addr)
-		}
-		if isDisallowedIP(ip) {
-			return fmt.Errorf("url resolves to a disallowed address")
-		}
-	}
-	return nil
-}
-
 // isDisallowedIP returns true if ip is loopback, private, link-local,
 // unspecified, or otherwise disallowed for outbound proxy requests.
 func isDisallowedIP(ip net.IP) bool {

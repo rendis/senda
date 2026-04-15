@@ -48,32 +48,52 @@ func TestTranslator_TranslateNotificationEvents(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Translate() error = %v", err)
 			}
-			if got.Kind != KindNotification {
-				t.Fatalf("expected notification kind, got %q", got.Kind)
-			}
-			if got.Event == nil {
-				t.Fatal("expected normalized provider event")
-			}
-			if got.Event.Type != tt.wantType {
-				t.Fatalf("expected provider event type %q, got %q", tt.wantType, got.Event.Type)
-			}
-			if !got.Event.Timestamp.Equal(time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC)) {
-				t.Fatalf("expected parsed SES timestamp, got %s", got.Event.Timestamp)
-			}
-			if tt.wantBounceType != "" {
-				if got.Event.BounceDetail == nil || got.Event.BounceDetail.BounceType != tt.wantBounceType {
-					t.Fatalf("expected bounce detail %q, got %#v", tt.wantBounceType, got.Event.BounceDetail)
-				}
-			}
-			if tt.wantComplaint != "" {
-				if got.Event.ComplaintDetail == nil || got.Event.ComplaintDetail.ComplaintType != tt.wantComplaint {
-					t.Fatalf("expected complaint detail %q, got %#v", tt.wantComplaint, got.Event.ComplaintDetail)
-				}
-			}
-			if string(got.Event.RawPayload) != string(tt.body) {
-				t.Fatal("expected raw payload to preserve original SNS body")
-			}
+			assertTranslatedNotification(t, got, tt.body, tt.wantType, tt.wantBounceType, tt.wantComplaint)
 		})
+	}
+}
+
+func assertTranslatedNotification(t *testing.T, got *ParsedMessage, rawBody []byte, wantType domain.ProviderEventType, wantBounceType, wantComplaint string) {
+	t.Helper()
+
+	if got.Kind != KindNotification {
+		t.Fatalf("expected notification kind, got %q", got.Kind)
+	}
+	if got.Event == nil {
+		t.Fatal("expected normalized provider event")
+	}
+	if got.Event.Type != wantType {
+		t.Fatalf("expected provider event type %q, got %q", wantType, got.Event.Type)
+	}
+	if !got.Event.Timestamp.Equal(time.Date(2026, 2, 17, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("expected parsed SES timestamp, got %s", got.Event.Timestamp)
+	}
+	assertBounceDetail(t, got.Event, wantBounceType)
+	assertComplaintDetail(t, got.Event, wantComplaint)
+	if string(got.Event.RawPayload) != string(rawBody) {
+		t.Fatal("expected raw payload to preserve original SNS body")
+	}
+}
+
+func assertBounceDetail(t *testing.T, event *domain.ProviderEvent, want string) {
+	t.Helper()
+
+	if want == "" {
+		return
+	}
+	if event.BounceDetail == nil || event.BounceDetail.BounceType != want {
+		t.Fatalf("expected bounce detail %q, got %#v", want, event.BounceDetail)
+	}
+}
+
+func assertComplaintDetail(t *testing.T, event *domain.ProviderEvent, want string) {
+	t.Helper()
+
+	if want == "" {
+		return
+	}
+	if event.ComplaintDetail == nil || event.ComplaintDetail.ComplaintType != want {
+		t.Fatalf("expected complaint detail %q, got %#v", want, event.ComplaintDetail)
 	}
 }
 

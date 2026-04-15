@@ -14,6 +14,13 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+const (
+	oidcModeTest = "test"
+	oidcModeDual = "dual"
+	schemeHTTP   = "http"
+	schemeHTTPS  = "https"
+)
+
 // Config is the root configuration for the Senda application.
 type Config struct {
 	Server        ServerConfig   `yaml:"server"`
@@ -268,85 +275,129 @@ func validate(cfg *Config) error {
 		errs = append(errs, err)
 	}
 
-	if cfg.Database.URL != "" &&
-		!strings.HasPrefix(cfg.Database.URL, "postgres://") &&
-		!strings.HasPrefix(cfg.Database.URL, "postgresql://") {
-		errs = append(errs, fmt.Errorf("database.url must start with postgres:// or postgresql://"))
-	}
+	errs = append(errs, validateDatabaseURL(cfg.Database.URL)...)
+	errs = append(errs, validateOIDCConfig(cfg)...)
+	errs = append(errs, validateCryptoConfig(cfg.Crypto)...)
+	errs = append(errs, validateServerConfig(cfg.Server, cfg.Environment)...)
+	errs = append(errs, validateMediaConfig(cfg.Media)...)
+	errs = append(errs, validateSNSConfig(cfg.SNS, cfg.Environment)...)
 
-	// Production guard: test and dual OIDC modes include an HS256 test verifier.
-	if cfg.OIDC.Mode == "test" || cfg.OIDC.Mode == "dual" {
+	return errors.Join(errs...)
+}
+
+func validateDatabaseURL(raw string) []error {
+	if raw == "" {
+		return nil
+	}
+	if strings.HasPrefix(raw, "postgres://") || strings.HasPrefix(raw, "postgresql://") {
+		return nil
+	}
+	return []error{fmt.Errorf("database.url must start with postgres:// or postgresql://")}
+}
+
+func validateOIDCConfig(cfg *Config) []error {
+	var errs []error
+
+	if cfg.OIDC.Mode == oidcModeTest || cfg.OIDC.Mode == oidcModeDual {
 		slog.Warn("OIDC mode includes test verifier — must NOT be used in production", "mode", cfg.OIDC.Mode)
 		if cfg.Environment == "production" && !cfg.AllowTestAuth {
 			errs = append(errs, fmt.Errorf("oidc.mode %q is not allowed when environment is \"production\" (set SENDA_ALLOW_TEST_AUTH=true to override)", cfg.OIDC.Mode))
 		}
 	}
 
-	// OIDC validation depends on mode.
-	switch cfg.OIDC.Mode {
-	case "test":
-		if cfg.OIDC.TestSecret == "" {
-			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"test\""))
-		}
-	case "dual":
-		// Dual mode needs both real OIDC fields AND the test secret.
-		if cfg.OIDC.DiscoveryURL == "" {
-			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is \"dual\""))
-		}
-		if cfg.OIDC.ClientID == "" {
-			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is \"dual\""))
-		}
-		if cfg.OIDC.TestSecret == "" {
-			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is \"dual\""))
-		}
-	default: // "oidc" or any other value → require real OIDC fields.
-		if cfg.OIDC.DiscoveryURL == "" {
-			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is %q", cfg.OIDC.Mode))
-		}
-		if cfg.OIDC.ClientID == "" {
-			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is %q", cfg.OIDC.Mode))
-		}
-		if cfg.OIDC.ClientSecret == "" {
-			errs = append(errs, fmt.Errorf("oidc.client_secret is required when mode is %q", cfg.OIDC.Mode))
-		}
-	}
-
+	errs = append(errs, validateOIDCMode(cfg.OIDC)...)
 	if cfg.OIDC.DiscoveryURL != "" &&
-		!strings.HasPrefix(cfg.OIDC.DiscoveryURL, "https://") &&
-		!strings.HasPrefix(cfg.OIDC.DiscoveryURL, "http://") {
+		!strings.HasPrefix(cfg.OIDC.DiscoveryURL, schemeHTTPS+"://") &&
+		!strings.HasPrefix(cfg.OIDC.DiscoveryURL, schemeHTTP+"://") {
 		errs = append(errs, fmt.Errorf("oidc.discovery_url must start with http:// or https://"))
 	}
-
-	if cfg.Crypto.MasterKey != "" && len(cfg.Crypto.MasterKey) < 32 {
-		errs = append(errs, fmt.Errorf("crypto.master_key must be at least 32 characters, got %d", len(cfg.Crypto.MasterKey)))
-	}
-
 	if err := validateDiscoveryURL(cfg.OIDC.DiscoveryURL, cfg.Environment); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validateAllowedOrigins(cfg.Server.AllowedOrigins, cfg.Environment); err != nil {
+
+	return errs
+}
+
+func validateOIDCMode(cfg OIDCConfig) []error {
+	var errs []error
+
+	switch cfg.Mode {
+	case oidcModeTest:
+		if cfg.TestSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is %q", oidcModeTest))
+		}
+	case oidcModeDual:
+		if cfg.DiscoveryURL == "" {
+			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is %q", oidcModeDual))
+		}
+		if cfg.ClientID == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is %q", oidcModeDual))
+		}
+		if cfg.TestSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.test_secret is required when mode is %q", oidcModeDual))
+		}
+	default:
+		if cfg.DiscoveryURL == "" {
+			errs = append(errs, fmt.Errorf("oidc.discovery_url is required when mode is %q", cfg.Mode))
+		}
+		if cfg.ClientID == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_id is required when mode is %q", cfg.Mode))
+		}
+		if cfg.ClientSecret == "" {
+			errs = append(errs, fmt.Errorf("oidc.client_secret is required when mode is %q", cfg.Mode))
+		}
+	}
+
+	return errs
+}
+
+func validateCryptoConfig(cfg CryptoConfig) []error {
+	if cfg.MasterKey == "" || len(cfg.MasterKey) >= 32 {
+		return nil
+	}
+	return []error{fmt.Errorf("crypto.master_key must be at least 32 characters, got %d", len(cfg.MasterKey))}
+}
+
+func validateServerConfig(cfg ServerConfig, environment string) []error {
+	var errs []error
+
+	if err := validateAllowedOrigins(cfg.AllowedOrigins, environment); err != nil {
 		errs = append(errs, err)
 	}
-	if cfg.Media.ThumbnailCacheTTL <= 0 {
-		errs = append(errs, fmt.Errorf("media.thumbnail_cache_ttl must be greater than zero"))
-	}
-	if cfg.Media.ThumbnailCacheMaxEntries <= 0 {
-		errs = append(errs, fmt.Errorf("media.thumbnail_cache_max_entries must be greater than zero"))
-	}
-	if cfg.Media.ThumbnailFetchTimeout <= 0 {
-		errs = append(errs, fmt.Errorf("media.thumbnail_fetch_timeout must be greater than zero"))
-	}
-	if isProductionEnvironment(cfg.Environment) && strings.TrimSpace(cfg.Server.MetricsToken) == "" {
+	if isProductionEnvironment(environment) && strings.TrimSpace(cfg.MetricsToken) == "" {
 		errs = append(errs, fmt.Errorf("server.metrics_token is required in production"))
 	}
-	if isProductionEnvironment(cfg.Environment) && cfg.SNS.SkipSignatureVerification {
-		errs = append(errs, fmt.Errorf("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION cannot be enabled when environment is %q", cfg.Environment))
+
+	return errs
+}
+
+func validateMediaConfig(cfg MediaConfig) []error {
+	var errs []error
+
+	if cfg.ThumbnailCacheTTL <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_cache_ttl must be greater than zero"))
 	}
-	if cfg.SNS.ReplayWindow <= 0 {
+	if cfg.ThumbnailCacheMaxEntries <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_cache_max_entries must be greater than zero"))
+	}
+	if cfg.ThumbnailFetchTimeout <= 0 {
+		errs = append(errs, fmt.Errorf("media.thumbnail_fetch_timeout must be greater than zero"))
+	}
+
+	return errs
+}
+
+func validateSNSConfig(cfg SNSConfig, environment string) []error {
+	var errs []error
+
+	if isProductionEnvironment(environment) && cfg.SkipSignatureVerification {
+		errs = append(errs, fmt.Errorf("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION cannot be enabled when environment is %q", environment))
+	}
+	if cfg.ReplayWindow <= 0 {
 		errs = append(errs, fmt.Errorf("sns.replay_window must be greater than zero"))
 	}
 
-	return errors.Join(errs...)
+	return errs
 }
 
 func validateRequired(v reflect.Value, prefix string, errs *[]error) {
@@ -398,15 +449,6 @@ func isProductionEnvironment(raw string) bool {
 	}
 }
 
-func isNonProductionEnvironment(raw string) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", "development", "dev", "test", "testing", "ci":
-		return true
-	default:
-		return false
-	}
-}
-
 func validateDiscoveryURL(discoveryURL, environment string) error {
 	if discoveryURL == "" {
 		return nil
@@ -416,10 +458,10 @@ func validateDiscoveryURL(discoveryURL, environment string) error {
 	if err != nil {
 		return fmt.Errorf("oidc.discovery_url is invalid: %w", err)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
 		return fmt.Errorf("oidc.discovery_url must start with http:// or https://")
 	}
-	if isProductionEnvironment(environment) && parsed.Scheme != "https" {
+	if isProductionEnvironment(environment) && parsed.Scheme != schemeHTTPS {
 		return fmt.Errorf("oidc.discovery_url must use https:// in production")
 	}
 
@@ -447,10 +489,10 @@ func validateAllowedOrigin(origin string, prod bool) error {
 	if err != nil {
 		return fmt.Errorf("invalid origin: %w", err)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
 		return fmt.Errorf("scheme must be http or https")
 	}
-	if prod && parsed.Scheme != "https" {
+	if prod && parsed.Scheme != schemeHTTPS {
 		return fmt.Errorf("scheme must be https in production")
 	}
 	if parsed.Host == "" {

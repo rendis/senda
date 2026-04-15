@@ -267,19 +267,7 @@ func TestSendPipeline_ReworkFlow_BatchesSuppressionsPersistsHotColdAndReusesBurs
 	emailStore := newPipelineEmailStore()
 	queue := &pipelineQueue{}
 
-	var suppressionCalls int
-	var suppressionInputs [][]string
-	f.suppression.checkBatchFn = func(_ context.Context, wsID uuid.UUID, emails []string) (map[string]string, error) {
-		if wsID != f.workspaceID {
-			t.Fatalf("expected workspace %s, got %s", f.workspaceID, wsID)
-		}
-		suppressionCalls++
-		suppressionInputs = append(suppressionInputs, append([]string(nil), emails...))
-		return map[string]string{
-			"blocked@example.com":    "manual",
-			"cc-blocked@example.com": "manual",
-		}, nil
-	}
+	suppressionCalls, suppressionInputs := configurePipelineSuppressionBatch(t, f)
 
 	svc := newPipelineSendService(f, emailStore, queue)
 
@@ -296,30 +284,90 @@ func TestSendPipeline_ReworkFlow_BatchesSuppressionsPersistsHotColdAndReusesBurs
 		t.Fatalf("unexpected send error: %v", err)
 	}
 
-	if suppressionCalls != 1 {
-		t.Fatalf("expected 1 suppression batch lookup, got %d", suppressionCalls)
-	}
-
-	expectedLookup := []string{
+	assertPipelineSuppressionLookup(t, *suppressionCalls, suppressionInputs, []string{
 		"active@example.com",
 		"blocked@example.com",
 		"cc-blocked@example.com",
 		"cc-allowed@example.com",
 		"bcc-allowed@example.com",
+	})
+
+	acceptedTrackingID := assertPipelineFirstSend(t, firstResp, queue)
+	assertPipelineColdHotPersistence(t, emailStore, acceptedTrackingID)
+
+	secondResp, err := svc.Send(context.Background(), &service.SendRequest{
+		Ref: "latam:acme:welcome",
+		To:  []string{"second@example.com"},
+		Variables: map[string]any{
+			"name": "Grace",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected second send error: %v", err)
 	}
-	if got := suppressionInputs[0]; strings.Join(got, ",") != strings.Join(expectedLookup, ",") {
-		t.Fatalf("unexpected suppression lookup recipients: got %v want %v", got, expectedLookup)
+	assertPipelineSecondSend(t, secondResp, queue)
+
+	rateLimiter := &pipelineRateLimiter{
+		acquireBurstFn: func(_ context.Context, adapterID uuid.UUID, requested int) (int, error) {
+			if adapterID != f.adapterID {
+				t.Fatalf("expected adapter %s, got %s", f.adapterID, adapterID)
+			}
+			if requested < 2 {
+				t.Fatalf("expected burst request >= 2, got %d", requested)
+			}
+			return 2, nil
+		},
+	}
+	sender := &pipelineSender{}
+	worker := riveradapter.NewSendWorker(emailStore, &pipelineCompiler{}, service.NewVariableRenderer(), rateLimiter, sender)
+
+	runPipelineWorkerJobs(t, worker, queue.sendJobs)
+	assertPipelineWorkerEffects(t, emailStore, rateLimiter, sender)
+}
+
+func configurePipelineSuppressionBatch(t *testing.T, f *sendTestFixture) (*int, *[][]string) {
+	t.Helper()
+
+	var calls int
+	var inputs [][]string
+	f.suppression.checkBatchFn = func(_ context.Context, wsID uuid.UUID, emails []string) (map[string]string, error) {
+		if wsID != f.workspaceID {
+			t.Fatalf("expected workspace %s, got %s", f.workspaceID, wsID)
+		}
+		calls++
+		inputs = append(inputs, append([]string(nil), emails...))
+		return map[string]string{
+			"blocked@example.com":    "manual",
+			"cc-blocked@example.com": "manual",
+		}, nil
 	}
 
-	if len(firstResp.TrackingIDs) != 2 {
-		t.Fatalf("expected 2 tracking entries, got %d", len(firstResp.TrackingIDs))
+	return &calls, &inputs
+}
+
+func assertPipelineSuppressionLookup(t *testing.T, calls int, inputs *[][]string, expected []string) {
+	t.Helper()
+
+	if calls != 1 {
+		t.Fatalf("expected 1 suppression batch lookup, got %d", calls)
+	}
+	if got := (*inputs)[0]; strings.Join(got, ",") != strings.Join(expected, ",") {
+		t.Fatalf("unexpected suppression lookup recipients: got %v want %v", got, expected)
+	}
+}
+
+func assertPipelineFirstSend(t *testing.T, resp *service.SendResponse, queue *pipelineQueue) string {
+	t.Helper()
+
+	if len(resp.TrackingIDs) != 2 {
+		t.Fatalf("expected 2 tracking entries, got %d", len(resp.TrackingIDs))
 	}
 	if len(queue.sendJobs) != 1 {
 		t.Fatalf("expected only active recipient to be enqueued, got %d jobs", len(queue.sendJobs))
 	}
 
 	var acceptedTrackingID string
-	for _, item := range firstResp.TrackingIDs {
+	for _, item := range resp.TrackingIDs {
 		switch item.To {
 		case "active@example.com":
 			if item.Status != "accepted" {
@@ -337,6 +385,11 @@ func TestSendPipeline_ReworkFlow_BatchesSuppressionsPersistsHotColdAndReusesBurs
 	if acceptedTrackingID == "" {
 		t.Fatal("expected accepted tracking ID")
 	}
+	return acceptedTrackingID
+}
+
+func assertPipelineColdHotPersistence(t *testing.T, emailStore *pipelineEmailStore, acceptedTrackingID string) {
+	t.Helper()
 
 	acceptedHot := emailStore.hotByTrackingID(acceptedTrackingID)
 	if acceptedHot == nil {
@@ -359,39 +412,23 @@ func TestSendPipeline_ReworkFlow_BatchesSuppressionsPersistsHotColdAndReusesBurs
 	if !strings.Contains(acceptedPayload.BodyMJML, "Hello {{ event.name }}") {
 		t.Fatalf("expected cold payload body snapshot, got %q", acceptedPayload.BodyMJML)
 	}
+}
 
-	secondResp, err := svc.Send(context.Background(), &service.SendRequest{
-		Ref: "latam:acme:welcome",
-		To:  []string{"second@example.com"},
-		Variables: map[string]any{
-			"name": "Grace",
-		},
-	})
-	if err != nil {
-		t.Fatalf("unexpected second send error: %v", err)
-	}
-	if len(secondResp.TrackingIDs) != 1 || secondResp.TrackingIDs[0].Status != "accepted" {
-		t.Fatalf("expected second send accepted, got %#v", secondResp.TrackingIDs)
+func assertPipelineSecondSend(t *testing.T, resp *service.SendResponse, queue *pipelineQueue) {
+	t.Helper()
+
+	if len(resp.TrackingIDs) != 1 || resp.TrackingIDs[0].Status != "accepted" {
+		t.Fatalf("expected second send accepted, got %#v", resp.TrackingIDs)
 	}
 	if len(queue.sendJobs) != 2 {
 		t.Fatalf("expected 2 queued jobs after second send, got %d", len(queue.sendJobs))
 	}
+}
 
-	rateLimiter := &pipelineRateLimiter{
-		acquireBurstFn: func(_ context.Context, adapterID uuid.UUID, requested int) (int, error) {
-			if adapterID != f.adapterID {
-				t.Fatalf("expected adapter %s, got %s", f.adapterID, adapterID)
-			}
-			if requested < 2 {
-				t.Fatalf("expected burst request >= 2, got %d", requested)
-			}
-			return 2, nil
-		},
-	}
-	sender := &pipelineSender{}
-	worker := riveradapter.NewSendWorker(emailStore, &pipelineCompiler{}, service.NewVariableRenderer(), rateLimiter, sender)
+func runPipelineWorkerJobs(t *testing.T, worker *riveradapter.SendWorker, jobs []*port.SendJob) {
+	t.Helper()
 
-	for _, sendJob := range queue.sendJobs {
+	for _, sendJob := range jobs {
 		job := &goriver.Job[riveradapter.SendJobArgs]{
 			Args: riveradapter.SendJobArgs{
 				EmailID:    sendJob.EmailID,
@@ -408,6 +445,10 @@ func TestSendPipeline_ReworkFlow_BatchesSuppressionsPersistsHotColdAndReusesBurs
 			t.Fatalf("unexpected worker error for %s: %v", sendJob.TrackingID, err)
 		}
 	}
+}
+
+func assertPipelineWorkerEffects(t *testing.T, emailStore *pipelineEmailStore, rateLimiter *pipelineRateLimiter, sender *pipelineSender) {
+	t.Helper()
 
 	if len(rateLimiter.acquireBurstCalls) != 1 {
 		t.Fatalf("expected one burst acquisition for two jobs on same adapter, got %d", len(rateLimiter.acquireBurstCalls))

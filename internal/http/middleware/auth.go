@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -113,7 +114,7 @@ func authenticateOIDC(c *echo.Context, ctx context.Context, token string, verifi
 
 	member, err := memberStore.GetByOIDCIdentity(ctx, claims.Issuer, claims.Subject)
 	if err != nil {
-		if !apperr.IsNotFound(err) && err != domain.ErrNotFound {
+		if !apperr.IsNotFound(err) && !errors.Is(err, domain.ErrNotFound) {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to load member")
 		}
 

@@ -213,9 +213,10 @@ func Down(ctx context.Context, outPath string) error {
 		return fmt.Errorf("load report: %w", err)
 	}
 	var names resourceNames
-	if report.Runtime.Scope.Hash != "" || report.Runtime.Scope.Spec != "" || report.Runtime.Scope.Worktree != "" || report.Runtime.Scope.Run != "" {
+	switch {
+	case report.Runtime.Scope.Hash != "" || report.Runtime.Scope.Spec != "" || report.Runtime.Scope.Worktree != "" || report.Runtime.Scope.Run != "":
 		names = makeResourceNames(ScopeFromReport(report.Runtime.Scope))
-	} else if report.Runtime.Network != "" || len(report.Runtime.Containers) > 0 {
+	case report.Runtime.Network != "" || len(report.Runtime.Containers) > 0:
 		names = resourceNames{
 			Network:       report.Runtime.Network,
 			Postgres:      report.Runtime.Containers["postgres"],
@@ -225,7 +226,7 @@ func Down(ctx context.Context, outPath string) error {
 			AWSSimBackend: report.Runtime.Containers["aws_sim_backend"],
 			App:           report.Runtime.Containers["senda"],
 		}
-	} else {
+	default:
 		return fmt.Errorf("report is missing scope and runtime container names")
 	}
 	cleanupNamedResources(ctx, names)
