@@ -582,6 +582,90 @@ func TestHandleVideoThumbnail_CacheHit(t *testing.T) {
 	}
 }
 
+func TestHandleVideoThumbnail_ConcurrentCacheHits_PreserveHeadersAndBody(t *testing.T) {
+	jpegBytes := makeTestJPEG(t)
+
+	var reqCount int
+	thumbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(jpegBytes)
+	}))
+
+	thumbURL := thumbServer.URL + "/thumb.jpg"
+	h := mediaHandlerForURLHost(t, thumbURL, handler.WithSkipSSRF())
+
+	primeReq := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+	primeCtx, primeRec := echotest.ContextConfig{Request: primeReq}.ToContextRecorder(t)
+	if err := h.HandleVideoThumbnail(primeCtx); err != nil {
+		t.Fatalf("prime request: unexpected error: %v", err)
+	}
+	if primeRec.Code != http.StatusOK {
+		t.Fatalf("prime request: expected 200, got %d", primeRec.Code)
+	}
+
+	expectedContentType := primeRec.Header().Get("Content-Type")
+	expectedCacheControl := primeRec.Header().Get("Cache-Control")
+	expectedBody := append([]byte(nil), primeRec.Body.Bytes()...)
+
+	thumbServer.Close()
+
+	const goroutines = 8
+	type result struct {
+		code         int
+		contentType  string
+		cacheControl string
+		body         []byte
+		err          error
+	}
+
+	results := make([]result, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodGet, "/public/video-thumbnail?url="+url.QueryEscape(thumbURL), nil)
+			c, rec := echotest.ContextConfig{Request: req}.ToContextRecorder(t)
+
+			err := h.HandleVideoThumbnail(c)
+			results[i] = result{
+				code:         rec.Code,
+				contentType:  rec.Header().Get("Content-Type"),
+				cacheControl: rec.Header().Get("Cache-Control"),
+				body:         append([]byte(nil), rec.Body.Bytes()...),
+				err:          err,
+			}
+		}()
+	}
+	wg.Wait()
+
+	for i, result := range results {
+		if result.err != nil {
+			t.Fatalf("cache hit %d: unexpected error: %v", i, result.err)
+		}
+		if result.code != http.StatusOK {
+			t.Fatalf("cache hit %d: expected 200, got %d", i, result.code)
+		}
+		if result.contentType != expectedContentType {
+			t.Fatalf("cache hit %d: expected Content-Type %q, got %q", i, expectedContentType, result.contentType)
+		}
+		if result.cacheControl != expectedCacheControl {
+			t.Fatalf("cache hit %d: expected Cache-Control %q, got %q", i, expectedCacheControl, result.cacheControl)
+		}
+		if !bytes.Equal(result.body, expectedBody) {
+			t.Fatalf("cache hit %d: expected body to match primed cache response", i)
+		}
+	}
+
+	if reqCount != 1 {
+		t.Fatalf("expected concurrent cache hits to avoid new upstream requests, got %d total", reqCount)
+	}
+}
+
 // TestHandleVideoThumbnail_CacheExpiresAfterTTL verifies that cached thumbnails
 // expire once the configured TTL elapses.
 func TestHandleVideoThumbnail_CacheExpiresAfterTTL(t *testing.T) {

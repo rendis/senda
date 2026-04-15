@@ -478,7 +478,7 @@ func (c *thumbnailCache) Get(key string) ([]byte, bool) {
 	}
 
 	c.order.MoveToFront(elem)
-	return append([]byte(nil), entry.value...), true
+	return entry.value, true
 }
 
 func (c *thumbnailCache) Set(key string, value []byte) {
