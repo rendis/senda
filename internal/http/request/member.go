@@ -14,3 +14,11 @@ type AddRoleRequest struct {
 	TenantID    *string `json:"tenant_id"`
 	WorkspaceID *string `json:"workspace_id"`
 }
+
+// ReplaceRoleRequest is the request body for PUT /api/v1/manage/members/:member_id/role.
+type ReplaceRoleRequest struct {
+	Role        string  `json:"role"`
+	ScopeType   string  `json:"scope_type"`
+	TenantID    *string `json:"tenant_id"`
+	WorkspaceID *string `json:"workspace_id"`
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import type { InfiniteData } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi, useApiReady } from "@/hooks/use-api";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
@@ -8,18 +9,30 @@ import type { PaginatedResponse } from "@/types/api";
 import type {
   MemberWithRoles,
   InviteMemberRequest,
-  AddMemberRoleRequest,
+  ReplaceMemberRoleRequest,
 } from "@/types/members-ext";
+import {
+  buildMemberAccessPath,
+  buildMemberRolePath,
+  buildMembersPath,
+  performNoContentRequest,
+  removeMemberFromCachedPages,
+} from "./members-mgmt-logic";
+
+export {
+  buildInviteMemberRequest,
+  buildMemberAccessPath,
+  buildMemberRolePath,
+  buildMembersPath,
+  buildRevokeAccessDialogCopy,
+  getAllowedMemberRolesForScope,
+  hasMemberAccessInScope,
+  getMemberRowActions,
+  inviteMemberInScope,
+} from "./members-mgmt-logic";
 
 function useMembersPath(): string {
-  const { level, tenantCode, workspaceCode, environment } = useScope();
-
-  switch (level) {
-    case "workspace":
-      return `manage/environments/${environment ?? "prod"}/tenants/${tenantCode}/workspaces/${workspaceCode}/members`;
-    default:
-      return "manage/members";
-  }
+  return buildMembersPath(useScope());
 }
 
 export function useCurrentMember() {
@@ -63,10 +76,10 @@ export function useInviteMember() {
   });
 }
 
-export function useAddMemberRole() {
+export function useReplaceMemberRole() {
   const api = useApi();
   const qc = useQueryClient();
-  const path = useMembersPath();
+  const scope = useScope();
 
   return useMutation({
     mutationFn: ({
@@ -74,33 +87,50 @@ export function useAddMemberRole() {
       data,
     }: {
       memberId: string;
-      data: AddMemberRoleRequest;
+      data: ReplaceMemberRoleRequest;
     }) =>
-      api
-        .post(`${path}/${memberId}/roles`, { json: data })
-        .json<MemberWithRoles>(),
+      api.put(buildMemberRolePath(scope, memberId), { json: data }).json<MemberWithRoles>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["members"] });
     },
   });
 }
 
-export function useRemoveMemberRole() {
+export function useRevokeMemberAccess() {
   const api = useApi();
   const qc = useQueryClient();
-  const path = useMembersPath();
+  const scope = useScope();
+  const path = buildMembersPath(scope);
 
   return useMutation({
-    mutationFn: ({
-      memberId,
-      roleId,
-    }: {
-      memberId: string;
-      roleId: string;
-    }) =>
-      api.delete(`${path}/${memberId}/roles/${roleId}`).json<void>(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["members"] });
+    mutationFn: async (memberId: string) =>
+      performNoContentRequest(() =>
+        api.delete(buildMemberAccessPath(scope, memberId)),
+      ),
+    onMutate: async (memberId) => {
+      await qc.cancelQueries({ queryKey: ["members", path] });
+      const previous =
+        qc.getQueryData<InfiniteData<PaginatedResponse<MemberWithRoles>>>([
+          "members",
+          path,
+        ]);
+
+      qc.setQueryData<InfiniteData<PaginatedResponse<MemberWithRoles>>>(
+        ["members", path],
+        (current) => removeMemberFromCachedPages(current, memberId),
+      );
+
+      return { previous };
+    },
+    onError: (_error, _memberId, context) => {
+      if (!context?.previous) {
+        return;
+      }
+
+      qc.setQueryData(["members", path], context.previous);
+    },
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ["members"] });
     },
   });
 }

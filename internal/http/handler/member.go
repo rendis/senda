@@ -411,6 +411,11 @@ func (h *MemberHandler) AddRole(c *echo.Context) error {
 	return h.addRole(c, nil)
 }
 
+// ReplaceRole handles PUT /api/v1/manage/members/:member_id/role.
+func (h *MemberHandler) ReplaceRole(c *echo.Context) error {
+	return h.replaceRole(c, nil)
+}
+
 // AddRoleTenant handles POST /api/v1/manage/tenants/:tenant_code/members/:member_id/roles.
 func (h *MemberHandler) AddRoleTenant(c *echo.Context) error {
 	scope, err := h.resolveTenantScope(c)
@@ -420,6 +425,15 @@ func (h *MemberHandler) AddRoleTenant(c *echo.Context) error {
 	return h.addRole(c, scope)
 }
 
+// ReplaceRoleTenant handles PUT /api/v1/manage/tenants/:tenant_code/members/:member_id/role.
+func (h *MemberHandler) ReplaceRoleTenant(c *echo.Context) error {
+	scope, err := h.resolveTenantScope(c)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.replaceRole(c, scope)
+}
+
 // AddRoleWorkspace handles POST /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/roles.
 func (h *MemberHandler) AddRoleWorkspace(c *echo.Context) error {
 	scope, err := h.resolveWorkspaceScope(c)
@@ -427,6 +441,15 @@ func (h *MemberHandler) AddRoleWorkspace(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 	return h.addRole(c, scope)
+}
+
+// ReplaceRoleWorkspace handles PUT /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/role.
+func (h *MemberHandler) ReplaceRoleWorkspace(c *echo.Context) error {
+	scope, err := h.resolveWorkspaceScope(c)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.replaceRole(c, scope)
 }
 
 func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
@@ -542,6 +565,119 @@ func (h *MemberHandler) addRole(c *echo.Context, scope *memberScope) error { //n
 	return c.JSON(http.StatusCreated, response.NewMemberRoleResponse(mr))
 }
 
+func (h *MemberHandler) replaceRole(c *echo.Context, scope *memberScope) error { //nolint:gocognit,gocyclo,funlen // role validation with scope-dependent logic
+	memberID, err := uuid.Parse(c.Param("member_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid member ID")
+	}
+
+	ctx := c.Request().Context()
+	if _, err := h.store.GetByID(ctx, memberID); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	var req request.ReplaceRoleRequest
+	if err := c.Bind(&req); err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	}
+
+	var fieldErrors []response.FieldError
+	role := domain.Role(req.Role)
+	if !scope.allowedRole(role) {
+		fieldErrors = append(fieldErrors, response.FieldError{
+			Field:   "role",
+			Message: "role is not allowed for this scope",
+		})
+	}
+
+	if scope != nil {
+		if req.ScopeType != "" && domain.ScopeType(req.ScopeType) != scope.scopeType {
+			fieldErrors = append(fieldErrors, response.FieldError{
+				Field:   "scope_type",
+				Message: "scope_type must match the route scope",
+			})
+		}
+		if req.TenantID != nil {
+			parsedTenantID, err := uuid.Parse(*req.TenantID)
+			if err != nil {
+				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must be a valid UUID"})
+			} else if scope.tenantID != nil && parsedTenantID != *scope.tenantID {
+				fieldErrors = append(fieldErrors, response.FieldError{Field: "tenant_id", Message: "must match the route tenant"})
+			}
+		}
+		if req.WorkspaceID != nil {
+			parsedWorkspaceID, err := uuid.Parse(*req.WorkspaceID)
+			if err != nil {
+				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must be a valid UUID"})
+			} else if scope.workspaceID != nil && parsedWorkspaceID != *scope.workspaceID {
+				fieldErrors = append(fieldErrors, response.FieldError{Field: "workspace_id", Message: "must match the route workspace"})
+			}
+		}
+	}
+
+	scopeType := domain.ScopeType(req.ScopeType)
+	if scope != nil {
+		scopeType = scope.scopeType
+	}
+	if !scope.allowedScopeType(scopeType) {
+		fieldErrors = append(fieldErrors, response.FieldError{
+			Field:   "scope_type",
+			Message: "scope_type is not allowed for this route",
+		})
+	}
+
+	if scope == nil {
+		if !isValidScopeType(scopeType) {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "must be one of: global, tenant, workspace"})
+		}
+	} else {
+		if scopeType == domain.ScopeWorkspace && scope.workspaceID == nil {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "workspace scope requires a workspace"})
+		}
+		if scopeType == domain.ScopeTenant && scope.tenantID == nil {
+			fieldErrors = append(fieldErrors, response.FieldError{Field: "scope_type", Message: "tenant scope requires a tenant"})
+		}
+	}
+
+	if len(fieldErrors) > 0 {
+		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+	}
+
+	mr := &domain.MemberRole{
+		ID:        uuid.Must(uuid.NewV7()),
+		MemberID:  memberID,
+		Role:      role,
+		ScopeType: scopeType,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if scope != nil {
+		if scope.tenantID != nil {
+			tenantID := *scope.tenantID
+			mr.TenantID = &tenantID
+		}
+		if scope.workspaceID != nil {
+			workspaceID := *scope.workspaceID
+			mr.WorkspaceID = &workspaceID
+		}
+	} else {
+		mr.TenantID, err = parseOptionalUUID(req.TenantID)
+		if err != nil {
+			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid tenant_id")
+		}
+		mr.WorkspaceID, err = parseOptionalUUID(req.WorkspaceID)
+		if err != nil {
+			return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid workspace_id")
+		}
+	}
+
+	if err := h.store.ReplaceRoleInScope(ctx, mr); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, response.NewMemberRoleResponse(mr))
+}
+
 // RemoveRole handles DELETE /api/v1/manage/members/:member_id/roles/:role_id.
 func (h *MemberHandler) RemoveRole(c *echo.Context) error {
 	return h.removeRole(c, nil)
@@ -563,6 +699,29 @@ func (h *MemberHandler) RemoveRoleWorkspace(c *echo.Context) error {
 		return mapStoreError(c, err)
 	}
 	return h.removeRole(c, scope)
+}
+
+// RemoveAccess handles DELETE /api/v1/manage/members/:member_id/access.
+func (h *MemberHandler) RemoveAccess(c *echo.Context) error {
+	return h.removeAccess(c, nil)
+}
+
+// RemoveAccessTenant handles DELETE /api/v1/manage/tenants/:tenant_code/members/:member_id/access.
+func (h *MemberHandler) RemoveAccessTenant(c *echo.Context) error {
+	scope, err := h.resolveTenantScope(c)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.removeAccess(c, scope)
+}
+
+// RemoveAccessWorkspace handles DELETE /api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/access.
+func (h *MemberHandler) RemoveAccessWorkspace(c *echo.Context) error {
+	scope, err := h.resolveWorkspaceScope(c)
+	if err != nil {
+		return mapStoreError(c, err)
+	}
+	return h.removeAccess(c, scope)
 }
 
 func (h *MemberHandler) removeRole(c *echo.Context, scope *memberScope) error {
@@ -603,6 +762,53 @@ func (h *MemberHandler) removeRole(c *echo.Context, scope *memberScope) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *MemberHandler) removeAccess(c *echo.Context, scope *memberScope) error {
+	memberID, err := uuid.Parse(c.Param("member_id"))
+	if err != nil {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid member ID")
+	}
+
+	ctx := c.Request().Context()
+	if _, err := h.store.GetByID(ctx, memberID); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	var scopeType domain.ScopeType
+	var scopeID *uuid.UUID
+	if scope == nil {
+		scopeType = domain.ScopeGlobal
+	} else {
+		scopeType = scope.scopeType
+		scopeID = scope.scopeID()
+	}
+
+	if scope == nil && isGlobalSelfRevoke(c, memberID) {
+		return response.WriteError(c, http.StatusConflict, "CONFLICT", "cannot revoke your own global superadmin access")
+	}
+
+	if _, err := h.store.RevokeAccessInScope(ctx, memberID, scopeType, scopeID); err != nil {
+		return mapStoreError(c, err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func isGlobalSelfRevoke(c *echo.Context, targetMemberID uuid.UUID) bool {
+	actor, _ := c.Get(middleware.ContextKeyMember).(*domain.Member)
+	if actor == nil || actor.ID != targetMemberID {
+		return false
+	}
+
+	roles, _ := c.Get(middleware.ContextKeyRoles).([]*domain.MemberRole)
+	for _, role := range roles {
+		if role != nil && role.Role == domain.RoleSuperadmin && role.ScopeType == domain.ScopeGlobal {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *MemberHandler) scopedRoles(ctx context.Context, memberID uuid.UUID, scope *memberScope) ([]*domain.MemberRole, error) {

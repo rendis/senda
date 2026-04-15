@@ -98,6 +98,9 @@ func (m *mockMemberStoreOnb) Create(ctx context.Context, member *domain.Member) 
 func (m *mockMemberStoreOnb) GetByEmail(_ context.Context, _ string) (*domain.Member, error) {
 	return nil, nil
 }
+func (m *mockMemberStoreOnb) GetByOIDCIdentity(_ context.Context, _ string, _ string) (*domain.Member, error) {
+	return nil, nil
+}
 func (m *mockMemberStoreOnb) GetByID(_ context.Context, _ uuid.UUID) (*domain.Member, error) {
 	return nil, nil
 }
@@ -113,6 +116,9 @@ func (m *mockMemberStoreOnb) AddRole(ctx context.Context, role *domain.MemberRol
 	}
 	return nil
 }
+func (m *mockMemberStoreOnb) ReplaceRoleInScope(_ context.Context, _ *domain.MemberRole) error {
+	return nil
+}
 func (m *mockMemberStoreOnb) ListAll(_ context.Context, _ port.ListOptions) ([]*domain.Member, string, error) {
 	return nil, "", nil
 }
@@ -120,6 +126,9 @@ func (m *mockMemberStoreOnb) ListInScope(_ context.Context, _ domain.ScopeType, 
 	return nil, "", nil
 }
 func (m *mockMemberStoreOnb) RemoveRole(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockMemberStoreOnb) RevokeAccessInScope(_ context.Context, _ uuid.UUID, _ domain.ScopeType, _ *uuid.UUID) (int64, error) {
+	return 0, nil
+}
 func (m *mockMemberStoreOnb) GetRoles(_ context.Context, _ uuid.UUID) ([]*domain.MemberRole, error) {
 	return nil, nil
 }
@@ -184,12 +193,14 @@ func (m *mockWorkspaceStoreOnb) GetSystemWorkspace(_ context.Context, _ uuid.UUI
 func (m *mockWorkspaceStoreOnb) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 	return nil, "", nil
 }
-func (m *mockWorkspaceStoreOnb) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
+func (m *mockWorkspaceStoreOnb) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+	return nil
+}
 func (m *mockWorkspaceStoreOnb) Update(_ context.Context, _ *domain.Workspace) error { return nil }
 func (m *mockWorkspaceStoreOnb) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
 	return nil
 }
-func (m *mockWorkspaceStoreOnb) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
+func (m *mockWorkspaceStoreOnb) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
 type mockAuditStoreOnb struct{}
 

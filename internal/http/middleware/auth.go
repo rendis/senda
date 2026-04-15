@@ -11,6 +11,7 @@ import (
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 const (
@@ -106,10 +107,20 @@ func authenticateOIDC(c *echo.Context, ctx context.Context, token string, verifi
 	if err != nil {
 		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid token")
 	}
+	if claims.Issuer == "" || claims.Subject == "" {
+		return response.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid token")
+	}
 
-	member, err := memberStore.GetByEmail(ctx, claims.Email)
+	member, err := memberStore.GetByOIDCIdentity(ctx, claims.Issuer, claims.Subject)
 	if err != nil {
-		return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", "email not registered")
+		if !apperr.IsNotFound(err) && err != domain.ErrNotFound {
+			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to load member")
+		}
+
+		member, err = findUnboundMemberByEmail(ctx, memberStore, claims.Email)
+		if err != nil {
+			return response.WriteError(c, http.StatusForbidden, "FORBIDDEN", "identity not registered")
+		}
 	}
 
 	roles, err := memberStore.GetRoles(ctx, member.ID)
@@ -122,4 +133,20 @@ func authenticateOIDC(c *echo.Context, ctx context.Context, token string, verifi
 	c.Set(ContextKeyRoles, roles)
 
 	return next(c)
+}
+
+func findUnboundMemberByEmail(ctx context.Context, memberStore port.MemberStore, email string) (*domain.Member, error) {
+	if strings.TrimSpace(email) == "" {
+		return nil, domain.ErrNotFound
+	}
+
+	member, err := memberStore.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if member.OIDCIssuer != nil || member.OIDCSubject != nil {
+		return nil, domain.ErrNotFound
+	}
+
+	return member, nil
 }

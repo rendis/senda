@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useScope } from "@/hooks/use-scope";
+import { getPrimaryMemberRoleInScope } from "@/hooks/members-mgmt-logic";
+import {
+  getRoleEditorState,
+  getRoleEditorSubmitLabel,
+} from "./role-editor.logic";
+import type { MemberRoleDetail } from "@/types/members-ext";
 import type { Role, ScopeLevel } from "@/types/api";
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -28,51 +35,73 @@ const ROLE_LABELS: Record<Role, string> = {
   workspace_viewer: "Viewer",
 };
 
-const ALL_ROLES: Role[] = [
-  "workspace_viewer",
-  "workspace_editor",
-  "workspace_admin",
-  "tenant_admin",
-  "superadmin",
-];
-
-const ALL_SCOPES: ScopeLevel[] = ["global", "tenant", "workspace"];
-
 interface RoleEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   memberEmail: string;
+  memberRoles: MemberRoleDetail[];
   onSubmit: (data: { role: Role; scope_type: ScopeLevel }) => Promise<void>;
-  scopeType?: ScopeLevel;
-  allowedRoles?: Role[];
+  scopeType: ScopeLevel;
+  allowedRoles: Role[];
   scopeLabel?: string;
+}
+
+function roleLabel(role: Role): string {
+  return ROLE_LABELS[role] ?? role;
 }
 
 export function RoleEditor({
   open,
   onOpenChange,
   memberEmail,
+  memberRoles,
   onSubmit,
   scopeType,
   allowedRoles,
   scopeLabel = "this scope",
 }: RoleEditorProps) {
-  const initialRole = allowedRoles?.[0] ?? "workspace_viewer";
-  const [role, setRole] = useState<Role>(initialRole);
-  const [selectedScopeType, setSelectedScopeType] = useState<ScopeLevel>(scopeType ?? "workspace");
+  const routeScope = useScope();
+  const currentRole = useMemo(
+    () =>
+      getPrimaryMemberRoleInScope(
+        { roles: memberRoles },
+        {
+          level: scopeType,
+          tenantCode: routeScope.tenantCode,
+          workspaceCode: routeScope.workspaceCode,
+        },
+      )?.role,
+    [memberRoles, routeScope.tenantCode, routeScope.workspaceCode, scopeType],
+  );
+  const [selectedRole, setSelectedRole] = useState<Role>(
+    currentRole ?? allowedRoles[0] ?? "workspace_viewer",
+  );
   const [loading, setLoading] = useState(false);
 
-  const roleOptions = (allowedRoles ?? ALL_ROLES).map((value) => ({
-    value,
-    label: ROLE_LABELS[value],
-  }));
+  useEffect(() => {
+    if (!open) return;
+    setSelectedRole(currentRole ?? allowedRoles[0] ?? "workspace_viewer");
+  }, [allowedRoles, currentRole, open]);
+
+  const editorState = useMemo(
+    () =>
+      getRoleEditorState({
+        allowedRoles,
+        currentRole,
+        selectedRole,
+      }),
+    [allowedRoles, currentRole, selectedRole],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editorState.submitDisabled) {
+      return;
+    }
+
     setLoading(true);
     try {
-      await onSubmit({ role, scope_type: scopeType ?? selectedScopeType });
-      onOpenChange(false);
+      await onSubmit({ role: selectedRole, scope_type: scopeType });
     } finally {
       setLoading(false);
     }
@@ -83,51 +112,37 @@ export function RoleEditor({
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add Role</DialogTitle>
+            <DialogTitle>Change Role</DialogTitle>
             <DialogDescription>
-              Add a role for {memberEmail} in {scopeLabel}.
+              Set the single local role for {memberEmail} in {scopeLabel}.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Role</Label>
               <Select
-                value={role}
-                onValueChange={(v) => setRole(v as Role)}
+                value={selectedRole}
+                onValueChange={(value) => setSelectedRole(value as Role)}
+                disabled={loading || editorState.selectDisabled}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full min-h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {roleOptions.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label}
+                  {editorState.roleOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {roleLabel(item)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {editorState.helperText}
+              </p>
             </div>
-            {scopeType == null && (
-              <div className="space-y-2">
-                <Label>Scope</Label>
-                <Select
-                  value={selectedScopeType}
-                  onValueChange={(v) => setSelectedScopeType(v as ScopeLevel)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ALL_SCOPES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
+
           <DialogFooter>
             <Button
               type="button"
@@ -137,8 +152,8 @@ export function RoleEditor({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "..." : "Add Role"}
+            <Button type="submit" disabled={loading || editorState.submitDisabled}>
+              {loading ? "..." : getRoleEditorSubmitLabel(currentRole)}
             </Button>
           </DialogFooter>
         </form>

@@ -130,10 +130,32 @@ Runtime reset is only valid for `environment=test`.
 | GET | `/api/v1/manage/members` |
 | POST | `/api/v1/manage/members` |
 | GET | `/api/v1/manage/members/:member_id` |
+| DELETE | `/api/v1/manage/members/:member_id/access` |
+| PUT | `/api/v1/manage/members/:member_id/role` |
 | POST | `/api/v1/manage/members/:member_id/roles` |
 | DELETE | `/api/v1/manage/members/:member_id/roles/:role_id` |
 
 Tenant and workspace member routes also exist under the respective tenant/workspace paths.
+
+Scoped access revocation routes:
+
+| Method | Path |
+| --- | --- |
+| DELETE | `/api/v1/manage/tenants/:tenant_code/members/:member_id/access` |
+| DELETE | `/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/access` |
+| DELETE | `/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/access` |
+
+These DELETE routes revoke all role assignments for the member in the selected scope. They do not delete the member identity.
+
+Scoped role replacement routes:
+
+| Method | Path |
+| --- | --- |
+| PUT | `/api/v1/manage/tenants/:tenant_code/members/:member_id/role` |
+| PUT | `/api/v1/manage/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/role` |
+| PUT | `/api/v1/manage/environments/:environment/tenants/:tenant_code/workspaces/:workspace_code/members/:member_id/role` |
+
+These PUT routes enforce a single local role assignment per scope. They create the scoped assignment when missing, replace the existing local assignment when it differs, and return `200 OK` idempotently when the member already has that local role. Legacy `POST .../roles` / `DELETE .../roles/:role_id` routes remain temporarily for backward compatibility, but they no longer allow multiple local roles within the same scope.
 
 ### Config
 
