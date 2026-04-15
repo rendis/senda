@@ -13,13 +13,13 @@ func (s *Server) registerExternalRoutes() {
 	external.GET("/bootstrap", s.externalIntegrationHandler.Bootstrap)
 	external.GET("/environments/:environment/bootstrap", s.externalIntegrationHandler.Bootstrap)
 
-	if s.templateTypeHandler == nil && s.templateHandler == nil && s.injectorHandler == nil && s.workspacePolicyHandler == nil {
-		return
-	}
-
 	externalScoped := external.Group("/tenants/:tenant_code/workspaces/:workspace_code")
 	externalScoped.Use(middleware.ExternalIntegration(s.externalIntegrationHandler))
 	externalScoped.GET("/session", s.externalIntegrationHandler.Session, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
+
+	if s.templateTypeHandler == nil && s.templateHandler == nil && s.injectorHandler == nil && s.workspacePolicyHandler == nil {
+		return
+	}
 
 	if s.templateTypeHandler != nil {
 		externalScoped.GET("/template-types", s.templateTypeHandler.List, middleware.RequireExternalCapability(middleware.ExternalActionListTemplates))
