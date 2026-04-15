@@ -6,6 +6,7 @@
 - Cycle 1: cerrado.
 - Cycle 2: cerrado.
 - Cycle 3: **abierto**.
+- Punto operativo para retomar: trabajar sobre `main`. En este cierre documental no hay worktrees activos de cycle 3 presentes localmente.
 
 Última re-auditoría sobre `main` integrado:
 
@@ -23,10 +24,16 @@
 - El logout federado ya no confía en `Host`; usa `AUTH_URL` o `request.nextUrl.origin`.
 - El webhook SNS ya es **default-deny** cuando no hay binding/política configurada.
 - El validador SES/SNS ya usa **probes únicos no destructivos**.
+- El follow-up `media-thumbnail-hotpath-optimization` ya quedó **cerrado** en `main`:
+  - reuse de fetch client por request
+  - sin validación duplicada del URL inicial en el primer candidato
+  - sin copia extra en cache hit
+  - verify focalizado documentado
 
 ### DX / cache invalidation
 
 - `InvalidateTenantWorkspaces` ya recorre **todas las páginas** por cursor.
+- `ci-drift-and-cache-pagination` ya quedó **cerrado**; no hay trabajo DX pendiente en ese stream.
 
 ## Lo que queda pendiente
 
@@ -36,34 +43,18 @@ Estado actual: **in_progress**
 
 Pendiente real:
 
-- rematar el hot path de `/public/video-thumbnail`
-  - evitar cliente/transporte nuevo por request
-  - reducir copia innecesaria en cache hit
-  - mantener SSRF pinning + allowlist + redirect validation + redaction
-- correr verify final del stream
-- actualizar `verify-report.md`, `status.md`, `state.yaml`
+- resolver el signoff de policy sobre si el fallback por email para miembros **unbound** se acepta como transición explícita o migra luego a un modelo más estricto
+- mantener el stream como **policy/documentation only** salvo que aparezca un hallazgo nuevo; el follow-up de media YA quedó cerrado
+- actualizar verify/cierre final solo cuando exista esa decisión de policy
 
 Pistas concretas:
 
-- archivo principal: `internal/http/handler/media.go`
-- hoy sigue haciendo:
-  - `session := h.newFetchSession()` por request
-  - `session.client()` crea `Transport` nuevo
-  - `thumbnailCache.Get()` devuelve `append([]byte(nil), entry.value...)`
+- archivo principal: `internal/http/middleware/auth.go`
+- soporte documental/contexto:
+  - `internal/http/handler/member.go`
+  - `internal/service/onboarding.go`
 
-### 2) `ci-drift-and-cache-pagination`
-
-Estado actual: **in_progress**
-
-Pendiente real:
-
-- ampliar `scripts/ci-taxonomy-check.mjs` para cubrir:
-  - `.github/pull_request_template.md`
-  - `AGENTS.md`
-- correr verify final del stream
-- actualizar `verify-report.md`, `status.md`, `state.yaml`
-
-### 3) `sdk-and-http-composition-decoupling`
+### 2) `sdk-and-http-composition-decoupling`
 
 Estado actual: **planned**
 
@@ -80,7 +71,7 @@ Pendiente real:
   - `internal/app/http_surfaces.go`
   - `internal/http/server.go`
 
-### 4) `send-context-and-media-hotpath`
+### 3) `send-context-and-media-hotpath`
 
 Estado actual: **planned**
 
@@ -91,18 +82,16 @@ Pendiente real:
   - `internal/service/send.go`
   - `internal/service/send_batch.go`
   - `internal/service/send_context.go`
-- cerrar optimización del hot path de media/cache/transport
-- dejar benchmarks o evidencia de mejora real antes de cierre
+- NO reabrir el hot path de media salvo que aparezca una regresión nueva; ese follow-up ya quedó cerrado en `media-thumbnail-hotpath-optimization`
 
 ## Orden recomendado para retomar
 
-1. terminar `perimeter-identity-default-deny`
-2. terminar `ci-drift-and-cache-pagination`
-3. ejecutar `sdk-and-http-composition-decoupling`
-4. ejecutar `send-context-and-media-hotpath`
-5. correr verify final del ciclo 3
-6. correr re-auditoría ciega nueva
-7. si cualquier eje queda `<= 8.5`, abrir cycle 4
+1. resolver `perimeter-identity-default-deny` (decisión de policy)
+2. ejecutar `sdk-and-http-composition-decoupling`
+3. ejecutar `send-context-and-media-hotpath` (solo convergencia de send context)
+4. correr verify final del ciclo 3
+5. correr re-auditoría ciega nueva
+6. si cualquier eje queda `<= 8.5`, abrir cycle 4
 
 ## Verificación ya verde en esta sesión
 
@@ -111,6 +100,9 @@ go test ./internal/http/middleware ./internal/http/handler ./config ./internal/a
 go test -tags=integration ./internal/adapter/postgres -run TestMemberRepo_GetByOIDCIdentity
 pnpm --dir web exec node --test src/app/api/auth/federated-logout-url/logout-url.test.ts src/app/api/auth/federated-logout-url/origin.test.ts
 go test ./internal/resolution -run TestCacheInvalidator_InvalidateTenantWorkspaces
+go test ./internal/http/handler -run 'TestHandleVideoThumbnail_(CacheHit_PreservesHeadersAndBody|ConcurrentCacheHits_PreserveHeadersAndBody|Pinning_IsScopedPerRequest|InvalidOrOversizedImage_RemainsBadGateway)$'
+go test -count=1 ./internal/http/handler -run 'TestHandleVideoThumbnail'
+go test -race ./internal/http/handler -run 'TestHandleVideoThumbnail_(ConcurrentCacheHits_PreserveHeadersAndBody|ConcurrentSameURL|Pinning_IsScopedPerRequest)$'
 ```
 
 ## Regla de cierre

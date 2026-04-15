@@ -1,12 +1,13 @@
 # Status
 
-- state: planned
-- percent: 0%
+- state: done
+- percent: 100%
 - dependency: security-perimeter-hardening closed
 - worktree: `main`
-- reviewer_final: Kuhn + Lorentz
+- reviewer_final: worker verification
 - notes:
-  - follow-up de performance extraído desde `perimeter-identity-default-deny` para que el hot path de `/public/video-thumbnail` no siga mezclado con policy de identidad
-  - alcance: reuse seguro de transport/client y reducción de copias/buffers en thumbnails, manteniendo intactas las semánticas actuales de allowlist, SSRF guard, pinning, redaction y respuestas HTTP
-  - este stream es performance-only; no reabre decisiones de auth ni el endurecimiento del perímetro ya aprobado
-- DoD: hot path de thumbnails optimizado sin cambios observables de seguridad/semántica + verify focalizado
+  - los tres slices del hot path ya están absorbidos en `main`: fetch client único por request, reutilización del `parsed URL` inicial para evitar validación/parseo duplicado y eliminación de copia extra en cache hit
+  - el verify focalizado quedó documentado con evidencia real sobre preservación de headers/body en cache hit, concurrencia, pinning scoped por request y manejo de imágenes inválidas o sobredimensionadas
+  - la corrida consolidada `TestHandleVideoThumbnail` cubre además la regresión del handler completo, incluyendo los batches previos ya integrados
+  - cierre documental solamente: este batch no toca runtime
+- DoD: hot path de thumbnails optimizado en `main` + semántica/pinning intactos + evidencia explícita de verify focalizado

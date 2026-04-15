@@ -1,11 +1,11 @@
 state: planned
 phase: proposal
 reviewer_final: "Kuhn + Volta"
-worktree: /.worktrees/spec-send-context-and-media-hotpath
+worktree: main
 dependency: cycle-2 closed
 percent: 0
-updated_at: "2026-04-11T17:00:00-0400"
-notes: "Cycle 3 performance stream opened from the integrated-main re-audit: send context orchestration still has duplicated sources of truth and the thumbnail hot path still pays avoidable buffer copies and transport churn."
+updated_at: "2026-04-15T17:18:54-04:00"
+notes: "Cycle 3 performance stream remains open for send-context convergence only. The media thumbnail hot-path follow-up is already closed on main, so the remaining work is to remove duplicated sources of truth across send context orchestration without re-opening the thumbnail path unless a new regression appears."
 verification:
   last_run: null
   commands: []

@@ -4,8 +4,8 @@ reviewer_final: Lorentz
 worktree: main
 dependency: cycle-2 closed
 percent: 85
-updated_at: "2026-04-15T21:15:00-04:00"
-notes: "The runtime hardening slice is already on main: issuer+subject lookup first, safe logout origin, production metrics token requirement, SNS default-deny when unconfigured, and thumbnail pinning/redaction. This reframe batch makes explicit that auth still allows controlled email fallback for unbound invited members and intentionally leaves runtime unchanged. Thumbnail hot-path work moved to media-thumbnail-hotpath-optimization; the remaining work here is policy signoff on whether the fallback stays as an accepted transition or moves to a future binding migration."
+updated_at: "2026-04-15T17:18:54-04:00"
+notes: "The runtime hardening slice is already on main: issuer+subject lookup first, safe logout origin, production metrics token requirement, SNS default-deny when unconfigured, and thumbnail pinning/redaction. This reframe batch makes explicit that auth still allows controlled email fallback for unbound invited members and intentionally leaves runtime unchanged. The media-thumbnail-hotpath-optimization follow-up is now closed on main; the remaining work here is policy signoff on whether the fallback stays as an accepted transition or moves to a future binding migration."
 verification:
   last_run: "2026-04-15T21:15:00-04:00"
   commands:
