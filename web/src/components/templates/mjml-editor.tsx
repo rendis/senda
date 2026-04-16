@@ -2711,9 +2711,9 @@ export function MjmlEditor({
       newBlock = {
         id,
         type: "image",
-        src: "https://placehold.co/600x200",
-        alt: "image",
-        width: "100%",
+        src: "",
+        alt: "",
+        width: "",
         align: "left",
       };
     } else if (type === "divider") {

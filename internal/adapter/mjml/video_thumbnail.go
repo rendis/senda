@@ -51,6 +51,10 @@ func buildVideoThumbnailURL(src, baseURL string) string {
 		return src
 	}
 
+	if strings.HasPrefix(original, "data:") {
+		return original
+	}
+
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return original
