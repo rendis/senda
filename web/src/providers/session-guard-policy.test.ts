@@ -1,13 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { isExternalEmbedPath, shouldRedirectUnauthenticatedToLogin, shouldTriggerFederatedLogout } = await import(
+const { isExternalEmbedPath, isPublicAppPath, shouldRedirectUnauthenticatedToLogin, shouldTriggerFederatedLogout } = await import(
   new URL("./session-guard-policy.ts", import.meta.url).href,
 );
+const UNAUTHENTICATED_STATUS = "unauthenticated" as const;
+const EMBED_PATH =
+  "/embed/partner-portal/t/acme/w/main/templates/newsletter/edit";
 
 test("detects embed routes for external session mode", () => {
   assert.equal(
-    isExternalEmbedPath("/embed/partner-portal/t/acme/w/main/templates/newsletter/edit"),
+    isExternalEmbedPath(EMBED_PATH),
     true,
   );
   assert.equal(isExternalEmbedPath("/global"), false);
@@ -52,7 +55,7 @@ test("does not trigger federated logout on /login", () => {
 test("does not trigger federated logout on embed routes", () => {
   assert.equal(
     shouldTriggerFederatedLogout({
-      pathname: "/embed/partner-portal/t/acme/w/main/templates/newsletter/edit",
+      pathname: EMBED_PATH,
       status: "authenticated",
       sessionError: "RefreshTokenError",
       alreadyTriggered: false,
@@ -65,7 +68,34 @@ test("redirects unauthenticated users on app routes", () => {
   assert.equal(
     shouldRedirectUnauthenticatedToLogin({
       pathname: "/global",
-      status: "unauthenticated",
+      status: UNAUTHENTICATED_STATUS,
+      alreadyTriggered: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldRedirectUnauthenticatedToLogin({
+      pathname: "/t/acme/w/main",
+      status: UNAUTHENTICATED_STATUS,
+      alreadyTriggered: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldRedirectUnauthenticatedToLogin({
+      pathname: "/onboarding",
+      status: UNAUTHENTICATED_STATUS,
+      alreadyTriggered: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldRedirectUnauthenticatedToLogin({
+      pathname: "/",
+      status: UNAUTHENTICATED_STATUS,
       alreadyTriggered: false,
     }),
     true,
@@ -75,10 +105,35 @@ test("redirects unauthenticated users on app routes", () => {
 test("does not redirect unauthenticated users on embed routes", () => {
   assert.equal(
     shouldRedirectUnauthenticatedToLogin({
-      pathname: "/embed/partner-portal/t/acme/w/main/templates/newsletter/edit",
-      status: "unauthenticated",
+      pathname: EMBED_PATH,
+      status: UNAUTHENTICATED_STATUS,
       alreadyTriggered: false,
     }),
     false,
   );
+});
+
+test("does not redirect unauthenticated users on public routes", () => {
+  const publicRoutes = ["/login", "/logout", "/access-denied"];
+
+  for (const pathname of publicRoutes) {
+    assert.equal(
+      shouldRedirectUnauthenticatedToLogin({
+        pathname,
+        status: UNAUTHENTICATED_STATUS,
+        alreadyTriggered: false,
+      }),
+      false,
+      `expected ${pathname} to stay public`,
+    );
+  }
+});
+
+test("identifies explicitly public app routes", () => {
+  assert.equal(isPublicAppPath("/login"), true);
+  assert.equal(isPublicAppPath("/logout"), true);
+  assert.equal(isPublicAppPath("/access-denied"), true);
+  assert.equal(isPublicAppPath(EMBED_PATH), true);
+  assert.equal(isPublicAppPath("/onboarding"), false);
+  assert.equal(isPublicAppPath("/global"), false);
 });

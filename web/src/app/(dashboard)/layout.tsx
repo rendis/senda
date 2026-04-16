@@ -15,15 +15,15 @@ export default async function DashboardLayout({
   // - SessionProvider refetchInterval (every 3min) via /api/auth/session
   const session = await authWithoutRefresh();
 
-  if (!session) {
+  if (!session?.idToken) {
     redirect("/login");
   }
 
   // Membership and onboarding checks are done client-side in MembershipGate
   // because they need a fresh idToken (from SessionProvider, which CAN update cookies).
   return (
-    <DashboardShell>
-      <MembershipGate>{children}</MembershipGate>
-    </DashboardShell>
+    <MembershipGate>
+      <DashboardShell>{children}</DashboardShell>
+    </MembershipGate>
   );
 }

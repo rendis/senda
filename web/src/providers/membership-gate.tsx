@@ -120,10 +120,10 @@ export function MembershipGate({ children }: { children: React.ReactNode }) {
     };
   }, [gateKey, pathname, router, session?.idToken]);
 
-  if (!gateKey || checkedKey !== gateKey) {
+  if (status === "loading" || status === "unauthenticated" || !gateKey || checkedKey !== gateKey) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex min-h-screen items-center justify-center bg-page">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading access state" />
       </div>
     );
   }
