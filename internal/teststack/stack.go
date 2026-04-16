@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -349,7 +348,7 @@ func startKeycloak(ctx context.Context, root string, names resourceNames) (testc
 		},
 		Name: names.Keycloak,
 		WaitingFor: wait.ForHTTP("/health/ready").
-			WithPort(nat.Port(defaultKeycloakHealthPort)).
+			WithPort(defaultKeycloakHealthPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(3 * time.Minute),
 	}
@@ -373,7 +372,7 @@ func startMailpit(ctx context.Context, names resourceNames) (testcontainers.Cont
 		},
 		Name: names.Mailpit,
 		WaitingFor: wait.ForHTTP("/api/v1/messages").
-			WithPort(nat.Port(defaultMailpitUIPort)).
+			WithPort(defaultMailpitUIPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(2 * time.Minute),
 	}
@@ -400,7 +399,7 @@ func startMiniStackBackend(ctx context.Context, names resourceNames) (testcontai
 		},
 		Name: names.AWSSimBackend,
 		WaitingFor: wait.ForHTTP("/_ministack/health").
-			WithPort(nat.Port(defaultAWSSimPort)).
+			WithPort(defaultAWSSimPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(3 * time.Minute),
 	}
@@ -429,7 +428,7 @@ func startAWSSimBridge(ctx context.Context, root string, names resourceNames) (t
 		},
 		Name: names.AWSSim,
 		WaitingFor: wait.ForHTTP("/_aws-sim/health").
-			WithPort(nat.Port(defaultAWSSimPort)).
+			WithPort(defaultAWSSimPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(3 * time.Minute),
 	}
@@ -478,7 +477,7 @@ func startApp(ctx context.Context, root string, names resourceNames, report *Rep
 		},
 		Name: names.App,
 		WaitingFor: wait.ForHTTP("/health").
-			WithPort(nat.Port(defaultBackendInternalPort)).
+			WithPort(defaultBackendInternalPort).
 			WithStatusCodeMatcher(func(code int) bool { return code == http.StatusOK }).
 			WithStartupTimeout(3 * time.Minute),
 	}
@@ -493,7 +492,7 @@ func oidcDiscoveryURL() string {
 }
 
 func httpURL(ctx context.Context, ctr testcontainers.Container, port string) (string, error) {
-	mapped, err := ctr.MappedPort(ctx, nat.Port(port))
+	mapped, err := ctr.MappedPort(ctx, port)
 	if err != nil {
 		return "", err
 	}
@@ -505,7 +504,7 @@ func httpURL(ctx context.Context, ctr testcontainers.Container, port string) (st
 }
 
 func postgresURL(ctx context.Context, ctr testcontainers.Container, port string) (string, error) {
-	mapped, err := ctr.MappedPort(ctx, nat.Port(port))
+	mapped, err := ctr.MappedPort(ctx, port)
 	if err != nil {
 		return "", err
 	}
