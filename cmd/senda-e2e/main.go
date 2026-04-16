@@ -113,7 +113,7 @@ func (e2eExternalWorkspaceResolver) Description() string {
 	return "E2E resolver that can force workspace fallback via query params"
 }
 
-func (e2eExternalWorkspaceResolver) ResolveWorkspace(_ context.Context, req *sdk.ExternalIntegrationRequest, _ *sdk.ExternalAuthResult) (*sdk.ExternalWorkspaceResolution, error) {
+func (e2eExternalWorkspaceResolver) ResolveWorkspace(_ context.Context, req *sdk.ExternalIntegrationRequest, _ *sdk.ExternalAuthResult, _ sdk.WorkspaceFilter) (*sdk.ExternalWorkspaceResolution, error) {
 	if req == nil {
 		return nil, errors.New("missing external integration request")
 	}

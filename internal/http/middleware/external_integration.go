@@ -66,7 +66,10 @@ type ExternalIntegrationResolverStore interface {
 
 // ExternalIntegration resolves the external profile, auth method and workspace
 // resolver for a request, and stores the resulting state in the echo context.
-func ExternalIntegration(h ExternalIntegrationResolverStore) echo.MiddlewareFunc {
+// store is used to construct a per-request WorkspaceFilter bound to the current
+// tenant and environment; it may be nil for deployments that do not require
+// workspace existence checks.
+func ExternalIntegration(h ExternalIntegrationResolverStore, store port.WorkspaceExistenceStore) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			profile, err := loadExternalProfileForRequest(c, h)
@@ -94,7 +97,7 @@ func ExternalIntegration(h ExternalIntegrationResolverStore) echo.MiddlewareFunc
 				return err
 			}
 
-			resolution, effectiveWorkspaceCode, readOnly, err := resolveExternalWorkspace(c, resolver, reqCtx, authResult)
+			resolution, effectiveWorkspaceCode, readOnly, err := resolveExternalWorkspace(c, resolver, reqCtx, authResult, buildWorkspaceFilter(store, reqCtx))
 			if err != nil || responseCommitted(c) {
 				return err
 			}
@@ -189,8 +192,8 @@ func authenticateExternalRequest(c *echo.Context, authMethod port.ExternalAuthMe
 	return authResult, nil
 }
 
-func resolveExternalWorkspace(c *echo.Context, resolver port.ExternalWorkspaceResolver, reqCtx *port.ExternalIntegrationRequest, authResult *port.ExternalAuthResult) (*port.ExternalWorkspaceResolution, string, bool, error) {
-	resolution, err := resolver.ResolveWorkspace(c.Request().Context(), reqCtx, authResult)
+func resolveExternalWorkspace(c *echo.Context, resolver port.ExternalWorkspaceResolver, reqCtx *port.ExternalIntegrationRequest, authResult *port.ExternalAuthResult, filter port.WorkspaceFilter) (*port.ExternalWorkspaceResolution, string, bool, error) {
+	resolution, err := resolver.ResolveWorkspace(c.Request().Context(), reqCtx, authResult, filter)
 	if err != nil || resolution == nil {
 		return nil, "", false, response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "external workspace resolution failed")
 	}
@@ -496,6 +499,16 @@ func patchExternalWorkspaceParam(c *echo.Context, workspaceCode string) {
 		updated = append(updated, pv)
 	}
 	c.SetPathValues(updated)
+}
+
+// buildWorkspaceFilter constructs a per-request WorkspaceFilter bound to the
+// tenant and environment from reqCtx. Returns nil when store is nil so that
+// the resolved filter propagates as a nil port.WorkspaceFilter to the resolver.
+func buildWorkspaceFilter(store port.WorkspaceExistenceStore, reqCtx *port.ExternalIntegrationRequest) port.WorkspaceFilter {
+	if store == nil {
+		return nil
+	}
+	return newWorkspaceFilter(store, reqCtx.TenantCode, reqCtx.Environment)
 }
 
 // ExternalAuthDenied returns a sentinel error that external auth methods can

@@ -3,6 +3,7 @@ package app
 import (
 	sendahttp "github.com/rendis/senda/internal/http"
 	"github.com/rendis/senda/internal/http/handler"
+	"github.com/rendis/senda/internal/port"
 )
 
 type managementSurfaceHandlers struct {
@@ -64,11 +65,12 @@ func dataPlaneSurfaceOptions(h dataPlaneSurfaceHandlers) []sendahttp.ServerOptio
 }
 
 type externalIntegrationSurfaceHandlers struct {
-	externalIntegration *handler.ExternalIntegrationHandler
-	injector            *handler.InjectorHandler
-	workspacePolicy     *handler.WorkspacePolicyHandler
-	templateType        *handler.TemplateTypeHandler
-	template            *handler.TemplateHandler
+	externalIntegration     *handler.ExternalIntegrationHandler
+	injector                *handler.InjectorHandler
+	workspacePolicy         *handler.WorkspacePolicyHandler
+	templateType            *handler.TemplateTypeHandler
+	template                *handler.TemplateHandler
+	workspaceExistenceStore port.WorkspaceExistenceStore
 }
 
 func externalIntegrationSurfaceOptions(h externalIntegrationSurfaceHandlers) []sendahttp.ServerOption {
@@ -78,6 +80,7 @@ func externalIntegrationSurfaceOptions(h externalIntegrationSurfaceHandlers) []s
 		sendahttp.WithWorkspacePolicyHandler(h.workspacePolicy),
 		sendahttp.WithTemplateTypeHandler(h.templateType),
 		sendahttp.WithTemplateHandler(h.template),
+		sendahttp.WithWorkspaceExistenceStore(h.workspaceExistenceStore),
 	}
 }
 

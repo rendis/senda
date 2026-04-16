@@ -162,7 +162,7 @@ type hardeningExternalResolver struct{}
 
 func (hardeningExternalResolver) Name() string        { return "tenant-workspace-resolver" }
 func (hardeningExternalResolver) Description() string { return "test resolver" }
-func (hardeningExternalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult) (*port.ExternalWorkspaceResolution, error) {
+func (hardeningExternalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult, port.WorkspaceFilter) (*port.ExternalWorkspaceResolution, error) {
 	return &port.ExternalWorkspaceResolution{WorkspaceCode: "marketing", ReadOnly: false}, nil
 }
 

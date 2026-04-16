@@ -56,7 +56,7 @@ type externalResolver struct {
 
 func (r *externalResolver) Name() string        { return r.name }
 func (r *externalResolver) Description() string { return r.description }
-func (r *externalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult) (*port.ExternalWorkspaceResolution, error) {
+func (r *externalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult, port.WorkspaceFilter) (*port.ExternalWorkspaceResolution, error) {
 	if r.result == nil && r.err == nil {
 		return &port.ExternalWorkspaceResolution{WorkspaceCode: "main"}, nil
 	}
@@ -105,7 +105,7 @@ func setupExternalRouteServer(cfg *domain.GlobalConfig, auth *externalAuthMethod
 	e.Use(middleware.ExternalIntegrationCORS(h))
 
 	group := e.Group("/api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code")
-	group.Use(middleware.ExternalIntegration(h))
+	group.Use(middleware.ExternalIntegration(h, nil))
 
 	group.GET("/template-types", func(c *echo.Context) error {
 		state := map[string]any{

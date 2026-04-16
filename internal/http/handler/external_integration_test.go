@@ -33,7 +33,7 @@ type testExternalResolver struct {
 
 func (t *testExternalResolver) Name() string        { return t.name }
 func (t *testExternalResolver) Description() string { return t.description }
-func (t *testExternalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult) (*port.ExternalWorkspaceResolution, error) {
+func (t *testExternalResolver) ResolveWorkspace(context.Context, *port.ExternalIntegrationRequest, *port.ExternalAuthResult, port.WorkspaceFilter) (*port.ExternalWorkspaceResolution, error) {
 	return &port.ExternalWorkspaceResolution{WorkspaceCode: "_system", ReadOnly: true}, nil
 }
 

@@ -14,7 +14,7 @@ func (s *Server) registerExternalRoutes() {
 	external.GET("/environments/:environment/bootstrap", s.externalIntegrationHandler.Bootstrap)
 
 	externalScoped := external.Group("/tenants/:tenant_code/workspaces/:workspace_code")
-	externalScoped.Use(middleware.ExternalIntegration(s.externalIntegrationHandler))
+	externalScoped.Use(middleware.ExternalIntegration(s.externalIntegrationHandler, s.workspaceExistenceStore))
 	externalScoped.GET("/session", s.externalIntegrationHandler.Session, middleware.RequireExternalCapability(middleware.ExternalActionBuilderAccess))
 
 	if s.templateTypeHandler == nil && s.templateHandler == nil && s.injectorHandler == nil && s.workspacePolicyHandler == nil {
