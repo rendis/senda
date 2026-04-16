@@ -2,6 +2,16 @@ export function isExternalEmbedPath(pathname: string): boolean {
   return pathname.startsWith("/embed/");
 }
 
+export function isPublicAppPath(pathname: string): boolean {
+  if (isExternalEmbedPath(pathname)) return true;
+
+  return (
+    pathname === "/login" ||
+    pathname === "/logout" ||
+    pathname === "/access-denied"
+  );
+}
+
 export function shouldTriggerFederatedLogout(params: {
   pathname: string;
   status: "authenticated" | "unauthenticated" | "loading";
@@ -28,7 +38,7 @@ export function shouldRedirectUnauthenticatedToLogin(params: {
 
   if (alreadyTriggered) return false;
   if (status !== "unauthenticated") return false;
-  if (isExternalEmbedPath(pathname)) return false;
+  if (isPublicAppPath(pathname)) return false;
 
   return true;
 }
