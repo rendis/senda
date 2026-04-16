@@ -84,6 +84,25 @@ func TestServer_ExternalIntegrationSurface_RegistersSessionWithoutBuilderRoutes(
 	}
 }
 
+func TestServer_PublicMetricsRoute_IsNotRegisteredWithoutMetricsToken(t *testing.T) {
+	srv := sendahttp.NewServer(testConfig(), testLogger())
+
+	if routeExists(srv, http.MethodGet, "/metrics") {
+		t.Fatalf("did not expect /metrics route without a configured metrics token")
+	}
+}
+
+func TestServer_PublicMetricsRoute_IsRegisteredWithMetricsToken(t *testing.T) {
+	cfg := testConfig()
+	cfg.Server.MetricsToken = "metrics-secret"
+
+	srv := sendahttp.NewServer(cfg, testLogger())
+
+	if !routeExists(srv, http.MethodGet, "/metrics") {
+		t.Fatalf("expected /metrics route when a metrics token is configured")
+	}
+}
+
 func routeExists(srv *sendahttp.Server, method, path string) bool {
 	for _, route := range srv.Echo().Router().Routes() {
 		if route.Method == method && route.Path == path {

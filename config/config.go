@@ -364,9 +364,6 @@ func validateServerConfig(cfg ServerConfig, environment string) []error {
 	if err := validateAllowedOrigins(cfg.AllowedOrigins, environment); err != nil {
 		errs = append(errs, err)
 	}
-	if isProductionEnvironment(environment) && strings.TrimSpace(cfg.MetricsToken) == "" {
-		errs = append(errs, fmt.Errorf("server.metrics_token is required in production"))
-	}
 
 	return errs
 }

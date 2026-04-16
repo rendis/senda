@@ -332,7 +332,7 @@ crypto:
 	}
 }
 
-func TestLoad_ProductionRequiresMetricsToken(t *testing.T) {
+func TestLoad_ProductionAllowsMissingMetricsToken(t *testing.T) {
 	yaml := `
 environment: "production"
 database:
@@ -345,12 +345,12 @@ crypto:
   master_key: "this-is-a-32-char-master-key!!!!"
 `
 	path := writeYAML(t, yaml)
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error when metrics token is missing in production")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected missing metrics token to be allowed, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "server.metrics_token is required in production") {
-		t.Fatalf("expected metrics token validation error, got %v", err)
+	if cfg.Server.MetricsToken != "" {
+		t.Fatalf("expected empty metrics token, got %q", cfg.Server.MetricsToken)
 	}
 }
 

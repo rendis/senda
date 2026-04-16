@@ -5547,22 +5547,6 @@ func doc_get_health() {}
 // @Router       /healthz [get]
 func doc_get_healthz() {}
 
-// doc_get_metrics auto-generated route documentation.
-// @Summary      GET /metrics
-// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
-// @Tags         health
-// @Produce      plain
-// @Success      200  {string}  string
-// @Failure      400  {object}  DocErrorResponse
-// @Failure      401  {object}  DocErrorResponse
-// @Failure      403  {object}  DocErrorResponse
-// @Failure      404  {object}  DocErrorResponse
-// @Failure      409  {object}  DocErrorResponse
-// @Failure      422  {object}  DocErrorResponse
-// @Failure      500  {object}  DocErrorResponse
-// @Router       /metrics [get]
-func doc_get_metrics() {}
-
 // doc_get_public_video_thumbnail auto-generated route documentation.
 // @Summary      GET /public/video-thumbnail
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
