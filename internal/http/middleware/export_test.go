@@ -6,6 +6,6 @@ import (
 )
 
 // NewWorkspaceFilterForTest exposes newWorkspaceFilter for external test packages.
-func NewWorkspaceFilterForTest(store port.WorkspaceExistenceStore, tenantCode string, environment domain.Environment) *workspaceFilter {
+func NewWorkspaceFilterForTest(store port.WorkspaceExistenceStore, tenantCode string, environment domain.Environment) port.WorkspaceFilter {
 	return newWorkspaceFilter(store, tenantCode, environment)
 }

@@ -150,6 +150,8 @@ func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []s
 	var wsExistenceStore port.WorkspaceExistenceStore
 	if ws, ok := shared.workspaceStore.(port.WorkspaceExistenceStore); ok {
 		wsExistenceStore = ws
+	} else {
+		slog.Warn("workspace store does not implement WorkspaceExistenceStore; external workspace filter will be unavailable")
 	}
 	opts = append(opts, externalIntegrationSurfaceOptions(externalIntegrationSurfaceHandlers{
 		externalIntegration:     handlers.externalIntegrationHandler,
