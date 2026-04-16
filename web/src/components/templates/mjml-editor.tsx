@@ -2240,7 +2240,9 @@ export function MjmlEditor({
       );
     };
 
-    clampToContainer(container.clientWidth);
+    requestAnimationFrame(() => {
+      clampToContainer(container.clientWidth);
+    });
 
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;

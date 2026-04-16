@@ -9,6 +9,7 @@ import "./globals.css";
 const sora = Sora({
   variable: "--font-sora",
   subsets: ["latin"],
+  preload: false,
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
