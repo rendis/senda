@@ -49,8 +49,6 @@ export function renderVideoBlockToMjml(block: VideoBlockLike): string {
   const href = block.videoUrl ? ` href="${block.videoUrl}"` : "";
   const width = block.width ? ` width="${block.width}"` : "";
   const alt = block.alt ? ` alt="${block.alt}"` : "";
-  const thumbnailSrc = resolveSrcForMjml(block.thumbnailUrl, "video", {
-    width: block.width ? Number.parseInt(block.width, 10) || undefined : undefined,
-  });
+  const thumbnailSrc = resolveSrcForMjml(block.thumbnailUrl, "video", block.width);
   return `\n<mj-image src="${thumbnailSrc}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
 }

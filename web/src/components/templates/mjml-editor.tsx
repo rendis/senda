@@ -1600,9 +1600,7 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
         block.segments
       ).trim() || "Button"}</mj-button>`;
     case "image": {
-      const imageSrc = resolveSrcForMjml(block.src, "image", {
-        width: block.width ? Number.parseInt(block.width, 10) || undefined : undefined,
-      });
+      const imageSrc = resolveSrcForMjml(block.src, "image", block.width);
       return `\n<mj-image src="${imageSrc}"${
         block.width ? ` width="${block.width}"` : ""
       }${block.alt ? ` alt="${block.alt}"` : ""} />`;
@@ -2104,15 +2102,7 @@ export function MjmlEditor({
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        const signal =
-          typeof AbortSignal.any === "function"
-            ? AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)])
-            : controller.signal;
-
-        const fallbackTimer =
-          typeof AbortSignal.any !== "function"
-            ? setTimeout(() => controller.abort(), 10_000)
-            : undefined;
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
 
         try {
           const result = await previewMutation.mutateAsync({ bodyMjml: code, signal });
@@ -2121,9 +2111,7 @@ export function MjmlEditor({
           if (err instanceof Error && err.name === "AbortError") {
             return;
           }
-          // Mantiene el comportamiento anterior: preview anterior si falla.
         } finally {
-          clearTimeout(fallbackTimer);
           if (abortControllerRef.current === controller) {
             abortControllerRef.current = undefined;
           }
@@ -2132,6 +2120,13 @@ export function MjmlEditor({
     },
     [previewMutation]
   );
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(previewTimeoutRef.current);
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const serializedEditorData = useMemo(() => {
     if (!version?.editor_data) {
@@ -4471,14 +4466,13 @@ export function MjmlEditor({
                             {block.type === "image" ? (
                               <>
                                 <Label className="text-xs">Source</Label>
-                                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
                                 <div onClick={(e) => e.stopPropagation()}>
                                   <MetadataTokenInput
                                     ref={(handle) => {
                                       metadataFieldRefs.current.set(`${block.id}:image_src`, handle);
                                     }}
                                     value={block.src}
-                                    className="h-8 mt-1"
+                                    className="min-h-8 mt-1"
                                     onChange={(value) =>
                                       updateImageBlock(block.id, "src", value)
                                     }
@@ -4694,14 +4688,13 @@ export function MjmlEditor({
                               <div className="space-y-2">
                                 <div>
                                   <Label className="text-xs">Video URL</Label>
-                                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
                                   <div onClick={(e) => e.stopPropagation()}>
                                     <MetadataTokenInput
                                       ref={(handle) => {
                                         metadataFieldRefs.current.set(`${block.id}:video_url`, handle);
                                       }}
                                       value={block.videoUrl}
-                                      className="h-8 mt-1"
+                                      className="min-h-8 mt-1"
                                       placeholder="https://youtube.com/watch?v=..."
                                       onChange={(url) => {
                                         if (!builderDocument) return;
@@ -4730,14 +4723,13 @@ export function MjmlEditor({
                                 </div>
                                 <div>
                                   <Label className="text-xs">Thumbnail URL</Label>
-                                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
                                   <div onClick={(e) => e.stopPropagation()}>
                                     <MetadataTokenInput
                                       ref={(handle) => {
                                         metadataFieldRefs.current.set(`${block.id}:video_thumbnail`, handle);
                                       }}
                                       value={block.thumbnailUrl}
-                                      className="h-8 mt-1"
+                                      className="min-h-8 mt-1"
                                       placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
                                       onChange={(value) => updateVideoBlock(block.id, "thumbnailUrl", value)}
                                       onFocus={() => {
