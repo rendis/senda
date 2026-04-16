@@ -1,3 +1,5 @@
+import { resolveSrcForMjml } from "./empty-media-placeholder.ts";
+
 export type VideoBlockLike = {
   videoUrl: string;
   thumbnailUrl: string;
@@ -47,5 +49,8 @@ export function renderVideoBlockToMjml(block: VideoBlockLike): string {
   const href = block.videoUrl ? ` href="${block.videoUrl}"` : "";
   const width = block.width ? ` width="${block.width}"` : "";
   const alt = block.alt ? ` alt="${block.alt}"` : "";
-  return `\n<mj-image src="${block.thumbnailUrl || ""}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
+  const thumbnailSrc = resolveSrcForMjml(block.thumbnailUrl, "video", {
+    width: block.width ? Number.parseInt(block.width, 10) || undefined : undefined,
+  });
+  return `\n<mj-image src="${thumbnailSrc}"${href}${width}${alt} align="${block.align}" css-class="senda-video" />`;
 }
