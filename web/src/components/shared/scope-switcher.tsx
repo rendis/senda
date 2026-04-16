@@ -47,6 +47,16 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   const router = useRouter();
   const { level, tenantCode, workspaceCode, environment } = useScope();
   const tScope = useTranslations("scopeSwitcher");
+  const isSystemWorkspace =
+    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
+  const currentWorkspaceSearch =
+    level === "workspace" && !isSystemWorkspace
+      ? workspaceCode ?? ""
+      : "";
+  const { data: currentWorkspacePages } = usePaginatedWorkspaces(
+    tenantCode ?? "",
+    currentWorkspaceSearch,
+  );
 
   // View state
   const [view, setView] = useState<ViewMode>("tenants");
@@ -82,15 +92,24 @@ export function ScopeSwitcher({ collapsed }: ScopeSwitcherProps) {
   }
 
   // Trigger label/icon/color
-  const isSystemWorkspace =
-    level === "workspace" && workspaceCode === SYSTEM_WORKSPACE_CODE;
+  const currentWorkspaceCandidates = useMemo(
+    () => currentWorkspacePages?.pages.flatMap((page) => page.items) ?? [],
+    [currentWorkspacePages],
+  );
+  const currentWorkspace = useMemo(
+    () =>
+      currentWorkspaceCandidates.find(
+        (workspace) => workspace.code === workspaceCode,
+      ),
+    [currentWorkspaceCandidates, workspaceCode],
+  );
 
   const scopeLabel =
     level === "global"
       ? tScope("globalScope")
       : isSystemWorkspace
         ? tScope("defaultScope")
-        : getWorkspaceDisplayCode({ code: workspaceCode });
+        : getWorkspaceDisplayName(currentWorkspace ?? { code: workspaceCode });
 
   const ScopeIcon =
     level === "global"

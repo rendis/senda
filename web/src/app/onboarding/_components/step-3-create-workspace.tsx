@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { createAuthenticatedApi, parseApiError } from "@/lib/api";
 import { OnboardingStepper } from "@/components/shared/onboarding-stepper";
 import { slugSchema, nameSchema, generateSlug } from "@/lib/validations/slug";
+import {
+  normalizeWorkspaceCodeInput,
+  sanitizeWorkspaceCodeInput,
+} from "@/lib/workspace-code-input";
 import { getHttpStatus } from "./api-errors";
 
 const workspaceSchema = z.object({
@@ -45,10 +49,12 @@ export function Step3CreateWorkspace({
   });
 
   const watchedName = form.watch("name");
+  const watchedCode = form.watch("code");
+  const codeField = form.register("code");
 
   useEffect(() => {
     if (!codeManuallyEdited.current && watchedName) {
-      form.setValue("code", generateSlug(watchedName), {
+      form.setValue("code", sanitizeWorkspaceCodeInput(generateSlug(watchedName)), {
         shouldValidate: form.formState.isSubmitted,
       });
     }
@@ -108,7 +114,17 @@ export function Step3CreateWorkspace({
       <OnboardingStepper currentStep={currentStep} />
 
       <form
-        onSubmit={form.handleSubmit(handleSubmit)}
+        onSubmit={(event) => {
+          const normalizedCode = normalizeWorkspaceCodeInput(form.getValues("code"));
+          if (normalizedCode !== form.getValues("code")) {
+            form.setValue("code", normalizedCode, {
+              shouldDirty: true,
+              shouldTouch: true,
+              shouldValidate: true,
+            });
+          }
+          void form.handleSubmit(handleSubmit)(event);
+        }}
         className="flex w-full flex-col gap-7"
       >
         <div className="flex flex-col gap-4">
@@ -141,11 +157,28 @@ export function Step3CreateWorkspace({
             <Input
               id="workspace-code"
               placeholder={t("workspaceCodePlaceholder")}
-              {...form.register("code", {
-                onChange: () => {
-                  codeManuallyEdited.current = true;
-                },
-              })}
+              {...codeField}
+              value={watchedCode ?? ""}
+              onChange={(event) => {
+                codeManuallyEdited.current = true;
+                form.setValue("code", sanitizeWorkspaceCodeInput(event.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: form.formState.isSubmitted,
+                });
+              }}
+              onBlur={(event) => {
+                form.setValue(
+                  "code",
+                  normalizeWorkspaceCodeInput(event.target.value),
+                  {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  },
+                );
+                codeField.onBlur(event);
+              }}
+              maxLength={50}
             />
             {form.formState.errors.code && (
               <p className="text-xs text-destructive">
