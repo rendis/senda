@@ -599,8 +599,10 @@ export const MetadataTokenInput = forwardRef<
         data-placeholder={placeholder}
         onFocus={() => onFocus?.()}
         onInput={(event) => {
-          const segments = parseSegmentsFromEditorNode(event.currentTarget);
-          applySegments(segments);
+          const editor = event.currentTarget;
+          const caret = getSelectionUnitRange(editor);
+          const segments = parseSegmentsFromEditorNode(editor);
+          applySegments(segments, caret.end);
         }}
         onClick={(event) => {
           const target = event.target as HTMLElement | null;

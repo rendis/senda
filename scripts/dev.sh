@@ -190,7 +190,8 @@ log "starting docker services (api, postgres, keycloak, mailpit)"
 "${COMPOSE[@]}" up --build &
 COMPOSE_PID=$!
 
-log "starting frontend dev server"
+rm -rf "$ROOT_DIR/web/.next"
+log "starting frontend dev server (cache cleared)"
 (
   cd "$ROOT_DIR"
   NEXT_PUBLIC_API_URL="${API_URL}" \

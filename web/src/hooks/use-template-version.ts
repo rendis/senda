@@ -141,10 +141,17 @@ export function usePreviewMjml(scopedPath: string, templateId: string) {
   const api = useApi();
 
   return useMutation({
-    mutationFn: (bodyMjml: string) =>
+    mutationFn: ({
+      bodyMjml,
+      signal,
+    }: {
+      bodyMjml: string;
+      signal?: AbortSignal;
+    }) =>
       api
         .post(`${scopedPath}/templates/${templateId}/preview-mjml`, {
           json: { mjml: bodyMjml },
+          signal,
         })
         .json<MjmlPreviewResponse>(),
   });

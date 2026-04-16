@@ -71,6 +71,7 @@ import {
   type BuilderInjectorVariablePresentation,
 } from "./injector-variable-presentation";
 import { mjmlVarsToTiptapHtml } from "./template-variable-html";
+import { resolveSrcForMjml } from "./empty-media-placeholder";
 import { renderTextBlockToMjml } from "./text-block-mjml";
 import {
   extractOriginalThumbnailUrl,
@@ -129,7 +130,9 @@ const metadataSchema = z.object({
 });
 
 type MetadataForm = z.infer<typeof metadataSchema>;
-type TokenizableMetadataFieldKey = "subject" | "from_name";
+type StaticMetadataFieldKey = "subject" | "from_name";
+type MediaFieldKey = `${string}:${"image_src" | "video_url" | "video_thumbnail"}`;
+type MetadataFieldRefKey = StaticMetadataFieldKey | MediaFieldKey;
 
 type BuilderBlockType = "text" | "button" | "image" | "divider" | "spacer" | "banner" | "video" | "list";
 
@@ -1596,10 +1599,12 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
       return `<mj-button href="${block.href || "#"}">${renderSegmentsToText(
         block.segments
       ).trim() || "Button"}</mj-button>`;
-    case "image":
-      return `\n<mj-image src="${block.src || ""}"${
+    case "image": {
+      const imageSrc = resolveSrcForMjml(block.src, "image", block.width);
+      return `\n<mj-image src="${imageSrc}"${
         block.width ? ` width="${block.width}"` : ""
       }${block.alt ? ` alt="${block.alt}"` : ""} />`;
+    }
     case "divider":
       return "\n<mj-divider />";
     case "spacer":
@@ -1799,6 +1804,7 @@ export function MjmlEditor({
   const saveLocaleMutation = useSaveTemplateLocale(scopedPath, templateId, versionId);
   const deleteLocaleMutation = useDeleteTemplateLocale(scopedPath, templateId, versionId);
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const abortControllerRef = useRef<AbortController | undefined>(undefined);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(
     null
   );
@@ -1808,7 +1814,7 @@ export function MjmlEditor({
   const [codeOverride, setCodeOverride] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedMetadataField, setSelectedMetadataField] =
-    useState<TokenizableMetadataFieldKey | null>(null);
+    useState<MetadataFieldRefKey | null>(null);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [previewSplitMode, setPreviewSplitMode] =
     useState<PreviewSplitMode>("ratio");
@@ -1825,9 +1831,9 @@ export function MjmlEditor({
   const previewPanelWrapRef = useRef<HTMLDivElement | null>(null);
   const blockEditorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const textBlockEditorRefs = useRef<Record<string, TextBlockEditorHandle | null>>({});
-  const metadataFieldRefs = useRef<
-    Partial<Record<TokenizableMetadataFieldKey, MetadataTokenInputHandle | null>>
-  >({});
+  const metadataFieldRefs = useRef<Map<MetadataFieldRefKey, MetadataTokenInputHandle | null>>(
+    new Map()
+  );
   const metadataPanelId = useId();
   const previewStageRef = useRef<HTMLDivElement | null>(null);
   const previewStageObserverRef = useRef<ResizeObserver | null>(null);
@@ -2085,23 +2091,42 @@ export function MjmlEditor({
 
   const triggerPreview = useCallback(
     (code: string) => {
-      if (previewTimeoutRef.current) {
-        clearTimeout(previewTimeoutRef.current);
-      }
+      clearTimeout(previewTimeoutRef.current);
+      abortControllerRef.current?.abort();
+
       previewTimeoutRef.current = setTimeout(async () => {
         if (!code.trim()) {
           return;
         }
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+
         try {
-          const result = await previewMutation.mutateAsync(code);
+          const result = await previewMutation.mutateAsync({ bodyMjml: code, signal });
           setPreviewHtml(sanitizePreviewHtml(result.html));
-        } catch {
-          // Mantiene el comportamiento anterior: preview anterior si falla.
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") {
+            return;
+          }
+        } finally {
+          if (abortControllerRef.current === controller) {
+            abortControllerRef.current = undefined;
+          }
         }
       }, 800);
     },
     [previewMutation]
   );
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(previewTimeoutRef.current);
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const serializedEditorData = useMemo(() => {
     if (!version?.editor_data) {
@@ -2210,7 +2235,9 @@ export function MjmlEditor({
       );
     };
 
-    clampToContainer(container.clientWidth);
+    requestAnimationFrame(() => {
+      clampToContainer(container.clientWidth);
+    });
 
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
@@ -2591,7 +2618,7 @@ export function MjmlEditor({
     autoSave.scheduleSave();
   }
 
-  function focusMetadataField(field: TokenizableMetadataFieldKey) {
+  function focusMetadataField(field: MetadataFieldRefKey) {
     setSelectedMetadataField(field);
     setSelectedBlockId(null);
   }
@@ -2679,9 +2706,9 @@ export function MjmlEditor({
       newBlock = {
         id,
         type: "image",
-        src: "https://placehold.co/600x200",
-        alt: "image",
-        width: "100%",
+        src: "",
+        alt: "",
+        width: "",
         align: "left",
       };
     } else if (type === "divider") {
@@ -2710,7 +2737,7 @@ export function MjmlEditor({
         id,
         type: "video",
         videoUrl: "",
-        thumbnailUrl: "https://placehold.co/600x340",
+        thumbnailUrl: "",
         alt: "Video thumbnail",
         width: "100%",
         align: "center",
@@ -2744,6 +2771,13 @@ export function MjmlEditor({
 
   function removeBlock(blockId: string) {
     if (!builderDocument || !canEditDraft) return;
+
+    metadataFieldRefs.current.delete(`${blockId}:image_src`);
+    metadataFieldRefs.current.delete(`${blockId}:video_url`);
+    metadataFieldRefs.current.delete(`${blockId}:video_thumbnail`);
+    if (selectedMetadataField?.startsWith(`${blockId}:`)) {
+      setSelectedMetadataField(null);
+    }
 
     const remaining = builderDocument.blocks.filter((block) => block.id !== blockId);
     if (!remaining.length) {
@@ -2918,6 +2952,18 @@ export function MjmlEditor({
       return;
     }
 
+    // Image blocks: route to the image_src metadata field
+    if (targetBlock.type === "image") {
+      appendTemplateVariableToMetadataField(`${targetId}:image_src`, variable);
+      return;
+    }
+
+    // Video blocks: route to the video_url metadata field
+    if (targetBlock.type === "video") {
+      appendTemplateVariableToMetadataField(`${targetId}:video_url`, variable);
+      return;
+    }
+
     // Button / Banner blocks: use contentEditable segment approach
     const editor = blockEditorRefs.current[targetId];
     if (editor && insertVariableIntoSegmentEditor(targetId, editor, variable)) {
@@ -2943,7 +2989,7 @@ export function MjmlEditor({
   }
 
   function appendTemplateVariableToMetadataField(
-    field: TokenizableMetadataFieldKey,
+    field: MetadataFieldRefKey,
     variable: TemplateVariable,
   ) {
     if (!canEditDraft) return;
@@ -2953,7 +2999,7 @@ export function MjmlEditor({
     const token = normalizeVariableToken(variable.token);
     if (!token) return;
 
-    const editor = metadataFieldRefs.current[field];
+    const editor = metadataFieldRefs.current.get(field);
     if (editor) {
       editor.insertVariable({
         token,
@@ -2963,12 +3009,16 @@ export function MjmlEditor({
       return;
     }
 
-    const currentValue = getValues(field) ?? "";
-    const prefix = currentValue && !/\s$/.test(currentValue) ? " " : "";
-    handleMetadataFieldChange(
-      field,
-      `${currentValue}${prefix}${variableToPlaceholder(token)}`,
-    );
+    // Fallback: only applies to static form fields (subject, from_name)
+    const staticField = field as keyof MetadataForm;
+    if (staticField === "subject" || staticField === "from_name") {
+      const currentValue = getValues(staticField) ?? "";
+      const prefix = currentValue && !/\s$/.test(currentValue) ? " " : "";
+      handleMetadataFieldChange(
+        staticField,
+        `${currentValue}${prefix}${variableToPlaceholder(token)}`,
+      );
+    }
   }
 
   function appendTemplateVariable(variable: TemplateVariable) {
@@ -4119,12 +4169,12 @@ export function MjmlEditor({
                                           <div className="space-y-1">
                                             <p className="font-mono font-semibold text-[11px]">{tooltip.name}</p>
                                             {tooltip.description ? (
-                                              <p className="text-[10px] leading-snug text-white/90">
+                                              <p className="text-[10px] leading-snug text-background/90">
                                                 {tooltip.description}
                                               </p>
                                             ) : null}
                                             {tooltip.injectorDescription ? (
-                                              <p className="text-[10px] leading-snug text-white/75">
+                                              <p className="text-[10px] leading-snug text-background/75">
                                                 {tooltip.injectorDescription}
                                               </p>
                                             ) : null}
@@ -4135,8 +4185,8 @@ export function MjmlEditor({
                                                 key={`${item.id}-${detail.label}`}
                                                 className="contents"
                                               >
-                                                <span className="text-white/65">{detail.label}</span>
-                                                <span className="font-medium text-white">{detail.value}</span>
+                                                <span className="text-background/65">{detail.label}</span>
+                                                <span className="font-medium text-background">{detail.value}</span>
                                               </div>
                                             ))}
                                           </div>
@@ -4416,14 +4466,26 @@ export function MjmlEditor({
                             {block.type === "image" ? (
                               <>
                                 <Label className="text-xs">Source</Label>
-                                <Input
-                                  value={block.src}
-                                  className="h-8 mt-1"
-                                  onChange={(ev) =>
-                                    updateImageBlock(block.id, "src", ev.target.value)
-                                  }
-                                  readOnly={isReadOnlyMode}
-                                />
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <MetadataTokenInput
+                                    ref={(handle) => {
+                                      metadataFieldRefs.current.set(`${block.id}:image_src`, handle);
+                                    }}
+                                    value={block.src}
+                                    className="min-h-8 mt-1"
+                                    onChange={(value) =>
+                                      updateImageBlock(block.id, "src", value)
+                                    }
+                                    onFocus={() => {
+                                      setSelectedMetadataField(`${block.id}:image_src`);
+                                      setSelectedBlockId(block.id);
+                                    }}
+                                    disabled={isReadOnlyMode}
+                                    ariaLabel="Image source URL"
+                                    placeholder="https://example.com/image.png"
+                                    resolveTokenMeta={resolveMetadataTokenMeta}
+                                  />
+                                </div>
                                 <Label className="text-xs mt-2">Alt</Label>
                                 <Input
                                   value={block.alt || ""}
@@ -4626,38 +4688,59 @@ export function MjmlEditor({
                               <div className="space-y-2">
                                 <div>
                                   <Label className="text-xs">Video URL</Label>
-                                  <Input
-                                    value={block.videoUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://youtube.com/watch?v=..."
-                                    onChange={(ev) => {
-                                      if (!builderDocument) return;
-                                      const url = ev.target.value;
-                                      const thumb = extractVideoThumbnail(url);
-                                      updateBuilderDocument({
-                                        ...builderDocument,
-                                        blocks: builderDocument.blocks.map((b) => {
-                                          if (b.id !== block.id || b.type !== "video") return b;
-                                          return {
-                                            ...b,
-                                            videoUrl: url,
-                                            ...(thumb ? { thumbnailUrl: thumb } : {}),
-                                          };
-                                        }),
-                                      });
-                                    }}
-                                    readOnly={isReadOnlyMode}
-                                  />
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:video_url`, handle);
+                                      }}
+                                      value={block.videoUrl}
+                                      className="min-h-8 mt-1"
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      onChange={(url) => {
+                                        if (!builderDocument) return;
+                                        const thumb = extractVideoThumbnail(url);
+                                        updateBuilderDocument({
+                                          ...builderDocument,
+                                          blocks: builderDocument.blocks.map((b) => {
+                                            if (b.id !== block.id || b.type !== "video") return b;
+                                            return {
+                                              ...b,
+                                              videoUrl: url,
+                                              ...(thumb ? { thumbnailUrl: thumb } : {}),
+                                            };
+                                          }),
+                                        });
+                                      }}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:video_url`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Video URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
                                 </div>
                                 <div>
                                   <Label className="text-xs">Thumbnail URL</Label>
-                                  <Input
-                                    value={block.thumbnailUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
-                                    onChange={(ev) => updateVideoBlock(block.id, "thumbnailUrl", ev.target.value)}
-                                    readOnly={isReadOnlyMode}
-                                  />
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:video_thumbnail`, handle);
+                                      }}
+                                      value={block.thumbnailUrl}
+                                      className="min-h-8 mt-1"
+                                      placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
+                                      onChange={(value) => updateVideoBlock(block.id, "thumbnailUrl", value)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:video_thumbnail`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Video thumbnail URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
                                 </div>
                                 {block.thumbnailUrl && (
                                   <div className="mt-1 rounded border overflow-hidden relative">
@@ -4920,7 +5003,7 @@ export function MjmlEditor({
                 <Label className="text-xs font-medium">Subject</Label>
                 <MetadataTokenInput
                   ref={(handle) => {
-                    metadataFieldRefs.current.subject = handle;
+                    metadataFieldRefs.current.set("subject", handle);
                   }}
                   value={watchedSubject}
                   onChange={(value) => handleMetadataFieldChange("subject", value)}
@@ -4962,7 +5045,7 @@ export function MjmlEditor({
                 <Label className="text-xs font-medium">From Name</Label>
                 <MetadataTokenInput
                   ref={(handle) => {
-                    metadataFieldRefs.current.from_name = handle;
+                    metadataFieldRefs.current.set("from_name", handle);
                   }}
                   value={watchedFromName}
                   onChange={(value) => handleMetadataFieldChange("from_name", value)}
