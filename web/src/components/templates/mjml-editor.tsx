@@ -2742,7 +2742,7 @@ export function MjmlEditor({
         id,
         type: "video",
         videoUrl: "",
-        thumbnailUrl: "https://placehold.co/600x340",
+        thumbnailUrl: "",
         alt: "Video thumbnail",
         width: "100%",
         align: "center",
@@ -2954,6 +2954,18 @@ export function MjmlEditor({
           category: variable.category,
         });
       }
+      return;
+    }
+
+    // Image blocks: route to the image_src metadata field
+    if (targetBlock.type === "image") {
+      appendTemplateVariableToMetadataField(`${targetId}:image_src`, variable);
+      return;
+    }
+
+    // Video blocks: route to the video_url metadata field
+    if (targetBlock.type === "video") {
+      appendTemplateVariableToMetadataField(`${targetId}:video_url`, variable);
       return;
     }
 
@@ -4162,12 +4174,12 @@ export function MjmlEditor({
                                           <div className="space-y-1">
                                             <p className="font-mono font-semibold text-[11px]">{tooltip.name}</p>
                                             {tooltip.description ? (
-                                              <p className="text-[10px] leading-snug text-white/90">
+                                              <p className="text-[10px] leading-snug text-background/90">
                                                 {tooltip.description}
                                               </p>
                                             ) : null}
                                             {tooltip.injectorDescription ? (
-                                              <p className="text-[10px] leading-snug text-white/75">
+                                              <p className="text-[10px] leading-snug text-background/75">
                                                 {tooltip.injectorDescription}
                                               </p>
                                             ) : null}
@@ -4178,8 +4190,8 @@ export function MjmlEditor({
                                                 key={`${item.id}-${detail.label}`}
                                                 className="contents"
                                               >
-                                                <span className="text-white/65">{detail.label}</span>
-                                                <span className="font-medium text-white">{detail.value}</span>
+                                                <span className="text-background/65">{detail.label}</span>
+                                                <span className="font-medium text-background">{detail.value}</span>
                                               </div>
                                             ))}
                                           </div>
