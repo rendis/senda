@@ -16,11 +16,9 @@ func (s *Server) registerPublicRoutes() {
 	})
 	s.echo.GET("/healthz", healthH.Health)
 
-	metricsHandler := echo.WrapHandler(promhttp.Handler())
 	if s.config.Server.MetricsToken != "" {
+		metricsHandler := echo.WrapHandler(promhttp.Handler())
 		s.echo.GET("/metrics", metricsHandler, metricsTokenAuth(s.config.Server.MetricsToken))
-	} else {
-		s.echo.GET("/metrics", metricsHandler)
 	}
 
 	if s.trackingHandler != nil {

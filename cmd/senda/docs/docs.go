@@ -24820,68 +24820,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/metrics": {
-            "get": {
-                "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
-                "produces": [
-                    "text/plain"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "GET /metrics",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/cmd_senda.DocErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/public/video-thumbnail": {
             "get": {
                 "description": "Auto-generated route stub for OpenAPI + MCP discovery.",
