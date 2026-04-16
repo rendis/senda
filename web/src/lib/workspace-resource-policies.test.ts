@@ -202,6 +202,41 @@ test("injectors expose inherited read-only state and local policy restrictions",
   assert.deepEqual(localBlocked.badges, ["local", "readOnly"]);
 });
 
+test("system workspace owners can edit tenant default resources without read-only warnings", () => {
+  const scope = {
+    level: "workspace" as const,
+    tenantCode: "acme",
+    workspaceCode: "_system",
+  };
+
+  const templateState = getTemplateManagementState(
+    scope,
+    {
+      owner_scope: "system",
+      inherited_from_system: false,
+      is_fork: false,
+    },
+    DEFAULT_WORKSPACE_POLICIES,
+  );
+
+  assert.equal(templateState.readOnly, false);
+  assert.equal(templateState.canManageVersions, true);
+  assert.deepEqual(templateState.badges, ["defaultSystem"]);
+
+  const injectorState = getInjectorManagementState(
+    scope,
+    {
+      owner_scope: "system",
+      inherited_from_system: false,
+    },
+    DEFAULT_WORKSPACE_POLICIES,
+  );
+
+  assert.equal(injectorState.readOnly, false);
+  assert.equal(injectorState.canEdit, true);
+  assert.deepEqual(injectorState.badges, ["defaultSystem"]);
+});
+
 test("display scope resolves system-owned resources without relying on scope_level", () => {
   assert.equal(
     resolveResourceDisplayScope({

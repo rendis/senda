@@ -54,6 +54,10 @@ import {
   nameSchema,
   slugSchema,
 } from "@/lib/validations/slug";
+import {
+  normalizeWorkspaceCodeInput,
+  sanitizeWorkspaceCodeInput,
+} from "@/lib/workspace-code-input";
 import { SYSTEM_WORKSPACE_CODE, type Workspace } from "@/types/api";
 
 const createWorkspaceSchema = z.object({
@@ -549,6 +553,7 @@ function CreateWorkspaceDialog({
   });
 
   const watchedName = useWatch({ control: form.control, name: "name" });
+  const watchedCode = useWatch({ control: form.control, name: "code" });
 
   useEffect(() => {
     if (!open) {
@@ -558,7 +563,7 @@ function CreateWorkspaceDialog({
     }
 
     if (!codeManuallyEdited.current && watchedName) {
-      form.setValue("code", generateSlug(watchedName), {
+      form.setValue("code", sanitizeWorkspaceCodeInput(generateSlug(watchedName)), {
         shouldValidate: form.formState.isSubmitted,
       });
     }
@@ -566,6 +571,14 @@ function CreateWorkspaceDialog({
 
   const handleSubmit = async () => {
     let keepOpen = false;
+    const normalizedCode = normalizeWorkspaceCodeInput(form.getValues("code"));
+    if (normalizedCode !== form.getValues("code")) {
+      form.setValue("code", normalizedCode, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+    }
 
     await form.handleSubmit(
       async (values) => {
@@ -620,10 +633,24 @@ function CreateWorkspaceDialog({
           <Input
             id="workspace-code"
             {...codeField}
+            value={watchedCode ?? ""}
             onChange={(event) => {
               codeManuallyEdited.current = true;
-              codeField.onChange(event);
+              form.setValue("code", sanitizeWorkspaceCodeInput(event.target.value), {
+                shouldDirty: true,
+                shouldValidate: form.formState.isSubmitted,
+              });
             }}
+            onBlur={(event) => {
+              const normalized = normalizeWorkspaceCodeInput(event.target.value);
+              form.setValue("code", normalized, {
+                shouldDirty: true,
+                shouldTouch: true,
+                shouldValidate: true,
+              });
+              codeField.onBlur(event);
+            }}
+            maxLength={50}
           />
           {form.formState.errors.code && (
             <p className="text-xs text-destructive">

@@ -60,6 +60,26 @@ func TestWorkspaceRepo_Create(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRepo_Create_AllowsUnderscore(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	repo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+
+	ws := &domain.Workspace{
+		ID:       uuid.New(),
+		TenantID: tenant.ID,
+		Code:     "student_portal",
+		Name:     "Student Portal",
+	}
+
+	if err := repo.Create(ctx, ws); err != nil {
+		t.Fatalf("Create() with underscore error: %v", err)
+	}
+}
+
 func TestWorkspaceRepo_Create_DuplicateTenantCode(t *testing.T) {
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)

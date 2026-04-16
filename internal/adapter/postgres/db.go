@@ -95,6 +95,16 @@ func classifyPgError(err error) error {
 		return apperr.BadRequest("referenced resource does not exist: %s", pgErr.Detail)
 	case "23502": // not_null_violation
 		return apperr.BadRequest("missing required field: %s", pgErr.ColumnName)
+	case "23514": // check_violation
+		switch pgErr.ConstraintName {
+		case "workspaces_code_format", "tenants_code_format":
+			return apperr.Validation("invalid code format")
+		default:
+			if pgErr.Message != "" {
+				return apperr.Validation("%s", pgErr.Message)
+			}
+			return apperr.Validation("check constraint violated")
+		}
 	default:
 		return nil
 	}

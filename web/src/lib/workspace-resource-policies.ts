@@ -154,7 +154,7 @@ export function getTemplateTypeManagementState(
   const resolved = resolveWorkspacePolicies(policies);
   if (!isWorkspaceScope(scope) || isSystemWorkspaceScope(scope)) {
     return {
-      ...base,
+      ...editableState(base),
       canEdit: true,
       canDelete: true,
     };
@@ -204,7 +204,7 @@ export function getTemplateManagementState(
   const resolved = resolveWorkspacePolicies(policies);
   if (!isWorkspaceScope(scope) || isSystemWorkspaceScope(scope)) {
     return {
-      ...base,
+      ...editableState(base),
       canFork: false,
       canManageVersions: true,
       canEditMetadata: true,
@@ -290,7 +290,7 @@ export function getInjectorManagementState(
   const resolved = resolveWorkspacePolicies(policies);
   if (!isWorkspaceScope(scope) || isSystemWorkspaceScope(scope)) {
     return {
-      ...base,
+      ...editableState(base),
       canEdit: true,
       canDelete: true,
     };
@@ -417,6 +417,17 @@ function appendReadOnlyBadge(state: ResourceState): ResourceState {
     ...state,
     readOnly: true,
     badges: [...state.badges, "readOnly"],
+  };
+}
+
+function editableState(state: ResourceState): ResourceState {
+  if (!state.readOnly && !state.badges.includes("readOnly")) {
+    return state;
+  }
+
+  return {
+    readOnly: false,
+    badges: state.badges.filter((badge) => badge !== "readOnly"),
   };
 }
 
