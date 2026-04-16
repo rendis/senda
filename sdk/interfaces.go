@@ -55,12 +55,24 @@ type ExternalAuthMethod interface {
 	Authenticate(ctx context.Context, req *ExternalIntegrationRequest) (*ExternalAuthResult, error)
 }
 
+// WorkspaceFilter provides callers with a read-only view of which workspace
+// codes are active for the current tenant and environment. It is constructed
+// per-request by the middleware and injected into ExternalWorkspaceResolver.
+type WorkspaceFilter interface {
+	// Exists returns a dense map where every requested code is present as a key.
+	// A code maps to true only when the workspace is active for the tenant in the
+	// current environment. An empty or nil codes slice returns an empty map
+	// without contacting the store.
+	Exists(ctx context.Context, codes []string) (map[string]bool, error)
+}
+
 // ExternalWorkspaceResolver maps a validated request to a workspace code or a
-// read-only fallback.
+// read-only fallback. filter provides an existence check for workspace codes
+// scoped to the current tenant and environment.
 type ExternalWorkspaceResolver interface {
 	Name() string
 	Description() string
-	ResolveWorkspace(ctx context.Context, req *ExternalIntegrationRequest, auth *ExternalAuthResult) (*ExternalWorkspaceResolution, error)
+	ResolveWorkspace(ctx context.Context, req *ExternalIntegrationRequest, auth *ExternalAuthResult, filter WorkspaceFilter) (*ExternalWorkspaceResolution, error)
 }
 
 // ExternalIntegrationRequest is the request context passed to auth and

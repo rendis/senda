@@ -23,7 +23,7 @@ type testExternalWorkspaceResolver struct {
 
 func (t *testExternalWorkspaceResolver) Name() string        { return t.name }
 func (t *testExternalWorkspaceResolver) Description() string { return t.description }
-func (t *testExternalWorkspaceResolver) ResolveWorkspace(context.Context, *ExternalIntegrationRequest, *ExternalAuthResult) (*ExternalWorkspaceResolution, error) {
+func (t *testExternalWorkspaceResolver) ResolveWorkspace(context.Context, *ExternalIntegrationRequest, *ExternalAuthResult, WorkspaceFilter) (*ExternalWorkspaceResolution, error) {
 	return &ExternalWorkspaceResolution{}, nil
 }
 

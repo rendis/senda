@@ -147,12 +147,17 @@ func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []s
 		sesWebhook:     handlers.sesWebhookHandler,
 		onboarding:     handlers.onboardingHandler,
 	})...)
+	var wsExistenceStore port.WorkspaceExistenceStore
+	if ws, ok := shared.workspaceStore.(port.WorkspaceExistenceStore); ok {
+		wsExistenceStore = ws
+	}
 	opts = append(opts, externalIntegrationSurfaceOptions(externalIntegrationSurfaceHandlers{
-		externalIntegration: handlers.externalIntegrationHandler,
-		injector:            handlers.injectorHandler,
-		workspacePolicy:     handlers.workspacePolicyHandler,
-		templateType:        handlers.templateTypeHandler,
-		template:            handlers.templateHandler,
+		externalIntegration:     handlers.externalIntegrationHandler,
+		injector:                handlers.injectorHandler,
+		workspacePolicy:         handlers.workspacePolicyHandler,
+		templateType:            handlers.templateTypeHandler,
+		template:                handlers.templateHandler,
+		workspaceExistenceStore: wsExistenceStore,
 	})...)
 	opts = append(opts, publicSurfaceOptions(publicSurfaceHandlers{
 		tracking: handlers.trackingHandler,

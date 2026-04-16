@@ -35,6 +35,10 @@ type Server struct {
 	wsStore     port.WorkspaceStore
 	configStore port.GlobalConfigStore
 
+	// workspaceExistenceStore is used by the external integration middleware to
+	// construct a per-request workspace filter for resolver extensions.
+	workspaceExistenceStore port.WorkspaceExistenceStore
+
 	// Handlers.
 	tenantHandler          *handler.TenantHandler
 	workspaceHandler       *handler.WorkspaceHandler
@@ -127,6 +131,14 @@ func WithWorkspaceStore(ws port.WorkspaceStore) ServerOption {
 func WithConfigStore(cs port.GlobalConfigStore) ServerOption {
 	return func(s *Server) {
 		s.configStore = cs
+	}
+}
+
+// WithWorkspaceExistenceStore sets the WorkspaceExistenceStore used by the
+// external integration middleware to build a per-request workspace filter.
+func WithWorkspaceExistenceStore(ws port.WorkspaceExistenceStore) ServerOption {
+	return func(s *Server) {
+		s.workspaceExistenceStore = ws
 	}
 }
 

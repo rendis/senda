@@ -133,7 +133,7 @@ type externalWorkspaceResolverAdapter struct {
 
 func (a externalWorkspaceResolverAdapter) Name() string        { return a.resolver.Name() }
 func (a externalWorkspaceResolverAdapter) Description() string { return a.resolver.Description() }
-func (a externalWorkspaceResolverAdapter) ResolveWorkspace(ctx context.Context, req *port.ExternalIntegrationRequest, auth *port.ExternalAuthResult) (*port.ExternalWorkspaceResolution, error) {
+func (a externalWorkspaceResolverAdapter) ResolveWorkspace(ctx context.Context, req *port.ExternalIntegrationRequest, auth *port.ExternalAuthResult, filter port.WorkspaceFilter) (*port.ExternalWorkspaceResolution, error) {
 	result, err := a.resolver.ResolveWorkspace(ctx, adaptExternalRequest(req), &ExternalAuthResult{
 		Permissions: ExternalPermissions{
 			ListTemplates:   auth.Permissions.ListTemplates,
@@ -146,9 +146,25 @@ func (a externalWorkspaceResolverAdapter) ResolveWorkspace(ctx context.Context, 
 			LocaleAccess:    auth.Permissions.LocaleAccess,
 		},
 		Context: auth.Context,
-	})
+	}, adaptWorkspaceFilter(filter))
 	if err != nil {
 		return nil, err
 	}
 	return adaptExternalWorkspaceResolution(result), nil
+}
+
+type sdkWorkspaceFilterAdapter struct {
+	filter port.WorkspaceFilter
+}
+
+func (a sdkWorkspaceFilterAdapter) Exists(ctx context.Context, codes []string) (map[string]bool, error) {
+	return a.filter.Exists(ctx, codes)
+}
+
+// Returns nil when f is nil so SDK resolvers can detect an absent filter.
+func adaptWorkspaceFilter(f port.WorkspaceFilter) WorkspaceFilter {
+	if f == nil {
+		return nil
+	}
+	return sdkWorkspaceFilterAdapter{filter: f}
 }

@@ -147,7 +147,7 @@ func TestBuildExtensions_AdaptsExternalContractsToInternalContracts(t *testing.T
 	resolution, err := ext.ExternalWorkspaceResolvers[0].ResolveWorkspace(context.Background(), &port.ExternalIntegrationRequest{
 		ProfileSlug: "partner",
 		TenantCode:  "acme",
-	}, authResult)
+	}, authResult, nil)
 	if err != nil {
 		t.Fatalf("resolver returned error: %v", err)
 	}
@@ -173,6 +173,6 @@ type publicExternalWorkspaceResolver struct{}
 
 func (publicExternalWorkspaceResolver) Name() string        { return "tenant-workspace" }
 func (publicExternalWorkspaceResolver) Description() string { return "Tenant workspace resolver" }
-func (publicExternalWorkspaceResolver) ResolveWorkspace(_ context.Context, _ *ExternalIntegrationRequest, _ *ExternalAuthResult) (*ExternalWorkspaceResolution, error) {
+func (publicExternalWorkspaceResolver) ResolveWorkspace(_ context.Context, _ *ExternalIntegrationRequest, _ *ExternalAuthResult, _ WorkspaceFilter) (*ExternalWorkspaceResolution, error) {
 	return &ExternalWorkspaceResolution{WorkspaceCode: "main", ReadOnly: true}, nil
 }
