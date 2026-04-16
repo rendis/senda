@@ -151,7 +151,7 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
     onFocus: () => onFocus?.(),
     editorProps: {
       attributes: {
-        class: "min-h-6 w-full outline-none text-sm",
+        class: "min-h-6 w-full outline-none text-sm leading-normal",
         "data-placeholder": effectivePlaceholder,
       },
       handleDrop: (view, event) => {
@@ -479,13 +479,13 @@ export const TextBlockEditor = forwardRef<TextBlockEditorHandle, TextBlockEditor
       {/* Editor */}
       <div
         className={cn(
-          "rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+          "rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
           disabled && "opacity-60",
         )}
       >
         <EditorContent
           editor={editor}
-          className="[&_.tiptap]:min-h-6 [&_.tiptap]:leading-normal [&_.tiptap]:min-w-0 [&_.tiptap]:w-full [&_.tiptap]:outline-none [&_.tiptap]:text-sm [&_.tiptap]:whitespace-pre-wrap [&_.tiptap]:break-words [&_.tiptap]:[overflow-wrap:anywhere] [&_.tiptap_p]:my-0 [&_.tiptap_p]:min-h-[1.25em] [&_.tiptap_p]:leading-normal [&_.tiptap_p]:min-w-0 [&_.tiptap_p]:max-w-full [&_.tiptap_span[data-variable-token]]:max-w-full [&_.tiptap_.ProseMirror-trailingBreak]:block"
+          className="[&_.tiptap]:min-h-6 [&_.tiptap]:px-2 [&_.tiptap]:py-1.5 [&_.tiptap]:leading-normal [&_.tiptap]:min-w-0 [&_.tiptap]:w-full [&_.tiptap]:outline-none [&_.tiptap]:text-sm [&_.tiptap]:whitespace-pre-wrap [&_.tiptap]:break-words [&_.tiptap]:[overflow-wrap:anywhere] [&_.tiptap_p]:my-0 [&_.tiptap_p]:min-h-[1.25em] [&_.tiptap_p]:leading-normal [&_.tiptap_p]:min-w-0 [&_.tiptap_p]:max-w-full [&_.tiptap_span[data-variable-token]]:max-w-full [&_.tiptap_.ProseMirror-trailingBreak]:block"
         />
       </div>
     </div>

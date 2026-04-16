@@ -4471,21 +4471,27 @@ export function MjmlEditor({
                             {block.type === "image" ? (
                               <>
                                 <Label className="text-xs">Source</Label>
-                                <MetadataTokenInput
-                                  ref={(handle) => {
-                                    metadataFieldRefs.current.set(`${block.id}:image_src`, handle);
-                                  }}
-                                  value={block.src}
-                                  className="h-8 mt-1"
-                                  onChange={(value) =>
-                                    updateImageBlock(block.id, "src", value)
-                                  }
-                                  onFocus={() => focusMetadataField(`${block.id}:image_src`)}
-                                  disabled={isReadOnlyMode}
-                                  ariaLabel="Image source URL"
-                                  placeholder="https://example.com/image.png"
-                                  resolveTokenMeta={resolveMetadataTokenMeta}
-                                />
+                                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <MetadataTokenInput
+                                    ref={(handle) => {
+                                      metadataFieldRefs.current.set(`${block.id}:image_src`, handle);
+                                    }}
+                                    value={block.src}
+                                    className="h-8 mt-1"
+                                    onChange={(value) =>
+                                      updateImageBlock(block.id, "src", value)
+                                    }
+                                    onFocus={() => {
+                                      setSelectedMetadataField(`${block.id}:image_src`);
+                                      setSelectedBlockId(block.id);
+                                    }}
+                                    disabled={isReadOnlyMode}
+                                    ariaLabel="Image source URL"
+                                    placeholder="https://example.com/image.png"
+                                    resolveTokenMeta={resolveMetadataTokenMeta}
+                                  />
+                                </div>
                                 <Label className="text-xs mt-2">Alt</Label>
                                 <Input
                                   value={block.alt || ""}
@@ -4688,49 +4694,61 @@ export function MjmlEditor({
                               <div className="space-y-2">
                                 <div>
                                   <Label className="text-xs">Video URL</Label>
-                                  <MetadataTokenInput
-                                    ref={(handle) => {
-                                      metadataFieldRefs.current.set(`${block.id}:video_url`, handle);
-                                    }}
-                                    value={block.videoUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://youtube.com/watch?v=..."
-                                    onChange={(url) => {
-                                      if (!builderDocument) return;
-                                      const thumb = extractVideoThumbnail(url);
-                                      updateBuilderDocument({
-                                        ...builderDocument,
-                                        blocks: builderDocument.blocks.map((b) => {
-                                          if (b.id !== block.id || b.type !== "video") return b;
-                                          return {
-                                            ...b,
-                                            videoUrl: url,
-                                            ...(thumb ? { thumbnailUrl: thumb } : {}),
-                                          };
-                                        }),
-                                      });
-                                    }}
-                                    onFocus={() => focusMetadataField(`${block.id}:video_url`)}
-                                    disabled={isReadOnlyMode}
-                                    ariaLabel="Video URL"
-                                    resolveTokenMeta={resolveMetadataTokenMeta}
-                                  />
+                                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:video_url`, handle);
+                                      }}
+                                      value={block.videoUrl}
+                                      className="h-8 mt-1"
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      onChange={(url) => {
+                                        if (!builderDocument) return;
+                                        const thumb = extractVideoThumbnail(url);
+                                        updateBuilderDocument({
+                                          ...builderDocument,
+                                          blocks: builderDocument.blocks.map((b) => {
+                                            if (b.id !== block.id || b.type !== "video") return b;
+                                            return {
+                                              ...b,
+                                              videoUrl: url,
+                                              ...(thumb ? { thumbnailUrl: thumb } : {}),
+                                            };
+                                          }),
+                                        });
+                                      }}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:video_url`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Video URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
                                 </div>
                                 <div>
                                   <Label className="text-xs">Thumbnail URL</Label>
-                                  <MetadataTokenInput
-                                    ref={(handle) => {
-                                      metadataFieldRefs.current.set(`${block.id}:video_thumbnail`, handle);
-                                    }}
-                                    value={block.thumbnailUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
-                                    onChange={(value) => updateVideoBlock(block.id, "thumbnailUrl", value)}
-                                    onFocus={() => focusMetadataField(`${block.id}:video_thumbnail`)}
-                                    disabled={isReadOnlyMode}
-                                    ariaLabel="Video thumbnail URL"
-                                    resolveTokenMeta={resolveMetadataTokenMeta}
-                                  />
+                                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:video_thumbnail`, handle);
+                                      }}
+                                      value={block.thumbnailUrl}
+                                      className="h-8 mt-1"
+                                      placeholder="https://img.youtube.com/vi/ID/maxresdefault.jpg"
+                                      onChange={(value) => updateVideoBlock(block.id, "thumbnailUrl", value)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:video_thumbnail`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Video thumbnail URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
                                 </div>
                                 {block.thumbnailUrl && (
                                   <div className="mt-1 rounded border overflow-hidden relative">
