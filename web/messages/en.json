@@ -448,5 +448,23 @@
       "title": "Delete Injector",
       "description": "Are you sure you want to delete \"{name}\"? Templates using this injector will no longer see its fields in the builder."
     }
+  },
+  "unsubscribe": {
+    "loading": "Loading…",
+    "title_for_event": "You are unsubscribing from {workspace_name}",
+    "this_event_label": "Stop receiving \"{template_type_name}\"",
+    "all_label": "Stop receiving ALL emails from {workspace_name}",
+    "confirm": "Confirm",
+    "manage_link": "Manage all my preferences",
+    "success_event": "You will no longer receive \"{template_type_name}\".",
+    "success_all": "You will no longer receive any emails from {workspace_name}.",
+    "preferences_title": "Email preferences for {email}",
+    "preferences_subtitle": "Showing types you have received in the last 12 months from {workspace_name}.",
+    "save": "Save",
+    "saved": "Preferences saved",
+    "all_warning": "You opted out of all emails from {workspace_name}.",
+    "resubscribe_all": "Resubscribe to all",
+    "invalid_token": "This link is invalid or has expired.",
+    "last_received": "Last received"
   }
 }
