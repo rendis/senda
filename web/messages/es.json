@@ -183,7 +183,9 @@
     "blockNoProperties": "Sin propiedades",
     "blockListType": "Tipo de lista",
     "variableHintEvent": "Variable de evento",
-    "variableHintInjector": "Variable de injector"
+    "variableHintInjector": "Variable de injector",
+    "visualUnavailableForRawMjml": "Editor visual no disponible: este template usa elementos MJML que el constructor de bloques no soporta.",
+    "rawMjmlNotice": "Este template usa MJML que el editor visual no puede representar. Solo se puede editar en modo código."
   },
   "scopeSwitcher": {
     "globalScope": "Global",

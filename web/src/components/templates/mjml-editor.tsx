@@ -1569,12 +1569,29 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
 
       if (topTag === "mj-section") {
         const column = topChild.getElementsByTagName("mj-column")[0];
-        if (!column) continue;
+        if (!column) {
+          // mj-section without mj-column is not representable in the visual builder.
+          return null;
+        }
         for (const child of Array.from(column.children)) {
           const parsed = parseColumnChildToBlock(child);
-          if (parsed) blocks.push(parsed);
+          if (!parsed) {
+            // Unsupported tag inside a column (e.g. mj-raw, mj-table). Bailing
+            // out here is intentional: silently dropping it would let the
+            // visual builder recompile and overwrite body_mjml on save,
+            // discarding the original content.
+            return null;
+          }
+          blocks.push(parsed);
         }
+        continue;
       }
+
+      // Any other direct child of mj-body (mj-raw, mj-style, mj-include,
+      // mj-attributes, mj-class, mj-table, mj-social, mj-navbar, ...) cannot
+      // be represented as a builder block. Returning null forces the editor
+      // into code mode so the original body_mjml is preserved verbatim.
+      return null;
     }
 
     if (!blocks.length) {
@@ -1588,6 +1605,51 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
   } catch {
     return null;
   }
+}
+
+type HydratedBuilderState = {
+  /** Block tree to load into the visual builder, or null when only the code editor can render the body. */
+  document: BuilderDocument | null;
+  /**
+   * True when body_mjml has content the visual builder cannot represent
+   * (e.g. mj-raw, mj-style, mj-table, multiple columns per section). The
+   * caller MUST force editorMode to "code" so the visual builder does not
+   * recompile a fallback document and overwrite the saved body.
+   */
+  forceCodeMode: boolean;
+};
+
+function hydrateBuilderState(source: {
+  editor_data?: unknown;
+  body_mjml?: string | null;
+}): HydratedBuilderState {
+  const hasPersistedEditorData = Boolean(
+    source.editor_data &&
+      typeof source.editor_data === "object" &&
+      Object.keys(source.editor_data as Record<string, unknown>).length > 0
+  );
+  if (hasPersistedEditorData) {
+    return {
+      document: normalizeBuilderDocument(source.editor_data),
+      forceCodeMode: false,
+    };
+  }
+  const fromMjml = parseBuilderDocumentFromMjml(source.body_mjml ?? "");
+  if (fromMjml) {
+    return { document: fromMjml, forceCodeMode: false };
+  }
+  if ((source.body_mjml ?? "").trim().length > 0) {
+    // The saved body uses MJML constructs the visual builder cannot
+    // round-trip. Keep the body verbatim and tell the caller to render the
+    // code editor instead.
+    return { document: null, forceCodeMode: true };
+  }
+  // Empty body and no editor data — fall back to the default skeleton so the
+  // user sees an editable starting point.
+  return {
+    document: normalizeBuilderDocument(source.editor_data),
+    forceCodeMode: false,
+  };
 }
 
 function renderColumnBlockToMjml(block: BuilderBlock): string {
@@ -1942,15 +2004,9 @@ export function MjmlEditor({
 
     if (activeLocale === "default") {
       // Restore default version content
-      const hasEditorData = Boolean(
-        version.editor_data && Object.keys(version.editor_data).length > 0
-      );
-      const parsed =
-        (hasEditorData
-          ? normalizeBuilderDocument(version.editor_data)
-          : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
-        normalizeBuilderDocument(version.editor_data);
-      if (parsed) setBuilderDocument(parsed);
+      const { document: parsed, forceCodeMode } = hydrateBuilderState(version);
+      setBuilderDocument(parsed);
+      if (forceCodeMode) setEditorMode("code");
       const code = version.body_mjml ?? "";
       setCodeOverride(code);
       if (code) triggerPreview(code);
@@ -1967,13 +2023,12 @@ export function MjmlEditor({
     // Non-default locale
     const localeData = localeContentQuery.data;
     if (localeData) {
-      const hasEditorData = Boolean(
-        localeData.editor_data && Object.keys(localeData.editor_data as object).length > 0
-      );
-      const parsed = hasEditorData
-        ? normalizeBuilderDocument(localeData.editor_data)
-        : parseBuilderDocumentFromMjml(localeData.body_mjml ?? version.body_mjml ?? "");
-      if (parsed) setBuilderDocument(parsed);
+      const { document: parsed, forceCodeMode } = hydrateBuilderState({
+        editor_data: localeData.editor_data,
+        body_mjml: localeData.body_mjml ?? version.body_mjml,
+      });
+      setBuilderDocument(parsed);
+      if (forceCodeMode) setEditorMode("code");
       const code = localeData.body_mjml ?? version.body_mjml ?? "";
       setCodeOverride(code);
       if (code) triggerPreview(code);
@@ -1985,15 +2040,9 @@ export function MjmlEditor({
       });
     } else if (!localeContentQuery.isLoading) {
       // 404 or first load - use default content as starting point
-      const hasEditorData = Boolean(
-        version.editor_data && Object.keys(version.editor_data).length > 0
-      );
-      const parsed =
-        (hasEditorData
-          ? normalizeBuilderDocument(version.editor_data)
-          : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
-        normalizeBuilderDocument(version.editor_data);
-      if (parsed) setBuilderDocument(parsed);
+      const { document: parsed, forceCodeMode } = hydrateBuilderState(version);
+      setBuilderDocument(parsed);
+      if (forceCodeMode) setEditorMode("code");
       const code = version.body_mjml ?? "";
       setCodeOverride(code);
       if (code) triggerPreview(code);
@@ -2145,24 +2194,18 @@ export function MjmlEditor({
       return;
     }
 
-    const hasPersistedEditorData = Boolean(
-      version.editor_data && Object.keys(version.editor_data).length > 0
-    );
-    const parsed =
-      (hasPersistedEditorData
-        ? normalizeBuilderDocument(version.editor_data)
-        : parseBuilderDocumentFromMjml(version.body_mjml ?? "")) ??
-      normalizeBuilderDocument(version.editor_data);
+    const { document: parsed, forceCodeMode } = hydrateBuilderState(version);
     setBuilderDocument(parsed);
+    if (forceCodeMode) setEditorMode("code");
 
     const initialCode = version.body_mjml ?? "";
-    const visualCode = buildTemplateMjml(parsed);
+    const visualCode = parsed ? buildTemplateMjml(parsed) : "";
     const nextCode =
       typeof initialCode === "string" && initialCode.trim().length > 0
         ? initialCode
         : visualCode;
     setCodeOverride(nextCode);
-    setSelectedBlockId(parsed.blocks[0]?.id ?? null);
+    setSelectedBlockId(parsed?.blocks[0]?.id ?? null);
 
     if (nextCode) {
       triggerPreview(nextCode);
@@ -2558,6 +2601,11 @@ export function MjmlEditor({
   }
 
   const codeMjml = version ? codeOverride : "";
+  // Body uses MJML constructs the visual builder cannot represent
+  // (e.g. mj-raw, mj-style, mj-table). The visual mode toggle is disabled
+  // because switching to it would render an empty fallback that auto-saves
+  // and overwrites the saved body. The user can still edit via the code panel.
+  const isCodeOnlyMjml = builderDocument === null && codeMjml.trim().length > 0;
   const watchedSubject = watch("subject");
   const watchedPreviewText = watch("preview_text");
   const watchedFromName = watch("from_name");
@@ -3826,9 +3874,15 @@ export function MjmlEditor({
                   editorMode === "visual"
                     ? LOCALE_ACTIVE_CLASS
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
                 onClick={() => setEditorMode("visual")}
                 type="button"
+                disabled={isCodeOnlyMjml}
+                title={
+                  isCodeOnlyMjml
+                    ? t("visualUnavailableForRawMjml")
+                    : undefined
+                }
               >
                 <Paintbrush className="h-3.5 w-3.5" />
               </button>
@@ -4967,7 +5021,14 @@ export function MjmlEditor({
               </div>
             ) : (
               <div className="relative flex-1 min-w-0">
-                <div className="absolute inset-0">
+                {isCodeOnlyMjml && (
+                  <div className="absolute inset-x-0 top-0 z-10 border-b bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    {t("rawMjmlNotice")}
+                  </div>
+                )}
+                <div
+                  className={`absolute inset-0 ${isCodeOnlyMjml ? "pt-[28px]" : ""}`}
+                >
                   <MonacoEditorWrapper
                     value={codeMjml}
                     onChange={handleCodeChange}
