@@ -76,12 +76,20 @@ func (c *Capturer) Capture(ctx context.Context, html string, vp port.Viewport, m
 	)
 	cappedHeight := int64(maxHeightPx)
 
+	// Initial viewport height = 1px. This prevents Chrome's body from
+	// stretching to fill the viewport (e.g. via `min-height: 100vh` on
+	// `<mj-body>`), which would make `scrollHeight` equal to the viewport
+	// height instead of the actual content height. A 1px viewport forces the
+	// body to size itself to its content; we then measure the real height
+	// and resize to fit before capturing.
+	const initialViewportHeight int64 = 1
+
 	err = cdp.Run(browserCtx,
-		emulation.SetDeviceMetricsOverride(int64(vp.WidthPx), int64(maxHeightPx), vp.DeviceScale, vp.MobileEmul),
+		emulation.SetDeviceMetricsOverride(int64(vp.WidthPx), initialViewportHeight, vp.DeviceScale, vp.MobileEmul),
 		emulation.SetTouchEmulationEnabled(vp.MobileEmul),
 		cdp.Navigate(dataURL),
 		cdp.WaitReady("body"),
-		cdp.Evaluate(`document.documentElement.scrollHeight`, &scrollHeight),
+		cdp.Evaluate(`Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)`, &scrollHeight),
 		cdp.ActionFunc(func(ctx context.Context) error {
 			h := min(scrollHeight, cappedHeight)
 			if h <= 0 {
