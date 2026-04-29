@@ -14,20 +14,20 @@ import (
 )
 
 // Compile-time interface check.
-var _ port.TemplateTypeSubscriptionStore = (*TemplateTypeSubscriptionStore)(nil)
+var _ port.TemplateTypeSubscriptionStore = (*TemplateTypeSubscriptionRepo)(nil)
 
-// TemplateTypeSubscriptionStore is the Postgres adapter for template_type_subscriptions.
-type TemplateTypeSubscriptionStore struct {
+// TemplateTypeSubscriptionRepo is the Postgres adapter for template_type_subscriptions.
+type TemplateTypeSubscriptionRepo struct {
 	db *pgxpool.Pool
 }
 
-// NewTemplateTypeSubscriptionStore returns a new TemplateTypeSubscriptionStore backed by pool.
-func NewTemplateTypeSubscriptionStore(db *pgxpool.Pool) *TemplateTypeSubscriptionStore {
-	return &TemplateTypeSubscriptionStore{db: db}
+// NewTemplateTypeSubscriptionRepo returns a new TemplateTypeSubscriptionRepo backed by pool.
+func NewTemplateTypeSubscriptionRepo(db *pgxpool.Pool) *TemplateTypeSubscriptionRepo {
+	return &TemplateTypeSubscriptionRepo{db: db}
 }
 
 // Upsert inserts or updates the subscription state for (workspace, template_type, email).
-func (s *TemplateTypeSubscriptionStore) Upsert(ctx context.Context, sub *domain.TemplateTypeSubscription) error {
+func (s *TemplateTypeSubscriptionRepo) Upsert(ctx context.Context, sub *domain.TemplateTypeSubscription) error {
 	_, err := s.db.Exec(ctx, `
 		INSERT INTO template_type_subscriptions
 			(id, workspace_id, template_type_id, email, subscribed, source, source_email_id, actor_id, notes)
@@ -51,7 +51,7 @@ func (s *TemplateTypeSubscriptionStore) Upsert(ctx context.Context, sub *domain.
 
 // GetState returns the subscription row for (workspaceID, templateTypeID, email),
 // or a 404 AppError if none exists.
-func (s *TemplateTypeSubscriptionStore) GetState(
+func (s *TemplateTypeSubscriptionRepo) GetState(
 	ctx context.Context, workspaceID, templateTypeID uuid.UUID, email string,
 ) (*domain.TemplateTypeSubscription, error) {
 	var sub domain.TemplateTypeSubscription
@@ -76,7 +76,7 @@ func (s *TemplateTypeSubscriptionStore) GetState(
 }
 
 // ListOptOutsForRecipient returns all subscription rows for (workspaceID, email).
-func (s *TemplateTypeSubscriptionStore) ListOptOutsForRecipient(
+func (s *TemplateTypeSubscriptionRepo) ListOptOutsForRecipient(
 	ctx context.Context, workspaceID uuid.UUID, email string,
 ) ([]*domain.TemplateTypeSubscription, error) {
 	rows, err := s.db.Query(ctx, `
@@ -103,14 +103,17 @@ func (s *TemplateTypeSubscriptionStore) ListOptOutsForRecipient(
 		}
 		out = append(out, &sub)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("tts: list opt-outs: %w", err)
+	}
+	return out, nil
 }
 
 // BatchCheckOptOut returns the subset of emails that have an explicit opt-out row
 // (subscribed = false) for the given (workspaceID, templateTypeID). Emails with no
 // row or subscribed=true are not included. An empty input returns an empty map
 // immediately without querying the DB.
-func (s *TemplateTypeSubscriptionStore) BatchCheckOptOut(
+func (s *TemplateTypeSubscriptionRepo) BatchCheckOptOut(
 	ctx context.Context, workspaceID, templateTypeID uuid.UUID, emails []string,
 ) (map[string]struct{}, error) {
 	if len(emails) == 0 {
@@ -137,5 +140,8 @@ func (s *TemplateTypeSubscriptionStore) BatchCheckOptOut(
 		}
 		out[e] = struct{}{}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("tts: batch check: %w", err)
+	}
+	return out, nil
 }

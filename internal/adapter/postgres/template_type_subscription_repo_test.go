@@ -16,7 +16,7 @@ import (
 // ttsFullDeps holds the store under test, a seeded workspace ID, and a
 // TemplateRepo so individual tests can create template types without raw SQL.
 type ttsFullDeps struct {
-	store  *pgadapter.TemplateTypeSubscriptionStore
+	store  *pgadapter.TemplateTypeSubscriptionRepo
 	wsID   uuid.UUID
 	ttRepo *pgadapter.TemplateRepo
 }
@@ -30,7 +30,7 @@ func setupTTSFull(ctx context.Context, t *testing.T) ttsFullDeps {
 	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
 
 	return ttsFullDeps{
-		store:  pgadapter.NewTemplateTypeSubscriptionStore(pool),
+		store:  pgadapter.NewTemplateTypeSubscriptionRepo(pool),
 		wsID:   ws.ID,
 		ttRepo: pgadapter.NewTemplateRepo(pool),
 	}
