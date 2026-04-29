@@ -5,15 +5,15 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ALTER TYPE suppression_reason ADD VALUE IF NOT EXISTS 'unsubscribe';
 
 -- 3. Per-workspace HMAC signing key for unsubscribe tokens.
+-- Use ADD COLUMN NOT NULL DEFAULT to atomically fill existing rows with
+-- unique random keys (gen_random_bytes is volatile, so each row gets its
+-- own value), then drop the default so future inserts must supply it
+-- explicitly via the application code path.
 ALTER TABLE workspaces
-    ADD COLUMN unsubscribe_signing_key BYTEA;
-
-UPDATE workspaces
-    SET unsubscribe_signing_key = gen_random_bytes(32)
-    WHERE unsubscribe_signing_key IS NULL;
+    ADD COLUMN unsubscribe_signing_key BYTEA NOT NULL DEFAULT gen_random_bytes(32);
 
 ALTER TABLE workspaces
-    ALTER COLUMN unsubscribe_signing_key SET NOT NULL;
+    ALTER COLUMN unsubscribe_signing_key DROP DEFAULT;
 
 ALTER TABLE workspaces
     ADD CONSTRAINT workspaces_unsubscribe_signing_key_len
