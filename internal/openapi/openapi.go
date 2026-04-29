@@ -52,6 +52,7 @@ func RegisteredRoutes() ([]Route, error) {
 		sendahttp.WithAdapterSetupHandler(&handler.AdapterSetupHandler{}),
 		sendahttp.WithTemplateTypeHandler(&handler.TemplateTypeHandler{}),
 		sendahttp.WithTemplateHandler(&handler.TemplateHandler{}),
+		sendahttp.WithTemplateScreenshotHandler(&handler.TemplateScreenshotHandler{}),
 		sendahttp.WithSendHandler(&handler.SendHandler{}),
 		sendahttp.WithEmailHandler(&handler.EmailHandler{}),
 		sendahttp.WithDataPlaneEmailHandler(&handler.DataPlaneEmailHandler{}),
@@ -230,6 +231,16 @@ func buildOperationDoc(route Route) operationDoc {
 		doc.SuccessType = "DocHealthResponse"
 	}
 
+	// Screenshot endpoint returns raw PNG bytes — no JSON body, no JSON response.
+	if strings.HasSuffix(normalized, "/screenshot") && route.Method == "GET" {
+		doc.Produce = "png"
+		doc.SuccessKind = "string"
+		doc.SuccessType = "string"
+		doc.AcceptJSON = false
+		doc.BodyType = ""
+		doc.BodyRequired = false
+	}
+
 	return doc
 }
 
@@ -283,6 +294,14 @@ func routeParameters(route Route) []operationParam {
 		})
 	}
 
+	if strings.HasSuffix(NormalizeEchoPath(route.Path), "/screenshot") && route.Method == "GET" {
+		params = append(params,
+			operationParam{Name: "viewport", In: "query", Type: "string", Required: false, Description: "desktop or mobile (default desktop)"},
+			operationParam{Name: "version_id", In: "query", Type: "string", Required: false, Description: "specific TemplateVersion UUID; default = latest published"},
+			operationParam{Name: "locale", In: "query", Type: "string", Required: false, Description: "TemplateVersionLocale code; default = version's default_locale"},
+		)
+	}
+
 	return params
 }
 
@@ -307,6 +326,7 @@ func routeSupportsCursor(route Route) bool {
 		strings.HasSuffix(normalized, "/dashboard-stats"),
 		strings.HasSuffix(normalized, "/setup-guide"),
 		strings.HasSuffix(normalized, "/status"),
+		strings.HasSuffix(normalized, "/screenshot"),
 		normalized == "/api/v1/members/me":
 		return false
 	}
