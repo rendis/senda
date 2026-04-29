@@ -10,6 +10,7 @@ import (
 	cdp "github.com/chromedp/chromedp"
 
 	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/internal/metrics"
 )
 
 // ErrPoolStopped is returned by Acquire after Stop has been called.
@@ -107,6 +108,7 @@ func (p *Pool) Restart() {
 		p.allocCtx = nil
 		p.allocCancel = nil
 		p.logger.Warn("chromedp allocator restarted")
+		metrics.ScreenshotBrowserRestarts.WithLabelValues("crash").Inc()
 	}
 }
 

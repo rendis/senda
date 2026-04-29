@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	cdp "github.com/chromedp/chromedp"
 
 	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/internal/metrics"
 	"github.com/rendis/senda/internal/port"
 )
 
@@ -33,14 +35,28 @@ func (c *Capturer) Capture(ctx context.Context, html string, vp port.Viewport, m
 		return nil, errors.New("chromedp: empty html")
 	}
 
+	started := time.Now()
+	outcome := "error"
+	defer func() {
+		metrics.ScreenshotCaptureDuration.WithLabelValues(vp.Name, outcome).Observe(time.Since(started).Seconds())
+	}()
+
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
 	defer cancel()
 
+	waitStart := time.Now()
 	release, err := c.pool.Acquire(ctx)
+	metrics.ScreenshotQueueWait.Observe(time.Since(waitStart).Seconds())
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			outcome = "timeout"
+		}
 		return nil, fmt.Errorf("chromedp: acquire: %w", err)
 	}
 	defer release()
+
+	metrics.ScreenshotInFlight.Inc()
+	defer metrics.ScreenshotInFlight.Dec()
 
 	allocCtx, err := c.pool.AllocatorContext(ctx)
 	if err != nil {
@@ -90,8 +106,13 @@ func (c *Capturer) Capture(ctx context.Context, html string, vp port.Viewport, m
 		if isFatal(err) {
 			c.pool.Restart()
 		}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			outcome = "timeout"
+		}
 		return nil, fmt.Errorf("chromedp: capture: %w", err)
 	}
+	outcome = "ok"
+	metrics.ScreenshotPNGSize.WithLabelValues(vp.Name).Observe(float64(len(png)))
 	return png, nil
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -42,25 +43,44 @@ type TemplateScreenshotService struct {
 	compiler port.TemplateCompiler
 	capturer port.ScreenshotCapture
 	cfg      config.ScreenshotConfig
+	logger   *slog.Logger
 }
 
 // NewTemplateScreenshotService wires the service.
+// logger may be nil; slog.Default() is used in that case.
 func NewTemplateScreenshotService(
 	store TemplateScreenshotStore,
 	compiler port.TemplateCompiler,
 	capturer port.ScreenshotCapture,
 	cfg config.ScreenshotConfig,
+	logger *slog.Logger,
 ) *TemplateScreenshotService {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &TemplateScreenshotService{
 		store:    store,
 		compiler: compiler,
 		capturer: capturer,
 		cfg:      cfg,
+		logger:   logger,
 	}
 }
 
 // Capture orchestrates resolution → compile → screenshot.
-func (s *TemplateScreenshotService) Capture(ctx context.Context, in ScreenshotInput) ([]byte, error) {
+func (s *TemplateScreenshotService) Capture(ctx context.Context, in ScreenshotInput) (out []byte, rerr error) {
+	defer func() {
+		if rerr != nil {
+			s.logger.ErrorContext(ctx, "template_screenshot.failed",
+				"template_id", in.TemplateID,
+				"viewport", in.Viewport,
+				"locale", in.Locale,
+				"error_code", screenshotErrorCode(rerr),
+				"error", rerr.Error(),
+			)
+		}
+	}()
+
 	if !s.cfg.Enabled {
 		return nil, ErrScreenshotDisabled
 	}
@@ -126,7 +146,38 @@ func (s *TemplateScreenshotService) Capture(ctx context.Context, in ScreenshotIn
 		}
 		return nil, errors.Join(ErrScreenshotInternal, err)
 	}
+
+	s.logger.InfoContext(ctx, "template_screenshot.captured",
+		"template_id", in.TemplateID,
+		"viewport", in.Viewport,
+		"locale", in.Locale,
+		"png_size_bytes", len(png),
+	)
 	return png, nil
+}
+
+// screenshotErrorCode maps a sentinel error to a string code for structured logs.
+func screenshotErrorCode(err error) string {
+	switch {
+	case errors.Is(err, ErrScreenshotDisabled):
+		return "SCREENSHOT_DISABLED"
+	case errors.Is(err, ErrInvalidViewport):
+		return "INVALID_VIEWPORT"
+	case errors.Is(err, ErrScreenshotBusy):
+		return "SCREENSHOT_BUSY"
+	case errors.Is(err, ErrScreenshotTimeout):
+		return "SCREENSHOT_TIMEOUT"
+	case errors.Is(err, domain.ErrTemplateNotFound):
+		return "TEMPLATE_NOT_FOUND"
+	case errors.Is(err, domain.ErrTemplateDisabled):
+		return "TEMPLATE_DISABLED"
+	case errors.Is(err, domain.ErrNoPublishedVersion):
+		return "NO_PUBLISHED_VERSION"
+	case errors.Is(err, ErrScreenshotInternal):
+		return "SCREENSHOT_INTERNAL"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 func (s *TemplateScreenshotService) viewportFor(name string) (port.Viewport, error) {

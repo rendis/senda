@@ -318,7 +318,7 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 	apiKeySvc := service.NewAPIKeyService(repos.apiKeyRepo, deriveAPIKeyPepper(cfg.Crypto.MasterKey))
 	templateTypeSvc := service.NewTemplateTypeService(repos.templateRepo)
 	templateSvc := service.NewTemplateService(repos.templateRepo, infra.compiler)
-	templateScreenshotSvc := service.NewTemplateScreenshotService(repos.templateRepo, infra.compiler, infra.screenshotCapturer, cfg.Screenshot)
+	templateScreenshotSvc := service.NewTemplateScreenshotService(repos.templateRepo, infra.compiler, infra.screenshotCapturer, cfg.Screenshot, logger)
 	onboardingSvc := service.NewOnboardingService(pool, repos.memberRepo, repos.tenantRepo, repos.workspaceRepo, repos.auditRepo)
 
 	return serviceBundle{

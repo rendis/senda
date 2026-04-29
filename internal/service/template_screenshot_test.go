@@ -83,7 +83,7 @@ func TestScreenshot_LatestPublished_Desktop(t *testing.T) {
 	cap := &stubCapturer{out: []byte{0x89, 0x50, 0x4e, 0x47}}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280, MobileWidthPx: 390}
 
-	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg)
+	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg, nil)
 
 	out, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: tplID, Viewport: "desktop",
@@ -105,7 +105,7 @@ func TestScreenshot_Mobile_UsesMobilePreset(t *testing.T) {
 	compiler := &stubCompiler{html: "<html/>"}
 	cap := &stubCapturer{out: []byte("png")}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280, MobileWidthPx: 390}
-	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg)
+	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: store.tpl.ID, Viewport: "mobile",
@@ -123,7 +123,7 @@ func TestScreenshot_NoPublished_ReturnsErrNoPublishedVersion(t *testing.T) {
 		pubErr: domain.ErrNoPublishedVersion,
 	}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280}
-	svc := service.NewTemplateScreenshotService(store, &stubCompiler{}, &stubCapturer{}, cfg)
+	svc := service.NewTemplateScreenshotService(store, &stubCompiler{}, &stubCapturer{}, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: store.tpl.ID, Viewport: "desktop",
@@ -136,7 +136,7 @@ func TestScreenshot_TemplateDisabled_ReturnsConflict(t *testing.T) {
 		tpl: &domain.Template{ID: uuid.New(), IsDisabled: true},
 	}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280}
-	svc := service.NewTemplateScreenshotService(store, &stubCompiler{}, &stubCapturer{}, cfg)
+	svc := service.NewTemplateScreenshotService(store, &stubCompiler{}, &stubCapturer{}, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: store.tpl.ID, Viewport: "desktop",
@@ -158,7 +158,7 @@ func TestScreenshot_LocaleOverride(t *testing.T) {
 	compiler := &stubCompiler{html: "<html/>"}
 	cap := &stubCapturer{out: []byte("png")}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280, MobileWidthPx: 390}
-	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg)
+	svc := service.NewTemplateScreenshotService(store, compiler, cap, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: tplID, Viewport: "desktop", Locale: "es",
@@ -168,7 +168,7 @@ func TestScreenshot_LocaleOverride(t *testing.T) {
 
 func TestScreenshot_Disabled_ReturnsErrDisabled(t *testing.T) {
 	cfg := config.ScreenshotConfig{Enabled: false}
-	svc := service.NewTemplateScreenshotService(nil, nil, nil, cfg)
+	svc := service.NewTemplateScreenshotService(nil, nil, nil, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{Viewport: "desktop"})
 	require.ErrorIs(t, err, service.ErrScreenshotDisabled)
@@ -176,7 +176,7 @@ func TestScreenshot_Disabled_ReturnsErrDisabled(t *testing.T) {
 
 func TestScreenshot_InvalidViewport(t *testing.T) {
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280, MobileWidthPx: 390}
-	svc := service.NewTemplateScreenshotService(nil, nil, nil, cfg)
+	svc := service.NewTemplateScreenshotService(nil, nil, nil, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{Viewport: "tablet"})
 	require.ErrorIs(t, err, service.ErrInvalidViewport)
@@ -189,7 +189,7 @@ func TestScreenshot_CapturerError_PropagatesAsInternal(t *testing.T) {
 	}
 	cap := &stubCapturer{err: errors.New("browser crashed")}
 	cfg := config.ScreenshotConfig{Enabled: true, MaxHeightPx: 6000, DesktopWidthPx: 1280}
-	svc := service.NewTemplateScreenshotService(store, &stubCompiler{html: "<html/>"}, cap, cfg)
+	svc := service.NewTemplateScreenshotService(store, &stubCompiler{html: "<html/>"}, cap, cfg, nil)
 
 	_, err := svc.Capture(context.Background(), service.ScreenshotInput{
 		TemplateID: store.tpl.ID, Viewport: "desktop",
