@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -77,11 +77,6 @@ export function RoleEditor({
     currentRole ?? allowedRoles[0] ?? "workspace_viewer",
   );
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setSelectedRole(currentRole ?? allowedRoles[0] ?? "workspace_viewer");
-  }, [allowedRoles, currentRole, open]);
 
   const editorState = useMemo(
     () =>
