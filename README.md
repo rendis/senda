@@ -34,6 +34,7 @@ Most email products are either too simple for multi-tenant SaaS or too operation
 | Hierarchy | Scope resolution | Global → Tenant → `_system` → Workspace resolution with owned, inherited, and shared resources |
 | Environments | `prod` / `test` workspaces | One logical workspace, two operational environments with isolated runtime state |
 | Templates | Versioned + localized | Draft/published/archive lifecycle, locale overrides, exact version cloning |
+| Templates | Screenshot preview | Headless-Chromium PNG of any published template (desktop or mobile preset), surfaced as native MCP `ImageContent` so agents render it inline. Disabled by default, opt-in via `screenshot.enabled`. |
 | Providers | Adapter model | SES, Gmail, SMTP built in; adapter and identity sharing from `_system` |
 | Safety | Test recipient policy | `replace` or `append` safe-recipient behavior in `test` only |
 | External | Embeddable builder surface | Bootstrap, session, template editing, locale editing, preview, and test-send via external profiles |
@@ -186,6 +187,7 @@ Senda ships a dedicated MCP skill and OpenAPI-backed MCP server configuration.
 - Skill bundle: `skills/senda/`
 - Setup guide: `docs/mcp_setup.md`
 - OpenAPI-backed server name: `senda`
+- Image-aware: endpoints returning `image/png` (e.g. template screenshot) surface as native MCP `ImageContent` so capable clients render the image inline.
 
 For data-plane MCP usage, authenticate with a raw workspace API key such as `senda_prod_...` or `senda_test_...`.
 

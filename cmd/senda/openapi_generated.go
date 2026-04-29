@@ -1976,6 +1976,30 @@ func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspa
 // @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml [post]
 func doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml() {}
 
+// doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_screenshot auto-generated route documentation.
+// @Summary      GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      png
+// @Security     ManagementBearer
+// @Param        environment  path  string  true  "environment path parameter"
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        viewport  query  string  false  "desktop or mobile (default desktop)"
+// @Param        version_id  query  string  false  "specific TemplateVersion UUID; default = latest published"
+// @Param        locale  query  string  false  "TemplateVersionLocale code; default = version's default_locale"
+// @Success      200  {string}  string
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot [get]
+func doc_get_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_screenshot() {}
+
 // doc_post_api_v1_manage_environments_environment_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send auto-generated route documentation.
 // @Summary      POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send
 // @Description  Auto-generated route stub for OpenAPI + MCP discovery.
@@ -5002,6 +5026,29 @@ func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templa
 // @Failure      500  {object}  DocErrorResponse
 // @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml [post]
 func doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_preview_mjml() {}
+
+// doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_screenshot auto-generated route documentation.
+// @Summary      GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot
+// @Description  Auto-generated route stub for OpenAPI + MCP discovery.
+// @Tags         templates
+// @Produce      png
+// @Security     ManagementBearer
+// @Param        tenant_code  path  string  true  "tenant_code path parameter"
+// @Param        workspace_code  path  string  true  "workspace_code path parameter"
+// @Param        template_id  path  string  true  "template_id path parameter"
+// @Param        viewport  query  string  false  "desktop or mobile (default desktop)"
+// @Param        version_id  query  string  false  "specific TemplateVersion UUID; default = latest published"
+// @Param        locale  query  string  false  "TemplateVersionLocale code; default = version's default_locale"
+// @Success      200  {string}  string
+// @Failure      400  {object}  DocErrorResponse
+// @Failure      401  {object}  DocErrorResponse
+// @Failure      403  {object}  DocErrorResponse
+// @Failure      404  {object}  DocErrorResponse
+// @Failure      409  {object}  DocErrorResponse
+// @Failure      422  {object}  DocErrorResponse
+// @Failure      500  {object}  DocErrorResponse
+// @Router       /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot [get]
+func doc_get_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_screenshot() {}
 
 // doc_post_api_v1_manage_tenants_tenant_code_workspaces_workspace_code_templates_template_id_test_send auto-generated route documentation.
 // @Summary      POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send

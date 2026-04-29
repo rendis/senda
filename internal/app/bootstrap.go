@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rendis/senda/config"
+	chromedpadapter "github.com/rendis/senda/internal/adapter/chromedp"
 	cryptoadapter "github.com/rendis/senda/internal/adapter/crypto"
 	"github.com/rendis/senda/internal/adapter/mjml"
 	"github.com/rendis/senda/internal/adapter/oidcauth"
@@ -57,18 +58,21 @@ type serverHandlerBundle struct {
 	apiKeyHandler              *handler.APIKeyHandler
 	adapterSetupHandler        *handler.AdapterSetupHandler
 	sesWebhookHandler          *handler.SESWebhookHandler
-	trackingHandler            *handler.TrackingHandler
-	mediaHandler               *handler.MediaHandler
-	dashboardHandler           *handler.DashboardHandler
+	trackingHandler               *handler.TrackingHandler
+	mediaHandler                  *handler.MediaHandler
+	dashboardHandler              *handler.DashboardHandler
+	templateScreenshotHandler     *handler.TemplateScreenshotHandler
 }
 
 type infraBundle struct {
-	cache       *pgcache.PGCache
-	aesCrypto   port.Crypto
-	rateLimiter port.RateLimiter
-	compiler    port.TemplateCompiler
-	renderer    port.VariableRenderer
-	emailSender port.EmailSender
+	cache              *pgcache.PGCache
+	aesCrypto          port.Crypto
+	rateLimiter        port.RateLimiter
+	compiler           port.TemplateCompiler
+	renderer           port.VariableRenderer
+	emailSender        port.EmailSender
+	screenshotPool     *chromedpadapter.Pool
+	screenshotCapturer port.ScreenshotCapture
 }
 
 type repositoryBundle struct {
@@ -101,16 +105,17 @@ type resolutionBundle struct {
 }
 
 type serviceBundle struct {
-	webhookSvc       *service.WebhookService
-	identitySvc      *service.IdentityService
-	adapterAccessSvc *service.AdapterAccessService
-	sendSvc          *service.SendService
-	apiKeySvc        *service.APIKeyService
-	templateTypeSvc  *service.TemplateTypeService
-	templateSvc      *service.TemplateService
-	onboardingSvc    *service.OnboardingService
-	testSendSvc      *service.TestSendService
-	eventProcessor   *service.EventProcessor
+	webhookSvc           *service.WebhookService
+	identitySvc          *service.IdentityService
+	adapterAccessSvc     *service.AdapterAccessService
+	sendSvc              *service.SendService
+	apiKeySvc            *service.APIKeyService
+	templateTypeSvc      *service.TemplateTypeService
+	templateSvc          *service.TemplateService
+	onboardingSvc        *service.OnboardingService
+	testSendSvc          *service.TestSendService
+	eventProcessor       *service.EventProcessor
+	templateScreenshotSvc *service.TemplateScreenshotService
 }
 
 func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []sendahttp.ServerOption {
@@ -164,6 +169,7 @@ func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []s
 		tracking: handlers.trackingHandler,
 		media:    handlers.mediaHandler,
 	})...)
+	opts = append(opts, sendahttp.WithTemplateScreenshotHandler(handlers.templateScreenshotHandler))
 	return opts
 }
 
@@ -183,13 +189,25 @@ func newInfraBundle(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool)
 		logger.Info("no static email sender configured; send worker will resolve adapter senders at runtime")
 	}
 
+	var screenshotPool *chromedpadapter.Pool
+	var screenshotCapturer port.ScreenshotCapture
+	if cfg.Screenshot.Enabled {
+		screenshotPool = chromedpadapter.New(cfg.Screenshot, logger)
+		screenshotCapturer = chromedpadapter.NewCapturer(screenshotPool, cfg.Screenshot)
+		logger.Info("screenshot adapter enabled", "chromium_path", cfg.Screenshot.ChromiumPath, "max_concurrent", cfg.Screenshot.MaxConcurrent)
+	} else {
+		logger.Info("screenshot adapter disabled (set screenshot.enabled=true to enable)")
+	}
+
 	return &infraBundle{
-		cache:       cache,
-		aesCrypto:   aesCrypto,
-		rateLimiter: postgres.NewProviderRateLimiter(pool),
-		compiler:    mjml.NewCompiler(mjml.WithPublicBaseURL(cfg.Tracking.BaseURL)),
-		renderer:    service.NewVariableRenderer(),
-		emailSender: emailSender,
+		cache:              cache,
+		aesCrypto:          aesCrypto,
+		rateLimiter:        postgres.NewProviderRateLimiter(pool),
+		compiler:           mjml.NewCompiler(mjml.WithPublicBaseURL(cfg.Tracking.BaseURL)),
+		renderer:           service.NewVariableRenderer(),
+		emailSender:        emailSender,
+		screenshotPool:     screenshotPool,
+		screenshotCapturer: screenshotCapturer,
 	}, nil
 }
 
@@ -300,6 +318,7 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 	apiKeySvc := service.NewAPIKeyService(repos.apiKeyRepo, deriveAPIKeyPepper(cfg.Crypto.MasterKey))
 	templateTypeSvc := service.NewTemplateTypeService(repos.templateRepo)
 	templateSvc := service.NewTemplateService(repos.templateRepo, infra.compiler)
+	templateScreenshotSvc := service.NewTemplateScreenshotService(repos.templateRepo, infra.compiler, infra.screenshotCapturer, cfg.Screenshot, logger)
 	onboardingSvc := service.NewOnboardingService(pool, repos.memberRepo, repos.tenantRepo, repos.workspaceRepo, repos.auditRepo)
 
 	return serviceBundle{
@@ -323,7 +342,8 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 			repos.tenantRepo,
 			repos.workspaceRepo,
 		),
-		eventProcessor: service.NewEventProcessor(repos.emailRepo, repos.emailRepo, repos.suppressionRepo, webhookSvc, logger),
+		eventProcessor:        service.NewEventProcessor(repos.emailRepo, repos.emailRepo, repos.suppressionRepo, webhookSvc, logger),
+		templateScreenshotSvc: templateScreenshotSvc,
 	}
 }
 
@@ -373,6 +393,7 @@ func newServerHandlerBundle(
 	adapterH := handler.NewAdapterHandler(repos.adapterRepo, infra.aesCrypto, repos.tenantRepo, repos.workspaceRepo, river.NewAdapterSenderFactory(smtpPolicy), repos.adapterIdentityRepo, trackingProvisioner, logger)
 	templateTypeH := handler.NewTemplateTypeHandler(services.templateTypeSvc, repos.tenantRepo, repos.workspaceRepo, resolvers.cacheInvalidator)
 	templateH := handler.NewTemplateHandler(services.templateSvc, repos.templateRepo, repos.tenantRepo, repos.workspaceRepo, services.testSendSvc, services.sendSvc, repos.auditRepo, cfg.Send.BatchMaxItems, resolvers.injectorMerger, resolvers.cacheInvalidator)
+	templateScreenshotH := handler.NewTemplateScreenshotHandler(services.templateScreenshotSvc)
 	sendH := handler.NewSendHandler(services.sendSvc, cfg.Send.BatchMaxItems)
 	emailH := handler.NewEmailHandler(repos.emailRepo, repos.tenantRepo, repos.workspaceRepo)
 	dataPlaneEmailH := handler.NewDataPlaneEmailHandler(repos.emailRepo)
@@ -427,8 +448,9 @@ func newServerHandlerBundle(
 		apiKeyHandler:              apiKeyH,
 		adapterSetupHandler:        adapterSetupH,
 		sesWebhookHandler:          sesWebhookHandler,
-		trackingHandler:            handler.NewTrackingHandler(ctx, repos.emailRepo, services.eventProcessor, logger),
-		mediaHandler:               buildMediaHandler(cfg, logger),
-		dashboardHandler:           dashboardH,
+		trackingHandler:           handler.NewTrackingHandler(ctx, repos.emailRepo, services.eventProcessor, logger),
+		mediaHandler:              buildMediaHandler(cfg, logger),
+		dashboardHandler:          dashboardH,
+		templateScreenshotHandler: templateScreenshotH,
 	}, nil
 }

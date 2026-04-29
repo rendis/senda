@@ -759,6 +759,86 @@ pnpm --dir web lint          # ESLint
 
 ---
 
+## Skill Maintenance (`skills/senda/`)
+
+The `skills/senda/` bundle is the **agent-facing contract** that describes how
+Senda is operated and extended. Out-of-date skill content silently breaks
+agent automations, MCP-driven scripts, and external integrators that follow
+the same docs. Treat it as a first-class artifact, not as ancillary
+documentation.
+
+### Hard rule — visual builder components
+
+If you add, rename, remove, or change the MJML output of a component in the
+visual template builder (`web/src/components/templates/mjml-editor.tsx`,
+`text-block-mjml.ts`, `video-block.ts`, etc.), you MUST update
+`skills/senda/references/building-a-template.md` in the same PR:
+
+- Update the component list in "Engine and version".
+- Add/replace the copy-paste MJML block under "Block catalog".
+- Update the example template if applicable.
+
+The same rule applies to the variable engine
+(`internal/service/variable_renderer.go`): any new namespace or operator
+must be reflected in the builder reference and in
+`versions-locales-and-builder.md`.
+
+### General rule — before closing any task
+
+Before declaring a task complete (and before opening a PR), evaluate whether
+the change requires a skill update. Ask:
+
+> "If a fresh agent reads `skills/senda/` after this PR is merged, will it
+> still get a correct picture of how to operate Senda?"
+
+If the answer is anything except a confident "yes", update the skill in the
+same PR. The rule overrides "the skill is doc, I'll update it later" — every
+later invariably becomes a P2 bug a reviewer catches in production.
+
+### Decision table — when to update the skill
+
+| Change in this PR touches… | Update? | Files most likely to change |
+|---|---|---|
+| HTTP route registered/removed/renamed (`internal/http/routes_*.go`) | **Yes** | the matching domain reference + `operating-via-mcp.md` |
+| Request/response struct (`internal/http/request/*`, `internal/http/response/*`) | **Yes** | the matching domain reference (body/response shape) |
+| Domain enum or status value (e.g. `AdapterType`, `VersionStatus`, role) | **Yes** | every reference that lists those values |
+| RBAC middleware or `RequireRole` change | **Yes** | `rbac-and-members.md` matrix |
+| Workspace policy added/changed | **Yes** | `management-tenants-workspaces.md` and any reference that mentions it |
+| Resolution chain or precedence in `internal/resolution/` | **Yes** | `resolution-and-inheritance.md`, `injectors.md`, `templates-types-and-templates.md` |
+| Variable renderer namespaces or syntax | **Yes** | `building-a-template.md`, `versions-locales-and-builder.md` |
+| Visual builder block (add/rename/MJML output) | **Yes** | `building-a-template.md` |
+| External integration capability or auth flow | **Yes** | `external-integration.md` |
+| API key / send-flow error code or message | **Yes** | `operating-via-mcp.md`, `api-keys-and-data-plane.md` |
+| Webhook signing, headers, or event topics | **Yes** | `webhooks-and-events.md` |
+| SDK public types in `sdk/` | **Yes** | `sdk-extension-points.md` |
+| New scope/environment behavior | **Yes** | `platform-overview.md`, `resolution-and-inheritance.md` |
+| Internal refactor, no public contract change | No | — |
+| Pure perf optimization / index addition | No | — |
+| Test-only changes | No | — |
+| Frontend-only styling / a11y / copy that does not change MJML output | No | — |
+| Bug fix that aligns the implementation with documented behavior | No | — (the skill was already correct) |
+| Bug fix that diverges from documented behavior | **Yes** | the reference that documented the prior behavior |
+
+When in doubt, open `skills/senda/SKILL.md` plus the domain reference for the
+area you touched. Diff what the skill claims against what the code now does.
+If they disagree, the skill is the one that has to move.
+
+### Verification checklist (skill PRs)
+
+For changes that touch `skills/senda/`:
+
+- `SKILL.md` reference loader still lists every file in `references/`.
+- No reference points at a deleted file.
+- No reference advertises an endpoint, error code, or field name that does
+  not exist in the current handlers/responses.
+- For new public MJML blocks: included in `building-a-template.md` with a
+  copy-paste snippet.
+
+If a reviewer later finds skill drift, treat it as a regression and open a
+follow-up PR with the same priority as a code bug.
+
+---
+
 ## Spec Section Quick Reference
 
 | Section | Content                            |

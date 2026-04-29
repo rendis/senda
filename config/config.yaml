@@ -74,6 +74,43 @@ sns:
   # Env: SENDA_SNS_REPLAY_WINDOW
   replay_window: "15m"
 
+screenshot:
+  # Enable headless-browser screenshot capture for template previews.
+  # Env: SENDA_SCREENSHOT_ENABLED
+  enabled: false
+
+  # Path to the Chromium / headless-shell binary.
+  # Env: SENDA_SCREENSHOT_CHROMIUM_PATH
+  chromium_path: /headless-shell/headless-shell
+
+  # Maximum time allowed for a single screenshot render.
+  # Env: SENDA_SCREENSHOT_TIMEOUT
+  timeout: 15s
+
+  # Maximum time allowed for the browser process to start.
+  # Env: SENDA_SCREENSHOT_STARTUP_TIMEOUT
+  startup_timeout: 5s
+
+  # Maximum rendered page height in pixels (prevents runaway allocations).
+  # Env: SENDA_SCREENSHOT_MAX_HEIGHT_PX
+  max_height_px: 6000
+
+  # Maximum number of concurrent screenshot renders.
+  # Env: SENDA_SCREENSHOT_MAX_CONCURRENT
+  max_concurrent: 4
+
+  # Viewport width used for desktop previews.
+  # Env: SENDA_SCREENSHOT_DESKTOP_WIDTH_PX
+  desktop_width_px: 1280
+
+  # Viewport width used for mobile previews.
+  # Env: SENDA_SCREENSHOT_MOBILE_WIDTH_PX
+  mobile_width_px: 390
+
+  # How long an idle browser instance is kept alive before being recycled.
+  # Env: SENDA_SCREENSHOT_IDLE_TIMEOUT
+  idle_timeout: 5m
+
 log:
   # Log level: debug, info, warn, error
   level: "info"

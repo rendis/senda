@@ -9075,6 +9075,103 @@ paths:
             summary: POST /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml
             tags:
                 - templates
+    /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot:
+        get:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: environment path parameter
+                  in: path
+                  name: environment
+                  required: true
+                  schema:
+                    type: string
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: template_id path parameter
+                  in: path
+                  name: template_id
+                  required: true
+                  schema:
+                    type: string
+                - description: desktop or mobile (default desktop)
+                  in: query
+                  name: viewport
+                  schema:
+                    type: string
+                - description: specific TemplateVersion UUID; default = latest published
+                  in: query
+                  name: version_id
+                  schema:
+                    type: string
+                - description: TemplateVersionLocale code; default = version's default_locale
+                  in: query
+                  name: locale
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        image/png:
+                            schema:
+                                type: string
+                    description: OK
+                "400":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: GET /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot
+            tags:
+                - templates
     /api/v1/manage/environments/{environment}/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send:
         post:
             description: Auto-generated route stub for OpenAPI + MCP discovery.
@@ -20338,6 +20435,97 @@ paths:
             security:
                 - ManagementBearer: []
             summary: POST /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/preview-mjml
+            tags:
+                - templates
+    /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot:
+        get:
+            description: Auto-generated route stub for OpenAPI + MCP discovery.
+            parameters:
+                - description: tenant_code path parameter
+                  in: path
+                  name: tenant_code
+                  required: true
+                  schema:
+                    type: string
+                - description: workspace_code path parameter
+                  in: path
+                  name: workspace_code
+                  required: true
+                  schema:
+                    type: string
+                - description: template_id path parameter
+                  in: path
+                  name: template_id
+                  required: true
+                  schema:
+                    type: string
+                - description: desktop or mobile (default desktop)
+                  in: query
+                  name: viewport
+                  schema:
+                    type: string
+                - description: specific TemplateVersion UUID; default = latest published
+                  in: query
+                  name: version_id
+                  schema:
+                    type: string
+                - description: TemplateVersionLocale code; default = version's default_locale
+                  in: query
+                  name: locale
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        image/png:
+                            schema:
+                                type: string
+                    description: OK
+                "400":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unauthorized
+                "403":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Forbidden
+                "404":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Conflict
+                "422":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Unprocessable Entity
+                "500":
+                    content:
+                        image/png:
+                            schema:
+                                $ref: '#/components/schemas/cmd_senda.DocErrorResponse'
+                    description: Internal Server Error
+            security:
+                - ManagementBearer: []
+            summary: GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot
             tags:
                 - templates
     /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/test-send:

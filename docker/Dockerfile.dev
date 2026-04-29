@@ -1,6 +1,6 @@
 FROM golang:1.26-alpine
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git chromium ttf-freefont
 
 RUN go install github.com/air-verse/air@latest
 

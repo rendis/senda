@@ -7,12 +7,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/rendis/senda/config"
+	chromedpadapter "github.com/rendis/senda/internal/adapter/chromedp"
 	"github.com/rendis/senda/internal/adapter/pgcache"
 	"github.com/rendis/senda/internal/adapter/postgres"
 	"github.com/rendis/senda/internal/adapter/river"
@@ -22,10 +24,11 @@ import (
 
 // App holds the top-level application components for lifecycle management.
 type App struct {
-	Server      *sendahttp.Server
-	RiverClient *river.Client
-	Pool        *pgxpool.Pool
-	cache       *pgcache.PGCache
+	Server         *sendahttp.Server
+	RiverClient    *river.Client
+	Pool           *pgxpool.Pool
+	cache          *pgcache.PGCache
+	screenshotPool *chromedpadapter.Pool
 }
 
 // Bootstrap wires all dependencies and returns a ready-to-start App.
@@ -109,10 +112,11 @@ func Bootstrap(ctx context.Context, cfg *config.Config, logger *slog.Logger, ext
 	srv := sendahttp.NewServer(cfg, logger, opts...)
 
 	return &App{
-		Server:      srv,
-		RiverClient: riverClient,
-		Pool:        pool,
-		cache:       infra.cache,
+		Server:         srv,
+		RiverClient:    riverClient,
+		Pool:           pool,
+		cache:          infra.cache,
+		screenshotPool: infra.screenshotPool,
 	}, nil
 }
 
@@ -132,6 +136,11 @@ func extExternalResolvers(ext *Extensions) []port.ExternalWorkspaceResolver {
 
 // Close gracefully shuts down app resources.
 func (a *App) Close(ctx context.Context) {
+	if a.screenshotPool != nil {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		_ = a.screenshotPool.Stop(shutdownCtx)
+	}
 	if a.RiverClient != nil {
 		if err := a.RiverClient.Stop(ctx); err != nil {
 			slog.Error("stopping river client", "error", err)

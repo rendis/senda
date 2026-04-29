@@ -75,6 +75,45 @@ var (
 		},
 		[]string{"tenant", "workspace", "signal_type"},
 	)
+
+	ScreenshotCaptureDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "senda_screenshot_capture_duration_seconds",
+			Help:    "End-to-end duration of template screenshot capture.",
+			Buckets: prometheus.ExponentialBuckets(0.1, 2, 8),
+		},
+		[]string{"viewport", "outcome"},
+	)
+
+	ScreenshotQueueWait = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "senda_screenshot_queue_wait_seconds",
+			Help:    "Time waiting for a free screenshot slot.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 8),
+		},
+	)
+
+	ScreenshotInFlight = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "senda_screenshot_in_flight",
+		Help: "Concurrent screenshot captures in progress.",
+	})
+
+	ScreenshotBrowserRestarts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "senda_screenshot_browser_restarts_total",
+			Help: "Number of times the chromedp allocator was restarted.",
+		},
+		[]string{"reason"},
+	)
+
+	ScreenshotPNGSize = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "senda_screenshot_png_bytes",
+			Help:    "Size of captured PNGs in bytes.",
+			Buckets: prometheus.ExponentialBuckets(10000, 2, 8),
+		},
+		[]string{"viewport"},
+	)
 )
 
 // Register registers all Senda metrics with the default Prometheus registry.
@@ -83,5 +122,7 @@ func Register() {
 		EmailsEnqueued, EmailsSent, EmailsFailed, EmailSendDuration,
 		HTTPRequestDuration, HTTPRequestsTotal,
 		QueueDepth, ProviderErrors, NegativeSignals,
+		ScreenshotCaptureDuration, ScreenshotQueueWait, ScreenshotInFlight,
+		ScreenshotBrowserRestarts, ScreenshotPNGSize,
 	)
 }
