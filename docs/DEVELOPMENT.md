@@ -4,7 +4,7 @@
 ## Prerequisites
 
 - Docker
-- Go 1.25+
+- Go 1.26+
 - Node 25.x (aligned with `web/.nvmrc`)
 - Make
 - Corepack (recommended for `pnpm`)

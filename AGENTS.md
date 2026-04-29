@@ -5,7 +5,7 @@
 Senda is an open-source email orchestration platform built with Go + PostgreSQL (no Redis). It implements hierarchical resolution across Global → Tenant → `_system` → Workspace, supports operational workspace environments `prod|test`, and exposes management, data-plane, external integration, and SDK embedding surfaces.
 
 - **Module:** `github.com/rendis/senda`
-- **Backend:** Go 1.25+ / PostgreSQL 16 + pg_cron / Echo v5 / River (PG-native queue) / pgx v5 / gomjml / golang-migrate
+- **Backend:** Go 1.26+ / PostgreSQL 16 + pg_cron / Echo v5 / River (PG-native queue) / pgx v5 / gomjml / golang-migrate
 - **Frontend:** Next.js 16 / React 19 / TypeScript 5 / Tailwind v4 / shadcn/ui (in `web/`)
 - **Architecture:** Hexagonal (Ports & Adapters) — domain has zero infra dependencies
 - **No Redis.** PG handles cache (UNLOGGED tables), rate limiting (PL/pgSQL token bucket), and job queue (River).

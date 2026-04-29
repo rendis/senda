@@ -68,7 +68,7 @@ Senda supports **selective sharing** from a tenant `_system` workspace:
 
 ## Quick Start
 
-**Prerequisites:** Docker, Go 1.25+, Node 25 (or `web/.nvmrc`), Make, Corepack.
+**Prerequisites:** Docker, Go 1.26+, Node 25 (or `web/.nvmrc`), Make, Corepack.
 
 ```bash
 git clone https://github.com/rendis/senda.git
