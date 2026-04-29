@@ -108,6 +108,16 @@ run_case fail-5 1 '<mj-body>
   <mj-section><mj-column><mj-text>hi</mj-text></mj-column></mj-section>
 </mj-body>' "document must start with <mjml>"
 
+run_case fail-3 1 '<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-raw><!DOCTYPE html><html><head></head><body>x</body></html></mj-raw>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>' "<mj-raw> is for small HTML snippets, not full documents"
+
 # ---- summary ----
 echo "---"
 echo "passed: $pass_count, failed: $fail_count"

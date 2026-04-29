@@ -27,6 +27,27 @@ fi
 
 violations=0
 
+# Pre-compute line ranges that fall inside <mj-raw>...</mj-raw> blocks.
+# Sets MJ_RAW_LINES (newline-separated list of line numbers inside any mj-raw).
+MJ_RAW_LINES=$(printf '%s\n' "$SRC" | awk '
+    BEGIN { depth = 0 }
+    {
+        line = $0
+        # naive: count opens and closes per line. Multiple per line ok.
+        opens = gsub(/<mj-raw[[:space:]>]/, "&", line)
+        closes = gsub(/<\/mj-raw>/, "&", line)
+        # If line opens a raw block, the line itself is "inside" from the open onward.
+        if (depth > 0 || opens > 0) print NR
+        depth += opens - closes
+        if (depth < 0) depth = 0
+    }
+')
+
+is_inside_mj_raw() {
+    local line="$1"
+    grep -qxF "$line" <<<"$MJ_RAW_LINES"
+}
+
 # Rules 1-5: forbidden HTML document tags.
 # Each rule: pattern, label, hint.
 report() {
@@ -34,6 +55,9 @@ report() {
     {
         echo "mjml-check: FAIL line $line: $label"
         echo "  $hint"
+        if is_inside_mj_raw "$line"; then
+            echo "  <mj-raw> is for small HTML snippets, not full documents."
+        fi
         echo "  See skills/senda/references/building-a-template.md \"Anti-pattern: HTML wrappers\"."
     } >&2
     violations=$((violations + 1))
