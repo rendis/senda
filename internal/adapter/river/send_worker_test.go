@@ -153,6 +153,10 @@ func (m *mockRenderer) Render(template string, injectors map[string]map[string]a
 	return template, nil
 }
 
+func (m *mockRenderer) RenderWithSystem(template string, injectors map[string]map[string]any, eventVars map[string]any, _ map[string]string) (string, error) {
+	return m.Render(template, injectors, eventVars)
+}
+
 type mockRateLimiter struct {
 	tryAcquireFn      func(ctx context.Context, adapterID uuid.UUID) (bool, error)
 	acquireBurstFn    func(ctx context.Context, adapterID uuid.UUID, requested int) (int, error)

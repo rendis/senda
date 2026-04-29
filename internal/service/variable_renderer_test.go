@@ -327,3 +327,19 @@ func TestRender_SystemPrefix_DelegatedFromRender(t *testing.T) {
 		t.Fatalf("legacy Render must resolve system vars to empty when none supplied, got %q", out)
 	}
 }
+
+func TestRender_SystemPrefix_PreservesAmpersandsInURLs(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `Click {{ system.unsubscribe_url }}`
+	systemVars := map[string]string{
+		"unsubscribe_url": "https://example.com/u/abc?token=xyz&signature=def&exp=1",
+	}
+	out, err := r.RenderWithSystem(body, nil, nil, systemVars)
+	if err != nil {
+		t.Fatalf("RenderWithSystem: %v", err)
+	}
+	want := `Click https://example.com/u/abc?token=xyz&signature=def&exp=1`
+	if out != want {
+		t.Fatalf("system var URL must be passed through unescaped\n want: %q\n got:  %q", want, out)
+	}
+}

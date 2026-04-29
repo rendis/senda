@@ -127,7 +127,15 @@ func resolveInjectorVar(injectors map[string]map[string]any, rest string) (strin
 	return fmt.Sprintf("%v", val), true
 }
 
-// resolveSystemVar returns systemVars[key], or empty string if nil or missing.
+// resolveSystemVar returns systemVars[key], or empty string when systemVars is
+// nil or the key is missing.
+//
+// SECURITY: system variables bypass HTML escaping by design (so signed URLs
+// containing "&" query separators survive intact). Callers MUST only pass
+// server-generated values such as signed unsubscribe URLs. Never pass
+// admin- or user-supplied strings (e.g. workspace_name) without sanitising
+// them first; otherwise this becomes an XSS vector when the body is rendered
+// as HTML.
 func resolveSystemVar(systemVars map[string]string, key string) string {
 	if systemVars == nil {
 		return ""
