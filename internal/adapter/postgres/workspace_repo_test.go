@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -577,5 +578,74 @@ func TestWorkspaceRepo_HasActiveExistenceLookupIndex(t *testing.T) {
 
 	if indexDef == "" {
 		t.Fatal("expected idx_workspaces_active_code_lookup index definition")
+	}
+}
+
+func TestWorkspaceRepo_Create_PopulatesSigningKey(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	repo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+
+	ws := &domain.Workspace{
+		ID:       uuid.New(),
+		TenantID: tenant.ID,
+		Code:     "key-ws-" + uuid.New().String()[:8],
+		Name:     "Test Key WS",
+	}
+	if err := repo.Create(ctx, ws); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	key, err := repo.GetUnsubscribeSigningKey(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("GetUnsubscribeSigningKey: %v", err)
+	}
+	if len(key) != 32 {
+		t.Fatalf("signing key must be 32 bytes, got %d", len(key))
+	}
+
+	// sanity: at least one nonzero byte (rejects all-zero bug)
+	nonzero := false
+	for _, b := range key {
+		if b != 0 {
+			nonzero = true
+			break
+		}
+	}
+	if !nonzero {
+		t.Fatal("signing key must contain random bytes, got all zeros")
+	}
+}
+
+func TestWorkspaceRepo_Create_GeneratesUniqueKeysAcrossWorkspaces(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	repo := pgadapter.NewWorkspaceRepo(pool)
+
+	tenant := createTestTenant(ctx, t, tenantRepo)
+
+	keys := make(map[string]struct{})
+	for i := range 3 {
+		ws := &domain.Workspace{
+			ID:       uuid.New(),
+			TenantID: tenant.ID,
+			Code:     fmt.Sprintf("uniq-%d-%s", i, uuid.New().String()[:8]),
+			Name:     fmt.Sprintf("Uniq %d", i),
+		}
+		if err := repo.Create(ctx, ws); err != nil {
+			t.Fatalf("Create %d: %v", i, err)
+		}
+		key, err := repo.GetUnsubscribeSigningKey(ctx, ws.ID)
+		if err != nil {
+			t.Fatalf("GetUnsubscribeSigningKey %d: %v", i, err)
+		}
+		keys[string(key)] = struct{}{}
+	}
+	if len(keys) != 3 {
+		t.Fatalf("expected 3 unique keys, got %d", len(keys))
 	}
 }

@@ -281,6 +281,9 @@ func (m *mockWorkspaceStoreOnboarding) SoftDelete(ctx context.Context, id uuid.U
 	}
 	return nil
 }
+func (m *mockWorkspaceStoreOnboarding) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 type mockAuditLogStoreOnboarding struct {
 	appendFn func(ctx context.Context, entry *domain.AuditLog) error

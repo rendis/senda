@@ -86,6 +86,9 @@ func (m *mockWorkspaceStoreSend) SoftDeleteLogical(_ context.Context, _ uuid.UUI
 	return nil
 }
 func (m *mockWorkspaceStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStoreSend) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 type mockEmailStoreSend struct {
 	createFn     func(ctx context.Context, email *domain.Email) error

@@ -32,6 +32,10 @@ type WorkspaceStore interface {
 	Update(ctx context.Context, ws *domain.Workspace) error
 	SoftDeleteLogical(ctx context.Context, tenantID uuid.UUID, code string) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
+
+	// GetUnsubscribeSigningKey returns the 32-byte HMAC key used to sign and
+	// verify unsubscribe tokens for this workspace.
+	GetUnsubscribeSigningKey(ctx context.Context, workspaceID uuid.UUID) ([]byte, error)
 }
 
 // WorkspaceExistenceStore provides batch existence checks for tenant-scoped workspace codes.

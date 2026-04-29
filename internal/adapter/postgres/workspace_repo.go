@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"strings"
@@ -288,14 +289,21 @@ func insertWorkspace(ctx context.Context, q workspaceQuerier, ws *domain.Workspa
 		ws.Environment = domain.EnvironmentProd
 	}
 
+	signingKey := make([]byte, 32)
+	if _, err := rand.Read(signingKey); err != nil {
+		return fmt.Errorf("workspace: generate signing key: %w", err)
+	}
+
 	row := q.QueryRow(ctx,
 		`INSERT INTO workspaces (
 		    id, logical_workspace_id, tenant_id, code, name, environment, is_system, open_tracking_enabled, default_locale, test_recipient_mode, test_recipient_addresses,
-		    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
+		    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
+		    unsubscribe_signing_key
 		)
 		 VALUES (
 		    @id, @logical_workspace_id, @tenant_id, @code, @name, @environment, @is_system, @open_tracking_enabled, @default_locale, @test_recipient_mode, @test_recipient_addresses,
-		    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
+		    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors,
+		    @unsubscribe_signing_key
 		)
 		 RETURNING is_active, created_at, updated_at`,
 		pgx.NamedArgs{
@@ -313,6 +321,7 @@ func insertWorkspace(ctx context.Context, q workspaceQuerier, ws *domain.Workspa
 			"allow_workspace_local_templates": effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalTemplates, ws.WorkspacePoliciesInitialized),
 			"allow_workspace_inherited_template_forks": effectiveWorkspacePolicyValue(ws.AllowWorkspaceInheritedTemplateForks, ws.WorkspacePoliciesInitialized),
 			"allow_workspace_local_injectors":          effectiveWorkspacePolicyValue(ws.AllowWorkspaceLocalInjectors, ws.WorkspacePoliciesInitialized),
+			"unsubscribe_signing_key":                  signingKey,
 		},
 	)
 
@@ -325,6 +334,21 @@ func insertWorkspace(ctx context.Context, q workspaceQuerier, ws *domain.Workspa
 	ws.WorkspacePoliciesInitialized = true
 
 	return nil
+}
+
+func (r *WorkspaceRepo) GetUnsubscribeSigningKey(ctx context.Context, workspaceID uuid.UUID) ([]byte, error) {
+	var key []byte
+	err := r.pool.QueryRow(ctx,
+		`SELECT unsubscribe_signing_key FROM workspaces WHERE id = @id AND deleted_at IS NULL`,
+		pgx.NamedArgs{"id": workspaceID},
+	).Scan(&key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperr.NotFound("workspace %s not found", workspaceID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("workspace: load signing key: %w", err)
+	}
+	return key, nil
 }
 
 func scanWorkspace(row pgx.Row) (*domain.Workspace, error) {

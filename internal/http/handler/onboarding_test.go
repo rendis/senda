@@ -201,6 +201,9 @@ func (m *mockWorkspaceStoreOnb) SoftDeleteLogical(_ context.Context, _ uuid.UUID
 	return nil
 }
 func (m *mockWorkspaceStoreOnb) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStoreOnb) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 type mockAuditStoreOnb struct{}
 
