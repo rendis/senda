@@ -282,3 +282,48 @@ func TestVariableRenderer_Render_PlainText_NoEscaping(t *testing.T) {
 		t.Fatalf("expected %q, got %q", expected, result)
 	}
 }
+
+func TestRender_SystemPrefix(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `Hi {{ event.name }}, manage at {{ system.preferences_url }} or unsubscribe at {{ system.unsubscribe_url }}.`
+	injectors := map[string]map[string]any{}
+	eventVars := map[string]any{"name": "Juan"}
+	systemVars := map[string]string{
+		"unsubscribe_url": "https://x.test/api/v1/u/abc",
+		"preferences_url": "https://x.test/u/abc/preferences",
+	}
+	got, err := r.RenderWithSystem(body, injectors, eventVars, systemVars)
+	if err != nil {
+		t.Fatalf("RenderWithSystem: %v", err)
+	}
+	want := `Hi Juan, manage at https://x.test/u/abc/preferences or unsubscribe at https://x.test/api/v1/u/abc.`
+	if got != want {
+		t.Fatalf("\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
+func TestRender_SystemPrefix_MissingKeyResolvesEmpty(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `[{{ system.unknown }}]`
+	out, err := r.RenderWithSystem(body, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if out != `[]` {
+		t.Fatalf("expected empty replacement, got %q", out)
+	}
+}
+
+func TestRender_SystemPrefix_DelegatedFromRender(t *testing.T) {
+	// Verify that the legacy Render(body, injectors, eventVars) signature still works
+	// and returns no system substitutions when systemVars are not supplied.
+	r := service.NewVariableRenderer()
+	body := `[{{ system.unsubscribe_url }}]`
+	out, err := r.Render(body, nil, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if out != `[]` {
+		t.Fatalf("legacy Render must resolve system vars to empty when none supplied, got %q", out)
+	}
+}
