@@ -35,8 +35,8 @@ The master key is used to encrypt sensitive data at rest (adapter credentials, A
 | `SENDA_PORT`              | `8080`       | HTTP port                                        |
 | `SENDA_LOG_LEVEL`         | `info`       | Log level (`debug`, `info`, `warn`, `error`)     |
 | `SENDA_LOG_FORMAT`        | `json`       | Log format (`json`, `text`)                      |
-| `SENDA_SMTP_HOST`         | --           | SMTP server hostname (if using the SMTP adapter) |
-| `SENDA_SMTP_PORT`         | `1025`       | SMTP server port                                 |
+| `SENDA_SMTP_HOST`         | --           | Fallback static SMTP sender hostname for local/simple deployments |
+| `SENDA_SMTP_PORT`         | `1025`       | Fallback static SMTP sender port                 |
 | `SENDA_TRACKING_BASE_URL` | --           | Public base URL for email tracking. Enables open-tracking pixels, SES ConfigSet/SNS auto-provisioning, and SNS webhook URL. Unset = tracking disabled, auto-provisioning returns 501 |
 | `SENDA_MIGRATIONS_PATH`   | `migrations` | Path to SQL migration files inside the container |
 | `SENDA_SNS_SKIP_SIGNATURE_VERIFICATION` | `false` | Skip SNS signature verification (test-only; do not enable in production) |
@@ -117,7 +117,36 @@ Configure the adapter with an OAuth2 client ID, client secret, and refresh token
 
 ### SMTP
 
-Configure the adapter with the SMTP relay host and port. This is the most flexible option and works with any SMTP-compatible service (SendGrid, Postmark, Mailgun, self-hosted).
+Configure SMTP adapters with relay connection settings only. Sender addresses are not part of SMTP config; users create manual adapter identities for each sender email through the identities API or UI.
+
+```json
+{
+  "name": "SMTP Production",
+  "adapter_type": "smtp",
+  "config": {
+    "host": "smtp.example.com",
+    "port": 587,
+    "tls_mode": "starttls",
+    "auth_mode": "plain",
+    "username": "user-or-apikey",
+    "password": "secret"
+  },
+  "rate_limit_per_second": 10
+}
+```
+
+`tls_mode` accepts `none`, `starttls`, or `implicit_tls`. `auth_mode` is optional and accepts `plain` or `login`; credentials are optional, but `username` and `password` must be provided together when authentication is enabled. On update, omit `password` or send an empty password to keep the existing encrypted password.
+
+After creating the adapter, register sender identities separately:
+
+```json
+{
+  "identity": "noreply-senda@tether.education",
+  "display_name": "Senda"
+}
+```
+
+SMTP has no provider identity sync and no provider-domain verification. For tenant `_system` SMTP adapters, sharing is identity-scoped: child workspaces can use only granted manual email identities. Template types choose `sender_identity_id` for SMTP the same way they do for SES.
 
 ### Provider Selection
 

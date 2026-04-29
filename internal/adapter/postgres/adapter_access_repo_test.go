@@ -60,7 +60,15 @@ func TestAdapterGrantRepo_ListVisibleAdaptersForWorkspace_IncludesOwnedAndShared
 		ConfigEncrypted:    []byte("ses"),
 		RateLimitPerSecond: 10,
 	}
-	for _, adapter := range []*domain.Adapter{ownedAdapter, sharedGmail, sharedSES} {
+	sharedSMTP := &domain.Adapter{
+		ID:                 uuid.New(),
+		WorkspaceID:        &systemWS.ID,
+		Name:               "System SMTP",
+		AdapterType:        domain.AdapterTypeSMTP,
+		ConfigEncrypted:    []byte("smtp"),
+		RateLimitPerSecond: 10,
+	}
+	for _, adapter := range []*domain.Adapter{ownedAdapter, sharedGmail, sharedSES, sharedSMTP} {
 		if err := adapterRepo.Create(ctx, adapter); err != nil {
 			t.Fatalf("create adapter %s: %v", adapter.Name, err)
 		}
@@ -80,6 +88,20 @@ func TestAdapterGrantRepo_ListVisibleAdaptersForWorkspace_IncludesOwnedAndShared
 	if err := identityRepo.Create(ctx, emailIdentity); err != nil {
 		t.Fatalf("create email identity: %v", err)
 	}
+	smtpIdentity := &domain.AdapterIdentity{
+		ID:             uuid.New(),
+		AdapterID:      sharedSMTP.ID,
+		Identity:       "smtp@example.dev",
+		IdentityType:   domain.IdentityTypeEmail,
+		Status:         domain.IdentityStatusVerified,
+		SendingEnabled: true,
+		Source:         domain.IdentitySourceManual,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if err := identityRepo.Create(ctx, smtpIdentity); err != nil {
+		t.Fatalf("create smtp identity: %v", err)
+	}
 
 	if err := grantRepo.ReplaceAdapterWorkspaceGrants(ctx, sharedGmail.ID, []uuid.UUID{workspace.ID}); err != nil {
 		t.Fatalf("grant gmail adapter: %v", err)
@@ -87,13 +109,16 @@ func TestAdapterGrantRepo_ListVisibleAdaptersForWorkspace_IncludesOwnedAndShared
 	if err := identityGrantRepo.ReplaceIdentityWorkspaceGrants(ctx, emailIdentity.ID, []uuid.UUID{workspace.ID}); err != nil {
 		t.Fatalf("grant ses identity: %v", err)
 	}
+	if err := identityGrantRepo.ReplaceIdentityWorkspaceGrants(ctx, smtpIdentity.ID, []uuid.UUID{workspace.ID}); err != nil {
+		t.Fatalf("grant smtp identity: %v", err)
+	}
 
 	page, err := grantRepo.ListVisibleAdaptersForWorkspace(ctx, workspace.ID, port.ListOptions{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListVisibleAdaptersForWorkspace() error: %v", err)
 	}
-	if len(page.Items) != 3 {
-		t.Fatalf("expected 3 visible adapters, got %d", len(page.Items))
+	if len(page.Items) != 4 {
+		t.Fatalf("expected 4 visible adapters, got %d", len(page.Items))
 	}
 
 	names := make([]string, 0, len(page.Items))
@@ -101,7 +126,7 @@ func TestAdapterGrantRepo_ListVisibleAdaptersForWorkspace_IncludesOwnedAndShared
 		names = append(names, item.Name)
 	}
 	sort.Strings(names)
-	expected := []string{"Owned Gmail", "System Gmail", "System SES"}
+	expected := []string{"Owned Gmail", "System Gmail", "System SES", "System SMTP"}
 	for i := range expected {
 		if names[i] != expected[i] {
 			t.Fatalf("expected visible adapters %v, got %v", expected, names)

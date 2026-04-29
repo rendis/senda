@@ -1,5 +1,6 @@
 /** Adapter types */
-export type AdapterType = "ses" | "gmail";
+export type AdapterType = "ses" | "gmail" | "smtp";
+export type SmtpTLSMode = "none" | "starttls" | "implicit_tls";
 
 /** Adapter record */
 export interface Adapter {
@@ -31,11 +32,21 @@ export interface GmailConfig {
   delegate_email: string;
 }
 
+/** SMTP adapter config (relay-only; sender identities are separate records) */
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  tls_mode: SmtpTLSMode;
+  auth_mode?: "plain" | "login";
+  username?: string;
+  password?: string;
+}
+
 /** Create adapter request */
 export interface CreateAdapterRequest {
   name: string;
   adapter_type: AdapterType;
-  config: SesConfig | GmailConfig;
+  config: SesConfig | GmailConfig | SmtpConfig;
   is_default?: boolean;
   rate_limit_per_second?: number;
 }
@@ -43,7 +54,7 @@ export interface CreateAdapterRequest {
 /** Update adapter request */
 export interface UpdateAdapterRequest {
   name?: string;
-  config?: SesConfig | GmailConfig;
+  config?: SesConfig | GmailConfig | SmtpConfig;
   is_default?: boolean;
   rate_limit_per_second?: number;
 }

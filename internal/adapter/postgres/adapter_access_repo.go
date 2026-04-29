@@ -87,7 +87,7 @@ func (r *AdapterGrantRepo) HasAdapterWorkspaceGrant(ctx context.Context, adapter
 }
 
 // ListVisibleAdaptersForWorkspace returns workspace-owned adapters plus system-owned adapters
-// shared either through adapter grants (Gmail) or identity grants (SES).
+// shared either through adapter grants (Gmail) or identity grants (SES/SMTP).
 func (r *AdapterGrantRepo) ListVisibleAdaptersForWorkspace(ctx context.Context, workspaceID uuid.UUID, opts port.ListOptions) (*port.PageResult[domain.Adapter], error) {
 	limit, afterID, err := ApplyPagination(opts)
 	if err != nil {
@@ -128,7 +128,7 @@ SELECT DISTINCT a.id, a.workspace_id, a.name, a.adapter_type, a.config_encrypted
            )
        )
        OR (
-           a.adapter_type = 'ses'
+           a.adapter_type IN ('ses', 'smtp')
            AND EXISTS (
                SELECT 1
                  FROM adapter_identities ai

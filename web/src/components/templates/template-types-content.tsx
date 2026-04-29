@@ -53,8 +53,14 @@ import {
 import type { TemplateType } from "@/types/templates";
 import type { Adapter } from "@/types/adapters";
 import { toast } from "sonner";
+import {
+  adapterUsesSenderIdentity,
+  requiresExplicitSenderIdentity,
+  resolveTemplateTypeSenderIdentityId,
+  SENDER_DEFAULT_VALUE,
+} from "./sender-identity-policy";
 
-const SENDER_DEFAULT = "__default__";
+const SENDER_DEFAULT = SENDER_DEFAULT_VALUE;
 const SENDER_NONE = "__none__";
 const TEST_RECIPIENT_INHERIT = "__inherit__";
 const SLUG_WARNING_LINES = [
@@ -279,11 +285,11 @@ function TemplateTypesTable() {
     if (!newSlug.trim() || !newName.trim()) return;
     try {
       const selectedAdapter = adapters.find((adapter) => adapter.id === newAdapterId);
-      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !newSenderIdentityId) {
+      if (requiresExplicitSenderIdentity(selectedAdapter) && !newSenderIdentityId) {
         toast.error(t("sharedSesRequiresIdentity"));
         return;
       }
-      const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
+      const senderIdValue = resolveTemplateTypeSenderIdentityId(newSenderIdentityId);
       const payload: Parameters<typeof createMutation.mutateAsync>[0] = {
         slug: newSlug.trim(),
         name: newName.trim(),
@@ -562,16 +568,18 @@ function EditTemplateTypeDialog({
 
     try {
       const selectedAdapter = adapters.find((adapter) => adapter.id === adapterId);
-      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !senderIdentityId) {
-        toast.error("Shared SES adapters require an explicit sender identity");
+      if (requiresExplicitSenderIdentity(selectedAdapter) && !senderIdentityId) {
+        toast.error("Shared SES/SMTP adapters require an explicit sender identity");
         return true;
       }
-      const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
+      const senderIdValue = resolveTemplateTypeSenderIdentityId(senderIdentityId, {
+        clearWithEmptyString: true,
+      });
       const payload: Parameters<typeof updateMutation.mutateAsync>[0] = {
         name: name.trim(),
         slug: slug.trim(),
         adapter_id: adapterId || undefined,
-        sender_identity_id: senderIdValue || undefined,
+        sender_identity_id: senderIdValue,
       };
       if (isTestEnvironment) {
         if (testRecipientMode === TEST_RECIPIENT_INHERIT) {
@@ -773,8 +781,8 @@ function AdapterSelect({
 }) {
   const scopedPath = useScopedPath();
   const selectedAdapter = adapters.find((a) => a.id === value);
-  const showIdentitySelect = !!selectedAdapter && selectedAdapter.adapter_type === "ses";
-  const requireExplicitSender = !!selectedAdapter && selectedAdapter.adapter_type === "ses" && selectedAdapter.is_shared;
+  const showIdentitySelect = adapterUsesSenderIdentity(selectedAdapter);
+  const requireExplicitSender = requiresExplicitSenderIdentity(selectedAdapter);
 
   return (
     <div className="flex flex-col gap-3">
@@ -859,7 +867,7 @@ function SenderIdentitySelect({
       </Select>
       <p className="text-xs text-muted-foreground">
         {requireExplicitSender
-          ? "Shared SES adapters require an explicit granted sender identity."
+          ? "Shared SES/SMTP adapters require an explicit granted sender identity."
           : "Choose which email address to send from. Add senders in the adapter&apos;s identity panel."}
       </p>
     </div>

@@ -15,6 +15,7 @@ import (
 
 	gmailadapter "github.com/rendis/senda/internal/adapter/gmail"
 	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/metrics"
 	"github.com/rendis/senda/internal/port"
@@ -42,6 +43,12 @@ func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, d
 			return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
 		}
 		return gmailadapter.NewAdapterFromConfig(ctx, cfg)
+	case domain.AdapterTypeSMTP:
+		var cfg smtpadapter.Config
+		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+			return nil, fmt.Errorf("%w: unmarshal SMTP config: %w", domain.ErrValidation, err)
+		}
+		return smtpadapter.NewAdapterFromConfig(cfg)
 	default:
 		return nil, fmt.Errorf("%w: unsupported adapter type %s", domain.ErrValidation, adapter.AdapterType)
 	}

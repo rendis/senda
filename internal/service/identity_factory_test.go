@@ -62,3 +62,38 @@ func TestIdentityService_SyncIdentities_UnsupportedAdapter(t *testing.T) {
 		t.Fatalf("expected unsupported-listing error, got %v", err)
 	}
 }
+
+func TestIdentityService_CreateManual_AllowsSMTPEmailWithoutProviderDomain(t *testing.T) {
+	adapterID := uuid.Must(uuid.NewV7())
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{ID: adapterID, AdapterType: domain.AdapterTypeSMTP}, nil
+		},
+	}
+	identityStore := &mockAdapterIdentityStoreSend{
+		createFn: func(_ context.Context, identity *domain.AdapterIdentity) error {
+			if identity.Identity != "noreply-senda@tether.education" {
+				t.Fatalf("identity = %q", identity.Identity)
+			}
+			if identity.IdentityType != domain.IdentityTypeEmail {
+				t.Fatalf("identity type = %q", identity.IdentityType)
+			}
+			if identity.Source != domain.IdentitySourceManual {
+				t.Fatalf("source = %q", identity.Source)
+			}
+			return nil
+		},
+	}
+	svc := service.NewIdentityService(identityStore, adapterStore, nil, nil)
+
+	identity, err := svc.CreateManual(context.Background(), adapterID, "noreply-senda@tether.education", nil)
+	if err != nil {
+		t.Fatalf("CreateManual() error = %v", err)
+	}
+	if identity.Identity != "noreply-senda@tether.education" {
+		t.Fatalf("identity = %q", identity.Identity)
+	}
+}

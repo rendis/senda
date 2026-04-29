@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/labstack/echo/v5/echotest"
 	"github.com/rendis/senda/config"
+	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 )
 
 func testAppLogger() *slog.Logger {
@@ -87,6 +90,39 @@ func TestBuildMediaHandler_UsesConfiguredAllowlist(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for non-allowlisted media host, got %d", rec.Code)
 	}
+}
+
+func TestNewTestSendSenderFactory_UsesAssignedAdapterConfig(t *testing.T) {
+	globalSender := namedEmailSender{name: "global-smtp"}
+	factory := newTestSendSenderFactory(globalSender)
+
+	sender, err := factory(
+		context.Background(),
+		&domain.Adapter{AdapterType: domain.AdapterTypeSMTP},
+		[]byte(`{"host":"127.0.0.1","port":2525,"tls_mode":"none","auth_mode":"plain","username":"user","password":"pass"}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sender.Name() == globalSender.Name() {
+		t.Fatalf("expected template test-send to use the assigned adapter config, got global sender %q", sender.Name())
+	}
+}
+
+type namedEmailSender struct {
+	name string
+}
+
+func (s namedEmailSender) Send(context.Context, *port.OutgoingEmail) (string, error) {
+	return "", nil
+}
+
+func (s namedEmailSender) Name() string {
+	return s.name
+}
+
+func (s namedEmailSender) HealthCheck(context.Context) error {
+	return nil
 }
 
 func jsonMarshal(t *testing.T, v any) ([]byte, error) {
