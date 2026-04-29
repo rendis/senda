@@ -64,7 +64,9 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) error {
 	row := r.pool.QueryRow(ctx,
 		`UPDATE template_types
-		 SET slug = @slug, name = @name, adapter_id = @adapter_id, sender_identity_id = @sender_identity_id,
+		 SET slug = @slug, name = @name, description = @description,
+		     adapter_id = @adapter_id, sender_identity_id = @sender_identity_id,
+		     variable_schema = @variable_schema,
 		     test_recipient_mode = @test_recipient_mode, test_recipient_addresses = @test_recipient_addresses,
 		     updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
@@ -73,8 +75,10 @@ func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) 
 			"id":                       tt.ID,
 			"slug":                     tt.Slug,
 			"name":                     tt.Name,
+			"description":              tt.Description,
 			"adapter_id":               tt.AdapterID,
 			"sender_identity_id":       tt.SenderIdentityID,
+			"variable_schema":          coalesceJSON(tt.VariableSchema),
 			"test_recipient_mode":      tt.TestRecipientMode,
 			"test_recipient_addresses": domain.NormalizeRecipientAddresses(tt.TestRecipientAddresses),
 		},
