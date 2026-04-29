@@ -239,6 +239,8 @@ SMTP adapters are relay-only. The config contains connection settings, not sende
 
 SMTP `tls_mode` must be `none`, `starttls`, or `implicit_tls`. `auth_mode` is optional and may be `plain` or `login`; when either `username` or `password` is present, both are required. On update, omit `password` or send it as an empty string to keep the existing password.
 
+Cleartext authenticated SMTP (`tls_mode: "none"` with credentials) is blocked by default except for loopback hosts. For a private internal relay, operators must explicitly enable `SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY=true` and allowlist the private relay IP with `SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS`.
+
 Create SMTP sender addresses separately through `POST /adapters/:id/identities`:
 
 ```json

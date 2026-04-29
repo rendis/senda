@@ -27,6 +27,12 @@ const (
 
 const authModeLogin = "login"
 
+// CleartextAuthPolicy controls the explicit exception for trusted internal relays.
+type CleartextAuthPolicy struct {
+	AllowInsecureInternalRelay bool
+	TrustedHosts               []string
+}
+
 // Config defines relay-only SMTP adapter configuration.
 type Config struct {
 	Host     string  `json:"host"`
@@ -39,6 +45,11 @@ type Config struct {
 
 // Validate checks the SMTP relay configuration.
 func (c Config) Validate() error {
+	return c.ValidateWithPolicy(CleartextAuthPolicy{})
+}
+
+// ValidateWithPolicy checks the SMTP relay configuration against a cleartext auth policy.
+func (c Config) ValidateWithPolicy(policy CleartextAuthPolicy) error {
 	if strings.TrimSpace(c.Host) == "" {
 		return fmt.Errorf("missing SMTP host")
 	}
@@ -58,23 +69,31 @@ func (c Config) Validate() error {
 	if (c.Username == "") != (c.Password == "") {
 		return fmt.Errorf("smtp username and password must be provided together")
 	}
-	if c.Username != "" && c.Password != "" && c.TLSMode == TLSModeNone && !isLoopbackHost(c.Host) {
-		return fmt.Errorf("smtp cleartext auth is only allowed for loopback hosts")
+	if c.Username != "" && c.Password != "" && c.TLSMode == TLSModeNone {
+		if err := validateCleartextAuthHost(c.Host, policy); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // NewAdapterFromConfig creates a configured SMTP adapter.
 func NewAdapterFromConfig(cfg Config) (*Adapter, error) {
-	if err := cfg.Validate(); err != nil {
+	return NewAdapterFromConfigWithPolicy(cfg, CleartextAuthPolicy{})
+}
+
+// NewAdapterFromConfigWithPolicy creates a configured SMTP adapter with a cleartext auth policy.
+func NewAdapterFromConfigWithPolicy(cfg Config, policy CleartextAuthPolicy) (*Adapter, error) {
+	if err := cfg.ValidateWithPolicy(policy); err != nil {
 		return nil, err
 	}
-	return &Adapter{cfg: cfg}, nil
+	return &Adapter{cfg: cfg, cleartextAuthPolicy: policy}, nil
 }
 
 // Adapter implements port.EmailSender using SMTP relays.
 type Adapter struct {
-	cfg Config
+	cfg                 Config
+	cleartextAuthPolicy CleartextAuthPolicy
 }
 
 // NewAdapter creates a new SMTP adapter.
@@ -145,6 +164,49 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func isCleartextAuthHostAllowed(host string, policy CleartextAuthPolicy) bool {
+	return validateCleartextAuthHost(host, policy) == nil
+}
+
+func validateCleartextAuthHost(host string, policy CleartextAuthPolicy) error {
+	if isLoopbackHost(host) {
+		return nil
+	}
+	if !policy.AllowInsecureInternalRelay || !isTrustedCleartextAuthHost(host, policy.TrustedHosts) {
+		return fmt.Errorf("smtp cleartext auth is only allowed for loopback or trusted internal relay hosts")
+	}
+	ip := net.ParseIP(normalizeHost(host))
+	if ip == nil || !ip.IsPrivate() {
+		return fmt.Errorf("smtp cleartext auth host must be private or loopback")
+	}
+	return nil
+}
+
+func isTrustedCleartextAuthHost(host string, trustedHosts []string) bool {
+	normalizedHost := normalizeHost(host)
+	hostIP := net.ParseIP(normalizedHost)
+	for _, trusted := range trustedHosts {
+		normalizedTrusted := normalizeHost(trusted)
+		if normalizedTrusted == "" {
+			continue
+		}
+		if normalizedHost == normalizedTrusted {
+			return true
+		}
+		if hostIP == nil {
+			continue
+		}
+		if _, cidr, err := net.ParseCIDR(normalizedTrusted); err == nil && cidr.Contains(hostIP) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeHost(host string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
+}
+
 func (a *Adapter) auth() smtp.Auth {
 	if a.cfg.Username == "" && a.cfg.Password == "" {
 		return nil
@@ -152,7 +214,26 @@ func (a *Adapter) auth() smtp.Auth {
 	if a.cfg.AuthMode == authModeLogin {
 		return loginAuth{username: a.cfg.Username, password: a.cfg.Password}
 	}
+	if a.cfg.TLSMode == TLSModeNone && !isLoopbackHost(a.cfg.Host) && isCleartextAuthHostAllowed(a.cfg.Host, a.cleartextAuthPolicy) {
+		return insecurePlainAuth{username: a.cfg.Username, password: a.cfg.Password}
+	}
 	return smtp.PlainAuth("", a.cfg.Username, a.cfg.Password, a.cfg.Host)
+}
+
+type insecurePlainAuth struct {
+	username string
+	password string
+}
+
+func (a insecurePlainAuth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	return "PLAIN", []byte("\x00" + a.username + "\x00" + a.password), nil
+}
+
+func (a insecurePlainAuth) Next(_ []byte, more bool) ([]byte, error) {
+	if more {
+		return nil, errors.New("unexpected server challenge")
+	}
+	return nil, nil
 }
 
 type loginAuth struct {

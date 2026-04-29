@@ -24,33 +24,40 @@ import (
 
 // DefaultAdapterSenderFactory builds provider-specific senders from adapter configs.
 func DefaultAdapterSenderFactory(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error) {
-	switch adapter.AdapterType {
-	case domain.AdapterTypeSES:
-		var cfg sesadapter.Config
-		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
-			return nil, fmt.Errorf("%w: unmarshal SES config: %w", domain.ErrValidation, err)
+	return NewAdapterSenderFactory(smtpadapter.CleartextAuthPolicy{})(ctx, adapter, decryptedConfig)
+}
+
+// NewAdapterSenderFactory builds provider-specific senders using runtime adapter policy.
+func NewAdapterSenderFactory(smtpPolicy smtpadapter.CleartextAuthPolicy) port.SenderFactory {
+	return func(ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailSender, error) {
+		switch adapter.AdapterType {
+		case domain.AdapterTypeSES:
+			var cfg sesadapter.Config
+			if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+				return nil, fmt.Errorf("%w: unmarshal SES config: %w", domain.ErrValidation, err)
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
+			}
+			return sesadapter.NewAdapterFromConfig(ctx, cfg)
+		case domain.AdapterTypeGmail:
+			var cfg gmailadapter.GmailConfig
+			if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+				return nil, fmt.Errorf("%w: unmarshal Gmail config: %w", domain.ErrValidation, err)
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
+			}
+			return gmailadapter.NewAdapterFromConfig(ctx, cfg)
+		case domain.AdapterTypeSMTP:
+			var cfg smtpadapter.Config
+			if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
+				return nil, fmt.Errorf("%w: unmarshal SMTP config: %w", domain.ErrValidation, err)
+			}
+			return smtpadapter.NewAdapterFromConfigWithPolicy(cfg, smtpPolicy)
+		default:
+			return nil, fmt.Errorf("%w: unsupported adapter type %s", domain.ErrValidation, adapter.AdapterType)
 		}
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
-		}
-		return sesadapter.NewAdapterFromConfig(ctx, cfg)
-	case domain.AdapterTypeGmail:
-		var cfg gmailadapter.GmailConfig
-		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
-			return nil, fmt.Errorf("%w: unmarshal Gmail config: %w", domain.ErrValidation, err)
-		}
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %w", domain.ErrValidation, err)
-		}
-		return gmailadapter.NewAdapterFromConfig(ctx, cfg)
-	case domain.AdapterTypeSMTP:
-		var cfg smtpadapter.Config
-		if err := json.Unmarshal(decryptedConfig, &cfg); err != nil {
-			return nil, fmt.Errorf("%w: unmarshal SMTP config: %w", domain.ErrValidation, err)
-		}
-		return smtpadapter.NewAdapterFromConfig(cfg)
-	default:
-		return nil, fmt.Errorf("%w: unsupported adapter type %s", domain.ErrValidation, adapter.AdapterType)
 	}
 }
 

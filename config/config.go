@@ -88,8 +88,10 @@ type OIDCConfig struct {
 }
 
 type SMTPConfig struct {
-	Host string `yaml:"host" env:"SENDA_SMTP_HOST"`
-	Port int    `yaml:"port" env:"SENDA_SMTP_PORT" default:"1025"`
+	Host                       string   `yaml:"host" env:"SENDA_SMTP_HOST"`
+	Port                       int      `yaml:"port" env:"SENDA_SMTP_PORT" default:"1025"`
+	AllowInsecureInternalRelay bool     `yaml:"allow_insecure_internal_relay" env:"SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY" default:"false"`
+	TrustedClearAuthHosts      []string `yaml:"trusted_clear_auth_hosts" env:"SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS"`
 }
 
 type CryptoConfig struct {
@@ -150,11 +152,25 @@ func Load(path string) (*Config, error) {
 		cfg.Media.ThumbnailAllowedHosts = hosts
 	}
 
+	if v, ok := os.LookupEnv("SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS"); ok && v != "" {
+		cfg.SMTP.TrustedClearAuthHosts = splitCSV(v)
+	}
+
 	if err := validate(&cfg); err != nil {
 		return nil, fmt.Errorf("config validation: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+func splitCSV(v string) []string {
+	var out []string
+	for _, item := range strings.Split(v, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 // applyDefaults walks struct fields and sets fields to their `default` tag

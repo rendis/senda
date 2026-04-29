@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/http/middleware"
@@ -1042,6 +1043,54 @@ func TestAdapterHandler_Create_SMTPValidatesAndStoresSafeMeta(t *testing.T) {
 	}
 	if _, leaked := created.ConfigMeta["username"]; leaked {
 		t.Fatal("username must not be stored in config_meta")
+	}
+}
+
+func TestAdapterHandler_Create_SMTPAllowsTrustedInternalCleartextAuth(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	var created *domain.Adapter
+	as := &mockAdapterStore{
+		createFn: func(_ context.Context, adapter *domain.Adapter) error {
+			created = adapter
+			return nil
+		},
+	}
+	e, h := setupAdapterTest(as, &mockCrypto{}, ts, wsStore)
+	h.SetSMTPCleartextAuthPolicy(smtpadapter.CleartextAuthPolicy{
+		AllowInsecureInternalRelay: true,
+		TrustedHosts:               []string{"10.0.5.2"},
+	})
+
+	body := `{
+		"name":"Postal GCP",
+		"adapter_type":"smtp",
+		"config":{
+			"host":"10.0.5.2",
+			"port":25,
+			"tls_mode":"none",
+			"auth_mode":"plain",
+			"username":"postal-senda-prod",
+			"password":"secret"
+		},
+		"rate_limit_per_second":10
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil {
+		t.Fatal("expected adapter to be created")
+	}
+	if created.ConfigMeta["host"] != "10.0.5.2" {
+		t.Fatalf("host meta = %q", created.ConfigMeta["host"])
+	}
+	if _, leaked := created.ConfigMeta["password"]; leaked {
+		t.Fatal("password must not be stored in config_meta")
 	}
 }
 

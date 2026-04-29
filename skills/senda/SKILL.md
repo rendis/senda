@@ -193,10 +193,11 @@ SMTP is a first-class provider adapter, not only a Mailpit/dev fallback.
 3. Use `tls_mode` values `none`, `starttls`, or `implicit_tls`.
 4. Use `auth_mode` values `plain` or `login` when credentials are provided.
 5. Keep `username` and `password` together; one without the other is invalid.
-6. Do not put `from_email` or `from_name` in SMTP config.
-7. Register complete sender emails as manual adapter identities.
-8. Assign a sender identity to the template type or mark an adapter identity as default.
-9. For `_system` SMTP adapters, share at the email-identity level; child workspaces can use only granted SMTP identities.
+6. Cleartext auth (`tls_mode: "none"` with credentials) is blocked by default except loopback. For a private relay, set `SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY=true` and allowlist private IPs/CIDRs in `SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS`.
+7. Do not put `from_email` or `from_name` in SMTP config.
+8. Register complete sender emails as manual adapter identities.
+9. Assign a sender identity to the template type or mark an adapter identity as default.
+10. For `_system` SMTP adapters, share at the email-identity level; child workspaces can use only granted SMTP identities.
 
 The frontend defaults SMTP `rate_limit_per_second` to `10`. Operators should adjust it to the real relay policy.
 
