@@ -305,6 +305,19 @@ func makeJob(args SendJobArgs, attempt int) *goriver.Job[SendJobArgs] {
 
 // --- Tests ---
 
+func TestDefaultAdapterSenderFactory_SMTP(t *testing.T) {
+	adapter := &domain.Adapter{AdapterType: domain.AdapterTypeSMTP}
+	cfg := []byte(`{"host":"localhost","port":1025,"tls_mode":"none"}`)
+
+	sender, err := DefaultAdapterSenderFactory(context.Background(), adapter, cfg)
+	if err != nil {
+		t.Fatalf("DefaultAdapterSenderFactory() SMTP error = %v", err)
+	}
+	if sender.Name() != "smtp" {
+		t.Fatalf("sender.Name() = %q, want smtp", sender.Name())
+	}
+}
+
 func TestSendWorker_SuccessfulSend(t *testing.T) {
 	email := newTestEmail()
 	emailStore := &mockEmailStore{
