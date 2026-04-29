@@ -12,6 +12,7 @@ import (
 	"github.com/rendis/senda/internal/http/request"
 	"github.com/rendis/senda/internal/http/response"
 	"github.com/rendis/senda/internal/service"
+	"github.com/rendis/senda/pkg/apperr"
 )
 
 // ScreenshotService is the contract the handler depends on.
@@ -82,7 +83,16 @@ func mapScreenshotError(c *echo.Context, err error) error {
 		return response.WriteError(c, http.StatusNotFound, "NO_PUBLISHED_VERSION", "no published version")
 	case errors.Is(err, service.ErrScreenshotInternal):
 		return response.WriteError(c, http.StatusInternalServerError, "SCREENSHOT_INTERNAL", "screenshot capture failed")
-	default:
-		return response.WriteError(c, http.StatusInternalServerError, "INTERNAL", "internal error")
 	}
+
+	var appErr *apperr.AppError
+	if errors.As(err, &appErr) {
+		switch appErr.Code {
+		case http.StatusNotFound:
+			return response.WriteError(c, http.StatusNotFound, "TEMPLATE_NOT_FOUND", appErr.Message)
+		case http.StatusConflict:
+			return response.WriteError(c, http.StatusConflict, "CONFLICT", appErr.Message)
+		}
+	}
+	return response.WriteError(c, http.StatusInternalServerError, "INTERNAL", "internal error")
 }
