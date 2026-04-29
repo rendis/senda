@@ -6,7 +6,7 @@
 #   mjml-check.sh <path-to-mjml>
 #   mjml-check.sh -                # read from stdin
 
-set -uo pipefail
+set -euo pipefail
 
 usage() {
     {
@@ -44,8 +44,15 @@ MJ_RAW_LINES=$(printf '%s\n' "$SRC" | awk '
 ')
 
 is_inside_mj_raw() {
-    local line="$1"
+    local line="$1" status
+    set +e
     grep -qxF "$line" <<<"$MJ_RAW_LINES"
+    status=$?
+    set -e
+    if [[ $status -eq 0 ]]; then return 0; fi
+    if [[ $status -eq 1 ]]; then return 1; fi
+    echo "mjml-check: internal error: grep failed (status=$status) inside is_inside_mj_raw" >&2
+    exit 2
 }
 
 # Rules 1-5: forbidden HTML document tags.
@@ -65,9 +72,17 @@ report() {
 
 scan_pattern() {
     local pattern="$1" label="$2" hint="$3"
-    local hits
-    hits=$(printf '%s\n' "$SRC" | grep -niE "$pattern" || true)
-    [[ -z "$hits" ]] && return
+    local hits status
+    set +e
+    hits=$(printf '%s\n' "$SRC" | grep -niE "$pattern")
+    status=$?
+    set -e
+    if [[ $status -eq 1 ]]; then
+        return  # no matches
+    elif [[ $status -ne 0 ]]; then
+        echo "mjml-check: internal error: grep failed (status=$status) for pattern: $pattern" >&2
+        exit 2
+    fi
     while IFS=: read -r line _; do
         report "$line" "$label" "$hint"
     done <<<"$hits"

@@ -118,6 +118,37 @@ run_case fail-3 1 '<mjml>
   </mj-body>
 </mjml>' "<mj-raw> is for small HTML snippets, not full documents"
 
+# ---- exit-code contract ----
+
+run_input_error_case() {
+    local name="$1" expected_exit="$2" expect_stderr_match="$3"
+    shift 3
+    local stderr_file
+    stderr_file=$(mktemp)
+    local actual_exit
+    set +e
+    "$SCRIPT" "$@" >/dev/null 2>"$stderr_file"
+    actual_exit=$?
+    set -e
+    local stderr_content
+    stderr_content=$(<"$stderr_file")
+    rm -f "$stderr_file"
+    if [[ "$actual_exit" != "$expected_exit" ]]; then
+        echo "FAIL $name: expected exit $expected_exit, got $actual_exit"
+        fail_count=$((fail_count + 1))
+        return
+    fi
+    if ! grep -qF "$expect_stderr_match" <<<"$stderr_content"; then
+        echo "FAIL $name: stderr did not contain '$expect_stderr_match'"
+        fail_count=$((fail_count + 1))
+        return
+    fi
+    echo "OK $name"
+    pass_count=$((pass_count + 1))
+}
+
+run_input_error_case input-missing-file 2 "file not found" /tmp/nonexistent-mjml-fixture-$$.mjml
+
 # ---- summary ----
 echo "---"
 echo "passed: $pass_count, failed: $fail_count"
