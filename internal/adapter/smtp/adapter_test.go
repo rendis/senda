@@ -102,6 +102,37 @@ func TestAllRecipients(t *testing.T) {
 	require.Equal(t, []string{"to@test.com", "cc@test.com", "bcc@test.com"}, addrs)
 }
 
+func TestConfigValidate_PlainSMTP(t *testing.T) {
+	cfg := Config{
+		Host:    "localhost",
+		Port:    1025,
+		TLSMode: TLSModeNone,
+	}
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfigValidate_AuthenticatedSMTPRequiresUsernameAndPasswordTogether(t *testing.T) {
+	cfg := Config{
+		Host:     "smtp.example.com",
+		Port:     587,
+		TLSMode:  TLSModeStartTLS,
+		Username: "apikey",
+	}
+
+	require.ErrorContains(t, cfg.Validate(), "smtp username and password must be provided together")
+}
+
+func TestConfigValidate_RejectsUnknownTLSMode(t *testing.T) {
+	cfg := Config{
+		Host:    "smtp.example.com",
+		Port:    587,
+		TLSMode: TLSMode("ssl-ish"),
+	}
+
+	require.ErrorContains(t, cfg.Validate(), "invalid SMTP tls_mode")
+}
+
 func TestBuildRawMessage_HeaderInjectionPrevented(t *testing.T) {
 	msg := &port.OutgoingEmail{
 		From:       port.EmailAddress{Address: "noreply@test.com"},
@@ -110,9 +141,9 @@ func TestBuildRawMessage_HeaderInjectionPrevented(t *testing.T) {
 		BodyText:   "text",
 		TrackingID: "trk-005",
 		Headers: map[string]string{
-			"X-Custom":          "safe",
-			"X-Bad\r\nBcc":     "injected",
-			"X-Valid-Header":    "ok\r\nInjected: bad",
+			"X-Custom":       "safe",
+			"X-Bad\r\nBcc":   "injected",
+			"X-Valid-Header": "ok\r\nInjected: bad",
 		},
 	}
 
