@@ -44,6 +44,7 @@ import { SYSTEM_WORKSPACE_SCOPE_LABEL } from "@/lib/system-workspace-display";
 import type { Adapter, AdapterIdentity } from "@/types/adapters";
 import { useWorkspacesManagement } from "@/hooks/use-workspaces-mgmt";
 import { getAdapterCapabilities } from "./adapter-capabilities";
+import { normalizeReasonableEmailAddress } from "./email-address-policy";
 
 const STATUS_STYLES: Record<string, { className: string; label: string }> = {
   verified: { className: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30", label: "Verified" },
@@ -283,10 +284,12 @@ function ManualEmailAddInput({
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const create = useCreateIdentity(scopedPath, adapterId);
+  const normalizedEmail = normalizeReasonableEmailAddress(email);
+  const emailError = email.trim() && !normalizedEmail ? "Enter a valid email address." : null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const identity = email.trim();
+    const identity = normalizeReasonableEmailAddress(email);
     const name = displayName.trim();
     if (!identity) return;
     create.mutate(
@@ -303,11 +306,16 @@ function ManualEmailAddInput({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-md border border-dashed p-3">
       <input
+        type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="no-reply@example.com"
+        aria-invalid={emailError ? true : undefined}
         className="h-8 rounded-md border bg-transparent px-2 text-xs font-mono"
       />
+      {emailError && (
+        <p className="text-xs text-destructive">{emailError}</p>
+      )}
       <input
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
@@ -317,7 +325,7 @@ function ManualEmailAddInput({
       <Button
         type="submit"
         size="sm"
-        disabled={disabled || !email.trim() || create.isPending}
+        disabled={disabled || !normalizedEmail || create.isPending}
       >
         {create.isPending ? (
           <Loader2 className="h-3 w-3 animate-spin" />

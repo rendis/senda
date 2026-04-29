@@ -39,6 +39,11 @@ import type {
   SmtpConfig,
   SmtpTLSMode,
 } from "@/types/adapters";
+import {
+  buildSmtpConfig,
+  hasExistingSmtpAuth,
+  validateSmtpAuthFields,
+} from "./smtp-config-form-model";
 
 const SES_REGIONS = [
   { value: "us-east-1", label: "US East (N. Virginia)" },
@@ -101,6 +106,8 @@ interface AdapterFormEditProps {
 
 type AdapterFormProps = AdapterFormCreateProps | AdapterFormEditProps;
 
+// AdapterForm keeps provider-specific sections colocated with shared form state.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function AdapterForm(props: AdapterFormProps) {
   const isEdit = props.mode === "edit";
   const defaults = isEdit ? props.adapter : undefined;
@@ -141,6 +148,7 @@ export function AdapterForm(props: AdapterFormProps) {
   );
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpClearAuth, setSmtpClearAuth] = useState(false);
 
   function resetForm() {
     if (!isEdit) {
@@ -160,6 +168,7 @@ export function AdapterForm(props: AdapterFormProps) {
     setSmtpAuthMode(((isEdit ? defaults?.config_meta?.auth_mode : undefined) as "plain" | "login" | undefined) ?? "plain");
     setSmtpUsername("");
     setSmtpPassword("");
+    setSmtpClearAuth(false);
   }
 
   function buildConfig(): (SesConfig | GmailConfig | SmtpConfig) | undefined {
@@ -181,33 +190,41 @@ export function AdapterForm(props: AdapterFormProps) {
       };
     }
 
-    const previous = defaults?.config_meta;
-    const smtpChanged =
-      smtpHost !== (previous?.host ?? "") ||
-      smtpPort !== (previous?.port ?? "587") ||
-      smtpTLSMode !== ((previous?.tls_mode as SmtpTLSMode | undefined) ?? "starttls") ||
-      smtpAuthMode !== ((previous?.auth_mode as "plain" | "login" | undefined) ?? "plain") ||
-      !!smtpUsername ||
-      !!smtpPassword;
-
-    if (isEdit && !smtpChanged) return undefined;
-
-    return {
+    return buildSmtpConfig({
       host: smtpHost,
-      port: Number(smtpPort),
-      tls_mode: smtpTLSMode,
-      ...(smtpUsername || smtpPassword ? { auth_mode: smtpAuthMode } : {}),
-      ...(smtpUsername ? { username: smtpUsername } : {}),
-      ...(smtpPassword ? { password: smtpPassword } : {}),
-    };
+      port: smtpPort,
+      tlsMode: smtpTLSMode,
+      authMode: smtpAuthMode,
+      username: smtpUsername,
+      password: smtpPassword,
+      isEdit,
+      clearAuth: smtpClearAuth,
+      previousConfig: defaults?.config_meta,
+    });
   }
 
   // For SES create: submit button first validates, then creates on second click.
   const sesFieldsReady = !!(sesRegion && sesAccessKey && sesSecretKey);
   const sesValidated = sesValidation?.valid === true;
   const needsValidation = !isEdit && adapterType === "ses" && sesFieldsReady && !sesValidated;
+  const smtpHasExistingAuth = isEdit && adapterType === "smtp" && hasExistingSmtpAuth(defaults?.config_meta);
+  const smtpAuthValidation =
+    adapterType === "smtp"
+      ? validateSmtpAuthFields({
+          username: smtpUsername,
+          password: smtpPassword,
+          isEdit,
+          hasExistingAuth: smtpHasExistingAuth,
+          clearAuth: smtpClearAuth,
+        })
+      : { valid: true as const };
+  const smtpAuthError = smtpAuthValidation.valid ? null : smtpAuthValidation.message;
 
   async function handleSubmit(): Promise<boolean | void> {
+    if (adapterType === "smtp" && !smtpAuthValidation.valid) {
+      return true;
+    }
+
     // SES create: first click validates, second click creates
     if (needsValidation) {
       await new Promise<void>((resolve, reject) => {
@@ -252,10 +269,11 @@ export function AdapterForm(props: AdapterFormProps) {
       return sesFieldsReady; // button enables when fields are filled (validate or create)
     }
     if (adapterType === "smtp") {
-      return !!(smtpHost.trim() && smtpPort.trim());
+      return !!(smtpHost.trim() && smtpPort.trim()) && !smtpAuthError;
     }
     return !!(gmailServiceAccountJSON.trim() && gmailDelegateEmail.trim());
   })();
+  const isFormReady = isEdit ? !smtpAuthError : isCreateReady;
 
   // Dynamic submit button label + icon
   const submitLabel = (() => {
@@ -287,7 +305,7 @@ export function AdapterForm(props: AdapterFormProps) {
       onSubmit={handleSubmit}
       open={isEdit ? props.open : undefined}
       onOpenChange={isEdit ? props.onOpenChange : undefined}
-      submitDisabled={!isCreateReady}
+      submitDisabled={!isFormReady}
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -551,7 +569,10 @@ export function AdapterForm(props: AdapterFormProps) {
                 <Label>Auth Mode</Label>
                 <Select
                   value={smtpAuthMode}
-                  onValueChange={(v) => setSmtpAuthMode(v as "plain" | "login")}
+                  onValueChange={(v) => {
+                    setSmtpAuthMode(v as "plain" | "login");
+                    setSmtpClearAuth(false);
+                  }}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -583,15 +604,53 @@ export function AdapterForm(props: AdapterFormProps) {
                   </p>
                 )}
               </div>
+              {smtpHasExistingAuth && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2 text-xs">
+                  <span className={smtpClearAuth ? "text-destructive" : "text-muted-foreground"}>
+                    {smtpClearAuth
+                      ? "Stored SMTP auth will be removed on update."
+                      : "Stored SMTP auth is configured."}
+                  </span>
+                  {smtpClearAuth ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setSmtpClearAuth(false)}
+                    >
+                      Keep auth
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setSmtpUsername("");
+                        setSmtpPassword("");
+                        setSmtpClearAuth(true);
+                      }}
+                    >
+                      Clear auth
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="smtp-username">Username</Label>
                   <Input
                     id="smtp-username"
                     value={smtpUsername}
-                    onChange={(e) => setSmtpUsername(e.target.value)}
+                    onChange={(e) => {
+                      setSmtpUsername(e.target.value);
+                      setSmtpClearAuth(false);
+                    }}
                     placeholder="user or API key"
                     className="font-mono"
+                    aria-invalid={smtpAuthError ? true : undefined}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -600,12 +659,19 @@ export function AdapterForm(props: AdapterFormProps) {
                     id="smtp-password"
                     type="password"
                     value={smtpPassword}
-                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    onChange={(e) => {
+                      setSmtpPassword(e.target.value);
+                      setSmtpClearAuth(false);
+                    }}
                     placeholder={isEdit ? "Leave empty to keep current" : "secret"}
                     className="font-mono"
+                    aria-invalid={smtpAuthError ? true : undefined}
                   />
                 </div>
               </div>
+              {smtpAuthError && (
+                <p className="text-xs text-destructive">{smtpAuthError}</p>
+              )}
             </div>
           )}
         </div>

@@ -56,9 +56,11 @@ import { toast } from "sonner";
 import {
   adapterUsesSenderIdentity,
   requiresExplicitSenderIdentity,
+  resolveTemplateTypeSenderIdentityId,
+  SENDER_DEFAULT_VALUE,
 } from "./sender-identity-policy";
 
-const SENDER_DEFAULT = "__default__";
+const SENDER_DEFAULT = SENDER_DEFAULT_VALUE;
 const SENDER_NONE = "__none__";
 const TEST_RECIPIENT_INHERIT = "__inherit__";
 const SLUG_WARNING_LINES = [
@@ -287,7 +289,7 @@ function TemplateTypesTable() {
         toast.error(t("sharedSesRequiresIdentity"));
         return;
       }
-      const senderIdValue = newSenderIdentityId && newSenderIdentityId !== SENDER_DEFAULT ? newSenderIdentityId : undefined;
+      const senderIdValue = resolveTemplateTypeSenderIdentityId(newSenderIdentityId);
       const payload: Parameters<typeof createMutation.mutateAsync>[0] = {
         slug: newSlug.trim(),
         name: newName.trim(),
@@ -570,12 +572,14 @@ function EditTemplateTypeDialog({
         toast.error("Shared SES/SMTP adapters require an explicit sender identity");
         return true;
       }
-      const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
+      const senderIdValue = resolveTemplateTypeSenderIdentityId(senderIdentityId, {
+        clearWithEmptyString: true,
+      });
       const payload: Parameters<typeof updateMutation.mutateAsync>[0] = {
         name: name.trim(),
         slug: slug.trim(),
         adapter_id: adapterId || undefined,
-        sender_identity_id: senderIdValue || undefined,
+        sender_identity_id: senderIdValue,
       };
       if (isTestEnvironment) {
         if (testRecipientMode === TEST_RECIPIENT_INHERIT) {

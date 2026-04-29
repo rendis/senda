@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 const {
   adapterUsesSenderIdentity,
   requiresExplicitSenderIdentity,
+  resolveTemplateTypeSenderIdentityId,
 } = await import(new URL("./sender-identity-policy.ts", import.meta.url).href);
 
 test("ses and smtp adapters use sender identities", () => {
@@ -30,4 +31,21 @@ test("shared ses and smtp adapters require explicit sender identity", () => {
     requiresExplicitSenderIdentity({ adapter_type: "gmail", is_shared: true }),
     false,
   );
+});
+
+test("template type update serializes cleared sender identity as an explicit empty string", () => {
+  assert.equal(
+    resolveTemplateTypeSenderIdentityId("", { clearWithEmptyString: true }),
+    "",
+  );
+  assert.equal(
+    resolveTemplateTypeSenderIdentityId("__default__", { clearWithEmptyString: true }),
+    "",
+  );
+});
+
+test("template type create omits blank/default sender identity", () => {
+  assert.equal(resolveTemplateTypeSenderIdentityId(""), undefined);
+  assert.equal(resolveTemplateTypeSenderIdentityId("__default__"), undefined);
+  assert.equal(resolveTemplateTypeSenderIdentityId(" sender-id "), "sender-id");
 });
