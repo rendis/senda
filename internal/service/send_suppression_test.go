@@ -339,6 +339,34 @@ func TestEvaluator_EvaluateForType_WorkspaceSuppressionWins(t *testing.T) {
 	}
 }
 
+type fakeTTSStoreError struct {
+	err error
+}
+
+func (f *fakeTTSStoreError) BatchCheckOptOut(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) (map[string]struct{}, error) {
+	return nil, f.err
+}
+
+func TestEvaluator_EvaluateForType_PropagatesTTSStoreError(t *testing.T) {
+	ctx := context.Background()
+	wsStore := &mockSuppressionStoreSend{}
+	ttsStore := &fakeTTSStoreError{err: errors.New("store unavailable")}
+	eval := service.NewSuppressionBatchEvaluator(wsStore).WithTemplateTypeStore(ttsStore)
+
+	_, err := eval.EvaluateForType(ctx, uuid.New(), uuid.New(), []string{"a@x.com"}, nil, nil)
+	if err == nil {
+		t.Fatal("expected error from EvaluateForType when TTS store fails")
+	}
+	const wantPrefix = "evaluate type opt-outs: "
+	if err.Error() != wantPrefix+"store unavailable" {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+	unwrapped := errors.Unwrap(err)
+	if unwrapped == nil || unwrapped.Error() != "store unavailable" {
+		t.Fatalf("inner error must be reachable via Unwrap, got: %v", unwrapped)
+	}
+}
+
 func TestSuppressionBatchEvaluator_EvaluateMany_CanonicalizesBatchOnlyOnce(t *testing.T) {
 	store := &mockSuppressionStoreSend{
 		checkBatchFn: func(_ context.Context, _ uuid.UUID, emails []string) (map[string]string, error) {
