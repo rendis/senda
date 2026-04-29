@@ -8,7 +8,7 @@ docker build -f docker/Dockerfile -t senda:latest .
 
 The Dockerfile uses a multi-stage build:
 
-1. **Builder stage:** `golang:1.25-alpine` -- compiles the Go binary with `CGO_ENABLED=0` and strips debug symbols for a minimal, statically-linked output.
+1. **Builder stage:** `golang:1.26-alpine` -- compiles the Go binary with `CGO_ENABLED=0` and strips debug symbols for a minimal, statically-linked output.
 2. **Runtime stage:** `alpine:3.21` -- copies only the compiled binary and migration files into a minimal Alpine image.
 
 The resulting image is small, contains no build tools, and runs as a non-root user.

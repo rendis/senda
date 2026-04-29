@@ -6,7 +6,7 @@
 
 **Architecture:** Backend owns the canonical SMTP relay contract, DB enum, encrypted config, sender runtime, and manual identity access rules. Frontend extends the existing Adapters module to create/edit/test SMTP adapters using that contract, without adding a separate SMTP page. SMTP does not implement provider identity sync; users register full sender email addresses as manual identities and then choose/share them similarly to SES email identities.
 
-**Tech Stack:** Go 1.25, PostgreSQL migrations, Echo handlers, River send worker, `net/smtp`, `crypto/tls`, Next.js 16, React 19, TypeScript, Tailwind, TanStack Query.
+**Tech Stack:** Go 1.26, PostgreSQL migrations, Echo handlers, River send worker, `net/smtp`, `crypto/tls`, Next.js 16, React 19, TypeScript, Tailwind, TanStack Query.
 
 ---
 
