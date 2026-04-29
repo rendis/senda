@@ -261,6 +261,11 @@ func newRiverClient(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool,
 	sendWorkerOpts := []river.SendWorkerOption{
 		river.WithAdapterRuntime(repos.adapterRepo, infra.aesCrypto, river.NewAdapterSenderFactory(newSMTPCleartextAuthPolicy(cfg))),
 	}
+	// cfg.Tracking.BaseURL doubles as the public domain for unsubscribe URLs and
+	// the List-Unsubscribe HTTP header. Senda assumes both endpoints share a
+	// single public host. Disabling tracking by clearing this value also disables
+	// List-Unsubscribe injection (transactional sends remain unaffected since
+	// they never carry the header).
 	if cfg.Tracking.BaseURL != "" {
 		sendWorkerOpts = append(sendWorkerOpts, river.WithTrackingBaseURL(cfg.Tracking.BaseURL))
 		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)

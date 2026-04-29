@@ -263,7 +263,12 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 	if w.templateTypeStore != nil && w.workspaceLookup != nil && w.publicBaseURL != "" {
 		chain := []uuid.NullUUID{{UUID: email.WorkspaceID, Valid: true}}
 		tt, ttErr := w.templateTypeStore.GetTypeBySlug(ctx, email.TemplateTypeSlug, chain)
-		if ttErr == nil && tt != nil && tt.IsBulk {
+		if ttErr != nil {
+			if !errors.Is(ttErr, domain.ErrNotFound) && !errors.Is(ttErr, domain.ErrTemplateTypeNotFound) {
+				slog.Warn("send_worker: failed to resolve template type for unsubscribe headers; skipping",
+					append(emailLogAttrs(email), "error", ttErr)...)
+			}
+		} else if tt != nil && tt.IsBulk {
 			key, kerr := w.workspaceLookup.GetUnsubscribeSigningKey(ctx, email.WorkspaceID)
 			if kerr != nil {
 				slog.Warn("send_worker: failed to load unsubscribe signing key; skipping headers",

@@ -111,7 +111,7 @@ type SendService struct {
 	identitySvc                 *IdentityService
 	emailStore                  port.EmailStore
 	suppression                 port.SuppressionStore
-	templateTypeSubscriptionSvc templateTypeOptOutStore
+	templateTypeSubscriptionStore templateTypeOptOutStore
 	queue                       port.JobQueue
 	renderer                    port.VariableRenderer
 	tenantStore                 port.TenantStore
@@ -130,7 +130,7 @@ func (s *SendService) SetAdapterAccessService(accessService *AdapterAccessServic
 
 // SetTemplateTypeSubscriptionStore wires per-type opt-out suppression without widening constructor churn.
 func (s *SendService) SetTemplateTypeSubscriptionStore(ts templateTypeOptOutStore) {
-	s.templateTypeSubscriptionSvc = ts
+	s.templateTypeSubscriptionStore = ts
 }
 
 // NewSendService creates a new SendService with the given dependencies.
@@ -288,7 +288,7 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 	}
 
 	suppressionResult, err := NewSuppressionBatchEvaluator(s.suppression).
-		WithTemplateTypeStore(s.templateTypeSubscriptionSvc).
+		WithTemplateTypeStore(s.templateTypeSubscriptionStore).
 		EvaluateForType(ctx, ws.ID, resolved.TemplateType.ID, effectiveTo, effectiveCC, effectiveBCC)
 	if err != nil {
 		return nil, err

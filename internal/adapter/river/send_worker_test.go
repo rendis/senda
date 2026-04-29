@@ -1626,3 +1626,81 @@ func TestSendWorker_BulkTemplate_PassesSystemVarsToRenderer(t *testing.T) {
 		t.Errorf("unsubscribe_url = %q, want prefix %q", sv["unsubscribe_url"], baseURL+"/u/")
 	}
 }
+
+// TestSendWorker_BulkPath_TemplateTypeLookupTransientError_SkipsHeaders verifies
+// that a non-NotFound error from GetTypeBySlug is logged as a warning but does
+// NOT abort the send. The email is delivered without List-Unsubscribe headers
+// and the renderer receives nil systemVars.
+func TestSendWorker_BulkPath_TemplateTypeLookupTransientError_SkipsHeaders(t *testing.T) {
+	email := newTestEmail()
+	email.TemplateTypeSlug = "newsletter"
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+
+	// Simulate a transient (non-NotFound) error from the template type store.
+	transientErr := errors.New("db: connection reset by peer")
+	tts := &mockTemplateTypeStore{
+		getTypeBySlugFn: func(_ context.Context, _ string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return nil, transientErr
+		},
+	}
+	wsStore := &mockWorkspaceStore{}
+	sender := &mockSender{}
+	renderer := &mockRenderer{}
+
+	// Capture slog output to assert the warning is emitted.
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	worker := newTestSendWorker(
+		emailStore, &mockCompiler{}, renderer, &mockRateLimiter{}, sender,
+		WithTemplateTypeStore(tts),
+		WithWorkspaceLookup(wsStore),
+		WithUnsubscribePublicBaseURL("https://senda.example.com"),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	// Send must succeed — a lookup error is non-fatal.
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("expected successful send despite template type lookup error, got: %v", err)
+	}
+
+	// The warning must have been logged.
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "failed to resolve template type for unsubscribe headers") {
+		t.Errorf("expected warning log for template type lookup error, got: %q", logOutput)
+	}
+
+	// The email must have been delivered.
+	if len(sender.calls) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sender.calls))
+	}
+
+	// No List-Unsubscribe headers must be present.
+	hdrs := sender.calls[0].Msg.Headers
+	if _, ok := hdrs["List-Unsubscribe"]; ok {
+		t.Error("expected no List-Unsubscribe header when template type lookup failed")
+	}
+	if _, ok := hdrs["List-Unsubscribe-Post"]; ok {
+		t.Error("expected no List-Unsubscribe-Post header when template type lookup failed")
+	}
+
+	// Renderer must have been called with nil systemVars (no unsubscribe context).
+	if renderer.lastSystemVars != nil {
+		t.Errorf("expected nil systemVars passed to renderer, got %v", renderer.lastSystemVars)
+	}
+}
