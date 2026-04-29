@@ -14,6 +14,14 @@ const (
 	SubscriptionSourceAdmin           SubscriptionSource = "admin"
 )
 
+func (s SubscriptionSource) Valid() bool {
+	switch s {
+	case SubscriptionSourceRecipientOptout, SubscriptionSourceRecipientOptin, SubscriptionSourceAdmin:
+		return true
+	}
+	return false
+}
+
 type TemplateTypeSubscription struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
