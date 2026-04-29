@@ -604,7 +604,7 @@ crypto:
 }
 
 func TestLoad_ScreenshotDefaults(t *testing.T) {
-	yaml := `
+	yamlContent := `
 database:
   url: "postgres://user:pass@localhost:5432/senda"
 oidc:
@@ -614,7 +614,7 @@ oidc:
 crypto:
   master_key: "this-is-a-32-char-master-key!!!!"
 `
-	path := writeYAML(t, yaml)
+	path := writeYAML(t, yamlContent)
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -645,10 +645,13 @@ crypto:
 	if cfg.Screenshot.MobileWidthPx != 390 {
 		t.Errorf("default Screenshot.MobileWidthPx = %d, want 390", cfg.Screenshot.MobileWidthPx)
 	}
+	if cfg.Screenshot.IdleTimeout != 5*time.Minute {
+		t.Errorf("default Screenshot.IdleTimeout = %v, want %v", cfg.Screenshot.IdleTimeout, 5*time.Minute)
+	}
 }
 
 func TestLoad_ScreenshotEnvOverrides(t *testing.T) {
-	yaml := `
+	yamlContent := `
 database:
   url: "postgres://user:pass@localhost:5432/senda"
 oidc:
@@ -658,12 +661,17 @@ oidc:
 crypto:
   master_key: "this-is-a-32-char-master-key!!!!"
 `
-	path := writeYAML(t, yaml)
+	path := writeYAML(t, yamlContent)
 
 	t.Setenv("SENDA_SCREENSHOT_ENABLED", "true")
 	t.Setenv("SENDA_SCREENSHOT_CHROMIUM_PATH", "/usr/bin/chromium")
 	t.Setenv("SENDA_SCREENSHOT_TIMEOUT", "30s")
+	t.Setenv("SENDA_SCREENSHOT_STARTUP_TIMEOUT", "10s")
+	t.Setenv("SENDA_SCREENSHOT_MAX_HEIGHT_PX", "8000")
 	t.Setenv("SENDA_SCREENSHOT_MAX_CONCURRENT", "8")
+	t.Setenv("SENDA_SCREENSHOT_DESKTOP_WIDTH_PX", "1440")
+	t.Setenv("SENDA_SCREENSHOT_MOBILE_WIDTH_PX", "414")
+	t.Setenv("SENDA_SCREENSHOT_IDLE_TIMEOUT", "10m")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -679,7 +687,22 @@ crypto:
 	if cfg.Screenshot.Timeout != 30*time.Second {
 		t.Errorf("env override Screenshot.Timeout = %v, want %v", cfg.Screenshot.Timeout, 30*time.Second)
 	}
+	if cfg.Screenshot.StartupTimeout != 10*time.Second {
+		t.Errorf("env override Screenshot.StartupTimeout = %v, want %v", cfg.Screenshot.StartupTimeout, 10*time.Second)
+	}
+	if cfg.Screenshot.MaxHeightPx != 8000 {
+		t.Errorf("env override Screenshot.MaxHeightPx = %d, want 8000", cfg.Screenshot.MaxHeightPx)
+	}
 	if cfg.Screenshot.MaxConcurrent != 8 {
 		t.Errorf("env override Screenshot.MaxConcurrent = %d, want 8", cfg.Screenshot.MaxConcurrent)
+	}
+	if cfg.Screenshot.DesktopWidthPx != 1440 {
+		t.Errorf("env override Screenshot.DesktopWidthPx = %d, want 1440", cfg.Screenshot.DesktopWidthPx)
+	}
+	if cfg.Screenshot.MobileWidthPx != 414 {
+		t.Errorf("env override Screenshot.MobileWidthPx = %d, want 414", cfg.Screenshot.MobileWidthPx)
+	}
+	if cfg.Screenshot.IdleTimeout != 10*time.Minute {
+		t.Errorf("env override Screenshot.IdleTimeout = %v, want %v", cfg.Screenshot.IdleTimeout, 10*time.Minute)
 	}
 }
