@@ -497,6 +497,8 @@ func routeRequestType(route Route) string {
 		return "request.CreateAPIKeyRequest"
 	case strings.HasSuffix(normalized, "/suppression") && route.Method == "POST":
 		return "request.AddSuppressionRequest"
+	case strings.HasSuffix(normalized, "/u/{token}/preferences") && route.Method == "POST":
+		return "request.UpdatePreferencesRequest"
 	default:
 		return ""
 	}

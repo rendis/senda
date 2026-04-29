@@ -62,6 +62,7 @@ type serverHandlerBundle struct {
 	mediaHandler                  *handler.MediaHandler
 	dashboardHandler              *handler.DashboardHandler
 	templateScreenshotHandler     *handler.TemplateScreenshotHandler
+	unsubscribeHandler            *handler.UnsubscribeHandler
 }
 
 type infraBundle struct {
@@ -167,8 +168,9 @@ func newServerOptions(shared serverSharedDeps, handlers serverHandlerBundle) []s
 		workspaceExistenceStore: wsExistenceStore,
 	})...)
 	opts = append(opts, publicSurfaceOptions(publicSurfaceHandlers{
-		tracking: handlers.trackingHandler,
-		media:    handlers.mediaHandler,
+		tracking:    handlers.trackingHandler,
+		media:       handlers.mediaHandler,
+		unsubscribe: handlers.unsubscribeHandler,
 	})...)
 	opts = append(opts, sendahttp.WithTemplateScreenshotHandler(handlers.templateScreenshotHandler))
 	return opts
@@ -466,5 +468,17 @@ func newServerHandlerBundle(
 		mediaHandler:              buildMediaHandler(cfg, logger),
 		dashboardHandler:          dashboardH,
 		templateScreenshotHandler: templateScreenshotH,
+		unsubscribeHandler:        newUnsubscribeHandler(repos),
 	}, nil
+}
+
+func newUnsubscribeHandler(repos repositoryBundle) *handler.UnsubscribeHandler {
+	svc := service.NewUnsubscribeService(
+		repos.workspaceRepo,
+		repos.templateRepo,
+		repos.suppressionRepo,
+		repos.templateTypeSubscriptionRepo,
+		repos.emailRepo,
+	)
+	return handler.NewUnsubscribeHandler(svc)
 }
