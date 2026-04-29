@@ -358,6 +358,63 @@ func TestTemplateRepo_UpdateType_UpdatesSlugAndName(t *testing.T) {
 	}
 }
 
+func TestTemplateRepo_UpdateType_PersistsDescriptionAndVariableSchema(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewTemplateRepo(pool)
+
+	originalDesc := "original"
+	tt := &domain.TemplateType{
+		ID:             uuid.New(),
+		Slug:           "vs-update-" + uuid.New().String()[:8],
+		Name:           "VS Update",
+		Description:    &originalDesc,
+		VariableSchema: map[string]any{"type": "object"},
+	}
+	if err := repo.CreateType(ctx, tt); err != nil {
+		t.Fatalf("CreateType() error: %v", err)
+	}
+
+	newDesc := "rewritten"
+	tt.Description = &newDesc
+	tt.VariableSchema = map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"unsubscribe_url": map[string]any{"type": "string"},
+		},
+	}
+	if err := repo.UpdateType(ctx, tt); err != nil {
+		t.Fatalf("UpdateType() error: %v", err)
+	}
+
+	got, err := repo.FindTypeBySlugInScope(ctx, tt.Slug, nil)
+	if err != nil {
+		t.Fatalf("FindTypeBySlugInScope() error: %v", err)
+	}
+	if got.Description == nil || *got.Description != "rewritten" {
+		t.Fatalf("expected updated description %q, got %v", "rewritten", got.Description)
+	}
+	props, ok := got.VariableSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected variable_schema.properties to be a map, got %T", got.VariableSchema["properties"])
+	}
+	if _, hasUnsubscribe := props["unsubscribe_url"]; !hasUnsubscribe {
+		t.Fatalf("expected variable_schema to include unsubscribe_url, got %v", props)
+	}
+
+	tt.Description = nil
+	if err := repo.UpdateType(ctx, tt); err != nil {
+		t.Fatalf("UpdateType() error clearing description: %v", err)
+	}
+	got, err = repo.FindTypeBySlugInScope(ctx, tt.Slug, nil)
+	if err != nil {
+		t.Fatalf("FindTypeBySlugInScope() error: %v", err)
+	}
+	if got.Description != nil {
+		t.Fatalf("expected description cleared, got %q", *got.Description)
+	}
+}
+
 // --- Template tests ---
 
 func TestTemplateRepo_CreateTemplate(t *testing.T) {

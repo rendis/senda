@@ -740,6 +740,137 @@ func TestTemplateTypeHandler_Update_Success(t *testing.T) {
 	}
 }
 
+func TestTemplateTypeHandler_Update_AppliesDescriptionAndVariableSchema(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ttID := uuid.Must(uuid.NewV7())
+	originalDesc := "old description"
+	original := &domain.TemplateType{
+		ID:          ttID,
+		WorkspaceID: &ws.ID,
+		Slug:        "welcome-email",
+		Name:        "Welcome Email",
+		Description: &originalDesc,
+		VariableSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"name": map[string]any{"type": "string"}},
+		},
+	}
+
+	var updated *domain.TemplateType
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, _ string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return original, nil
+		},
+		updateTypeFn: func(_ context.Context, tt *domain.TemplateType) error {
+			updated = tt
+			return nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{
+		"description": "new description",
+		"variable_schema": {
+			"type": "object",
+			"properties": {
+				"name": {"type": "string"},
+				"unsubscribe_url": {"type": "string", "format": "uri"}
+			},
+			"required": ["name"]
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil {
+		t.Fatal("expected updated template type")
+	}
+	if updated.Description == nil || *updated.Description != "new description" {
+		t.Fatalf("expected updated description %q, got %v", "new description", updated.Description)
+	}
+	props, ok := updated.VariableSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected variable_schema.properties to be a map, got %T", updated.VariableSchema["properties"])
+	}
+	if _, hasUnsubscribe := props["unsubscribe_url"]; !hasUnsubscribe {
+		t.Fatalf("expected variable_schema to include unsubscribe_url, got %v", props)
+	}
+}
+
+func TestTemplateTypeHandler_Update_ClearsDescriptionWhenEmptyString(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ttID := uuid.Must(uuid.NewV7())
+	originalDesc := "old description"
+	original := &domain.TemplateType{
+		ID:          ttID,
+		WorkspaceID: &ws.ID,
+		Slug:        "welcome-email",
+		Name:        "Welcome Email",
+		Description: &originalDesc,
+	}
+
+	var updated *domain.TemplateType
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, _ string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return original, nil
+		},
+		updateTypeFn: func(_ context.Context, tt *domain.TemplateType) error {
+			updated = tt
+			return nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{"description": ""}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil {
+		t.Fatal("expected updated template type")
+	}
+	if updated.Description != nil {
+		t.Fatalf("expected description to be cleared, got %q", *updated.Description)
+	}
+}
+
+func TestTemplateTypeHandler_Update_RejectsInvalidVariableSchemaJSON(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	ttID := uuid.Must(uuid.NewV7())
+	original := &domain.TemplateType{
+		ID:          ttID,
+		WorkspaceID: &ws.ID,
+		Slug:        "welcome-email",
+		Name:        "Welcome Email",
+	}
+
+	store := &mockTemplateStore{
+		getTypeBySlugFn: func(_ context.Context, _ string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return original, nil
+		},
+	}
+	e, _ := setupTemplateTypeTest(store, ts, wsStore)
+
+	body := `{"variable_schema": "not-an-object"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/template-types/welcome-email", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTemplateTypeHandler_Update_InvalidSlug(t *testing.T) {
 	_, ws, ts, wsStore := testTenantAndWorkspace()
 	ttID := uuid.Must(uuid.NewV7())

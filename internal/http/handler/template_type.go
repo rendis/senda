@@ -309,6 +309,21 @@ func applyTemplateTypeUpdateRequest(tt *domain.TemplateType, req request.UpdateT
 	if req.Name != nil {
 		tt.Name = *req.Name
 	}
+	if req.Description != nil {
+		if *req.Description == "" {
+			tt.Description = nil
+		} else {
+			desc := *req.Description
+			tt.Description = &desc
+		}
+	}
+	if req.VariableSchema != nil {
+		var schema map[string]any
+		if err := json.Unmarshal(*req.VariableSchema, &schema); err != nil {
+			return "variable_schema", err
+		}
+		tt.VariableSchema = schema
+	}
 	if req.AdapterID != nil {
 		if *req.AdapterID == "" {
 			tt.AdapterID = nil
