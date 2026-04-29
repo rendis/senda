@@ -73,6 +73,31 @@ one template per (type, scope).
 | POST | `<ws>/templates/:template_id/bulk-send` | workspace_editor+ | Up to `max_items` items. Returns 202 with `{accepted_count, suppressed_count, failed_count, template_resolved}`. Requires the template to be local to the workspace. |
 | POST | `<ws>/templates/:template_id/test-send` | workspace_editor+ | `{recipient_email, variables?, injectors?, locale?}`. Requires a published version. 501 if test-send service not configured. |
 | POST | `<ws>/templates/:template_id/preview-mjml` | workspace_viewer+ | `{mjml}`. Compiles + applies static injector preview values. See `versions-locales-and-builder.md`. |
+| GET | `<ws>/templates/:template_id/screenshot` | workspace_viewer+ | Returns a full-page PNG of the template. Optional query params: `viewport` (`desktop`\|`mobile`), `version_id`, `locale`. Placeholders NOT resolved. 503 `SCREENSHOT_DISABLED` when feature flag is off. |
+
+### Screenshot endpoint
+
+`GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot`
+
+Query params:
+- `viewport`: `desktop` (default, 1280 px wide) or `mobile` (390 px wide, mobile UA + touch emulation)
+- `version_id` (optional, UUID): a specific version. Default = latest published.
+- `locale` (optional, string): the locale-specific MJML override. Default = version's `default_locale`.
+
+Returns `Content-Type: image/png`. Full-page capture, height capped at `screenshot.max_height_px` (default 6000).
+
+Errors:
+- 400 `INVALID_VIEWPORT` / `INVALID_TEMPLATE_ID` / `INVALID_VERSION_ID`
+- 403 RBAC (workspace_viewer required)
+- 404 `TEMPLATE_NOT_FOUND` / `NO_PUBLISHED_VERSION`
+- 409 `CONFLICT` (template disabled)
+- 503 `SCREENSHOT_DISABLED` (feature flag off) / `SCREENSHOT_BUSY` (slot pool full)
+- 504 `SCREENSHOT_TIMEOUT`
+- 500 `SCREENSHOT_INTERNAL` (browser crash; auto-restarted)
+
+Placeholders (`{{ event.X }}`, `{{ injector.Y.Z }}`) are NOT resolved — they appear literally in the image. To preview with real values, use `test-send`.
+
+Available only on the management workspace surface. Not on `/global/` or `/external/`.
 
 ### Templates — global
 

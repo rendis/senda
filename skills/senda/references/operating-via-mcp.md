@@ -175,6 +175,18 @@ in incident reports for the operator.
 2. `GET /api/v1/emails?recipient=...` to find the message.
 3. `GET /api/v1/emails/:tracking_id/events` for the lifecycle events.
 
+### Screenshot a template
+
+`GET /api/v1/manage/tenants/{tenant_code}/workspaces/{workspace_code}/templates/{template_id}/screenshot?viewport=desktop|mobile`
+
+The endpoint returns `Content-Type: image/png` with the raw bytes. The MCP proxy (`mcp-openapi-proxy`) detects `image/*` responses and emits a native `mcp.ImageContent` block alongside the JSON envelope, so capable clients render the image inline. To get both desktop and mobile, call the tool twice — one image per call (the proxy surfaces one ImageContent per response).
+
+Placeholders are not interpolated — the image shows the template structure, not what a real recipient would see. For real-data previews, use `test-send`.
+
+If the response comes back as just a base64 blob inside the JSON envelope, the proxy did not detect the image content type — verify the deployment is running a recent `mcp-openapi-proxy` build and the endpoint actually returns `Content-Type: image/png`.
+
+Full parameter reference and error codes: see `templates-types-and-templates.md` → "Screenshot endpoint".
+
 ### External builder
 
 1. `GET /api/v1/external/:profile_slug/bootstrap` for CSP / `frame_ancestors`.
