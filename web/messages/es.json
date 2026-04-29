@@ -157,7 +157,8 @@
       "spacer": "Espaciado",
       "banner": "Banner",
       "video": "Video",
-      "list": "Lista"
+      "list": "Lista",
+      "code": "Código MJML"
     },
     "reorderBlock": "Reordenar bloque",
     "textPlaceholder": "Texto",
@@ -182,6 +183,8 @@
     "blockHeight": "Altura",
     "blockNoProperties": "Sin propiedades",
     "blockListType": "Tipo de lista",
+    "unsupportedMjmlBlockNotice": "Este bloque contiene MJML que el editor visual no interpreta. Se conserva como código.",
+    "unsupportedMjmlBlockAria": "Código MJML no interpretado",
     "variableHintEvent": "Variable de evento",
     "variableHintInjector": "Variable de injector",
     "visualUnavailableForRawMjml": "Editor visual no disponible: este template usa elementos MJML que el constructor de bloques no soporta.",
