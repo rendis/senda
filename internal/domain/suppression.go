@@ -16,9 +16,10 @@ const (
 type SuppressionReason string
 
 const (
-	SuppressionHardBounce SuppressionReason = "hard_bounce"
-	SuppressionComplaint  SuppressionReason = "complaint"
-	SuppressionManual     SuppressionReason = "manual"
+	SuppressionHardBounce  SuppressionReason = "hard_bounce"
+	SuppressionComplaint   SuppressionReason = "complaint"
+	SuppressionManual      SuppressionReason = "manual"
+	SuppressionUnsubscribe SuppressionReason = "unsubscribe"
 )
 
 type SuppressionGlobal struct {
