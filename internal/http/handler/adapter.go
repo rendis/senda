@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
 	"github.com/rendis/senda/internal/http/request"
@@ -97,7 +99,7 @@ func (h *AdapterHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "name", Message: "is required"})
 	}
 	if !isValidAdapterType(req.AdapterType) {
-		fieldErrors = append(fieldErrors, response.FieldError{Field: "adapter_type", Message: "must be one of: ses, gmail"})
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "adapter_type", Message: "must be one of: ses, gmail, smtp"})
 	}
 	if len(req.Config) == 0 {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "config", Message: "is required"})
@@ -685,6 +687,24 @@ func extractPublicConfigFields(adapterType domain.AdapterType, rawConfig []byte)
 		if v, ok := cfgMap["delegate_email"].(string); ok && v != "" {
 			meta["delegate_email"] = v
 		}
+	case domain.AdapterTypeSMTP:
+		if v, ok := cfgMap["host"].(string); ok && v != "" {
+			meta["host"] = v
+		}
+		if v, ok := cfgMap["tls_mode"].(string); ok && v != "" {
+			meta["tls_mode"] = v
+		}
+		if v, ok := cfgMap["auth_mode"].(string); ok && v != "" {
+			meta["auth_mode"] = v
+		}
+		switch v := cfgMap["port"].(type) {
+		case float64:
+			meta["port"] = strconv.Itoa(int(v))
+		case string:
+			if v != "" {
+				meta["port"] = v
+			}
+		}
 	}
 	if len(meta) == 0 {
 		return nil
@@ -718,13 +738,22 @@ func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []re
 		if str("delegate_email") == "" {
 			errs = append(errs, response.FieldError{Field: "config.delegate_email", Message: "is required"})
 		}
+	case domain.AdapterTypeSMTP:
+		var cfg smtpadapter.Config
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			errs = append(errs, response.FieldError{Field: "config", Message: "must be a valid SMTP config object"})
+			break
+		}
+		if err := cfg.Validate(); err != nil {
+			errs = append(errs, response.FieldError{Field: "config", Message: err.Error()})
+		}
 	}
 	return errs
 }
 
 func isValidAdapterType(t string) bool {
 	switch domain.AdapterType(t) {
-	case domain.AdapterTypeSES, domain.AdapterTypeGmail:
+	case domain.AdapterTypeSES, domain.AdapterTypeGmail, domain.AdapterTypeSMTP:
 		return true
 	}
 	return false

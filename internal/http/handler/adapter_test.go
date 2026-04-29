@@ -346,7 +346,7 @@ func TestAdapterHandler_GetWorkspaceAccess_SystemScope(t *testing.T) {
 	workspaceBID := uuid.Must(uuid.NewV7())
 	adapterID := uuid.Must(uuid.NewV7())
 
-wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID == tenant.ID && code == "_system" {
 			return &domain.Workspace{
 				ID:       systemWSID,
@@ -358,7 +358,7 @@ wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code 
 		}
 		return nil, domain.ErrNotFound
 	}
-wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 		if tenantID != tenant.ID {
 			return nil, "", domain.ErrNotFound
 		}
@@ -428,7 +428,7 @@ func TestAdapterHandler_UpdateWorkspaceAccess_WritesAudit(t *testing.T) {
 	systemWS := &domain.Workspace{ID: systemWSID, TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
 	workspaceA := &domain.Workspace{ID: workspaceAID, TenantID: tenant.ID, Code: "alpha", Name: "Alpha"}
 
-wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
+	wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code string, _ domain.Environment) (*domain.Workspace, error) {
 		if tenantID != tenant.ID {
 			return nil, domain.ErrNotFound
 		}
@@ -441,7 +441,7 @@ wsStore.getByTenantAndCodeFn = func(_ context.Context, tenantID uuid.UUID, code 
 			return nil, domain.ErrNotFound
 		}
 	}
-wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+	wsStore.listByTenantFn = func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
 		if tenantID != tenant.ID {
 			return nil, "", domain.ErrNotFound
 		}
@@ -736,7 +736,7 @@ func TestAdapterHandler_Create_InvalidType(t *testing.T) {
 
 	e, _ := setupAdapterTest(&mockAdapterStore{}, &mockCrypto{}, ts, wsStore)
 
-	body := `{"name":"Bad Adapter","adapter_type":"smtp","config":{"host":"localhost"}}`
+	body := `{"name":"Bad Adapter","adapter_type":"mailgun","config":{"host":"localhost"}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -744,6 +744,65 @@ func TestAdapterHandler_Create_InvalidType(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdapterHandler_Create_SMTPValidatesAndStoresSafeMeta(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	var created *domain.Adapter
+	as := &mockAdapterStore{
+		createFn: func(_ context.Context, adapter *domain.Adapter) error {
+			created = adapter
+			return nil
+		},
+	}
+	e, _ := setupAdapterTest(as, &mockCrypto{}, ts, wsStore)
+
+	body := `{
+		"name":"SMTP Relay",
+		"adapter_type":"smtp",
+		"config":{
+			"host":"smtp.example.com",
+			"port":587,
+			"tls_mode":"starttls",
+			"auth_mode":"plain",
+			"username":"apikey",
+			"password":"secret"
+		},
+		"rate_limit_per_second":10
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil {
+		t.Fatal("expected adapter to be created")
+	}
+	if created.AdapterType != domain.AdapterTypeSMTP {
+		t.Fatalf("adapter type = %q, want smtp", created.AdapterType)
+	}
+	if created.ConfigMeta["host"] != "smtp.example.com" {
+		t.Fatalf("host meta = %q", created.ConfigMeta["host"])
+	}
+	if created.ConfigMeta["port"] != "587" {
+		t.Fatalf("port meta = %q", created.ConfigMeta["port"])
+	}
+	if created.ConfigMeta["tls_mode"] != "starttls" {
+		t.Fatalf("tls_mode meta = %q", created.ConfigMeta["tls_mode"])
+	}
+	if created.ConfigMeta["auth_mode"] != "plain" {
+		t.Fatalf("auth_mode meta = %q", created.ConfigMeta["auth_mode"])
+	}
+	if _, leaked := created.ConfigMeta["password"]; leaked {
+		t.Fatal("password must not be stored in config_meta")
+	}
+	if _, leaked := created.ConfigMeta["username"]; leaked {
+		t.Fatal("username must not be stored in config_meta")
 	}
 }
 
