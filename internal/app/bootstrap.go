@@ -76,25 +76,26 @@ type infraBundle struct {
 }
 
 type repositoryBundle struct {
-	tenantRepo               port.TenantStore
-	workspaceRepo            port.WorkspaceStore
-	memberRepo               port.MemberStore
-	apiKeyRepo               port.APIKeyStore
-	emailRepo                port.EmailStore
-	templateRepo             port.TemplateStore
-	injectorRepo             port.InjectorStore
-	adapterRepo              port.AdapterStore
-	webhookRepo              port.WebhookStore
-	suppressionRepo          port.SuppressionStore
-	auditRepo                port.AuditLogStore
-	dashboardRepo            port.DashboardStore
-	configRepo               port.GlobalConfigStore
-	adapterIdentityRepo      port.AdapterIdentityStore
-	adapterGrantRepo         port.AdapterGrantStore
-	adapterIdentityGrantRepo port.AdapterIdentityGrantStore
-	templateTypeUsageRepo    port.TemplateTypeUsageStore
-	provisioningStepRepo     port.ProvisioningStepStore
-	snsReplayRepo            port.SNSReplayStore
+	tenantRepo                    port.TenantStore
+	workspaceRepo                 port.WorkspaceStore
+	memberRepo                    port.MemberStore
+	apiKeyRepo                    port.APIKeyStore
+	emailRepo                     port.EmailStore
+	templateRepo                  port.TemplateStore
+	injectorRepo                  port.InjectorStore
+	adapterRepo                   port.AdapterStore
+	webhookRepo                   port.WebhookStore
+	suppressionRepo               port.SuppressionStore
+	auditRepo                     port.AuditLogStore
+	dashboardRepo                 port.DashboardStore
+	configRepo                    port.GlobalConfigStore
+	adapterIdentityRepo           port.AdapterIdentityStore
+	adapterGrantRepo              port.AdapterGrantStore
+	adapterIdentityGrantRepo      port.AdapterIdentityGrantStore
+	templateTypeUsageRepo         port.TemplateTypeUsageStore
+	provisioningStepRepo          port.ProvisioningStepStore
+	snsReplayRepo                 port.SNSReplayStore
+	templateTypeSubscriptionRepo  port.TemplateTypeSubscriptionStore
 }
 
 type resolutionBundle struct {
@@ -213,25 +214,26 @@ func newInfraBundle(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool)
 
 func newRepositoryBundle(pool *pgxpool.Pool) repositoryBundle {
 	return repositoryBundle{
-		tenantRepo:               postgres.NewTenantRepo(pool),
-		workspaceRepo:            postgres.NewWorkspaceRepo(pool),
-		memberRepo:               postgres.NewMemberRepo(pool),
-		apiKeyRepo:               postgres.NewAPIKeyRepo(pool),
-		emailRepo:                postgres.NewEmailRepo(pool),
-		templateRepo:             postgres.NewTemplateRepo(pool),
-		injectorRepo:             postgres.NewInjectorRepo(pool),
-		adapterRepo:              postgres.NewAdapterRepo(pool),
-		webhookRepo:              postgres.NewWebhookRepo(pool),
-		suppressionRepo:          postgres.NewSuppressionRepo(pool),
-		auditRepo:                postgres.NewAuditRepo(pool),
-		dashboardRepo:            postgres.NewDashboardRepo(pool),
-		configRepo:               postgres.NewGlobalConfigRepo(pool),
-		adapterIdentityRepo:      postgres.NewAdapterIdentityRepo(pool),
-		adapterGrantRepo:         postgres.NewAdapterGrantRepo(pool),
-		adapterIdentityGrantRepo: postgres.NewAdapterIdentityGrantRepo(pool),
-		templateTypeUsageRepo:    postgres.NewTemplateTypeUsageRepo(pool),
-		provisioningStepRepo:     postgres.NewProvisioningStepRepo(pool),
-		snsReplayRepo:            postgres.NewSNSReplayRepo(pool),
+		tenantRepo:                   postgres.NewTenantRepo(pool),
+		workspaceRepo:                postgres.NewWorkspaceRepo(pool),
+		memberRepo:                   postgres.NewMemberRepo(pool),
+		apiKeyRepo:                   postgres.NewAPIKeyRepo(pool),
+		emailRepo:                    postgres.NewEmailRepo(pool),
+		templateRepo:                 postgres.NewTemplateRepo(pool),
+		injectorRepo:                 postgres.NewInjectorRepo(pool),
+		adapterRepo:                  postgres.NewAdapterRepo(pool),
+		webhookRepo:                  postgres.NewWebhookRepo(pool),
+		suppressionRepo:              postgres.NewSuppressionRepo(pool),
+		auditRepo:                    postgres.NewAuditRepo(pool),
+		dashboardRepo:                postgres.NewDashboardRepo(pool),
+		configRepo:                   postgres.NewGlobalConfigRepo(pool),
+		adapterIdentityRepo:          postgres.NewAdapterIdentityRepo(pool),
+		adapterGrantRepo:             postgres.NewAdapterGrantRepo(pool),
+		adapterIdentityGrantRepo:     postgres.NewAdapterIdentityGrantRepo(pool),
+		templateTypeUsageRepo:        postgres.NewTemplateTypeUsageRepo(pool),
+		provisioningStepRepo:         postgres.NewProvisioningStepRepo(pool),
+		snsReplayRepo:                postgres.NewSNSReplayRepo(pool),
+		templateTypeSubscriptionRepo: postgres.NewTemplateTypeSubscriptionRepo(pool),
 	}
 }
 
@@ -262,6 +264,12 @@ func newRiverClient(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool,
 	if cfg.Tracking.BaseURL != "" {
 		sendWorkerOpts = append(sendWorkerOpts, river.WithTrackingBaseURL(cfg.Tracking.BaseURL))
 		logger.Info("open tracking enabled", "base_url", cfg.Tracking.BaseURL)
+		sendWorkerOpts = append(sendWorkerOpts,
+			river.WithTemplateTypeStore(repos.templateRepo),
+			river.WithWorkspaceLookup(repos.workspaceRepo),
+			river.WithUnsubscribePublicBaseURL(cfg.Tracking.BaseURL),
+		)
+		logger.Info("unsubscribe header injection enabled", "base_url", cfg.Tracking.BaseURL)
 	}
 
 	sendWorker := river.NewSendWorker(repos.emailRepo, infra.compiler, infra.renderer, infra.rateLimiter, infra.emailSender, sendWorkerOpts...)
@@ -413,6 +421,7 @@ func newServerHandlerBundle(
 	identityH.SetAdapterAccessService(services.adapterAccessSvc)
 	identityH.SetAuditStore(repos.auditRepo)
 	services.sendSvc.SetAdapterAccessService(services.adapterAccessSvc)
+	services.sendSvc.SetTemplateTypeSubscriptionStore(repos.templateTypeSubscriptionRepo)
 
 	var sesWebhookHandler *handler.SESWebhookHandler
 	if cfg.SMTP.Host == "" {

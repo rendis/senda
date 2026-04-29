@@ -143,7 +143,10 @@ func (m *mockCompiler) Compile(ctx context.Context, mjml string) (string, error)
 }
 
 type mockRenderer struct {
-	renderFn func(template string, injectors map[string]map[string]any, eventVars map[string]any) (string, error)
+	renderFn            func(template string, injectors map[string]map[string]any, eventVars map[string]any) (string, error)
+	renderWithSystemFn  func(template string, injectors map[string]map[string]any, eventVars map[string]any, systemVars map[string]string) (string, error)
+	lastSystemVars      map[string]string
+	renderWithSystemCalls int
 }
 
 func (m *mockRenderer) Render(template string, injectors map[string]map[string]any, eventVars map[string]any) (string, error) {
@@ -153,7 +156,12 @@ func (m *mockRenderer) Render(template string, injectors map[string]map[string]a
 	return template, nil
 }
 
-func (m *mockRenderer) RenderWithSystem(template string, injectors map[string]map[string]any, eventVars map[string]any, _ map[string]string) (string, error) {
+func (m *mockRenderer) RenderWithSystem(template string, injectors map[string]map[string]any, eventVars map[string]any, systemVars map[string]string) (string, error) {
+	m.renderWithSystemCalls++
+	m.lastSystemVars = systemVars
+	if m.renderWithSystemFn != nil {
+		return m.renderWithSystemFn(template, injectors, eventVars, systemVars)
+	}
 	return m.Render(template, injectors, eventVars)
 }
 
@@ -1336,3 +1344,285 @@ func (p *plainMockSender) Send(_ context.Context, _ *port.OutgoingEmail) (string
 }
 func (p *plainMockSender) Name() string                        { return "plain" }
 func (p *plainMockSender) HealthCheck(_ context.Context) error { return nil }
+
+// --- Mocks for unsubscribe header injection ---
+
+type mockTemplateTypeStore struct {
+	getTypeBySlugFn func(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error)
+}
+
+func (m *mockTemplateTypeStore) CreateType(_ context.Context, _ *domain.TemplateType) error {
+	return nil
+}
+func (m *mockTemplateTypeStore) UpdateType(_ context.Context, _ *domain.TemplateType) error {
+	return nil
+}
+func (m *mockTemplateTypeStore) SoftDeleteType(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockTemplateTypeStore) GetTypeBySlug(ctx context.Context, slug string, chain []uuid.NullUUID) (*domain.TemplateType, error) {
+	if m.getTypeBySlugFn != nil {
+		return m.getTypeBySlugFn(ctx, slug, chain)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateTypeStore) FindTypeBySlugInScope(_ context.Context, _ string, _ *uuid.UUID) (*domain.TemplateType, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockTemplateTypeStore) ListTypes(_ context.Context, _ *uuid.UUID, _ port.ListOptions) ([]*domain.TemplateType, string, error) {
+	return nil, "", nil
+}
+
+type mockWorkspaceStore struct {
+	getByIDFn                  func(ctx context.Context, id uuid.UUID) (*domain.Workspace, error)
+	getUnsubscribeSigningKeyFn func(ctx context.Context, workspaceID uuid.UUID) ([]byte, error)
+}
+
+func (m *mockWorkspaceStore) Create(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) CreateLogicalPair(_ context.Context, _ *domain.Workspace, _ *domain.Workspace) error {
+	return nil
+}
+func (m *mockWorkspaceStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.Workspace, error) {
+	if m.getByIDFn != nil {
+		return m.getByIDFn(ctx, id)
+	}
+	return &domain.Workspace{ID: id, Name: "Test Workspace"}, nil
+}
+func (m *mockWorkspaceStore) GetByTenantAndCode(_ context.Context, _ uuid.UUID, _ string, _ domain.Environment) (*domain.Workspace, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockWorkspaceStore) GetSystemWorkspace(_ context.Context, _ uuid.UUID, _ domain.Environment) (*domain.Workspace, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockWorkspaceStore) ListByTenant(_ context.Context, _ uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+	return nil, "", nil
+}
+func (m *mockWorkspaceStore) UpdateShared(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+	return nil
+}
+func (m *mockWorkspaceStore) Update(_ context.Context, _ *domain.Workspace) error { return nil }
+func (m *mockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+func (m *mockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStore) GetUnsubscribeSigningKey(ctx context.Context, workspaceID uuid.UUID) ([]byte, error) {
+	if m.getUnsubscribeSigningKeyFn != nil {
+		return m.getUnsubscribeSigningKeyFn(ctx, workspaceID)
+	}
+	return make([]byte, 32), nil // 32-byte zero key
+}
+
+// --- Unsubscribe header injection tests ---
+
+func TestSendWorker_BulkTemplate_InjectsListUnsubscribeHeaders(t *testing.T) {
+	email := newTestEmail()
+	email.TemplateTypeSlug = "newsletter"
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	tts := &mockTemplateTypeStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			if slug == "newsletter" {
+				return &domain.TemplateType{
+					ID:     uuid.Must(uuid.NewV7()),
+					Slug:   "newsletter",
+					Name:   "Newsletter",
+					IsBulk: true,
+				}, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	signingKey := make([]byte, 32)
+	for i := range signingKey {
+		signingKey[i] = 0xAB
+	}
+	wsStore := &mockWorkspaceStore{
+		getUnsubscribeSigningKeyFn: func(_ context.Context, _ uuid.UUID) ([]byte, error) {
+			return signingKey, nil
+		},
+	}
+	sender := &mockSender{}
+	baseURL := "https://senda.example.com"
+
+	worker := newTestSendWorker(
+		emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender,
+		WithTemplateTypeStore(tts),
+		WithWorkspaceLookup(wsStore),
+		WithUnsubscribePublicBaseURL(baseURL),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(sender.calls) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sender.calls))
+	}
+	hdrs := sender.calls[0].Msg.Headers
+
+	listUnsub, ok := hdrs["List-Unsubscribe"]
+	if !ok {
+		t.Fatal("expected List-Unsubscribe header, not found")
+	}
+	if !strings.HasPrefix(listUnsub, "<"+baseURL+"/api/v1/u/") {
+		t.Errorf("List-Unsubscribe = %q, want prefix %q", listUnsub, "<"+baseURL+"/api/v1/u/")
+	}
+
+	listUnsubPost, ok := hdrs["List-Unsubscribe-Post"]
+	if !ok {
+		t.Fatal("expected List-Unsubscribe-Post header, not found")
+	}
+	if listUnsubPost != "List-Unsubscribe=One-Click" {
+		t.Errorf("List-Unsubscribe-Post = %q, want %q", listUnsubPost, "List-Unsubscribe=One-Click")
+	}
+
+	// Tracking header still present.
+	if hdrs["X-Senda-Tracking-ID"] != email.TrackingID {
+		t.Errorf("X-Senda-Tracking-ID = %q, want %q", hdrs["X-Senda-Tracking-ID"], email.TrackingID)
+	}
+}
+
+func TestSendWorker_TransactionalTemplate_NoListUnsubscribeHeaders(t *testing.T) {
+	email := newTestEmail()
+	email.TemplateTypeSlug = "welcome"
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	tts := &mockTemplateTypeStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return &domain.TemplateType{
+				ID:     uuid.Must(uuid.NewV7()),
+				Slug:   slug,
+				Name:   "Welcome",
+				IsBulk: false, // transactional
+			}, nil
+		},
+	}
+	signingKey := make([]byte, 32)
+	wsStore := &mockWorkspaceStore{
+		getUnsubscribeSigningKeyFn: func(_ context.Context, _ uuid.UUID) ([]byte, error) {
+			return signingKey, nil
+		},
+	}
+	sender := &mockSender{}
+
+	worker := newTestSendWorker(
+		emailStore, &mockCompiler{}, &mockRenderer{}, &mockRateLimiter{}, sender,
+		WithTemplateTypeStore(tts),
+		WithWorkspaceLookup(wsStore),
+		WithUnsubscribePublicBaseURL("https://senda.example.com"),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(sender.calls) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sender.calls))
+	}
+	hdrs := sender.calls[0].Msg.Headers
+	if _, ok := hdrs["List-Unsubscribe"]; ok {
+		t.Error("unexpected List-Unsubscribe header for transactional template")
+	}
+	if _, ok := hdrs["List-Unsubscribe-Post"]; ok {
+		t.Error("unexpected List-Unsubscribe-Post header for transactional template")
+	}
+}
+
+func TestSendWorker_BulkTemplate_PassesSystemVarsToRenderer(t *testing.T) {
+	email := newTestEmail()
+	email.TemplateTypeSlug = "promo"
+
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	tts := &mockTemplateTypeStore{
+		getTypeBySlugFn: func(_ context.Context, slug string, _ []uuid.NullUUID) (*domain.TemplateType, error) {
+			return &domain.TemplateType{
+				ID:     uuid.Must(uuid.NewV7()),
+				Slug:   slug,
+				Name:   "Promo",
+				IsBulk: true,
+			}, nil
+		},
+	}
+	signingKey := make([]byte, 32)
+	for i := range signingKey {
+		signingKey[i] = 0xCC
+	}
+	wsStore := &mockWorkspaceStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			return &domain.Workspace{ID: id, Name: "Acme Workspace"}, nil
+		},
+		getUnsubscribeSigningKeyFn: func(_ context.Context, _ uuid.UUID) ([]byte, error) {
+			return signingKey, nil
+		},
+	}
+	renderer := &mockRenderer{}
+	baseURL := "https://senda.example.com"
+
+	worker := newTestSendWorker(
+		emailStore, &mockCompiler{}, renderer, &mockRateLimiter{}, &mockSender{},
+		WithTemplateTypeStore(tts),
+		WithWorkspaceLookup(wsStore),
+		WithUnsubscribePublicBaseURL(baseURL),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if renderer.renderWithSystemCalls == 0 {
+		t.Fatal("expected RenderWithSystem to be called")
+	}
+	sv := renderer.lastSystemVars
+	if sv == nil {
+		t.Fatal("expected non-nil systemVars passed to RenderWithSystem")
+	}
+	if _, ok := sv["unsubscribe_url"]; !ok {
+		t.Error("expected systemVars to contain unsubscribe_url")
+	}
+	if _, ok := sv["preferences_url"]; !ok {
+		t.Error("expected systemVars to contain preferences_url")
+	}
+	if sv["workspace_name"] != "Acme Workspace" {
+		t.Errorf("workspace_name = %q, want %q", sv["workspace_name"], "Acme Workspace")
+	}
+	if !strings.HasPrefix(sv["unsubscribe_url"], baseURL+"/u/") {
+		t.Errorf("unsubscribe_url = %q, want prefix %q", sv["unsubscribe_url"], baseURL+"/u/")
+	}
+}

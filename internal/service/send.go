@@ -104,18 +104,19 @@ type TrackingEntry struct {
 
 // SendService orchestrates the full email send pipeline.
 type SendService struct {
-	templateResolver *resolution.TemplateResolver
-	injectorMerger   *resolution.InjectorMerger
-	adapterResolver  *resolution.AdapterResolver
-	accessService    *AdapterAccessService
-	identitySvc      *IdentityService
-	emailStore       port.EmailStore
-	suppression      port.SuppressionStore
-	queue            port.JobQueue
-	renderer         port.VariableRenderer
-	tenantStore      port.TenantStore
-	wsStore          port.WorkspaceStore
-	pool             *pgxpool.Pool
+	templateResolver            *resolution.TemplateResolver
+	injectorMerger              *resolution.InjectorMerger
+	adapterResolver             *resolution.AdapterResolver
+	accessService               *AdapterAccessService
+	identitySvc                 *IdentityService
+	emailStore                  port.EmailStore
+	suppression                 port.SuppressionStore
+	templateTypeSubscriptionSvc templateTypeOptOutStore
+	queue                       port.JobQueue
+	renderer                    port.VariableRenderer
+	tenantStore                 port.TenantStore
+	wsStore                     port.WorkspaceStore
+	pool                        *pgxpool.Pool
 }
 
 type suppressionSetLookup interface {
@@ -125,6 +126,11 @@ type suppressionSetLookup interface {
 // SetAdapterAccessService wires runtime adapter access validation without widening constructor churn.
 func (s *SendService) SetAdapterAccessService(accessService *AdapterAccessService) {
 	s.accessService = accessService
+}
+
+// SetTemplateTypeSubscriptionStore wires per-type opt-out suppression without widening constructor churn.
+func (s *SendService) SetTemplateTypeSubscriptionStore(ts templateTypeOptOutStore) {
+	s.templateTypeSubscriptionSvc = ts
 }
 
 // NewSendService creates a new SendService with the given dependencies.
@@ -281,7 +287,9 @@ func (s *SendService) Send(ctx context.Context, req *SendRequest) (*SendResponse
 		return nil, err
 	}
 
-	suppressionResult, err := NewSuppressionBatchEvaluator(s.suppression).Evaluate(ctx, ws.ID, effectiveTo, effectiveCC, effectiveBCC)
+	suppressionResult, err := NewSuppressionBatchEvaluator(s.suppression).
+		WithTemplateTypeStore(s.templateTypeSubscriptionSvc).
+		EvaluateForType(ctx, ws.ID, resolved.TemplateType.ID, effectiveTo, effectiveCC, effectiveBCC)
 	if err != nil {
 		return nil, err
 	}

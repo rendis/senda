@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/rendis/senda/internal/metrics"
 	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/tracking"
+	"github.com/rendis/senda/internal/unsubscribe"
 )
 
 // DefaultAdapterSenderFactory builds provider-specific senders from adapter configs.
@@ -112,6 +114,11 @@ type SendWorker struct {
 	rateLimits               sync.Map // uuid.UUID -> *rateLimitReservation
 	rateLimitCleanupRunning  atomic.Bool
 	lastRateLimitCleanupUnix atomic.Int64
+
+	// Unsubscribe header injection (optional — no-op when not wired).
+	templateTypeStore port.TemplateTypeStore
+	workspaceLookup   port.WorkspaceStore
+	publicBaseURL     string
 }
 
 // NewSendWorker creates a new send worker with all dependencies.
@@ -164,6 +171,21 @@ func WithRateLimitBurstSize(size int) SendWorkerOption {
 			w.rateLimitBurstSize = size
 		}
 	}
+}
+
+// WithTemplateTypeStore enables List-Unsubscribe header injection for bulk template types.
+func WithTemplateTypeStore(s port.TemplateTypeStore) SendWorkerOption {
+	return func(w *SendWorker) { w.templateTypeStore = s }
+}
+
+// WithWorkspaceLookup enables workspace name and signing key resolution for unsubscribe tokens.
+func WithWorkspaceLookup(s port.WorkspaceStore) SendWorkerOption {
+	return func(w *SendWorker) { w.workspaceLookup = s }
+}
+
+// WithUnsubscribePublicBaseURL sets the base URL used for List-Unsubscribe and preferences links.
+func WithUnsubscribePublicBaseURL(u string) SendWorkerOption {
+	return func(w *SendWorker) { w.publicBaseURL = u }
 }
 
 // Work processes a single email send job.
@@ -235,31 +257,84 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.failPermanently(ctx, email, fmt.Errorf("send: load email payload: %w", err))
 	}
 
-	// 5. Render MJML body with variables.
-	renderedBody, err := w.renderer.Render(payload.BodyMJML, payload.InjectorsSnapshot, payload.VariablesSnapshot)
+	// 5. Resolve unsubscribe context for bulk template types (optional, no-op when not wired).
+	var systemVars map[string]string
+	extraHeaders := map[string]string{}
+	if w.templateTypeStore != nil && w.workspaceLookup != nil && w.publicBaseURL != "" {
+		chain := []uuid.NullUUID{{UUID: email.WorkspaceID, Valid: true}}
+		tt, ttErr := w.templateTypeStore.GetTypeBySlug(ctx, email.TemplateTypeSlug, chain)
+		if ttErr == nil && tt != nil && tt.IsBulk {
+			key, kerr := w.workspaceLookup.GetUnsubscribeSigningKey(ctx, email.WorkspaceID)
+			if kerr != nil {
+				slog.Warn("send_worker: failed to load unsubscribe signing key; skipping headers",
+					append(emailLogAttrs(email), "error", kerr)...)
+			} else {
+				now := time.Now().UTC()
+				tokenPayload := unsubscribe.Payload{
+					Version:          1,
+					WorkspaceID:      email.WorkspaceID,
+					TemplateTypeSlug: tt.Slug,
+					TemplateTypeName: tt.Name,
+					Email:            domain.CanonicalRecipientAddress(email.RecipientEmail),
+					SourceEmailID:    email.ID,
+					IssuedAt:         now,
+					ExpiresAt:        now.AddDate(1, 0, 0),
+				}
+				tok, gerr := unsubscribe.Generate(tokenPayload, key)
+				if gerr != nil {
+					slog.Warn("send_worker: failed to generate unsubscribe token; skipping headers",
+						append(emailLogAttrs(email), "error", gerr)...)
+				} else {
+					base := strings.TrimRight(w.publicBaseURL, "/")
+					oneClickURL := base + "/api/v1/u/" + tok
+					landingURL := base + "/u/" + tok
+					prefsURL := base + "/u/" + tok + "/preferences"
+					extraHeaders["List-Unsubscribe"] = "<" + oneClickURL + ">"
+					extraHeaders["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+
+					wsName := ""
+					if ws, werr := w.workspaceLookup.GetByID(ctx, email.WorkspaceID); werr == nil && ws != nil {
+						wsName = ws.Name
+					}
+					systemVars = map[string]string{
+						"unsubscribe_url": landingURL,
+						"preferences_url": prefsURL,
+						"workspace_name":  wsName,
+					}
+				}
+			}
+		}
+	}
+
+	// 6. Render MJML body with variables (and system vars when present).
+	renderedBody, err := w.renderer.RenderWithSystem(payload.BodyMJML, payload.InjectorsSnapshot, payload.VariablesSnapshot, systemVars)
 	if err != nil {
 		return w.failPermanently(ctx, email, fmt.Errorf("send: render body: %w", err))
 	}
 
-	// 6. Compile rendered MJML to HTML.
+	// 7. Compile rendered MJML to HTML.
 	bodyHTML, err := w.compiler.Compile(ctx, renderedBody)
 	if err != nil {
 		return w.failPermanently(ctx, email, fmt.Errorf("send: compile mjml: %w", err))
 	}
 
-	// 7. Inject open-tracking pixel if email has it enabled (denormalized from workspace at enqueue time).
+	// 8. Inject open-tracking pixel if email has it enabled (denormalized from workspace at enqueue time).
 	if w.trackingBaseURL != "" && email.OpenTrackingEnabled {
 		bodyHTML = tracking.InjectOpenPixel(bodyHTML, w.trackingBaseURL, email.TrackingID)
 	}
 
-	// 8. Build outgoing email.
+	// 9. Build outgoing email.
+	hdrs := map[string]string{"X-Senda-Tracking-ID": email.TrackingID}
+	for k, v := range extraHeaders {
+		hdrs[k] = v
+	}
 	outgoing := &port.OutgoingEmail{
 		From:       port.EmailAddress{Name: email.FromName, Address: email.FromEmail},
 		To:         port.EmailAddress{Address: email.RecipientEmail},
 		Subject:    email.SubjectRendered,
 		BodyHTML:   bodyHTML,
 		TrackingID: email.TrackingID,
-		Headers:    map[string]string{"X-Senda-Tracking-ID": email.TrackingID},
+		Headers:    hdrs,
 	}
 
 	// CC / BCC
@@ -273,7 +348,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		outgoing.ReplyTo = &port.EmailAddress{Address: *email.ReplyTo}
 	}
 
-	// 9. Send via provider adapter.
+	// 10. Send via provider adapter.
 	sender, err := w.resolveSender(ctx, email.AdapterID)
 	if err != nil {
 		if errors.Is(err, domain.ErrValidation) || errors.Is(err, domain.ErrNotFound) {
@@ -288,14 +363,14 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.handleSendError(ctx, email, sender, job.Attempt, job.MaxAttempts, err)
 	}
 
-	// 10. Persist provider message ID for webhook event matching.
+	// 11. Persist provider message ID for webhook event matching.
 	if providerMsgID != "" {
 		if err := w.emailStore.SetProviderMessageID(ctx, email.ID, providerMsgID); err != nil {
 			return fmt.Errorf("send: set provider_message_id: %w", err)
 		}
 	}
 
-	// 11. Success: update status to sent, add event.
+	// 12. Success: update status to sent, add event.
 	if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSent, domain.StatusProcessing); err != nil {
 		return fmt.Errorf("send: update status to sent: %w", err)
 	}
