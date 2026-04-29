@@ -2,6 +2,7 @@ package chromedp
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -49,8 +50,9 @@ func (c *Capturer) Capture(ctx context.Context, html string, vp port.Viewport, m
 	browserCtx, browserCancel := cdp.NewContext(allocCtx)
 	defer browserCancel()
 
-	// Encode the HTML as a data URL to avoid filesystem and network dependencies.
-	dataURL := "data:text/html;charset=utf-8," + urlEncodeHTML(html)
+	// Encode the HTML as a base64 data URL to avoid filesystem and network dependencies.
+	// base64 is robust against all characters (spaces, UTF-8, special chars, emojis).
+	dataURL := "data:text/html;charset=utf-8;base64," + base64.StdEncoding.EncodeToString([]byte(html))
 
 	var (
 		scrollHeight int64
@@ -65,10 +67,7 @@ func (c *Capturer) Capture(ctx context.Context, html string, vp port.Viewport, m
 		cdp.WaitReady("body"),
 		cdp.Evaluate(`document.documentElement.scrollHeight`, &scrollHeight),
 		cdp.ActionFunc(func(ctx context.Context) error {
-			h := scrollHeight
-			if h > cappedHeight {
-				h = cappedHeight
-			}
+			h := min(scrollHeight, cappedHeight)
 			if h <= 0 {
 				h = 1
 			}
@@ -105,26 +104,6 @@ func isFatal(err error) bool {
 	return strings.Contains(msg, "websocket: close") ||
 		strings.Contains(msg, "context canceled") ||
 		strings.Contains(msg, "browser disconnected")
-}
-
-// urlEncodeHTML percent-encodes the minimal set of characters that would break
-// a data: URL when used with the text/html MIME type. Using a plain data URL
-// (no base64) keeps the content human-readable in dev tools.
-func urlEncodeHTML(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		switch ch {
-		case '#':
-			b.WriteString("%23")
-		case '%':
-			b.WriteString("%25")
-		default:
-			b.WriteByte(ch)
-		}
-	}
-	return b.String()
 }
 
 // Compile-time interface check.
