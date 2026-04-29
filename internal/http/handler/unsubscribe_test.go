@@ -336,6 +336,21 @@ func TestUnsubHandler_UpdatePreferences_BadRequest(t *testing.T) {
 	assertErrorCode(t, rec, "BAD_REQUEST")
 }
 
+func TestUnsubHandler_UpdatePreferences_EmptyChanges_BadRequest(t *testing.T) {
+	svc := &fakeUnsubscribeService{}
+
+	e := setupUnsubTest(svc)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/u/tok/preferences", strings.NewReader(`{"changes":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec, "BAD_REQUEST")
+}
+
 func TestUnsubHandler_Resubscribe_Success(t *testing.T) {
 	var calledWith string
 	svc := &fakeUnsubscribeService{

@@ -103,6 +103,9 @@ func (h *UnsubscribeHandler) UpdatePreferences(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 	}
+	if len(req.Changes) == 0 {
+		return response.WriteError(c, http.StatusBadRequest, "BAD_REQUEST", "changes must not be empty")
+	}
 	changes := make([]service.PreferenceChange, 0, len(req.Changes))
 	for _, ch := range req.Changes {
 		changes = append(changes, service.PreferenceChange{

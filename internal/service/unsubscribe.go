@@ -48,9 +48,10 @@ type PreferenceChange struct {
 	Subscribed       bool
 }
 
-// ErrInvalidToken is returned when a token cannot be verified (malformed, wrong
-// key, expired, or pointing to a workspace that does not exist). Callers may
-// use errors.Is(err, ErrInvalidToken) to map this to an HTTP 400/401.
+// ErrInvalidToken is returned when the token cannot be parsed, the signature
+// is invalid, the workspace lookup fails, or the token has expired. The HTTP
+// layer maps this to 404 NOT_FOUND (rather than 400/401) to avoid leaking
+// enumeration data about valid tokens.
 var ErrInvalidToken = errors.New("unsubscribe: invalid token")
 
 // Local interfaces — narrowest dependencies for hexagonal cleanliness.
