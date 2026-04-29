@@ -130,6 +130,9 @@ func (m *mockEmailStore) QueryByWorkspace(ctx context.Context, wsID uuid.UUID, f
 func (m *mockEmailStore) QueryByExternalIDGlobal(ctx context.Context, externalID string, cursor string, limit int) ([]*domain.Email, string, error) {
 	return nil, "", nil
 }
+func (m *mockEmailStore) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
+	return nil, nil
+}
 
 type mockCompiler struct {
 	compileFn func(ctx context.Context, mjml string) (string, error)

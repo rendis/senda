@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/unsubscribe"
 	"github.com/rendis/senda/pkg/apperr"
 )
@@ -120,11 +121,11 @@ func (f *fakeTTSWriter) ListOptOutsForRecipient(_ context.Context, _ uuid.UUID, 
 }
 
 type fakeEmailHistory struct {
-	types []EmailHistoryType
+	types []port.EmailHistoryType
 	err   error
 }
 
-func (f *fakeEmailHistory) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]EmailHistoryType, error) {
+func (f *fakeEmailHistory) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
 	return f.types, f.err
 }
 
@@ -301,7 +302,7 @@ func TestUnsubscribeService_GetPreferences_ListsHistoricalTypesWithStates(t *tes
 
 	// History returns 2 slugs
 	history := &fakeEmailHistory{
-		types: []EmailHistoryType{
+		types: []port.EmailHistoryType{
 			{Slug: "newsletter", LastSentAt: now.Add(-24 * time.Hour)},
 			{Slug: "promo", LastSentAt: now.Add(-48 * time.Hour)},
 		},

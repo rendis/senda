@@ -113,6 +113,9 @@ func (m *mockEmailStore) QueryByExternalIDGlobal(ctx context.Context, externalID
 	}
 	return nil, "", nil
 }
+func (m *mockEmailStore) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
+	return nil, nil
+}
 
 // --- Helpers ---
 

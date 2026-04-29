@@ -156,6 +156,9 @@ func (m *mockEmailStoreSend) QueryByWorkspace(_ context.Context, _ uuid.UUID, _ 
 func (m *mockEmailStoreSend) QueryByExternalIDGlobal(_ context.Context, _ string, _ string, _ int) ([]*domain.Email, string, error) {
 	return nil, "", nil
 }
+func (m *mockEmailStoreSend) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
+	return nil, nil
+}
 
 type mockSuppressionStoreSend struct {
 	isSuppressedFn       func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)

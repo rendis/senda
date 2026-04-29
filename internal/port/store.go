@@ -119,6 +119,12 @@ type TemplateStore interface {
 	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 }
 
+// EmailHistoryType is one row of recipient history aggregated by template_type slug.
+type EmailHistoryType struct {
+	Slug       string
+	LastSentAt time.Time
+}
+
 // EmailStore manages email persistence and queries.
 type EmailStore interface {
 	Create(ctx context.Context, email *domain.Email) error
@@ -139,6 +145,11 @@ type EmailStore interface {
 	QueryByExternalID(ctx context.Context, wsID uuid.UUID, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
 	QueryByRecipient(ctx context.Context, wsID uuid.UUID, email string, cursor string, limit int) ([]*domain.Email, string, error)
 	QueryByWorkspace(ctx context.Context, wsID uuid.UUID, filters EmailFilters, cursor string, limit int) ([]*domain.Email, string, error)
+
+	// DistinctTemplateTypesForRecipient returns one row per distinct template_type_slug
+	// that the recipient received in the workspace since the given timestamp,
+	// ordered by most recent first.
+	DistinctTemplateTypesForRecipient(ctx context.Context, workspaceID uuid.UUID, email string, since time.Time) ([]EmailHistoryType, error)
 
 	// Cross-tenant (superadmin only)
 	QueryByExternalIDGlobal(ctx context.Context, externalID string, cursor string, limit int) ([]*domain.Email, string, error)

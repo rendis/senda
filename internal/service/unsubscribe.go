@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rendis/senda/internal/domain"
+	"github.com/rendis/senda/internal/port"
 	"github.com/rendis/senda/internal/unsubscribe"
 	"github.com/rendis/senda/pkg/apperr"
 )
@@ -47,12 +48,6 @@ type PreferenceChange struct {
 	Subscribed       bool
 }
 
-// EmailHistoryType is the result of "which template types did this recipient receive in the last N months".
-type EmailHistoryType struct {
-	Slug       string
-	LastSentAt time.Time
-}
-
 // ErrInvalidToken is returned when a token cannot be verified (malformed, wrong
 // key, expired, or pointing to a workspace that does not exist). Callers may
 // use errors.Is(err, ErrInvalidToken) to map this to an HTTP 400/401.
@@ -88,7 +83,7 @@ type unsubTTSWriter interface {
 }
 
 type unsubEmailHistory interface {
-	DistinctTemplateTypesForRecipient(ctx context.Context, workspaceID uuid.UUID, email string, since time.Time) ([]EmailHistoryType, error)
+	DistinctTemplateTypesForRecipient(ctx context.Context, workspaceID uuid.UUID, email string, since time.Time) ([]port.EmailHistoryType, error)
 }
 
 // UnsubscribeService implements the public unsubscribe operations.

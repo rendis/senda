@@ -419,6 +419,44 @@ func (r *EmailRepo) QueryByExternalIDGlobal(ctx context.Context, externalID stri
 	)
 }
 
+// DistinctTemplateTypesForRecipient returns one row per distinct template_type_slug
+// received by the recipient in the workspace on or after since, ordered by most recent first.
+func (r *EmailRepo) DistinctTemplateTypesForRecipient(
+	ctx context.Context, workspaceID uuid.UUID, email string, since time.Time,
+) ([]port.EmailHistoryType, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT template_type_slug, MAX(created_at) AS last_sent
+		   FROM emails
+		  WHERE workspace_id = @workspace_id
+		    AND recipient_email = @recipient_email
+		    AND created_at >= @since
+		  GROUP BY template_type_slug
+		  ORDER BY last_sent DESC`,
+		pgx.NamedArgs{
+			"workspace_id":    workspaceID,
+			"recipient_email": email,
+			"since":           since,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("emails: distinct template types: %w", err)
+	}
+	defer rows.Close()
+
+	out := []port.EmailHistoryType{}
+	for rows.Next() {
+		var h port.EmailHistoryType
+		if err := rows.Scan(&h.Slug, &h.LastSentAt); err != nil {
+			return nil, fmt.Errorf("emails: scan distinct type: %w", err)
+		}
+		out = append(out, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("emails: iterate distinct types: %w", err)
+	}
+	return out, nil
+}
+
 // queryEmails is the shared query helper for all email queries.
 // It uses composite (created_at, id) cursors for partitioned tables.
 func (r *EmailRepo) queryEmails(ctx context.Context, cursor string, limit int, where string, args pgx.NamedArgs) ([]*domain.Email, string, error) {
