@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Building, Loader2 } from "lucide-react";
@@ -43,7 +43,11 @@ export function Step2CreateTenant({
     defaultValues: { name: "", code: "" },
   });
 
-  const watchedName = form.watch("name");
+  const watchedName = useWatch({
+    control: form.control,
+    name: "name",
+  });
+  const codeField = form.register("code");
 
   useEffect(() => {
     if (!codeManuallyEdited.current && watchedName) {
@@ -134,11 +138,11 @@ export function Step2CreateTenant({
             <Input
               id="tenant-code"
               placeholder={t("tenantCodePlaceholder")}
-              {...form.register("code", {
-                onChange: () => {
-                  codeManuallyEdited.current = true;
-                },
-              })}
+              {...codeField}
+              onChange={(event) => {
+                codeManuallyEdited.current = true;
+                codeField.onChange(event);
+              }}
             />
             {form.formState.errors.code && (
               <p className="text-xs text-destructive">

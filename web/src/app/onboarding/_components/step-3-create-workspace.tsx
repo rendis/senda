@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LayoutGrid, Loader2 } from "lucide-react";
@@ -48,8 +48,14 @@ export function Step3CreateWorkspace({
     defaultValues: { name: "", code: "" },
   });
 
-  const watchedName = form.watch("name");
-  const watchedCode = form.watch("code");
+  const watchedName = useWatch({
+    control: form.control,
+    name: "name",
+  });
+  const watchedCode = useWatch({
+    control: form.control,
+    name: "code",
+  });
   const codeField = form.register("code");
 
   useEffect(() => {

@@ -38,14 +38,18 @@ export function useAutoSave<T>({
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryCountRef = useRef(0);
   const isSavingRef = useRef(false);
 
   const getPayloadRef = useRef(getPayload);
-  getPayloadRef.current = getPayload;
-
   const saveFnRef = useRef(saveFn);
-  saveFnRef.current = saveFn;
+
+  useEffect(() => {
+    getPayloadRef.current = getPayload;
+  }, [getPayload]);
+
+  useEffect(() => {
+    saveFnRef.current = saveFn;
+  }, [saveFn]);
 
   useEffect(() => {
     return () => {
@@ -62,29 +66,30 @@ export function useAutoSave<T>({
     setError(null);
 
     try {
-      const payload = getPayloadRef.current();
-      await saveFnRef.current(payload);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const payload = getPayloadRef.current();
+          await saveFnRef.current(payload);
 
-      setStatus("saved");
-      setLastSavedAt(new Date());
-      setIsDirty(false);
-      retryCountRef.current = 0;
+          setStatus("saved");
+          setLastSavedAt(new Date());
+          setIsDirty(false);
 
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => {
-        setStatus("idle");
-      }, SAVED_DISPLAY_MS);
-    } catch (err) {
-      if (retryCountRef.current < MAX_RETRIES) {
-        retryCountRef.current++;
-        isSavingRef.current = false;
-        setTimeout(() => performSave(), 1000);
-        return;
+          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = setTimeout(() => {
+            setStatus("idle");
+          }, SAVED_DISPLAY_MS);
+          return;
+        } catch (err) {
+          if (attempt < MAX_RETRIES) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            continue;
+          }
+
+          setStatus("error");
+          setError(err instanceof Error ? err : new Error("Save failed"));
+        }
       }
-
-      setStatus("error");
-      setError(err instanceof Error ? err : new Error("Save failed"));
-      retryCountRef.current = 0;
     } finally {
       isSavingRef.current = false;
     }
