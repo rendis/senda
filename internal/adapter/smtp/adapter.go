@@ -3,9 +3,11 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +57,9 @@ func (c Config) Validate() error {
 	}
 	if (c.Username == "") != (c.Password == "") {
 		return fmt.Errorf("smtp username and password must be provided together")
+	}
+	if c.Username != "" && c.Password != "" && c.TLSMode == TLSModeNone && !isLoopbackHost(c.Host) {
+		return fmt.Errorf("smtp cleartext auth is only allowed for loopback hosts")
 	}
 	return nil
 }
@@ -121,6 +126,24 @@ func (a *Adapter) HealthCheck(_ context.Context) error {
 
 // Compile-time interface check.
 var _ port.EmailSender = (*Adapter)(nil)
+
+// IsPermanentSendError classifies SMTP reply codes: 5xx permanent, 4xx transient.
+func (a *Adapter) IsPermanentSendError(err error) bool {
+	var smtpErr *textproto.Error
+	if errors.As(err, &smtpErr) {
+		return smtpErr.Code >= 500 && smtpErr.Code < 600
+	}
+	return false
+}
+
+func isLoopbackHost(host string) bool {
+	normalized := strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
+	if normalized == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
+}
 
 func (a *Adapter) auth() smtp.Auth {
 	if a.cfg.Username == "" && a.cfg.Password == "" {

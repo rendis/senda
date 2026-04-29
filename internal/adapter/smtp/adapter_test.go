@@ -3,7 +3,9 @@ package smtp
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"net"
+	"net/textproto"
 	"strings"
 	"sync"
 	"testing"
@@ -127,6 +129,42 @@ func TestConfigValidate_AuthenticatedSMTPRequiresUsernameAndPasswordTogether(t *
 	require.ErrorContains(t, cfg.Validate(), "smtp username and password must be provided together")
 }
 
+func TestConfigValidate_RejectsCleartextAuthForNonLoopback(t *testing.T) {
+	for _, authMode := range []string{"plain", authModeLogin} {
+		t.Run(authMode, func(t *testing.T) {
+			cfg := Config{
+				Host:     "smtp.example.com",
+				Port:     2525,
+				TLSMode:  TLSModeNone,
+				AuthMode: authMode,
+				Username: "apikey",
+				Password: "secret",
+			}
+
+			require.ErrorContains(t, cfg.Validate(), "smtp cleartext auth is only allowed for loopback hosts")
+		})
+	}
+}
+
+func TestConfigValidate_AllowsCleartextAuthForLoopback(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1", "localhost"} {
+		for _, authMode := range []string{"plain", authModeLogin} {
+			t.Run(host+"_"+authMode, func(t *testing.T) {
+				cfg := Config{
+					Host:     host,
+					Port:     2525,
+					TLSMode:  TLSModeNone,
+					AuthMode: authMode,
+					Username: "apikey",
+					Password: "secret",
+				}
+
+				require.NoError(t, cfg.Validate())
+			})
+		}
+	}
+}
+
 func TestConfigValidate_RejectsUnknownTLSMode(t *testing.T) {
 	cfg := Config{
 		Host:    "smtp.example.com",
@@ -135,6 +173,15 @@ func TestConfigValidate_RejectsUnknownTLSMode(t *testing.T) {
 	}
 
 	require.ErrorContains(t, cfg.Validate(), "invalid SMTP tls_mode")
+}
+
+func TestAdapter_IsPermanentSendError_ClassifiesSMTPStatus(t *testing.T) {
+	adapter, err := NewAdapterFromConfig(Config{Host: "localhost", Port: 2525, TLSMode: TLSModeNone})
+	require.NoError(t, err)
+
+	require.True(t, adapter.IsPermanentSendError(&textproto.Error{Code: 550, Msg: "mailbox unavailable"}))
+	require.False(t, adapter.IsPermanentSendError(&textproto.Error{Code: 450, Msg: "mailbox busy"}))
+	require.False(t, adapter.IsPermanentSendError(context.DeadlineExceeded))
 }
 
 func TestAdapterSend_TLSModeNoneDoesNotStartTLS(t *testing.T) {
@@ -150,6 +197,29 @@ func TestAdapterSend_TLSModeNoneDoesNotStartTLS(t *testing.T) {
 	_, err = adapter.Send(context.Background(), testOutgoingEmail())
 	require.NoError(t, err)
 	require.NotContains(t, server.commands(), "STARTTLS")
+}
+
+func TestAdapterSend_TLSModeNoneAllowsLoopbackAuth(t *testing.T) {
+	for _, authMode := range []string{"plain", authModeLogin} {
+		t.Run(authMode, func(t *testing.T) {
+			server := startFakeSMTPServer(t, fakeSMTPOptions{supportAuth: true})
+
+			adapter, err := NewAdapterFromConfig(Config{
+				Host:     server.host,
+				Port:     server.port,
+				TLSMode:  TLSModeNone,
+				AuthMode: authMode,
+				Username: "apikey",
+				Password: "secret",
+			})
+			require.NoError(t, err)
+
+			_, err = adapter.Send(context.Background(), testOutgoingEmail())
+			require.NoError(t, err)
+			require.Contains(t, server.commands(), "AUTH")
+			require.NotContains(t, server.commands(), "STARTTLS")
+		})
+	}
 }
 
 func TestAdapterSend_TLSModeStartTLSRequiresServerSupport(t *testing.T) {
@@ -208,6 +278,7 @@ func testOutgoingEmail() *port.OutgoingEmail {
 
 type fakeSMTPOptions struct {
 	advertiseStartTLS bool
+	supportAuth       bool
 }
 
 type fakeSMTPServer struct {
@@ -285,38 +356,84 @@ func (s *fakeSMTPServer) serve(opts fakeSMTPOptions) {
 		}
 		s.record(upper)
 
-		switch upper {
-		case "EHLO":
-			writeSMTPLine(writer, "250-fake-smtp")
-			if opts.advertiseStartTLS {
-				writeSMTPLine(writer, "250-STARTTLS")
-			}
-			writeSMTPLine(writer, "250 OK")
-		case "HELO":
-			writeSMTPLine(writer, "250 OK")
-		case "STARTTLS":
-			writeSMTPLine(writer, "454 TLS unavailable in fake server")
-		case "MAIL", "RCPT":
-			writeSMTPLine(writer, "250 OK")
-		case "DATA":
-			writeSMTPLine(writer, "354 End data with <CR><LF>.<CR><LF>")
-			for {
-				dataLine, err := reader.ReadString('\n')
-				if err != nil {
-					return
-				}
-				if strings.TrimSpace(dataLine) == "." {
-					break
-				}
-			}
-			writeSMTPLine(writer, "250 queued")
-		case "QUIT":
-			writeSMTPLine(writer, "221 bye")
+		keepServing, err := handleFakeSMTPCommand(reader, writer, opts, command, upper)
+		if err != nil {
 			return
-		default:
-			writeSMTPLine(writer, "250 OK")
+		}
+		if !keepServing {
+			return
 		}
 	}
+}
+
+func handleFakeSMTPCommand(
+	reader *bufio.Reader,
+	writer *bufio.Writer,
+	opts fakeSMTPOptions,
+	command string,
+	upper string,
+) (bool, error) {
+	switch upper {
+	case "EHLO":
+		writeFakeSMTPEHLO(writer, opts)
+	case "HELO":
+		writeSMTPLine(writer, "250 OK")
+	case "STARTTLS":
+		writeSMTPLine(writer, "454 TLS unavailable in fake server")
+	case "AUTH":
+		if err := handleFakeSMTPAuth(reader, writer, command); err != nil {
+			return false, err
+		}
+	case "MAIL", "RCPT":
+		writeSMTPLine(writer, "250 OK")
+	case "DATA":
+		if err := handleFakeSMTPData(reader, writer); err != nil {
+			return false, err
+		}
+	case "QUIT":
+		writeSMTPLine(writer, "221 bye")
+		return false, nil
+	default:
+		writeSMTPLine(writer, "250 OK")
+	}
+	return true, nil
+}
+
+func writeFakeSMTPEHLO(writer *bufio.Writer, opts fakeSMTPOptions) {
+	writeSMTPLine(writer, "250-fake-smtp")
+	if opts.advertiseStartTLS {
+		writeSMTPLine(writer, "250-STARTTLS")
+	}
+	if opts.supportAuth {
+		writeSMTPLine(writer, "250-AUTH PLAIN LOGIN")
+	}
+	writeSMTPLine(writer, "250 OK")
+}
+
+func handleFakeSMTPAuth(reader *bufio.Reader, writer *bufio.Writer, command string) error {
+	if strings.HasPrefix(strings.ToUpper(command), "AUTH LOGIN") {
+		writeSMTPLine(writer, "334 "+base64.StdEncoding.EncodeToString([]byte("Password:")))
+		if _, err := reader.ReadString('\n'); err != nil {
+			return err
+		}
+	}
+	writeSMTPLine(writer, "235 authenticated")
+	return nil
+}
+
+func handleFakeSMTPData(reader *bufio.Reader, writer *bufio.Writer) error {
+	writeSMTPLine(writer, "354 End data with <CR><LF>.<CR><LF>")
+	for {
+		dataLine, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(dataLine) == "." {
+			break
+		}
+	}
+	writeSMTPLine(writer, "250 queued")
+	return nil
 }
 
 func writeSMTPLine(writer *bufio.Writer, line string) {

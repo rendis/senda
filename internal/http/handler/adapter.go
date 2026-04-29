@@ -283,12 +283,7 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 			if err := json.Unmarshal(*req.Config, &patch); err != nil {
 				return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 			}
-			for k, v := range patch {
-				if s, ok := v.(string); ok && s == "" {
-					continue
-				}
-				cfgMap[k] = v
-			}
+			mergeAdapterConfigPatch(adapter.AdapterType, cfgMap, patch)
 		}
 		if req.ConfigurationSetName != nil {
 			cfgMap["configuration_set_name"] = *req.ConfigurationSetName
@@ -323,6 +318,25 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 		return c.JSON(http.StatusOK, response.NewAdapterResponse(adapter))
 	}
 	return c.JSON(http.StatusOK, response.NewAdapterResponseForWorkspace(adapter, workspace))
+}
+
+func mergeAdapterConfigPatch(adapterType domain.AdapterType, cfgMap map[string]any, patch map[string]any) {
+	if adapterType == domain.AdapterTypeSMTP {
+		if username, ok := patch["username"].(string); ok && username == "" {
+			delete(cfgMap, "username")
+			delete(cfgMap, "password")
+			delete(cfgMap, "auth_mode")
+			delete(patch, "username")
+			delete(patch, "password")
+			delete(patch, "auth_mode")
+		}
+	}
+	for k, v := range patch {
+		if s, ok := v.(string); ok && s == "" {
+			continue
+		}
+		cfgMap[k] = v
+	}
 }
 
 // SoftDelete handles DELETE /tenants/:tenant_code/workspaces/:workspace_code/adapters/:id.

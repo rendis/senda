@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	goriver "github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/port"
 )
@@ -1053,6 +1055,35 @@ func TestIsPermanentSendError(t *testing.T) {
 	got := isPermanentSendError(nil, errors.New("any error"))
 	if got {
 		t.Error("isPermanentSendError with nil sender should return false")
+	}
+}
+
+func TestIsPermanentSendError_SMTPStatusCodes(t *testing.T) {
+	sender, err := smtpadapter.NewAdapterFromConfig(smtpadapter.Config{
+		Host:    "localhost",
+		Port:    2525,
+		TLSMode: smtpadapter.TLSModeNone,
+	})
+	if err != nil {
+		t.Fatalf("NewAdapterFromConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		err       error
+		permanent bool
+	}{
+		{name: "5xx", err: &textproto.Error{Code: 550, Msg: "mailbox unavailable"}, permanent: true},
+		{name: "4xx", err: &textproto.Error{Code: 450, Msg: "mailbox busy"}, permanent: false},
+		{name: "unknown", err: errors.New("connection reset"), permanent: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isPermanentSendError(sender, tt.err)
+			if got != tt.permanent {
+				t.Fatalf("isPermanentSendError() = %v, want %v", got, tt.permanent)
+			}
+		})
 	}
 }
 
