@@ -411,7 +411,7 @@ func mapTemplateTypeAccessError(c *echo.Context, err error) error {
 		)
 	case errors.Is(err, domain.ErrSenderIdentityRequired):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",
-			response.FieldError{Field: "sender_identity_id", Message: "is required for shared SES adapters"},
+			response.FieldError{Field: "sender_identity_id", Message: "is required for shared adapter sender identities"},
 		)
 	case errors.Is(err, domain.ErrSenderIdentityAccessDenied), errors.Is(err, domain.ErrIdentityNotFound):
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed",

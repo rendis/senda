@@ -461,12 +461,16 @@ func (m *mockInjectorStoreSend) GetAllValuesByDefinitions(_ context.Context, _ [
 }
 
 type mockAdapterIdentityStoreSend struct {
+	createFn        func(ctx context.Context, identity *domain.AdapterIdentity) error
 	getByIDFn       func(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error)
 	getDefaultFn    func(ctx context.Context, adapterID uuid.UUID) (*domain.AdapterIdentity, error)
 	listByAdapterFn func(ctx context.Context, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error)
 }
 
-func (m *mockAdapterIdentityStoreSend) Create(_ context.Context, _ *domain.AdapterIdentity) error {
+func (m *mockAdapterIdentityStoreSend) Create(ctx context.Context, identity *domain.AdapterIdentity) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, identity)
+	}
 	return nil
 }
 func (m *mockAdapterIdentityStoreSend) GetByID(ctx context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {

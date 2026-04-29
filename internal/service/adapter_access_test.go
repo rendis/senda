@@ -178,6 +178,83 @@ func TestAdapterAccessService_ValidateSelection_SharedSESRequiresGrantedEmailIde
 	}
 }
 
+func TestAdapterAccessService_ValidateSelection_SharedSMTPRequiresGrantedEmailIdentity(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: uuid.Must(uuid.NewV7()), Code: "_system", IsSystem: true}
+	workspace := &domain.Workspace{ID: workspaceID, TenantID: systemWorkspace.TenantID, Code: "default"}
+
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWorkspaceID,
+				AdapterType: domain.AdapterTypeSMTP,
+				Name:        "SMTP Shared",
+			}, nil
+		},
+	}
+
+	identityStore := &mockAdapterIdentityStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+			if id != identityID {
+				return nil, domain.ErrIdentityNotFound
+			}
+			return &domain.AdapterIdentity{
+				ID:           identityID,
+				AdapterID:    adapterID,
+				Identity:     "noreply-senda@tether.education",
+				IdentityType: domain.IdentityTypeEmail,
+				Status:       domain.IdentityStatusVerified,
+			}, nil
+		},
+	}
+
+	wsStore := &mockWorkspaceStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			switch id {
+			case systemWorkspaceID:
+				return systemWorkspace, nil
+			case workspaceID:
+				return workspace, nil
+			default:
+				return nil, domain.ErrNotFound
+			}
+		},
+	}
+
+	identityGrants := &mockIdentityGrantStore{
+		hasIdentityWorkspaceGrantFn: func(_ context.Context, identity uuid.UUID, wsID uuid.UUID) (bool, error) {
+			return identity == identityID && wsID == workspaceID, nil
+		},
+	}
+
+	svc := service.NewAdapterAccessService(
+		adapterStore,
+		identityStore,
+		wsStore,
+		&mockAdapterGrantStore{},
+		identityGrants,
+		&mockTemplateTypeUsageStore{},
+	)
+
+	err := svc.ValidateTemplateTypeSelection(context.Background(), workspace, &adapterID, nil)
+	if !errors.Is(err, domain.ErrSenderIdentityRequired) {
+		t.Fatalf("expected ErrSenderIdentityRequired, got %v", err)
+	}
+
+	err = svc.ValidateTemplateTypeSelection(context.Background(), workspace, &adapterID, &identityID)
+	if err != nil {
+		t.Fatalf("expected shared SMTP selection to pass with granted email identity, got %v", err)
+	}
+}
+
 func TestAdapterAccessService_ValidateSelection_SharedGmailRequiresAdapterGrant(t *testing.T) {
 	systemWorkspaceID := uuid.Must(uuid.NewV7())
 	workspaceID := uuid.Must(uuid.NewV7())
@@ -300,6 +377,73 @@ func TestAdapterAccessService_ListIdentitiesForWorkspace_FiltersSharedSESIdentit
 	}
 }
 
+func TestAdapterAccessService_ListIdentitiesForWorkspace_FiltersSharedSMTPIdentities(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: uuid.Must(uuid.NewV7()), Code: "_system", IsSystem: true}
+	workspace := &domain.Workspace{ID: workspaceID, TenantID: systemWorkspace.TenantID, Code: "default"}
+
+	adapterStore := &mockAdapterStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:          adapterID,
+				WorkspaceID: &systemWorkspaceID,
+				AdapterType: domain.AdapterTypeSMTP,
+				Name:        "SMTP Shared",
+			}, nil
+		},
+	}
+
+	wsStore := &mockWorkspaceStoreSend{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+			switch id {
+			case systemWorkspaceID:
+				return systemWorkspace, nil
+			case workspaceID:
+				return workspace, nil
+			default:
+				return nil, domain.ErrNotFound
+			}
+		},
+	}
+
+	identityGrants := &mockIdentityGrantStore{
+		listGrantedIdentitiesFn: func(_ context.Context, adapter uuid.UUID, wsID uuid.UUID) ([]*domain.AdapterIdentity, error) {
+			if adapter != adapterID || wsID != workspaceID {
+				return nil, errors.New("unexpected grant lookup")
+			}
+			return []*domain.AdapterIdentity{
+				{ID: uuid.Must(uuid.NewV7()), AdapterID: adapterID, Identity: "noreply-senda@tether.education", IdentityType: domain.IdentityTypeEmail},
+			}, nil
+		},
+	}
+
+	svc := service.NewAdapterAccessService(
+		adapterStore,
+		&mockAdapterIdentityStoreSend{},
+		wsStore,
+		&mockAdapterGrantStore{},
+		identityGrants,
+		&mockTemplateTypeUsageStore{},
+	)
+
+	identities, err := svc.ListIdentitiesForWorkspace(context.Background(), workspace, adapterID)
+	if err != nil {
+		t.Fatalf("unexpected error listing shared SMTP identities: %v", err)
+	}
+	if len(identities) != 1 {
+		t.Fatalf("expected 1 granted identity, got %d", len(identities))
+	}
+	if identities[0].Identity != "noreply-senda@tether.education" {
+		t.Fatalf("expected granted identity noreply-senda@tether.education, got %q", identities[0].Identity)
+	}
+}
+
 func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_BlocksRevokeWhenInUse(t *testing.T) {
 	systemWorkspaceID := uuid.Must(uuid.NewV7())
 	workspaceID := uuid.Must(uuid.NewV7())
@@ -385,6 +529,62 @@ func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_BlocksRevokeWhenInU
 	err := svc.ReplaceIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID, nil)
 	if !errors.Is(err, domain.ErrSharedGrantInUse) {
 		t.Fatalf("expected ErrSharedGrantInUse, got %v", err)
+	}
+}
+
+func TestAdapterAccessService_ReplaceIdentityWorkspaceAccess_AllowsSMTPEmailIdentity(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: uuid.Must(uuid.NewV7()), Code: "_system", IsSystem: true}
+	workspace := &domain.Workspace{ID: workspaceID, TenantID: systemWorkspace.TenantID, Code: "default"}
+
+	var replacedTargets []uuid.UUID
+	svc := service.NewAdapterAccessService(
+		&mockAdapterStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+				if id != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return &domain.Adapter{ID: adapterID, WorkspaceID: &systemWorkspaceID, AdapterType: domain.AdapterTypeSMTP}, nil
+			},
+		},
+		&mockAdapterIdentityStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+				if id != identityID {
+					return nil, domain.ErrIdentityNotFound
+				}
+				return &domain.AdapterIdentity{ID: identityID, AdapterID: adapterID, Identity: "noreply-senda@tether.education", IdentityType: domain.IdentityTypeEmail}, nil
+			},
+		},
+		&mockWorkspaceStoreSend{
+			listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+				if tenantID != systemWorkspace.TenantID {
+					return nil, "", errors.New("unexpected tenant lookup")
+				}
+				return []*domain.Workspace{systemWorkspace, workspace}, "", nil
+			},
+		},
+		&mockAdapterGrantStore{},
+		&mockIdentityGrantStore{
+			replaceIdentityWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID, workspaceIDs []uuid.UUID) error {
+				if id != identityID {
+					return errors.New("unexpected identity id")
+				}
+				replacedTargets = append([]uuid.UUID(nil), workspaceIDs...)
+				return nil
+			},
+		},
+		&mockTemplateTypeUsageStore{},
+	)
+
+	if err := svc.ReplaceIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID, []uuid.UUID{workspaceID}); err != nil {
+		t.Fatalf("expected SMTP identity grant replacement to pass, got %v", err)
+	}
+	if len(replacedTargets) != 1 || replacedTargets[0] != workspaceID {
+		t.Fatalf("expected replace grants with workspace %s, got %v", workspaceID, replacedTargets)
 	}
 }
 
@@ -602,6 +802,61 @@ func TestAdapterAccessService_ListIdentityWorkspaceAccess_UsesSystemWorkspaceEnv
 	}
 	if listedEnvironment != domain.EnvironmentTest {
 		t.Fatalf("expected grant listing in test environment, got %s", listedEnvironment)
+	}
+	if len(grants) != 1 || grants[0].Workspace.ID != workspaceID || !grants[0].Granted {
+		t.Fatalf("expected granted workspace %s, got %+v", workspaceID, grants)
+	}
+}
+
+func TestAdapterAccessService_ListIdentityWorkspaceAccess_AllowsSMTPEmailIdentity(t *testing.T) {
+	systemWorkspaceID := uuid.Must(uuid.NewV7())
+	workspaceID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	identityID := uuid.Must(uuid.NewV7())
+
+	systemWorkspace := &domain.Workspace{ID: systemWorkspaceID, TenantID: uuid.Must(uuid.NewV7()), Code: "_system", IsSystem: true}
+	workspace := &domain.Workspace{ID: workspaceID, TenantID: systemWorkspace.TenantID, Code: "default", Name: "Default"}
+
+	svc := service.NewAdapterAccessService(
+		&mockAdapterStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+				if id != adapterID {
+					return nil, domain.ErrNotFound
+				}
+				return &domain.Adapter{ID: adapterID, WorkspaceID: &systemWorkspaceID, AdapterType: domain.AdapterTypeSMTP}, nil
+			},
+		},
+		&mockAdapterIdentityStoreSend{
+			getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.AdapterIdentity, error) {
+				if id != identityID {
+					return nil, domain.ErrIdentityNotFound
+				}
+				return &domain.AdapterIdentity{ID: identityID, AdapterID: adapterID, Identity: "noreply-senda@tether.education", IdentityType: domain.IdentityTypeEmail}, nil
+			},
+		},
+		&mockWorkspaceStoreSend{
+			listByTenantFn: func(_ context.Context, tenantID uuid.UUID, _ domain.Environment, _ port.ListOptions) ([]*domain.Workspace, string, error) {
+				if tenantID != systemWorkspace.TenantID {
+					return nil, "", errors.New("unexpected tenant lookup")
+				}
+				return []*domain.Workspace{systemWorkspace, workspace}, "", nil
+			},
+		},
+		&mockAdapterGrantStore{},
+		&mockIdentityGrantStore{
+			listIdentityWorkspaceGrantsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+				if id != identityID {
+					return nil, errors.New("unexpected identity id")
+				}
+				return []uuid.UUID{workspaceID}, nil
+			},
+		},
+		&mockTemplateTypeUsageStore{},
+	)
+
+	grants, err := svc.ListIdentityWorkspaceAccess(context.Background(), systemWorkspace, adapterID, identityID)
+	if err != nil {
+		t.Fatalf("expected SMTP identity grant listing to pass, got %v", err)
 	}
 	if len(grants) != 1 || grants[0].Workspace.ID != workspaceID || !grants[0].Granted {
 		t.Fatalf("expected granted workspace %s, got %+v", workspaceID, grants)
