@@ -124,3 +124,71 @@ func TestVerify_RejectsUnsupportedVersion(t *testing.T) {
 		t.Fatal("Verify must reject unsupported version")
 	}
 }
+
+func TestGenerate_RejectsWrongKeyLength(t *testing.T) {
+	cases := [][]byte{
+		nil,
+		make([]byte, 0),
+		make([]byte, 16),
+		make([]byte, 31),
+		make([]byte, 33),
+		make([]byte, 64),
+	}
+	now := time.Now().UTC()
+	p := Payload{
+		Version: 1, WorkspaceID: uuid.New(), TemplateTypeSlug: "x", TemplateTypeName: "X",
+		Email: "a@b.com", SourceEmailID: uuid.New(), IssuedAt: now, ExpiresAt: now.Add(time.Hour),
+	}
+	for _, k := range cases {
+		if _, err := Generate(p, k); err == nil {
+			t.Fatalf("Generate must reject %d-byte key", len(k))
+		}
+	}
+}
+
+func TestVerify_RejectsWrongKeyLength(t *testing.T) {
+	valid := testKey(t)
+	now := time.Now().UTC()
+	p := Payload{
+		Version: 1, WorkspaceID: uuid.New(), TemplateTypeSlug: "x", TemplateTypeName: "X",
+		Email: "a@b.com", SourceEmailID: uuid.New(), IssuedAt: now, ExpiresAt: now.Add(time.Hour),
+	}
+	tok, _ := Generate(p, valid)
+	cases := [][]byte{nil, make([]byte, 0), make([]byte, 16), make([]byte, 31), make([]byte, 33), make([]byte, 64)}
+	for _, k := range cases {
+		if _, err := Verify(tok, k, now); err == nil {
+			t.Fatalf("Verify must reject %d-byte key", len(k))
+		}
+	}
+}
+
+func TestVerify_RejectsInvalidBase64Body(t *testing.T) {
+	key := testKey(t)
+	bad := "!!!not-base64!!!." + base64.RawURLEncoding.EncodeToString([]byte("anysig"))
+	if _, err := Verify(bad, key, time.Now().UTC()); err == nil {
+		t.Fatal("Verify must reject token with non-base64 payload segment")
+	}
+}
+
+func TestVerify_RejectsEmptyToken(t *testing.T) {
+	key := testKey(t)
+	inputs := []string{"", ".", "abc", "abc.", ".abc"}
+	for _, in := range inputs {
+		if _, err := Verify(in, key, time.Now().UTC()); err == nil {
+			t.Fatalf("Verify must reject malformed token %q", in)
+		}
+	}
+}
+
+func TestGenerate_RejectsZeroVersion(t *testing.T) {
+	key := testKey(t)
+	now := time.Now().UTC()
+	p := Payload{
+		// Version omitted → zero value
+		WorkspaceID: uuid.New(), TemplateTypeSlug: "x", TemplateTypeName: "X",
+		Email: "a@b.com", SourceEmailID: uuid.New(), IssuedAt: now, ExpiresAt: now.Add(time.Hour),
+	}
+	if _, err := Generate(p, key); err == nil {
+		t.Fatal("Generate must reject Version == 0 (no silent default)")
+	}
+}

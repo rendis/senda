@@ -49,7 +49,7 @@ func Generate(p Payload, key []byte) (string, error) {
 		return "", fmt.Errorf("unsubscribe: signing key must be 32 bytes, got %d", len(key))
 	}
 	if p.Version == 0 {
-		p.Version = supportedVersion
+		return "", fmt.Errorf("unsubscribe: payload version must be set")
 	}
 	w := wirePayload{
 		Version:          p.Version,
@@ -66,7 +66,7 @@ func Generate(p Payload, key []byte) (string, error) {
 		return "", fmt.Errorf("unsubscribe: marshal payload: %w", err)
 	}
 	mac := hmac.New(sha256.New, key)
-	mac.Write(body)
+	_, _ = mac.Write(body)
 	sig := mac.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(body) + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }
@@ -81,21 +81,21 @@ func Verify(token string, key []byte, now time.Time) (Payload, error) {
 	}
 	body, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return Payload{}, fmt.Errorf("%w: payload decode: %v", ErrMalformedToken, err)
+		return Payload{}, fmt.Errorf("%w: payload decode: %w", ErrMalformedToken, err)
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return Payload{}, fmt.Errorf("%w: signature decode: %v", ErrMalformedToken, err)
+		return Payload{}, fmt.Errorf("%w: signature decode: %w", ErrMalformedToken, err)
 	}
 	mac := hmac.New(sha256.New, key)
-	mac.Write(body)
+	_, _ = mac.Write(body)
 	expected := mac.Sum(nil)
 	if !hmac.Equal(sig, expected) {
 		return Payload{}, ErrInvalidSignature
 	}
 	var w wirePayload
 	if err := json.Unmarshal(body, &w); err != nil {
-		return Payload{}, fmt.Errorf("%w: unmarshal: %v", ErrMalformedToken, err)
+		return Payload{}, fmt.Errorf("%w: unmarshal: %w", ErrMalformedToken, err)
 	}
 	if w.Version != supportedVersion {
 		return Payload{}, fmt.Errorf("%w: got v%d", ErrUnsupportedVersion, w.Version)
