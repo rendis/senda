@@ -8,7 +8,8 @@ description: >-
   draft/published, MJML builder, locales, injectors, adapters (SES, Gmail),
   identities, sender_identity, send, send batch, emails query, webhooks,
   external integration, embed, X-Senda-Environment, capabilities, fork,
-  inheritance, RBAC, scope chain.
+  inheritance, RBAC, scope chain, template screenshot, image preview,
+  desktop and mobile preview.
 allowed-tools:
   - mcp__senda__*
 ---
