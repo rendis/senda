@@ -35,6 +35,45 @@ Multi-tenant email orchestration platform with four operational surfaces:
 4. **Go SDK / embedder** — register code injectors, per-request init, external
    auth methods, external workspace resolvers, lifecycle hooks.
 
+## Topology
+
+```
+tenant
+├── _system          (default workspace, auto-created)
+├── <workspace A>
+├── <workspace B>
+└── ...
+```
+
+- The hierarchy is **`tenant → workspace`**. There is no extra layer.
+- Every tenant owns workspaces. Each workspace exists as a `prod` / `test`
+  pair (same `LogicalWorkspaceID`, two environment rows).
+- **Every tenant is created with one workspace called `_system`** —
+  automatically, no opt-in. `_system` is the **default workspace** of the
+  tenant: where shared/default resources live and where tenant-wide policy
+  is configured.
+- Saying "the tenant default workspace" and "`_system`" is the same thing.
+  Other workspaces are regular business workspaces.
+- `_system` is **not** a business workspace: it cannot receive sends
+  (`SYSTEM_WORKSPACE_BLOCKED`), it is protected against shared-CRUD edits
+  (`SYSTEM_WORKSPACE_PROTECTED`), and it is not reusable as an end-user
+  destination.
+
+What `_system` is for:
+
+- **Tenant-wide defaults**: template types, templates, injectors, and
+  adapters created in `_system` are visible to every other workspace of
+  the tenant via the runtime chain (`[workspace, _system]`). A regular
+  workspace inherits whatever it does not own locally.
+- **Selective sharing**: SES email identities and adapters can be granted
+  from `_system` to specific child workspaces (`workspace-access`).
+- **Tenant policy**: the `_system` workspace owns the policy toggles
+  (`AllowWorkspaceLocalTemplates`, `AllowWorkspaceInheritedTemplateForks`,
+  `AllowWorkspaceLocalInjectors`) that decide what other workspaces are
+  allowed to do.
+- **Sole-workspace tenants**: a tenant that only uses `_system` is valid —
+  everything just lives at the default. Adding more workspaces is opt-in.
+
 ## Mental model in one glance
 
 - **Scope chain (runtime)**: `[workspace, tenant _system]`. Global scope is
