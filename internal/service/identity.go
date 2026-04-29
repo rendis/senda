@@ -127,23 +127,30 @@ func (s *IdentityService) CreateManual(ctx context.Context, adapterID uuid.UUID,
 		return nil, fmt.Errorf("%w: invalid email address", domain.ErrValidation)
 	}
 
-	// Check that this email's domain exists as a verified domain identity
-	existing, err := s.identityStore.ListByAdapter(ctx, adapterID)
+	adapter, err := s.adapterStore.GetByID(ctx, adapterID)
 	if err != nil {
 		return nil, err
 	}
 
-	domainVerified := false
-	for _, ident := range existing {
-		if ident.IdentityType == domain.IdentityTypeDomain &&
-			ident.Identity == emailDomain &&
-			ident.Status == domain.IdentityStatusVerified {
-			domainVerified = true
-			break
+	if adapter.AdapterType != domain.AdapterTypeSMTP {
+		// Check that this email's domain exists as a verified domain identity.
+		existing, err := s.identityStore.ListByAdapter(ctx, adapterID)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if !domainVerified {
-		return nil, fmt.Errorf("%w: domain %s is not verified in this adapter", domain.ErrIdentityNotInDomain, emailDomain)
+
+		domainVerified := false
+		for _, ident := range existing {
+			if ident.IdentityType == domain.IdentityTypeDomain &&
+				ident.Identity == emailDomain &&
+				ident.Status == domain.IdentityStatusVerified {
+				domainVerified = true
+				break
+			}
+		}
+		if !domainVerified {
+			return nil, fmt.Errorf("%w: domain %s is not verified in this adapter", domain.ErrIdentityNotInDomain, emailDomain)
+		}
 	}
 
 	now := time.Now().UTC()

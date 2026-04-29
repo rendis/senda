@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	sesadapter "github.com/rendis/senda/internal/adapter/ses"
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/http/pagination"
 	"github.com/rendis/senda/internal/http/request"
@@ -97,7 +99,7 @@ func (h *AdapterHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "name", Message: "is required"})
 	}
 	if !isValidAdapterType(req.AdapterType) {
-		fieldErrors = append(fieldErrors, response.FieldError{Field: "adapter_type", Message: "must be one of: ses, gmail"})
+		fieldErrors = append(fieldErrors, response.FieldError{Field: "adapter_type", Message: "must be one of: ses, gmail, smtp"})
 	}
 	if len(req.Config) == 0 {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "config", Message: "is required"})
@@ -281,12 +283,7 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 			if err := json.Unmarshal(*req.Config, &patch); err != nil {
 				return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 			}
-			for k, v := range patch {
-				if s, ok := v.(string); ok && s == "" {
-					continue
-				}
-				cfgMap[k] = v
-			}
+			mergeAdapterConfigPatch(adapter.AdapterType, cfgMap, patch)
 		}
 		if req.ConfigurationSetName != nil {
 			cfgMap["configuration_set_name"] = *req.ConfigurationSetName
@@ -294,6 +291,9 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 		updated, err := json.Marshal(cfgMap)
 		if err != nil {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+		}
+		if fieldErrors := validateConfig(adapter.AdapterType, updated); len(fieldErrors) > 0 {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 		}
 		encrypted, err := h.crypto.Encrypt(updated)
 		if err != nil {
@@ -318,6 +318,25 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 		return c.JSON(http.StatusOK, response.NewAdapterResponse(adapter))
 	}
 	return c.JSON(http.StatusOK, response.NewAdapterResponseForWorkspace(adapter, workspace))
+}
+
+func mergeAdapterConfigPatch(adapterType domain.AdapterType, cfgMap map[string]any, patch map[string]any) {
+	if adapterType == domain.AdapterTypeSMTP {
+		if username, ok := patch["username"].(string); ok && username == "" {
+			delete(cfgMap, "username")
+			delete(cfgMap, "password")
+			delete(cfgMap, "auth_mode")
+			delete(patch, "username")
+			delete(patch, "password")
+			delete(patch, "auth_mode")
+		}
+	}
+	for k, v := range patch {
+		if s, ok := v.(string); ok && s == "" {
+			continue
+		}
+		cfgMap[k] = v
+	}
 }
 
 // SoftDelete handles DELETE /tenants/:tenant_code/workspaces/:workspace_code/adapters/:id.
@@ -488,7 +507,10 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) 
 		}
 		from = resolution.IdentityToEmailAddress(matched)
 	} else {
-		from = resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
+		from, err = h.resolveDefaultFromAddress(ctx, workspace, adapter, decrypted)
+		if err != nil {
+			return mapAdapterAccessHandlerError(c, err)
+		}
 	}
 	if from.Address == "" {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
@@ -656,6 +678,28 @@ func mapAdapterAccessHandlerError(c *echo.Context, err error) error {
 	}
 }
 
+func (h *AdapterHandler) resolveDefaultFromAddress(ctx context.Context, workspace *domain.Workspace, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailAddress, error) {
+	if workspace != nil && h.accessSvc != nil && identityScopedAdapter(adapter.AdapterType) {
+		access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapter.ID)
+		if err != nil {
+			return port.EmailAddress{}, err
+		}
+		if access.Shared {
+			identities, err := h.accessSvc.ListIdentitiesForWorkspace(ctx, workspace, adapter.ID)
+			if err != nil {
+				return port.EmailAddress{}, err
+			}
+			for _, identity := range identities {
+				if identity.IsDefault && identity.IdentityType == domain.IdentityTypeEmail {
+					return resolution.IdentityToEmailAddress(identity), nil
+				}
+			}
+			return port.EmailAddress{}, nil
+		}
+	}
+	return resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decryptedConfig), nil
+}
+
 // decryptConfigMap decrypts the adapter config and unmarshals it into a map.
 func (h *AdapterHandler) decryptConfigMap(adapter *domain.Adapter) (map[string]any, error) {
 	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
@@ -684,6 +728,24 @@ func extractPublicConfigFields(adapterType domain.AdapterType, rawConfig []byte)
 	case domain.AdapterTypeGmail:
 		if v, ok := cfgMap["delegate_email"].(string); ok && v != "" {
 			meta["delegate_email"] = v
+		}
+	case domain.AdapterTypeSMTP:
+		if v, ok := cfgMap["host"].(string); ok && v != "" {
+			meta["host"] = v
+		}
+		if v, ok := cfgMap["tls_mode"].(string); ok && v != "" {
+			meta["tls_mode"] = v
+		}
+		if v, ok := cfgMap["auth_mode"].(string); ok && v != "" {
+			meta["auth_mode"] = v
+		}
+		switch v := cfgMap["port"].(type) {
+		case float64:
+			meta["port"] = strconv.Itoa(int(v))
+		case string:
+			if v != "" {
+				meta["port"] = v
+			}
 		}
 	}
 	if len(meta) == 0 {
@@ -718,16 +780,35 @@ func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []re
 		if str("delegate_email") == "" {
 			errs = append(errs, response.FieldError{Field: "config.delegate_email", Message: "is required"})
 		}
+	case domain.AdapterTypeSMTP:
+		if _, ok := cfgMap["from_email"]; ok {
+			errs = append(errs, response.FieldError{Field: "config.from_email", Message: "is not allowed for SMTP adapters; create a sender identity instead"})
+		}
+		if _, ok := cfgMap["from_name"]; ok {
+			errs = append(errs, response.FieldError{Field: "config.from_name", Message: "is not allowed for SMTP adapters; create a sender identity instead"})
+		}
+		var cfg smtpadapter.Config
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			errs = append(errs, response.FieldError{Field: "config", Message: "must be a valid SMTP config object"})
+			break
+		}
+		if err := cfg.Validate(); err != nil {
+			errs = append(errs, response.FieldError{Field: "config", Message: err.Error()})
+		}
 	}
 	return errs
 }
 
 func isValidAdapterType(t string) bool {
 	switch domain.AdapterType(t) {
-	case domain.AdapterTypeSES, domain.AdapterTypeGmail:
+	case domain.AdapterTypeSES, domain.AdapterTypeGmail, domain.AdapterTypeSMTP:
 		return true
 	}
 	return false
+}
+
+func identityScopedAdapter(adapterType domain.AdapterType) bool {
+	return adapterType == domain.AdapterTypeSES || adapterType == domain.AdapterTypeSMTP
 }
 
 // sameScope checks that both pointers are nil or point to the same UUID.

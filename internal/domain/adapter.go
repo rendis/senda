@@ -11,6 +11,7 @@ type AdapterType string
 const (
 	AdapterTypeSES   AdapterType = "ses"
 	AdapterTypeGmail AdapterType = "gmail"
+	AdapterTypeSMTP  AdapterType = "smtp"
 )
 
 type Adapter struct {

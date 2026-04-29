@@ -298,6 +298,36 @@ stateDiagram-v2
 
 ---
 
+## SMTP Flow
+
+The SMTP adapter uses relay-only configuration (`host`, `port`, `tls_mode`, optional `auth_mode`, optional credentials). It does not store `from_email` or `from_name` in adapter config.
+
+Sender addresses are manual `AdapterIdentity` email records:
+
+1. Create the SMTP adapter with relay config.
+2. Create one or more manual sender email identities on that adapter.
+3. Mark a default identity or select `sender_identity_id` on the template type.
+4. For system-owned SMTP adapters, grant specific email identities to child workspaces.
+
+SMTP has no provider identity sync and no provider delivery webhooks. After the relay accepts the message, Senda records the email as `Sent`; later state changes come only from open tracking or internal failure handling.
+
+```mermaid
+sequenceDiagram
+    participant W as SendWorker
+    participant IA as Identity Access
+    participant SA as SMTP Adapter
+    participant R as SMTP Relay
+
+    W->>IA: Resolve sender_identity_id or adapter default
+    IA-->>W: Manual email identity
+    W->>SA: Raw MIME + From identity
+    SA->>R: SMTP SendMail or implicit TLS session
+    R-->>SA: Accepted
+    SA-->>W: ProviderMessageID
+```
+
+---
+
 ## Open Tracking (All Providers)
 
 Open tracking works identically across SES, Gmail, and SMTP.
@@ -414,7 +444,7 @@ To trace an email end-to-end: query by `tracking_id` via `GET /api/v1/emails/:tr
 
 | Capability | SES | Gmail | SMTP |
 |-----------|-----|-------|------|
-| **Authentication** | AWS AccessKey + SecretKey | Service Account (domain-wide delegation) | User + Password |
+| **Authentication** | AWS AccessKey + SecretKey | Service Account (domain-wide delegation) | Optional PLAIN/LOGIN relay auth |
 | **Delivery webhooks** | ✅ via SNS (Delivered, Bounce, Complaint) | ❌ Not available | ❌ Not available |
 | **Open tracking** | ✅ Pixel injection | ✅ Pixel injection | ✅ Pixel injection |
 | **Bounce detection** | ✅ Real-time via webhook | ❌ Bounce-back email only | ❌ Bounce-back email only |
@@ -437,6 +467,7 @@ To trace an email end-to-end: query by `tracking_id` via `GET /api/v1/emails/:tr
 | SES adapter | `internal/adapter/ses/adapter.go` |
 | SES tracking provisioner | `internal/adapter/ses/tracking_provisioner.go` |
 | Gmail adapter | `internal/adapter/gmail/adapter.go` |
+| SMTP adapter | `internal/adapter/smtp/adapter.go` |
 | SNS signature verifier | `internal/adapter/sns/verifier.go` |
 | SES webhook handler | `internal/http/handler/provider_webhook.go` |
 | Open tracking handler | `internal/http/handler/tracking.go` |

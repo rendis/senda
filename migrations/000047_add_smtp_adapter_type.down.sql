@@ -1,0 +1,2 @@
+-- PostgreSQL cannot remove enum values safely without recreating dependent columns.
+-- Keep this migration irreversible; rolling back code should simply stop creating smtp adapters.

@@ -94,8 +94,8 @@ func (s *AdapterAccessService) GetAdapterAccess(ctx context.Context, workspace *
 		return nil, domain.ErrAdapterAccessDenied
 	}
 
-	switch adapter.AdapterType {
-	case domain.AdapterTypeGmail:
+	switch {
+	case adapter.AdapterType == domain.AdapterTypeGmail:
 		if s.adapterGrants == nil {
 			return nil, domain.ErrAdapterAccessDenied
 		}
@@ -106,7 +106,7 @@ func (s *AdapterAccessService) GetAdapterAccess(ctx context.Context, workspace *
 		if !granted {
 			return nil, domain.ErrAdapterAccessDenied
 		}
-	case domain.AdapterTypeSES:
+	case usesIdentityGrants(adapter.AdapterType):
 		if s.identityGrants == nil {
 			return nil, domain.ErrAdapterAccessDenied
 		}
@@ -124,7 +124,7 @@ func (s *AdapterAccessService) GetAdapterAccess(ctx context.Context, workspace *
 	return &AdapterAccess{Adapter: adapter, Shared: true, Editable: false, OwnerScope: owner}, nil
 }
 
-// ListIdentitiesForWorkspace returns all identities for owned/system scope and only granted emails for shared SES.
+// ListIdentitiesForWorkspace returns all identities for owned/system scope and only granted emails for identity-scoped adapters.
 func (s *AdapterAccessService) ListIdentitiesForWorkspace(ctx context.Context, workspace *domain.Workspace, adapterID uuid.UUID) ([]*domain.AdapterIdentity, error) {
 	if workspace == nil || workspace.IsSystem {
 		return s.identityStore.ListByAdapter(ctx, adapterID)
@@ -162,8 +162,8 @@ func (s *AdapterAccessService) ValidateTemplateTypeSelection(ctx context.Context
 		return domain.ErrAdapterAccessDenied
 	}
 
-	switch adapter.AdapterType {
-	case domain.AdapterTypeGmail:
+	switch {
+	case adapter.AdapterType == domain.AdapterTypeGmail:
 		granted, err := s.adapterGrants.HasAdapterWorkspaceGrant(ctx, adapter.ID, workspace.ID)
 		if err != nil {
 			return err
@@ -172,7 +172,7 @@ func (s *AdapterAccessService) ValidateTemplateTypeSelection(ctx context.Context
 			return domain.ErrAdapterAccessDenied
 		}
 		return s.validateSenderIdentity(ctx, adapter, senderIdentityID, nil)
-	case domain.AdapterTypeSES:
+	case usesIdentityGrants(adapter.AdapterType):
 		if senderIdentityID == nil {
 			return domain.ErrSenderIdentityRequired
 		}
@@ -225,7 +225,7 @@ func (s *AdapterAccessService) ReplaceAdapterWorkspaceAccess(ctx context.Context
 	return s.adapterGrants.ReplaceAdapterWorkspaceGrants(ctx, adapterID, validTargets)
 }
 
-// ReplaceIdentityWorkspaceAccess replaces the workspace grant set for a shared SES email identity.
+// ReplaceIdentityWorkspaceAccess replaces the workspace grant set for a shared email identity.
 func (s *AdapterAccessService) ReplaceIdentityWorkspaceAccess(ctx context.Context, systemWorkspace *domain.Workspace, adapterID, identityID uuid.UUID, workspaceIDs []uuid.UUID) error {
 	if systemWorkspace == nil || !systemWorkspace.IsSystem {
 		return fmt.Errorf("%w: identity grants can only be managed from _system", domain.ErrForbidden)
@@ -234,8 +234,8 @@ func (s *AdapterAccessService) ReplaceIdentityWorkspaceAccess(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || adapter.AdapterType != domain.AdapterTypeSES {
-		return fmt.Errorf("%w: only system-owned ses adapters can share email identities", domain.ErrValidation)
+	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || !usesIdentityGrants(adapter.AdapterType) {
+		return fmt.Errorf("%w: only system-owned identity-scoped adapters can share email identities", domain.ErrValidation)
 	}
 	identity, err := s.identityStore.GetByID(ctx, identityID)
 	if err != nil {
@@ -283,7 +283,7 @@ func (s *AdapterAccessService) ListAdapterWorkspaceAccess(ctx context.Context, s
 	})
 }
 
-// ListIdentityWorkspaceAccess returns tenant workspaces and whether the SES email identity is granted to each one.
+// ListIdentityWorkspaceAccess returns tenant workspaces and whether the email identity is granted to each one.
 func (s *AdapterAccessService) ListIdentityWorkspaceAccess(ctx context.Context, systemWorkspace *domain.Workspace, adapterID, identityID uuid.UUID) ([]WorkspaceAccessGrant, error) {
 	if systemWorkspace == nil || !systemWorkspace.IsSystem {
 		return nil, fmt.Errorf("%w: identity grants can only be managed from _system", domain.ErrForbidden)
@@ -292,8 +292,8 @@ func (s *AdapterAccessService) ListIdentityWorkspaceAccess(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || adapter.AdapterType != domain.AdapterTypeSES {
-		return nil, fmt.Errorf("%w: only system-owned ses adapters can share email identities", domain.ErrValidation)
+	if adapter.WorkspaceID == nil || *adapter.WorkspaceID != systemWorkspace.ID || !usesIdentityGrants(adapter.AdapterType) {
+		return nil, fmt.Errorf("%w: only system-owned identity-scoped adapters can share email identities", domain.ErrValidation)
 	}
 	identity, err := s.identityStore.GetByID(ctx, identityID)
 	if err != nil {
@@ -327,6 +327,10 @@ func (s *AdapterAccessService) validateSenderIdentity(ctx context.Context, adapt
 		}
 	}
 	return nil
+}
+
+func usesIdentityGrants(adapterType domain.AdapterType) bool {
+	return adapterType == domain.AdapterTypeSES || adapterType == domain.AdapterTypeSMTP
 }
 
 func workspaceEnvironment(workspace *domain.Workspace) domain.Environment {

@@ -17,7 +17,6 @@ import (
 	sesadapter "github.com/rendis/senda/internal/adapter/ses"
 	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/adapter/testauth"
-	"github.com/rendis/senda/internal/domain"
 	sendahttp "github.com/rendis/senda/internal/http"
 	"github.com/rendis/senda/internal/http/handler"
 	"github.com/rendis/senda/internal/port"
@@ -303,13 +302,6 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 	templateSvc := service.NewTemplateService(repos.templateRepo, infra.compiler)
 	onboardingSvc := service.NewOnboardingService(pool, repos.memberRepo, repos.tenantRepo, repos.workspaceRepo, repos.auditRepo)
 
-	testSendSenderFactory := river.DefaultAdapterSenderFactory
-	if infra.emailSender != nil {
-		testSendSenderFactory = func(context.Context, *domain.Adapter, []byte) (port.EmailSender, error) {
-			return infra.emailSender, nil
-		}
-	}
-
 	return serviceBundle{
 		webhookSvc:       webhookSvc,
 		identitySvc:      identitySvc,
@@ -326,13 +318,17 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 			infra.aesCrypto,
 			infra.compiler,
 			infra.renderer,
-			testSendSenderFactory,
+			newTestSendSenderFactory(infra.emailSender),
 			resolvers.injectorMerger,
 			repos.tenantRepo,
 			repos.workspaceRepo,
 		),
 		eventProcessor: service.NewEventProcessor(repos.emailRepo, repos.emailRepo, repos.suppressionRepo, webhookSvc, logger),
 	}
+}
+
+func newTestSendSenderFactory(_ port.EmailSender) port.SenderFactory {
+	return river.DefaultAdapterSenderFactory
 }
 
 func newServerHandlerBundle(

@@ -78,6 +78,7 @@ Selective sharing rules:
 
 - Gmail sharing is adapter-level from `_system`
 - SES sharing is email-identity-level from `_system`
+- SMTP sharing is email-identity-level from `_system`; sender emails are manual identities
 - shared child-workspace resources are read-only
 - template forks create local ownership from inherited resources
 - exact version cloning copies a version and all locales into a new draft

@@ -76,6 +76,20 @@ test("resolveSrcForMjml valid URL is returned directly", () => {
   assert.equal(resolveSrcForMjml(url, "image"), url);
 });
 
+test("resolveSrcForMjml ignores percentage width for placeholders", () => {
+  const result = resolveSrcForMjml("", "video", "100%");
+  const decoded = decodePlaceholder(result);
+  assert.ok(decoded.includes('width="600"'), `Missing default width 600`);
+  assert.ok(decoded.includes('height="340"'), `Missing default height 340`);
+});
+
+test("resolveSrcForMjml respects fixed pixel width for placeholders", () => {
+  const result = resolveSrcForMjml("", "video", "320px");
+  const decoded = decodePlaceholder(result);
+  assert.ok(decoded.includes('width="320"'), `Missing width 320`);
+  assert.ok(decoded.includes('height="340"'), `Missing height 340`);
+});
+
 test("resolveSrcForMjml never calls placeholder when token present", () => {
   const token = "{{ injector.user.avatar }}";
   const result = resolveSrcForMjml(token, "image");

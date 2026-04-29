@@ -62,6 +62,7 @@ Senda supports **selective sharing** from a tenant `_system` workspace:
 
 - **Gmail** sharing is adapter-level.
 - **SES** sharing is email-identity-level; domain identities are not shareable.
+- **SMTP** sharing is email-identity-level; sender emails are registered manually.
 - Shared entries are read-only in child workspaces.
 - Child workspaces can fork inherited template content when they need local ownership.
 

@@ -8,6 +8,13 @@ const TOKEN_PATTERN = /\{\{[^}]+\}\}/;
 const DEFAULT_IMAGE_PLACEHOLDER = buildPlaceholderUri("No image", DEFAULT_IMAGE_WIDTH, DEFAULT_IMAGE_HEIGHT);
 const DEFAULT_VIDEO_PLACEHOLDER = buildPlaceholderUri("No video", DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT);
 
+function parseFixedPixelWidth(widthStr?: string): number | undefined {
+  if (!widthStr) return undefined;
+  const trimmed = widthStr.trim();
+  if (!/^\d+(?:px)?$/i.test(trimmed)) return undefined;
+  return Number.parseInt(trimmed, 10) || undefined;
+}
+
 function buildPlaceholderUri(label: string, width: number, height: number): string {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
@@ -47,7 +54,7 @@ export function resolveSrcForMjml(
     return raw;
   }
   if (!raw.trim()) {
-    const width = widthStr ? Number.parseInt(widthStr, 10) || undefined : undefined;
+    const width = parseFixedPixelWidth(widthStr);
     return emptyMediaPlaceholder(kind, width ? { width } : undefined);
   }
   return raw;

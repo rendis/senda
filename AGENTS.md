@@ -29,7 +29,7 @@ internal/
     pgcache/            PG UNLOGGED cache
     ses/                AWS SES sender + identity provider
     gmail/              Gmail sender + identity provider
-    smtp/               SMTP sender (dev/Mailpit)
+    smtp/               SMTP sender (plain/authenticated relays, including Mailpit)
     river/              Background workers (send + webhook)
     mjml/               MJML -> HTML compiler (gomjml)
     crypto/             AES-256-GCM encryption (HKDF)
