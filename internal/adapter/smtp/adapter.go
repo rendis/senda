@@ -154,7 +154,7 @@ func (a *Adapter) sendImplicitTLS(ctx context.Context, addr string, auth smtp.Au
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
@@ -164,7 +164,7 @@ func (a *Adapter) sendImplicitTLS(ctx context.Context, addr string, auth smtp.Au
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return sendWithClient(client, auth, from, to, rawMsg)
 }
