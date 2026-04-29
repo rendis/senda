@@ -602,3 +602,84 @@ crypto:
 		t.Fatalf("expected error to mention SENDA_SNS_SKIP_SIGNATURE_VERIFICATION, got: %v", err)
 	}
 }
+
+func TestLoad_ScreenshotDefaults(t *testing.T) {
+	yaml := `
+database:
+  url: "postgres://user:pass@localhost:5432/senda"
+oidc:
+  discovery_url: "https://auth.example.com/.well-known/openid-configuration"
+  client_id: "my-client"
+  client_secret: "my-secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Screenshot.Enabled {
+		t.Errorf("default Screenshot.Enabled = %v, want false", cfg.Screenshot.Enabled)
+	}
+	if cfg.Screenshot.ChromiumPath != "/headless-shell/headless-shell" {
+		t.Errorf("default Screenshot.ChromiumPath = %q, want %q", cfg.Screenshot.ChromiumPath, "/headless-shell/headless-shell")
+	}
+	if cfg.Screenshot.Timeout != 15*time.Second {
+		t.Errorf("default Screenshot.Timeout = %v, want %v", cfg.Screenshot.Timeout, 15*time.Second)
+	}
+	if cfg.Screenshot.StartupTimeout != 5*time.Second {
+		t.Errorf("default Screenshot.StartupTimeout = %v, want %v", cfg.Screenshot.StartupTimeout, 5*time.Second)
+	}
+	if cfg.Screenshot.MaxHeightPx != 6000 {
+		t.Errorf("default Screenshot.MaxHeightPx = %d, want 6000", cfg.Screenshot.MaxHeightPx)
+	}
+	if cfg.Screenshot.MaxConcurrent != 4 {
+		t.Errorf("default Screenshot.MaxConcurrent = %d, want 4", cfg.Screenshot.MaxConcurrent)
+	}
+	if cfg.Screenshot.DesktopWidthPx != 1280 {
+		t.Errorf("default Screenshot.DesktopWidthPx = %d, want 1280", cfg.Screenshot.DesktopWidthPx)
+	}
+	if cfg.Screenshot.MobileWidthPx != 390 {
+		t.Errorf("default Screenshot.MobileWidthPx = %d, want 390", cfg.Screenshot.MobileWidthPx)
+	}
+}
+
+func TestLoad_ScreenshotEnvOverrides(t *testing.T) {
+	yaml := `
+database:
+  url: "postgres://user:pass@localhost:5432/senda"
+oidc:
+  discovery_url: "https://auth.example.com/.well-known/openid-configuration"
+  client_id: "my-client"
+  client_secret: "my-secret"
+crypto:
+  master_key: "this-is-a-32-char-master-key!!!!"
+`
+	path := writeYAML(t, yaml)
+
+	t.Setenv("SENDA_SCREENSHOT_ENABLED", "true")
+	t.Setenv("SENDA_SCREENSHOT_CHROMIUM_PATH", "/usr/bin/chromium")
+	t.Setenv("SENDA_SCREENSHOT_TIMEOUT", "30s")
+	t.Setenv("SENDA_SCREENSHOT_MAX_CONCURRENT", "8")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !cfg.Screenshot.Enabled {
+		t.Errorf("env override Screenshot.Enabled = %v, want true", cfg.Screenshot.Enabled)
+	}
+	if cfg.Screenshot.ChromiumPath != "/usr/bin/chromium" {
+		t.Errorf("env override Screenshot.ChromiumPath = %q, want %q", cfg.Screenshot.ChromiumPath, "/usr/bin/chromium")
+	}
+	if cfg.Screenshot.Timeout != 30*time.Second {
+		t.Errorf("env override Screenshot.Timeout = %v, want %v", cfg.Screenshot.Timeout, 30*time.Second)
+	}
+	if cfg.Screenshot.MaxConcurrent != 8 {
+		t.Errorf("env override Screenshot.MaxConcurrent = %d, want 8", cfg.Screenshot.MaxConcurrent)
+	}
+}

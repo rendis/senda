@@ -23,18 +23,19 @@ const (
 
 // Config is the root configuration for the Senda application.
 type Config struct {
-	Server        ServerConfig   `yaml:"server"`
-	Send          SendConfig     `yaml:"send"`
-	Database      DatabaseConfig `yaml:"database"`
-	OIDC          OIDCConfig     `yaml:"oidc"`
-	Crypto        CryptoConfig   `yaml:"crypto"`
-	SMTP          SMTPConfig     `yaml:"smtp"`
-	SNS           SNSConfig      `yaml:"sns"`
-	Media         MediaConfig    `yaml:"media"`
-	Log           LogConfig      `yaml:"log"`
-	Tracking      TrackingConfig `yaml:"tracking"`
-	Environment   string         `yaml:"environment" env:"SENDA_ENVIRONMENT"`
-	AllowTestAuth bool           `yaml:"allow_test_auth" env:"SENDA_ALLOW_TEST_AUTH" default:"false"`
+	Server        ServerConfig     `yaml:"server"`
+	Send          SendConfig       `yaml:"send"`
+	Database      DatabaseConfig   `yaml:"database"`
+	OIDC          OIDCConfig       `yaml:"oidc"`
+	Crypto        CryptoConfig     `yaml:"crypto"`
+	SMTP          SMTPConfig       `yaml:"smtp"`
+	SNS           SNSConfig        `yaml:"sns"`
+	Media         MediaConfig      `yaml:"media"`
+	Screenshot    ScreenshotConfig `yaml:"screenshot"`
+	Log           LogConfig        `yaml:"log"`
+	Tracking      TrackingConfig   `yaml:"tracking"`
+	Environment   string           `yaml:"environment" env:"SENDA_ENVIRONMENT"`
+	AllowTestAuth bool             `yaml:"allow_test_auth" env:"SENDA_ALLOW_TEST_AUTH" default:"false"`
 }
 
 type SNSConfig struct {
@@ -49,6 +50,18 @@ type MediaConfig struct {
 	ThumbnailCacheTTL        time.Duration `yaml:"thumbnail_cache_ttl" env:"SENDA_MEDIA_THUMBNAIL_CACHE_TTL" default:"24h"`
 	ThumbnailCacheMaxEntries int           `yaml:"thumbnail_cache_max_entries" env:"SENDA_MEDIA_THUMBNAIL_CACHE_MAX_ENTRIES" default:"500"`
 	ThumbnailFetchTimeout    time.Duration `yaml:"thumbnail_fetch_timeout" env:"SENDA_MEDIA_THUMBNAIL_FETCH_TIMEOUT" default:"10s"`
+}
+
+type ScreenshotConfig struct {
+	Enabled        bool          `yaml:"enabled" env:"SENDA_SCREENSHOT_ENABLED" default:"false"`
+	ChromiumPath   string        `yaml:"chromium_path" env:"SENDA_SCREENSHOT_CHROMIUM_PATH" default:"/headless-shell/headless-shell"`
+	Timeout        time.Duration `yaml:"timeout" env:"SENDA_SCREENSHOT_TIMEOUT" default:"15s"`
+	StartupTimeout time.Duration `yaml:"startup_timeout" env:"SENDA_SCREENSHOT_STARTUP_TIMEOUT" default:"5s"`
+	MaxHeightPx    int           `yaml:"max_height_px" env:"SENDA_SCREENSHOT_MAX_HEIGHT_PX" default:"6000"`
+	MaxConcurrent  int           `yaml:"max_concurrent" env:"SENDA_SCREENSHOT_MAX_CONCURRENT" default:"4"`
+	DesktopWidthPx int           `yaml:"desktop_width_px" env:"SENDA_SCREENSHOT_DESKTOP_WIDTH_PX" default:"1280"`
+	MobileWidthPx  int           `yaml:"mobile_width_px" env:"SENDA_SCREENSHOT_MOBILE_WIDTH_PX" default:"390"`
+	IdleTimeout    time.Duration `yaml:"idle_timeout" env:"SENDA_SCREENSHOT_IDLE_TIMEOUT" default:"5m"`
 }
 
 type TrackingConfig struct {
