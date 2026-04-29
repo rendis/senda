@@ -104,6 +104,10 @@ run_case fail-4 1 '<mjml>
   </mj-body>
 </mjml>' "forbidden HTML <head> tag"
 
+run_case fail-5 1 '<mj-body>
+  <mj-section><mj-column><mj-text>hi</mj-text></mj-column></mj-section>
+</mj-body>' "document must start with <mjml>"
+
 # ---- summary ----
 echo "---"
 echo "passed: $pass_count, failed: $fail_count"

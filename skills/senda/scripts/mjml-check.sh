@@ -64,6 +64,51 @@ scan_pattern '<title[[:space:]/>]'  'forbidden HTML head tag <title>'           
 scan_pattern '<link[[:space:]/>]'   'forbidden HTML head tag <link>'                   'Use <mj-style> instead of <link>.'
 scan_pattern '<base[[:space:]/>]'   'forbidden HTML head tag <base>'                   "$HEAD_HINT"
 
+# Rule 6: document must start with <mjml> (whitespace and HTML comments allowed before)
+# and end with </mjml> (whitespace allowed after).
+stripped=$(printf '%s' "$SRC" | awk '
+    BEGIN { in_comment=0 }
+    {
+        line=$0
+        # strip leading whitespace
+        sub(/^[[:space:]]+/, "", line)
+        # consume single-line <!-- ... --> comments at the head
+        while (match(line, /^<!--[^-]*(-[^-]+)*-->/)) {
+            line = substr(line, RLENGTH + 1)
+            sub(/^[[:space:]]+/, "", line)
+        }
+        if (length(line) > 0) { print line; exit }
+    }
+')
+
+if [[ ! "$stripped" =~ ^\<mjml($|[[:space:]>]) ]]; then
+    {
+        echo "mjml-check: FAIL root: document must start with <mjml>"
+        echo "  See skills/senda/references/building-a-template.md \"Document skeleton\"."
+    } >&2
+    violations=$((violations + 1))
+fi
+
+# Trim trailing whitespace and check for </mjml> as the final non-whitespace token.
+trailing=$(printf '%s' "$SRC" | awk '
+    { lines[NR] = $0 }
+    END {
+        for (i = NR; i >= 1; i--) {
+            line = lines[i]
+            sub(/[[:space:]]+$/, "", line)
+            if (length(line) > 0) { print line; exit }
+        }
+    }
+')
+
+if [[ ! "$trailing" =~ \</mjml\>$ ]]; then
+    {
+        echo "mjml-check: FAIL root: document must end with </mjml>"
+        echo "  See skills/senda/references/building-a-template.md \"Document skeleton\"."
+    } >&2
+    violations=$((violations + 1))
+fi
+
 if [[ $violations -gt 0 ]]; then
     echo "mjml-check: $violations violation(s)" >&2
     exit 1
