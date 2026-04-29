@@ -27,7 +27,42 @@ fi
 
 violations=0
 
-# (rules added in subsequent tasks)
+# Rules 1-5: forbidden HTML document tags.
+# Each rule: pattern, label, hint.
+report() {
+    local line="$1" label="$2" hint="$3"
+    {
+        echo "mjml-check: FAIL line $line: $label"
+        echo "  $hint"
+        echo "  See skills/senda/references/building-a-template.md \"Anti-pattern: HTML wrappers\"."
+    } >&2
+    violations=$((violations + 1))
+}
+
+scan_pattern() {
+    local pattern="$1" label="$2" hint="$3"
+    local hits
+    hits=$(printf '%s\n' "$SRC" | grep -niE "$pattern" || true)
+    [[ -z "$hits" ]] && return
+    while IFS=: read -r line _; do
+        report "$line" "$label" "$hint"
+    done <<<"$hits"
+}
+
+WRAPPER_HINT='MJML compiles INTO HTML. Wrapping MJML in HTML is double-wrapping.'
+HEAD_HINT='Document head tags belong in <mj-head>, not the body.'
+
+scan_pattern '<!DOCTYPE'        'forbidden HTML document tag <!DOCTYPE'                "$WRAPPER_HINT"
+scan_pattern '<html[[:space:]/>]'   'forbidden HTML root tag <html>'                   "$WRAPPER_HINT"
+scan_pattern '</html>'              'forbidden HTML root tag </html>'                  "$WRAPPER_HINT"
+scan_pattern '(^|[^-])<head[[:space:]>]'  'forbidden HTML <head> tag (use <mj-head>)'  "$HEAD_HINT"
+scan_pattern '(^|[^-])</head>'      'forbidden HTML </head> tag (use </mj-head>)'      "$HEAD_HINT"
+scan_pattern '(^|[^-])<body[[:space:]>]'  'forbidden HTML <body> tag (use <mj-body>)'  "$WRAPPER_HINT"
+scan_pattern '(^|[^-])</body>'      'forbidden HTML </body> tag (use </mj-body>)'      "$WRAPPER_HINT"
+scan_pattern '<meta[[:space:]/>]'   'forbidden HTML head tag <meta>'                   "$HEAD_HINT"
+scan_pattern '<title[[:space:]/>]'  'forbidden HTML head tag <title>'                  'Use <mj-title> inside <mj-head> if you need a document title.'
+scan_pattern '<link[[:space:]/>]'   'forbidden HTML head tag <link>'                   'Use <mj-style> instead of <link>.'
+scan_pattern '<base[[:space:]/>]'   'forbidden HTML head tag <base>'                   "$HEAD_HINT"
 
 if [[ $violations -gt 0 ]]; then
     echo "mjml-check: $violations violation(s)" >&2

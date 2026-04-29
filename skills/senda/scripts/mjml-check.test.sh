@@ -58,6 +58,52 @@ run_case ok-1 0 '<mjml>
   </mj-body>
 </mjml>'
 
+run_case ok-2 0 '<mjml>
+  <mj-body>
+    <mj-hero mode="fluid-height" background-color="#0f172a">
+      <mj-text>Hello</mj-text>
+    </mj-hero>
+    <mj-section>
+      <mj-column>
+        <mj-button href="https://example.com">Go</mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>'
+
+run_case ok-3 0 '<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-raw><div class="x">snippet</div></mj-raw>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>'
+
+run_case fail-1 1 '<!DOCTYPE html>
+<mjml>
+  <mj-body>
+    <mj-section><mj-column><mj-text>hi</mj-text></mj-column></mj-section>
+  </mj-body>
+</mjml>' "forbidden HTML document tag <!DOCTYPE"
+
+run_case fail-2 1 '<html>
+  <head><title>x</title></head>
+  <body><mjml><mj-body><mj-section><mj-column><mj-text>hi</mj-text></mj-column></mj-section></mj-body></mjml></body>
+</html>' "forbidden HTML root tag <html>"
+
+run_case fail-4 1 '<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <head><meta charset="utf-8"></head>
+        <mj-text>hi</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>' "forbidden HTML <head> tag"
+
 # ---- summary ----
 echo "---"
 echo "passed: $pass_count, failed: $fail_count"
