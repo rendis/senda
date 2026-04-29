@@ -118,6 +118,45 @@ run_case fail-3 1 '<mjml>
   </mj-body>
 </mjml>' "<mj-raw> is for small HTML snippets, not full documents"
 
+run_case fail-self-close-head 1 '<mjml>
+  <mj-body>
+    <mj-section><mj-column>
+      <head/>
+      <mj-text>hi</mj-text>
+    </mj-column></mj-section>
+  </mj-body>
+</mjml>' "forbidden HTML <head> tag"
+
+run_case fail-self-close-body 1 '<mjml>
+  <mj-body>
+    <mj-section><mj-column>
+      <body/>
+      <mj-text>hi</mj-text>
+    </mj-column></mj-section>
+  </mj-body>
+</mjml>' "forbidden HTML <body> tag"
+
+run_case ok-multiline-comment 0 '<!--
+  this is a
+  multi-line head comment
+-->
+<mjml>
+  <mj-body>
+    <mj-section><mj-column><mj-text>hi</mj-text></mj-column></mj-section>
+  </mj-body>
+</mjml>'
+
+run_case fail-multiline-raw 1 '<mjml>
+  <mj-body>
+    <mj-section><mj-column>
+      <mj-raw>
+        <!DOCTYPE html>
+        <html><body>x</body></html>
+      </mj-raw>
+    </mj-column></mj-section>
+  </mj-body>
+</mjml>' "<mj-raw> is for small HTML snippets, not full documents"
+
 # ---- exit-code contract ----
 
 run_input_error_case() {

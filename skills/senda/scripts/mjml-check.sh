@@ -94,9 +94,9 @@ HEAD_HINT='Document head tags belong in <mj-head>, not the body.'
 scan_pattern '<!DOCTYPE'        'forbidden HTML document tag <!DOCTYPE'                "$WRAPPER_HINT"
 scan_pattern '<html[[:space:]/>]'   'forbidden HTML root tag <html>'                   "$WRAPPER_HINT"
 scan_pattern '</html>'              'forbidden HTML root tag </html>'                  "$WRAPPER_HINT"
-scan_pattern '(^|[^-])<head[[:space:]>]'  'forbidden HTML <head> tag (use <mj-head>)'  "$HEAD_HINT"
+scan_pattern '(^|[^-])<head[[:space:]/>]'  'forbidden HTML <head> tag (use <mj-head>)'  "$HEAD_HINT"
 scan_pattern '(^|[^-])</head>'      'forbidden HTML </head> tag (use </mj-head>)'      "$HEAD_HINT"
-scan_pattern '(^|[^-])<body[[:space:]>]'  'forbidden HTML <body> tag (use <mj-body>)'  "$WRAPPER_HINT"
+scan_pattern '(^|[^-])<body[[:space:]/>]'  'forbidden HTML <body> tag (use <mj-body>)'  "$WRAPPER_HINT"
 scan_pattern '(^|[^-])</body>'      'forbidden HTML </body> tag (use </mj-body>)'      "$WRAPPER_HINT"
 scan_pattern '<meta[[:space:]/>]'   'forbidden HTML head tag <meta>'                   "$HEAD_HINT"
 scan_pattern '<title[[:space:]/>]'  'forbidden HTML head tag <title>'                  'Use <mj-title> inside <mj-head> if you need a document title.'
@@ -105,22 +105,25 @@ scan_pattern '<base[[:space:]/>]'   'forbidden HTML head tag <base>'            
 
 # Rule 6: document must start with <mjml> (whitespace and HTML comments allowed before)
 # and end with </mjml> (whitespace allowed after).
-stripped=$(printf '%s' "$SRC" | awk '
-    BEGIN { in_comment=0 }
-    {
-        line=$0
-        # strip leading whitespace
-        sub(/^[[:space:]]+/, "", line)
-        # consume single-line <!-- ... --> comments at the head
-        while (match(line, /^<!--[^-]*(-[^-]+)*-->/)) {
-            line = substr(line, RLENGTH + 1)
-            sub(/^[[:space:]]+/, "", line)
-        }
-        if (length(line) > 0) { print line; exit }
-    }
-')
 
-if [[ ! "$stripped" =~ ^\<mjml($|[[:space:]>]) ]]; then
+# Strip leading whitespace then iteratively strip HTML comments (single- or multi-line).
+stripped_head="$SRC"
+# Drop leading whitespace (any kind including newlines).
+while [[ "$stripped_head" =~ ^[[:space:]] ]]; do
+    stripped_head="${stripped_head:1}"
+done
+while [[ "$stripped_head" == "<!--"* ]]; do
+    rest="${stripped_head#<!--}"
+    if [[ "$rest" != *"-->"* ]]; then break; fi
+    stripped_head="${rest#*-->}"
+    while [[ "$stripped_head" =~ ^[[:space:]] ]]; do
+        stripped_head="${stripped_head:1}"
+    done
+done
+# Take first 64 chars max for the regex check (avoid bash regex on huge strings).
+head_token="${stripped_head:0:64}"
+
+if [[ ! "$head_token" =~ ^\<mjml($|[[:space:]>]) ]]; then
     {
         echo "mjml-check: FAIL root: document must start with <mjml>"
         echo "  See skills/senda/references/building-a-template.md \"Document skeleton\"."
