@@ -43,6 +43,46 @@ func TestAdapterRepo_Create(t *testing.T) {
 	}
 }
 
+func TestAdapterRepo_CreateAndGet_SMTP(t *testing.T) {
+	ctx := context.Background()
+	pool := setupTestDB(ctx, t)
+	repo := pgadapter.NewAdapterRepo(pool)
+	tenantRepo := pgadapter.NewTenantRepo(pool)
+	wsRepo := pgadapter.NewWorkspaceRepo(pool)
+	ws := createTestWorkspaceWith(ctx, t, tenantRepo, wsRepo)
+
+	adapter := &domain.Adapter{
+		ID:                 uuid.Must(uuid.NewV7()),
+		WorkspaceID:        &ws.ID,
+		Name:               "SMTP Relay",
+		AdapterType:        domain.AdapterTypeSMTP,
+		ConfigEncrypted:    []byte(`{"host":"localhost","port":1025,"tls_mode":"none","from_email":"no-reply@example.com"}`),
+		IsDefault:          false,
+		RateLimitPerSecond: 10,
+		ConfigMeta: map[string]string{
+			"host":       "localhost",
+			"port":       "1025",
+			"tls_mode":   "none",
+			"from_email": "no-reply@example.com",
+		},
+	}
+
+	if err := repo.Create(ctx, adapter); err != nil {
+		t.Fatalf("Create() SMTP error = %v", err)
+	}
+
+	got, err := repo.GetByID(ctx, adapter.ID)
+	if err != nil {
+		t.Fatalf("GetByID() SMTP error = %v", err)
+	}
+	if got.AdapterType != domain.AdapterTypeSMTP {
+		t.Fatalf("AdapterType = %q, want %q", got.AdapterType, domain.AdapterTypeSMTP)
+	}
+	if got.ConfigMeta["tls_mode"] != "none" {
+		t.Fatalf("ConfigMeta[tls_mode] = %q, want none", got.ConfigMeta["tls_mode"])
+	}
+}
+
 func TestAdapterRepo_Create_Global(t *testing.T) {
 	ctx := context.Background()
 	pool := setupTestDB(ctx, t)
