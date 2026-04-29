@@ -121,6 +121,43 @@ func (r *SuppressionRepo) IsWorkspaceSuppressed(ctx context.Context, wsID uuid.U
 	return exists, nil
 }
 
+func (r *SuppressionRepo) GetActiveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error) {
+	var sup domain.SuppressionWorkspace
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, workspace_id, email, reason, source_email_id, notes,
+		        created_at, removed_at, removed_by, removal_reason
+		 FROM suppression_workspace
+		 WHERE workspace_id = @workspace_id AND email = @email AND removed_at IS NULL`,
+		pgx.NamedArgs{"workspace_id": workspaceID, "email": email},
+	).Scan(
+		&sup.ID, &sup.WorkspaceID, &sup.Email, &sup.Reason, &sup.SourceEmailID, &sup.Notes,
+		&sup.CreatedAt, &sup.RemovedAt, &sup.RemovedBy, &sup.RemovalReason,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperr.NotFound("active workspace suppression for ws=%s email=%q not found", workspaceID, email)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("suppression: get active workspace: %w", err)
+	}
+	return &sup, nil
+}
+
+func (r *SuppressionRepo) RemoveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string, removalReason string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE suppression_workspace
+		 SET removed_at = now(), removal_reason = @removal_reason
+		 WHERE workspace_id = @workspace_id AND email = @email AND removed_at IS NULL`,
+		pgx.NamedArgs{"workspace_id": workspaceID, "email": email, "removal_reason": removalReason},
+	)
+	if err != nil {
+		return fmt.Errorf("suppression: remove workspace: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("active workspace suppression for ws=%s email=%q not found", workspaceID, email)
+	}
+	return nil
+}
+
 func (r *SuppressionRepo) IsSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error) {
 	var reason string
 	err := r.pool.QueryRow(ctx,

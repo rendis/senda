@@ -176,6 +176,15 @@ type SuppressionStore interface {
 	AddWorkspace(ctx context.Context, entry *domain.SuppressionWorkspace) error
 	IsWorkspaceSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, error)
 
+	// GetActiveWorkspaceSuppression returns the active (removed_at IS NULL) workspace
+	// suppression for (workspaceID, email), or apperr.NotFound if none.
+	GetActiveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error)
+
+	// RemoveWorkspaceSuppression sets removed_at and removal_reason on the active
+	// row for (workspaceID, email). Returns apperr.NotFound if no active row exists
+	// (caller may treat as no-op for idempotent resubscribe flows).
+	RemoveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string, removalReason string) error
+
 	// Combined check (optimized)
 	IsSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error) // returns (suppressed, reason, err)
 

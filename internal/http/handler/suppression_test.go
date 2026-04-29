@@ -20,12 +20,14 @@ import (
 // --- Mock SuppressionStore ---
 
 type mockSuppressionStore struct {
-	addGlobalFn             func(ctx context.Context, entry *domain.SuppressionGlobal) error
-	isGloballySuppressedFn  func(ctx context.Context, email string) (bool, error)
-	removeGlobalFn          func(ctx context.Context, email string, removedBy uuid.UUID, reason string) error
-	addWorkspaceFn          func(ctx context.Context, entry *domain.SuppressionWorkspace) error
-	isWorkspaceSuppressedFn func(ctx context.Context, wsID uuid.UUID, email string) (bool, error)
-	isSuppressedFn          func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)
+	addGlobalFn                      func(ctx context.Context, entry *domain.SuppressionGlobal) error
+	isGloballySuppressedFn           func(ctx context.Context, email string) (bool, error)
+	removeGlobalFn                   func(ctx context.Context, email string, removedBy uuid.UUID, reason string) error
+	addWorkspaceFn                   func(ctx context.Context, entry *domain.SuppressionWorkspace) error
+	isWorkspaceSuppressedFn          func(ctx context.Context, wsID uuid.UUID, email string) (bool, error)
+	isSuppressedFn                   func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)
+	getActiveWorkspaceSuppressionFn  func(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error)
+	removeWorkspaceSuppressionFn     func(ctx context.Context, workspaceID uuid.UUID, email string, removalReason string) error
 }
 
 func (m *mockSuppressionStore) AddGlobal(ctx context.Context, entry *domain.SuppressionGlobal) error {
@@ -66,6 +68,18 @@ func (m *mockSuppressionStore) IsSuppressed(ctx context.Context, wsID uuid.UUID,
 }
 func (m *mockSuppressionStore) CheckBatch(_ context.Context, _ uuid.UUID, _ []string) (map[string]string, error) {
 	return map[string]string{}, nil
+}
+func (m *mockSuppressionStore) GetActiveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error) {
+	if m.getActiveWorkspaceSuppressionFn != nil {
+		return m.getActiveWorkspaceSuppressionFn(ctx, workspaceID, email)
+	}
+	return nil, nil
+}
+func (m *mockSuppressionStore) RemoveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string, removalReason string) error {
+	if m.removeWorkspaceSuppressionFn != nil {
+		return m.removeWorkspaceSuppressionFn(ctx, workspaceID, email, removalReason)
+	}
+	return nil
 }
 
 // --- Helpers ---

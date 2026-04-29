@@ -234,6 +234,12 @@ func (m *mockSuppressionStoreSend) CheckBatch(ctx context.Context, wsID uuid.UUI
 	}
 	return result, nil
 }
+func (m *mockSuppressionStoreSend) GetActiveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string) (*domain.SuppressionWorkspace, error) {
+	return nil, nil
+}
+func (m *mockSuppressionStoreSend) RemoveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string, _ string) error {
+	return nil
+}
 
 type mockCacheSend struct {
 	data map[string][]byte

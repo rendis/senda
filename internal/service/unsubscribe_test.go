@@ -83,17 +83,17 @@ type fakeSuppressionWS struct {
 	removeErr    error
 }
 
-func (f *fakeSuppressionWS) Add(_ context.Context, sup *domain.SuppressionWorkspace) error {
+func (f *fakeSuppressionWS) AddWorkspace(_ context.Context, sup *domain.SuppressionWorkspace) error {
 	f.addCalled = true
 	f.active = sup
 	return f.addErr
 }
 
-func (f *fakeSuppressionWS) GetActive(_ context.Context, _ uuid.UUID, _ string) (*domain.SuppressionWorkspace, error) {
+func (f *fakeSuppressionWS) GetActiveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string) (*domain.SuppressionWorkspace, error) {
 	return f.active, f.getErr
 }
 
-func (f *fakeSuppressionWS) Remove(_ context.Context, _ uuid.UUID, _ string, reason string) error {
+func (f *fakeSuppressionWS) RemoveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string, reason string) error {
 	f.removeCalled = true
 	f.removeReason = reason
 	return f.removeErr

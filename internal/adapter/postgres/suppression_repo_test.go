@@ -335,6 +335,117 @@ func TestSuppressionRepo_GetSuppressionStatuses(t *testing.T) {
 	}
 }
 
+func TestSuppressionRepo_GetActiveWorkspaceSuppression_FoundAndNotFound(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	email := "active-ws@test.com"
+
+	// Not found before any suppression is added
+	_, err := deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, email)
+	if err == nil {
+		t.Fatal("expected NotFound error, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404, got: %v", err)
+	}
+
+	// Add workspace suppression
+	entry := &domain.SuppressionWorkspace{
+		ID: uuid.New(), WorkspaceID: deps.wsID,
+		Email: email, Reason: domain.SuppressionUnsubscribe,
+	}
+	if err := deps.repo.AddWorkspace(ctx, entry); err != nil {
+		t.Fatalf("AddWorkspace() error: %v", err)
+	}
+
+	// Now found
+	sup, err := deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, email)
+	if err != nil {
+		t.Fatalf("GetActiveWorkspaceSuppression() error: %v", err)
+	}
+	if sup.Email != email {
+		t.Errorf("Email = %q, want %q", sup.Email, email)
+	}
+	if sup.Reason != domain.SuppressionUnsubscribe {
+		t.Errorf("Reason = %q, want unsubscribe", sup.Reason)
+	}
+	if sup.RemovedAt != nil {
+		t.Error("RemovedAt must be nil for active row")
+	}
+
+	// Different email returns NotFound
+	_, err = deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, "other@test.com")
+	if err == nil {
+		t.Fatal("expected NotFound for different email, got nil")
+	}
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404 for other email, got: %v", err)
+	}
+}
+
+func TestSuppressionRepo_RemoveWorkspaceSuppression_SetsRemovedAt(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	email := "to-remove-ws@test.com"
+
+	entry := &domain.SuppressionWorkspace{
+		ID: uuid.New(), WorkspaceID: deps.wsID,
+		Email: email, Reason: domain.SuppressionUnsubscribe,
+	}
+	if err := deps.repo.AddWorkspace(ctx, entry); err != nil {
+		t.Fatalf("AddWorkspace() error: %v", err)
+	}
+
+	if err := deps.repo.RemoveWorkspaceSuppression(ctx, deps.wsID, email, "recipient_resubscribe"); err != nil {
+		t.Fatalf("RemoveWorkspaceSuppression() error: %v", err)
+	}
+
+	// GetActive now returns NotFound
+	_, err := deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, email)
+	if err == nil {
+		t.Fatal("expected NotFound after removal, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404 after removal, got: %v", err)
+	}
+
+	// Verify removed_at IS NOT NULL and removal_reason in DB
+	var removedAt *interface{}
+	var removalReason *string
+	err = deps.pool.QueryRow(ctx,
+		`SELECT removed_at, removal_reason FROM suppression_workspace
+		 WHERE workspace_id = $1 AND email = $2`,
+		deps.wsID, email,
+	).Scan(&removedAt, &removalReason)
+	if err != nil {
+		t.Fatalf("direct query error: %v", err)
+	}
+	if removedAt == nil {
+		t.Error("expected removed_at to be set")
+	}
+	if removalReason == nil || *removalReason != "recipient_resubscribe" {
+		t.Errorf("removal_reason = %v, want recipient_resubscribe", removalReason)
+	}
+}
+
+func TestSuppressionRepo_RemoveWorkspaceSuppression_NoActiveRow_ReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	err := deps.repo.RemoveWorkspaceSuppression(ctx, deps.wsID, "nonexistent-ws@test.com", "reason")
+	if err == nil {
+		t.Fatal("expected NotFound error, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404, got: %v", err)
+	}
+}
+
 func TestSuppressionRepo_AddGlobal_ReactivatesRemoved(t *testing.T) {
 	ctx := context.Background()
 	deps := setupSuppressionTestDeps(ctx, t)

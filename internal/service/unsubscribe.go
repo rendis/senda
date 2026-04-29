@@ -70,15 +70,15 @@ type unsubTemplateTypeLookup interface {
 }
 
 // unsubSuppressionWS operates on workspace-level unsubscribe suppression rows.
-// The concrete adapter (added in a later task) will back these methods.
+// Satisfied by port.SuppressionStore / postgres.SuppressionRepo.
 type unsubSuppressionWS interface {
-	// Add inserts a new suppression_workspace row.
-	Add(ctx context.Context, sup *domain.SuppressionWorkspace) error
-	// GetActive returns the currently-active (removed_at IS NULL) row for
+	// AddWorkspace inserts a new suppression_workspace row.
+	AddWorkspace(ctx context.Context, sup *domain.SuppressionWorkspace) error
+	// GetActiveWorkspaceSuppression returns the currently-active (removed_at IS NULL) row for
 	// (workspace, email), or an apperr.NotFound error when none exists.
-	GetActive(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error)
-	// Remove sets removed_at and removal_reason on the active row.
-	Remove(ctx context.Context, workspaceID uuid.UUID, email string, reason string) error
+	GetActiveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error)
+	// RemoveWorkspaceSuppression sets removed_at and removal_reason on the active row.
+	RemoveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string, reason string) error
 }
 
 type unsubTTSWriter interface {
@@ -162,7 +162,7 @@ func (s *UnsubscribeService) GetContext(ctx context.Context, token string) (*Uns
 		}
 	}
 
-	sup, err := s.supWS.GetActive(ctx, p.WorkspaceID, p.Email)
+	sup, err := s.supWS.GetActiveWorkspaceSuppression(ctx, p.WorkspaceID, p.Email)
 	if err != nil && !apperr.IsNotFound(err) {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *UnsubscribeService) OptOutAll(ctx context.Context, token string) error 
 		return err
 	}
 	sourceID := p.SourceEmailID
-	return s.supWS.Add(ctx, &domain.SuppressionWorkspace{
+	return s.supWS.AddWorkspace(ctx, &domain.SuppressionWorkspace{
 		ID:            uuid.Must(uuid.NewV7()),
 		WorkspaceID:   p.WorkspaceID,
 		Email:         p.Email,
@@ -227,7 +227,7 @@ func (s *UnsubscribeService) Resubscribe(ctx context.Context, token string) erro
 	if err != nil {
 		return err
 	}
-	return s.supWS.Remove(ctx, p.WorkspaceID, p.Email, "recipient_resubscribe")
+	return s.supWS.RemoveWorkspaceSuppression(ctx, p.WorkspaceID, p.Email, "recipient_resubscribe")
 }
 
 // GetPreferences returns the preference center view, populated with every
@@ -249,7 +249,7 @@ func (s *UnsubscribeService) GetPreferences(ctx context.Context, token string) (
 		return nil, err
 	}
 
-	sup, err := s.supWS.GetActive(ctx, p.WorkspaceID, p.Email)
+	sup, err := s.supWS.GetActiveWorkspaceSuppression(ctx, p.WorkspaceID, p.Email)
 	if err != nil && !apperr.IsNotFound(err) {
 		return nil, err
 	}
