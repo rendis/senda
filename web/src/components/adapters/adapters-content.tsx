@@ -18,6 +18,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ScopeIndicator } from "@/components/shared/scope-indicator";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { AdapterTypeBadge } from "./adapter-type-badge";
+import {
+  canTestSendAdapter,
+  getAdapterCapabilities,
+  isVerifiedEmailIdentity,
+  shouldIncludeTestSendFrom,
+} from "./adapter-capabilities";
 import { AdapterForm } from "./adapter-form";
 import { ProvisioningStepper } from "./provisioning-stepper";
 import { IdentityPanel } from "./identity-panel";
@@ -42,7 +48,7 @@ import {
   SYSTEM_WORKSPACE_SCOPE_LABEL,
 } from "@/lib/system-workspace-display";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Adapter, AdapterIdentity, CreateAdapterRequest } from "@/types/adapters";
+import type { Adapter, CreateAdapterRequest } from "@/types/adapters";
 import { useIdentityList } from "@/hooks/use-identities";
 import {
   Select,
@@ -53,9 +59,6 @@ import {
 } from "@/components/ui/select";
 import { TrackingStatus } from "./tracking-status";
 import { DefaultSender } from "./default-sender";
-
-const isVerifiedEmail = (i: AdapterIdentity) =>
-  i.identity_type === "email" && i.status === "verified";
 
 export function AdaptersContent() {
   return <AdaptersTable />;
@@ -227,7 +230,7 @@ function AdaptersTable() {
           <EmptyState
             icon={Plug}
             title="No adapters configured"
-            description="Add an email adapter (SES or Gmail) to start sending emails from this scope."
+            description="Add an email adapter (SES, Gmail, or SMTP) to start sending emails from this scope."
             action={
               <AdapterForm
                 trigger={
@@ -327,14 +330,13 @@ function AdapterActions({
   onIdentities: (a: Adapter) => void;
   onShare: (a: Adapter) => void;
 }) {
+  const capabilities = getAdapterCapabilities(adapter.adapter_type);
   const { data: identities } = useIdentityList(
     scopedPath,
-    adapter.adapter_type === "ses" ? adapter.id : "",
+    capabilities.usesSenderIdentity ? adapter.id : "",
   );
 
-  const hasVerifiedSender =
-    adapter.adapter_type !== "ses" ||
-    (identities ?? []).some(isVerifiedEmail);
+  const hasVerifiedSender = canTestSendAdapter(adapter.adapter_type, identities ?? []);
 
   const readOnlyReason = adapter.is_shared
     ? `Shared from ${SYSTEM_WORKSPACE_SCOPE_LABEL} — read only in this workspace`
@@ -368,9 +370,9 @@ function AdapterActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {adapter.adapter_type === "ses" &&
+      {capabilities.supportsSenderSharing &&
         actionButton({ label: "Senders", icon: <Mail className="h-4 w-4" />, onClick: () => onIdentities(adapter) })}
-      {isSystemWorkspace && adapter.adapter_type === "gmail" &&
+      {isSystemWorkspace && capabilities.supportsAdapterSharing &&
         actionButton({ label: "Workspace access", icon: <Share2 className="h-4 w-4" />, onClick: () => onShare(adapter) })}
       {actionButton({ label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => onEdit(adapter), disabled: !adapter.is_editable })}
       {actionButton({
@@ -530,9 +532,10 @@ function TestSendDialog({
 
   const { data: identities } = useIdentityList(scopedPath, adapter.id);
   const verifiedEmails = useMemo(
-    () => (identities ?? []).filter(isVerifiedEmail),
+    () => (identities ?? []).filter(isVerifiedEmailIdentity),
     [identities],
   );
+  const usesSenderIdentity = getAdapterCapabilities(adapter.adapter_type).usesSenderIdentity;
 
   const defaultFrom =
     verifiedEmails.find((i) => i.is_default)?.identity ??
@@ -547,7 +550,7 @@ function TestSendDialog({
         to,
         subject,
         body,
-        ...(adapter.adapter_type === "ses" && from ? { from } : {}),
+        ...(shouldIncludeTestSendFrom(adapter.adapter_type, from) ? { from } : {}),
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -575,7 +578,7 @@ function TestSendDialog({
                 required
               />
             </div>
-            {adapter.adapter_type === "ses" && (
+            {usesSenderIdentity && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="test-from">Send From</Label>
                 <Select value={from} onValueChange={setSelectedFrom} required>

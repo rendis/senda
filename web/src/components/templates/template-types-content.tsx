@@ -53,6 +53,10 @@ import {
 import type { TemplateType } from "@/types/templates";
 import type { Adapter } from "@/types/adapters";
 import { toast } from "sonner";
+import {
+  adapterUsesSenderIdentity,
+  requiresExplicitSenderIdentity,
+} from "./sender-identity-policy";
 
 const SENDER_DEFAULT = "__default__";
 const SENDER_NONE = "__none__";
@@ -279,7 +283,7 @@ function TemplateTypesTable() {
     if (!newSlug.trim() || !newName.trim()) return;
     try {
       const selectedAdapter = adapters.find((adapter) => adapter.id === newAdapterId);
-      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !newSenderIdentityId) {
+      if (requiresExplicitSenderIdentity(selectedAdapter) && !newSenderIdentityId) {
         toast.error(t("sharedSesRequiresIdentity"));
         return;
       }
@@ -562,8 +566,8 @@ function EditTemplateTypeDialog({
 
     try {
       const selectedAdapter = adapters.find((adapter) => adapter.id === adapterId);
-      if (selectedAdapter?.adapter_type === "ses" && selectedAdapter.is_shared && !senderIdentityId) {
-        toast.error("Shared SES adapters require an explicit sender identity");
+      if (requiresExplicitSenderIdentity(selectedAdapter) && !senderIdentityId) {
+        toast.error("Shared SES/SMTP adapters require an explicit sender identity");
         return true;
       }
       const senderIdValue = senderIdentityId && senderIdentityId !== SENDER_DEFAULT ? senderIdentityId : "";
@@ -773,8 +777,8 @@ function AdapterSelect({
 }) {
   const scopedPath = useScopedPath();
   const selectedAdapter = adapters.find((a) => a.id === value);
-  const showIdentitySelect = !!selectedAdapter && selectedAdapter.adapter_type === "ses";
-  const requireExplicitSender = !!selectedAdapter && selectedAdapter.adapter_type === "ses" && selectedAdapter.is_shared;
+  const showIdentitySelect = adapterUsesSenderIdentity(selectedAdapter);
+  const requireExplicitSender = requiresExplicitSenderIdentity(selectedAdapter);
 
   return (
     <div className="flex flex-col gap-3">
@@ -859,7 +863,7 @@ function SenderIdentitySelect({
       </Select>
       <p className="text-xs text-muted-foreground">
         {requireExplicitSender
-          ? "Shared SES adapters require an explicit granted sender identity."
+          ? "Shared SES/SMTP adapters require an explicit granted sender identity."
           : "Choose which email address to send from. Add senders in the adapter&apos;s identity panel."}
       </p>
     </div>

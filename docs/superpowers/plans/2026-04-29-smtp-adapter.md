@@ -992,7 +992,7 @@ git commit -m "docs: document smtp adapter contract"
 - Modify: `web/src/types/adapters.ts`
 - Test: use TypeScript typecheck.
 
-- [ ] **Step 1: Update adapter types**
+- [x] **Step 1: Update adapter types**
 
 Change `web/src/types/adapters.ts`:
 
@@ -1020,7 +1020,7 @@ Update request unions:
 config: SesConfig | GmailConfig | SmtpConfig;
 ```
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run:
 
@@ -1030,7 +1030,7 @@ corepack pnpm --dir web typecheck
 
 Expected: TypeScript fails in components that assume only SES/Gmail.
 
-- [ ] **Step 3: Commit after fixing only type definitions if typecheck still passes**
+- [x] **Step 3: Commit after fixing only type definitions if typecheck still passes**
 
 If typecheck passes after the type-only change:
 
@@ -1046,7 +1046,7 @@ If it fails, continue to Task 9 and commit both tasks together.
 **Files:**
 - Modify: `web/src/components/adapters/adapter-form.tsx`
 
-- [ ] **Step 1: Add SMTP defaults**
+- [x] **Step 1: Add SMTP defaults**
 
 Update `ADAPTER_DEFAULTS`:
 
@@ -1057,7 +1057,7 @@ smtp: {
 },
 ```
 
-- [ ] **Step 2: Add SMTP state**
+- [x] **Step 2: Add SMTP state**
 
 Add state near SES/Gmail state:
 
@@ -1072,7 +1072,7 @@ const [smtpUsername, setSmtpUsername] = useState("");
 const [smtpPassword, setSmtpPassword] = useState("");
 ```
 
-- [ ] **Step 3: Include SMTP in type selector**
+- [x] **Step 3: Include SMTP in type selector**
 
 Add:
 
@@ -1080,7 +1080,7 @@ Add:
 <SelectItem value="smtp">SMTP</SelectItem>
 ```
 
-- [ ] **Step 4: Add SMTP payload construction**
+- [x] **Step 4: Add SMTP payload construction**
 
 In submit construction, build SMTP config:
 
@@ -1100,7 +1100,7 @@ const config =
         };
 ```
 
-- [ ] **Step 5: Render SMTP fields**
+- [x] **Step 5: Render SMTP fields**
 
 Refactor the config section to branch `ses`, `gmail`, `smtp`. Add this SMTP block:
 
@@ -1155,7 +1155,7 @@ Refactor the config section to branch `ses`, `gmail`, `smtp`. Add this SMTP bloc
 )}
 ```
 
-- [ ] **Step 6: Run frontend typecheck**
+- [x] **Step 6: Run frontend typecheck**
 
 Run:
 
@@ -1165,7 +1165,7 @@ corepack pnpm --dir web typecheck
 
 Expected: PASS after fixing branch exhaustiveness and submit readiness.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add web/src/types/adapters.ts web/src/components/adapters/adapter-form.tsx
@@ -1180,7 +1180,7 @@ git commit -m "feat: add smtp adapter form"
 - Modify: `web/src/components/adapters/identity-panel.tsx`
 - Modify: `web/src/components/templates/template-types-content.tsx`
 
-- [ ] **Step 1: Add SMTP badge**
+- [x] **Step 1: Add SMTP badge**
 
 In `adapter-type-badge.tsx`, add an SMTP icon:
 
@@ -1206,7 +1206,7 @@ smtp: {
 },
 ```
 
-- [ ] **Step 2: Hide provider-only actions for SMTP**
+- [x] **Step 2: Hide provider-only actions for SMTP**
 
 In `adapters-content.tsx`, ensure checks are explicit:
 
@@ -1219,7 +1219,7 @@ const supportsAdapterSharing = adapter.adapter_type === "gmail";
 
 Use these booleans to render sync/provisioning/sharing actions. SMTP should not render provider sync or SES provisioning, but it should render identity-level sender sharing for manual SMTP email identities.
 
-- [ ] **Step 3: Add full-email identity creation for SMTP**
+- [x] **Step 3: Add full-email identity creation for SMTP**
 
 In `web/src/components/adapters/identity-panel.tsx`, SMTP should not depend on provider domains. Add a simple full email form for editable SMTP adapters:
 
@@ -1259,7 +1259,7 @@ function ManualEmailAddInput({
 
 Render it for `adapter.adapter_type === "smtp"` and `adapter.is_editable`. Hide the provider sync button for SMTP and adjust empty copy to say SMTP sender emails are added manually.
 
-- [ ] **Step 4: Show sender identity selection for SMTP template types**
+- [x] **Step 4: Show sender identity selection for SMTP template types**
 
 In `web/src/components/templates/template-types-content.tsx`, update adapter identity logic:
 
@@ -1279,7 +1279,7 @@ if ((selectedAdapter?.adapter_type === "ses" || selectedAdapter?.adapter_type ==
 }
 ```
 
-- [ ] **Step 5: Test send from SMTP**
+- [x] **Step 5: Test send from SMTP**
 
 Change test-send payload:
 
@@ -1289,7 +1289,7 @@ Change test-send payload:
 
 The test dialog should show the same sender email picker for SMTP that it shows for SES, using manual verified email identities.
 
-- [ ] **Step 6: Run frontend checks**
+- [x] **Step 6: Run frontend checks**
 
 Run:
 
@@ -1300,7 +1300,7 @@ corepack pnpm --dir web lint
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add web/src/components/adapters/adapter-type-badge.tsx web/src/components/adapters/adapters-content.tsx web/src/components/adapters/identity-panel.tsx web/src/components/templates/template-types-content.tsx

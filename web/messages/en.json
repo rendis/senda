@@ -333,7 +333,7 @@
     "deleteTemplateTypeAria": "Delete template type {slug}",
     "localTemplateTypesDisabled": "Local template types are disabled by the tenant _system workspace policy.",
     "defaultTemplateTypesReadonly": "Default template types are read-only in workspaces.",
-    "sharedSesRequiresIdentity": "Shared SES adapters require an explicit sender identity",
+    "sharedSesRequiresIdentity": "Shared SES/SMTP adapters require an explicit sender identity",
     "templateTypeCreated": "Template type created",
     "templateTypeCreateFailed": "Failed to create template type",
     "templateTypeDeleted": "Template type deleted",

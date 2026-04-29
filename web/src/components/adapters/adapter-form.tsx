@@ -36,6 +36,8 @@ import type {
   UpdateAdapterRequest,
   SesConfig,
   GmailConfig,
+  SmtpConfig,
+  SmtpTLSMode,
 } from "@/types/adapters";
 
 const SES_REGIONS = [
@@ -73,6 +75,10 @@ const ADAPTER_DEFAULTS: Record<AdapterType, { rateLimit: number; region?: string
     rateLimit: 2,
     description: "Gmail API with Workspace delegation supports ~2 emails/sec per delegated user.",
     docsUrl: "https://developers.google.com/gmail/api/reference/quota",
+  },
+  smtp: {
+    rateLimit: 10,
+    description: "SMTP relay rate limits depend on your provider or internal relay policy.",
   },
 };
 
@@ -124,6 +130,18 @@ export function AdapterForm(props: AdapterFormProps) {
     (isEdit && defaults?.config_meta?.delegate_email) || ""
   );
 
+  // SMTP fields
+  const [smtpHost, setSmtpHost] = useState((isEdit && defaults?.config_meta?.host) || "");
+  const [smtpPort, setSmtpPort] = useState((isEdit && defaults?.config_meta?.port) || "587");
+  const [smtpTLSMode, setSmtpTLSMode] = useState<SmtpTLSMode>(
+    ((isEdit && defaults?.config_meta?.tls_mode) as SmtpTLSMode | undefined) ?? "starttls"
+  );
+  const [smtpAuthMode, setSmtpAuthMode] = useState<"plain" | "login">(
+    ((isEdit && defaults?.config_meta?.auth_mode) as "plain" | "login" | undefined) ?? "plain"
+  );
+  const [smtpUsername, setSmtpUsername] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+
   function resetForm() {
     if (!isEdit) {
       setName("");
@@ -136,9 +154,15 @@ export function AdapterForm(props: AdapterFormProps) {
     setSesSecretKey("");
     setGmailServiceAccountJSON("");
     setGmailDelegateEmail(isEdit ? defaults?.config_meta?.delegate_email ?? "" : "");
+    setSmtpHost(isEdit ? defaults?.config_meta?.host ?? "" : "");
+    setSmtpPort(isEdit ? defaults?.config_meta?.port ?? "587" : "587");
+    setSmtpTLSMode(((isEdit ? defaults?.config_meta?.tls_mode : undefined) as SmtpTLSMode | undefined) ?? "starttls");
+    setSmtpAuthMode(((isEdit ? defaults?.config_meta?.auth_mode : undefined) as "plain" | "login" | undefined) ?? "plain");
+    setSmtpUsername("");
+    setSmtpPassword("");
   }
 
-  function buildConfig(): (SesConfig | GmailConfig) | undefined {
+  function buildConfig(): (SesConfig | GmailConfig | SmtpConfig) | undefined {
     if (adapterType === "ses") {
       // In edit mode, only send config if user filled something
       if (isEdit && !sesRegion && !sesAccessKey && !sesSecretKey) return undefined;
@@ -147,13 +171,35 @@ export function AdapterForm(props: AdapterFormProps) {
         access_key_id: sesAccessKey,
         secret_access_key: sesSecretKey,
       };
-    } else {
+    }
+
+    if (adapterType === "gmail") {
       if (isEdit && !gmailServiceAccountJSON && !gmailDelegateEmail) return undefined;
       return {
         service_account_json: gmailServiceAccountJSON,
         delegate_email: gmailDelegateEmail,
       };
     }
+
+    const previous = defaults?.config_meta;
+    const smtpChanged =
+      smtpHost !== (previous?.host ?? "") ||
+      smtpPort !== (previous?.port ?? "587") ||
+      smtpTLSMode !== ((previous?.tls_mode as SmtpTLSMode | undefined) ?? "starttls") ||
+      smtpAuthMode !== ((previous?.auth_mode as "plain" | "login" | undefined) ?? "plain") ||
+      !!smtpUsername ||
+      !!smtpPassword;
+
+    if (isEdit && !smtpChanged) return undefined;
+
+    return {
+      host: smtpHost,
+      port: Number(smtpPort),
+      tls_mode: smtpTLSMode,
+      ...(smtpUsername || smtpPassword ? { auth_mode: smtpAuthMode } : {}),
+      ...(smtpUsername ? { username: smtpUsername } : {}),
+      ...(smtpPassword ? { password: smtpPassword } : {}),
+    };
   }
 
   // For SES create: submit button first validates, then creates on second click.
@@ -204,6 +250,9 @@ export function AdapterForm(props: AdapterFormProps) {
     if (!name.trim()) return false;
     if (adapterType === "ses") {
       return sesFieldsReady; // button enables when fields are filled (validate or create)
+    }
+    if (adapterType === "smtp") {
+      return !!(smtpHost.trim() && smtpPort.trim());
     }
     return !!(gmailServiceAccountJSON.trim() && gmailDelegateEmail.trim());
   })();
@@ -272,6 +321,7 @@ export function AdapterForm(props: AdapterFormProps) {
             <SelectContent>
               <SelectItem value="ses">SES (Amazon)</SelectItem>
               <SelectItem value="gmail">Gmail (Google)</SelectItem>
+              <SelectItem value="smtp">SMTP</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -325,10 +375,14 @@ export function AdapterForm(props: AdapterFormProps) {
 
         <div className="border-t pt-4">
           <p className="text-xs font-medium text-muted-foreground mb-3">
-            {adapterType === "ses" ? "AWS SES Configuration" : "Gmail Configuration"}
+            {adapterType === "ses"
+              ? "AWS SES Configuration"
+              : adapterType === "gmail"
+                ? "Gmail Configuration"
+                : "SMTP Configuration"}
           </p>
 
-          {adapterType === "ses" ? (
+          {adapterType === "ses" && (
             <div className="flex flex-col gap-3">
               {!isEdit && (
                 <details className="rounded-md border border-blue-500/30 bg-blue-500/5 text-xs group">
@@ -430,7 +484,9 @@ export function AdapterForm(props: AdapterFormProps) {
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {adapterType === "gmail" && (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="gmail-sa-json">Service Account JSON Key</Label>
@@ -460,6 +516,95 @@ export function AdapterForm(props: AdapterFormProps) {
                   className="font-mono"
                   required={!isEdit}
                 />
+              </div>
+            </div>
+          )}
+
+          {adapterType === "smtp" && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="smtp-host">Host</Label>
+                  <Input
+                    id="smtp-host"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    placeholder="smtp.example.com"
+                    className="font-mono"
+                    required={!isEdit}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="smtp-port">Port</Label>
+                  <Input
+                    id="smtp-port"
+                    type="number"
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(e.target.value)}
+                    placeholder="587"
+                    className="font-mono"
+                    required={!isEdit}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Auth Mode</Label>
+                <Select
+                  value={smtpAuthMode}
+                  onValueChange={(v) => setSmtpAuthMode(v as "plain" | "login")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plain">PLAIN</SelectItem>
+                    <SelectItem value="login">LOGIN</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>TLS Mode</Label>
+                <Select
+                  value={smtpTLSMode}
+                  onValueChange={(v) => setSmtpTLSMode(v as SmtpTLSMode)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="starttls">STARTTLS</SelectItem>
+                    <SelectItem value="implicit_tls">Implicit TLS</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+                {smtpTLSMode === "none" && (
+                  <p className="text-xs text-amber-400">
+                    Plain SMTP sends without transport encryption. Use only for Mailpit, local testing, or trusted internal relays.
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="smtp-username">Username</Label>
+                  <Input
+                    id="smtp-username"
+                    value={smtpUsername}
+                    onChange={(e) => setSmtpUsername(e.target.value)}
+                    placeholder="user or API key"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="smtp-password">Password</Label>
+                  <Input
+                    id="smtp-password"
+                    type="password"
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={isEdit ? "Leave empty to keep current" : "secret"}
+                    className="font-mono"
+                  />
+                </div>
               </div>
             </div>
           )}

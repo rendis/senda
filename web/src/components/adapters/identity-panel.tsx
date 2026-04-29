@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { SYSTEM_WORKSPACE_SCOPE_LABEL } from "@/lib/system-workspace-display";
 import type { Adapter, AdapterIdentity } from "@/types/adapters";
 import { useWorkspacesManagement } from "@/hooks/use-workspaces-mgmt";
+import { getAdapterCapabilities } from "./adapter-capabilities";
 
 const STATUS_STYLES: Record<string, { className: string; label: string }> = {
   verified: { className: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30", label: "Verified" },
@@ -270,6 +271,64 @@ function DomainAddInput({
   );
 }
 
+function ManualEmailAddInput({
+  adapterId,
+  scopedPath,
+  disabled,
+}: {
+  adapterId: string;
+  scopedPath: string;
+  disabled?: boolean;
+}) {
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const create = useCreateIdentity(scopedPath, adapterId);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const identity = email.trim();
+    const name = displayName.trim();
+    if (!identity) return;
+    create.mutate(
+      { identity, ...(name ? { display_name: name } : {}) },
+      {
+        onSuccess: () => {
+          setEmail("");
+          setDisplayName("");
+        },
+      },
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="no-reply@example.com"
+        className="h-8 rounded-md border bg-transparent px-2 text-xs font-mono"
+      />
+      <input
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="Display name"
+        className="h-8 rounded-md border bg-transparent px-2 text-xs"
+      />
+      <Button
+        type="submit"
+        size="sm"
+        disabled={disabled || !email.trim() || create.isPending}
+      >
+        {create.isPending ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          "Add sender"
+        )}
+      </Button>
+    </form>
+  );
+}
+
 function DomainTree({
   domainIdentity,
   childEmails,
@@ -353,6 +412,7 @@ export function IdentityPanel({
   const scope = useScope();
   const isSystemWorkspace = scope.workspaceCode === SYSTEM_WORKSPACE_CODE;
   const isReadOnly = !adapter.is_editable;
+  const capabilities = getAdapterCapabilities(adapter.adapter_type);
   const [deleteTarget, setDeleteTarget] = useState<AdapterIdentity | null>(null);
   const [shareTarget, setShareTarget] = useState<AdapterIdentity | null>(null);
 
@@ -386,10 +446,12 @@ export function IdentityPanel({
           <DialogHeader className="shrink-0">
             <DialogTitle>Sender Identities — {adapter.name}</DialogTitle>
             <DialogDescription>
-              Verified domains and sender addresses. Add emails under each domain.
+              {adapter.adapter_type === "smtp"
+                ? "Manual SMTP sender email addresses. Add the full sender address before assigning templates or sending tests."
+                : "Verified domains and sender addresses. Add emails under each domain."}
             </DialogDescription>
             <div className="pt-1">
-              {adapter.is_editable ? (
+              {adapter.is_editable && capabilities.supportsIdentitySync ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -400,27 +462,44 @@ export function IdentityPanel({
                   <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
                   Sync from provider
                 </Button>
-              ) : (
+              ) : !adapter.is_editable ? (
                 <div className="inline-flex items-center gap-2 rounded-md bg-scope-system-bg px-2.5 py-1 text-xs text-scope-system">
                   <Lock className="h-3.5 w-3.5" />
                   {`Shared from ${SYSTEM_WORKSPACE_SCOPE_LABEL} — read only`}
                 </div>
-              )}
+              ) : null}
             </div>
           </DialogHeader>
 
           <div className="overflow-y-auto min-h-0 -mx-6 px-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/15 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {adapter.adapter_type === "smtp" && adapter.is_editable && (
+              <div className="pb-4">
+                <ManualEmailAddInput
+                  adapterId={adapter.id}
+                  scopedPath={scopedPath}
+                  disabled={isBusy}
+                />
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : domains.length === 0 && orphanEmails.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-10 text-center">
-                <Globe className="h-8 w-8 text-muted-foreground/30" />
+                {adapter.adapter_type === "smtp" ? (
+                  <Mail className="h-8 w-8 text-muted-foreground/30" />
+                ) : (
+                  <Globe className="h-8 w-8 text-muted-foreground/30" />
+                )}
                 <div>
-                  <p className="text-sm font-medium">No domains found</p>
+                  <p className="text-sm font-medium">
+                    {adapter.adapter_type === "smtp" ? "No sender emails found" : "No domains found"}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Click &quot;Sync from provider&quot; to import verified domains from SES.
+                    {adapter.adapter_type === "smtp"
+                      ? "Add a full SMTP sender email address manually."
+                      : "Click \"Sync from provider\" to import verified domains from SES."}
                   </p>
                 </div>
               </div>
@@ -463,7 +542,7 @@ export function IdentityPanel({
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Remove Identity"
-        description={`Remove "${deleteTarget?.identity}" from this adapter? This only removes the local reference — the identity remains in your AWS account.`}
+        description={`Remove "${deleteTarget?.identity}" from this adapter? This only removes the local sender reference.`}
         confirmLabel="Remove"
         onConfirm={() => {
           if (deleteTarget) {
@@ -538,7 +617,7 @@ function IdentityWorkspaceAccessDialog({
         <DialogHeader>
           <DialogTitle>Workspace access — {identity.identity}</DialogTitle>
           <DialogDescription>
-            Choose which workspaces can use this SES sender identity.
+            Choose which workspaces can use this sender identity.
           </DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto py-2">
