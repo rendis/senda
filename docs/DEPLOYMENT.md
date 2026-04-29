@@ -37,6 +37,8 @@ The master key is used to encrypt sensitive data at rest (adapter credentials, A
 | `SENDA_LOG_FORMAT`        | `json`       | Log format (`json`, `text`)                      |
 | `SENDA_SMTP_HOST`         | --           | Fallback static SMTP sender hostname for local/simple deployments |
 | `SENDA_SMTP_PORT`         | `1025`       | Fallback static SMTP sender port                 |
+| `SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY` | `false` | Allow cleartext SMTP auth only for explicitly trusted private relay IPs |
+| `SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS` | -- | Comma-separated private relay IPs/CIDRs allowed to use cleartext SMTP auth when the insecure internal relay flag is enabled |
 | `SENDA_TRACKING_BASE_URL` | --           | Public base URL for email tracking. Enables open-tracking pixels, SES ConfigSet/SNS auto-provisioning, and SNS webhook URL. Unset = tracking disabled, auto-provisioning returns 501 |
 | `SENDA_MIGRATIONS_PATH`   | `migrations` | Path to SQL migration files inside the container |
 | `SENDA_SNS_SKIP_SIGNATURE_VERIFICATION` | `false` | Skip SNS signature verification (test-only; do not enable in production) |
@@ -136,6 +138,15 @@ Configure SMTP adapters with relay connection settings only. Sender addresses ar
 ```
 
 `tls_mode` accepts `none`, `starttls`, or `implicit_tls`. `auth_mode` is optional and accepts `plain` or `login`; credentials are optional, but `username` and `password` must be provided together when authentication is enabled. On update, omit `password` or send an empty password to keep the existing encrypted password.
+
+Cleartext authenticated SMTP (`tls_mode: "none"` with `username` and `password`) is blocked by default except for loopback hosts. To use a private internal relay such as Postal on a Shared VPC, enable both controls:
+
+```bash
+SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY=true
+SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS=10.0.5.2
+```
+
+Trusted clear-auth hosts must be private IPs or CIDRs. Public IPs and hosts not listed here remain rejected.
 
 After creating the adapter, register sender identities separately:
 

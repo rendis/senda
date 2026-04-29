@@ -13,6 +13,7 @@ import (
 
 	"github.com/labstack/echo/v5/echotest"
 	"github.com/rendis/senda/config"
+	smtpadapter "github.com/rendis/senda/internal/adapter/smtp"
 	"github.com/rendis/senda/internal/domain"
 	"github.com/rendis/senda/internal/port"
 )
@@ -94,7 +95,7 @@ func TestBuildMediaHandler_UsesConfiguredAllowlist(t *testing.T) {
 
 func TestNewTestSendSenderFactory_UsesAssignedAdapterConfig(t *testing.T) {
 	globalSender := namedEmailSender{name: "global-smtp"}
-	factory := newTestSendSenderFactory(globalSender)
+	factory := newTestSendSenderFactory(globalSender, smtpadapter.CleartextAuthPolicy{})
 
 	sender, err := factory(
 		context.Background(),

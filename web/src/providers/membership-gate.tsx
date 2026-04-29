@@ -6,6 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { MemberWithRoles, MemberRoleDetail } from "@/types/members-ext";
 import type { OnboardingStatus, ScopeLevel } from "@/types/api";
+import {
+  getMembershipGateSessionKey,
+  shouldShowMembershipGateLoader,
+} from "@/providers/membership-gate-policy";
 
 interface ParsedScope {
   level: ScopeLevel | null;
@@ -62,14 +66,11 @@ export function MembershipGate({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const router = useRouter();
-  const gateKey =
-    status === "authenticated" && session?.idToken
-      ? `${pathname}:${session.idToken}`
-      : null;
-  const [checkedKey, setCheckedKey] = useState<string | null>(null);
+  const sessionKey = getMembershipGateSessionKey(status, session?.idToken);
+  const [checkedSessionKey, setCheckedSessionKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!gateKey || !session?.idToken) return;
+    if (!sessionKey || !session?.idToken) return;
 
     const idToken = session.idToken;
     let cancelled = false;
@@ -111,16 +112,22 @@ export function MembershipGate({ children }: { children: React.ReactNode }) {
         // Backend unavailable — allow through, individual pages will handle errors
       }
 
-      if (!cancelled) setCheckedKey(gateKey);
+      if (!cancelled) setCheckedSessionKey(sessionKey);
     }
 
     check();
     return () => {
       cancelled = true;
     };
-  }, [gateKey, pathname, router, session?.idToken]);
+  }, [pathname, router, session?.idToken, sessionKey]);
 
-  if (status === "loading" || status === "unauthenticated" || !gateKey || checkedKey !== gateKey) {
+  if (
+    shouldShowMembershipGateLoader({
+      status,
+      sessionKey,
+      checkedSessionKey,
+    })
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-page">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading access state" />

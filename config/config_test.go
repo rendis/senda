@@ -230,6 +230,8 @@ crypto:
 	t.Setenv("SENDA_SNS_SKIP_SIGNATURE_VERIFICATION", "true")
 	t.Setenv("SENDA_SNS_REPLAY_WINDOW", "45m")
 	t.Setenv("SENDA_SEND_BATCH_MAX_ITEMS", "333")
+	t.Setenv("SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY", "true")
+	t.Setenv("SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS", "10.0.5.2,postal.internal")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -265,6 +267,12 @@ crypto:
 	}
 	if cfg.Send.BatchMaxItems != 333 {
 		t.Errorf("env override Send.BatchMaxItems = %d, want %d", cfg.Send.BatchMaxItems, 333)
+	}
+	if !cfg.SMTP.AllowInsecureInternalRelay {
+		t.Errorf("env override SMTP.AllowInsecureInternalRelay = %v, want true", cfg.SMTP.AllowInsecureInternalRelay)
+	}
+	if got, want := strings.Join(cfg.SMTP.TrustedClearAuthHosts, ","), "10.0.5.2,postal.internal"; got != want {
+		t.Errorf("env override SMTP.TrustedClearAuthHosts = %q, want %q", got, want)
 	}
 }
 

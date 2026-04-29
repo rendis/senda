@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"net"
+	"net/smtp"
 	"net/textproto"
 	"strings"
 	"sync"
@@ -141,9 +142,66 @@ func TestConfigValidate_RejectsCleartextAuthForNonLoopback(t *testing.T) {
 				Password: "secret",
 			}
 
-			require.ErrorContains(t, cfg.Validate(), "smtp cleartext auth is only allowed for loopback hosts")
+			require.ErrorContains(t, cfg.Validate(), "smtp cleartext auth is only allowed for loopback or trusted internal relay hosts")
 		})
 	}
+}
+
+func TestConfigValidate_AllowsCleartextAuthForTrustedInternalRelay(t *testing.T) {
+	policy := CleartextAuthPolicy{
+		AllowInsecureInternalRelay: true,
+		TrustedHosts:               []string{"10.0.5.2"},
+	}
+
+	cfg := Config{
+		Host:     "10.0.5.2",
+		Port:     25,
+		TLSMode:  TLSModeNone,
+		AuthMode: "plain",
+		Username: "postal-senda-prod",
+		Password: "secret",
+	}
+
+	require.NoError(t, cfg.ValidateWithPolicy(policy))
+}
+
+func TestConfigValidate_RejectsCleartextAuthForPublicTrustedHost(t *testing.T) {
+	policy := CleartextAuthPolicy{
+		AllowInsecureInternalRelay: true,
+		TrustedHosts:               []string{"8.8.8.8"},
+	}
+
+	cfg := Config{
+		Host:     "8.8.8.8",
+		Port:     25,
+		TLSMode:  TLSModeNone,
+		AuthMode: "plain",
+		Username: "user",
+		Password: "secret",
+	}
+
+	require.ErrorContains(t, cfg.ValidateWithPolicy(policy), "smtp cleartext auth host must be private or loopback")
+}
+
+func TestAdapterAuth_AllowsPlainAuthForTrustedInternalRelay(t *testing.T) {
+	adapter, err := NewAdapterFromConfigWithPolicy(Config{
+		Host:     "10.0.5.2",
+		Port:     25,
+		TLSMode:  TLSModeNone,
+		AuthMode: "plain",
+		Username: "postal-senda-prod",
+		Password: "secret",
+	}, CleartextAuthPolicy{
+		AllowInsecureInternalRelay: true,
+		TrustedHosts:               []string{"10.0.5.2"},
+	})
+	require.NoError(t, err)
+
+	proto, resp, err := adapter.auth().Start(&smtp.ServerInfo{Name: "10.0.5.2", TLS: false})
+
+	require.NoError(t, err)
+	require.Equal(t, "PLAIN", proto)
+	require.Equal(t, []byte("\x00postal-senda-prod\x00secret"), resp)
 }
 
 func TestConfigValidate_AllowsCleartextAuthForLoopback(t *testing.T) {

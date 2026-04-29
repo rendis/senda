@@ -35,6 +35,7 @@ type AdapterHandler struct {
 	identityStore port.AdapterIdentityStore
 	deprovisioner port.Deprovisioner // nil if tracking not configured
 	logger        *slog.Logger
+	smtpPolicy    smtpadapter.CleartextAuthPolicy
 }
 
 // SetAdapterAccessService wires adapter sharing rules without widening constructor churn.
@@ -45,6 +46,11 @@ func (h *AdapterHandler) SetAdapterAccessService(accessSvc *service.AdapterAcces
 // SetAuditStore wires audit logging for shared-access mutations.
 func (h *AdapterHandler) SetAuditStore(auditStore port.AuditLogStore) {
 	h.auditStore = auditStore
+}
+
+// SetSMTPCleartextAuthPolicy wires the explicit trusted-internal-relay exception.
+func (h *AdapterHandler) SetSMTPCleartextAuthPolicy(policy smtpadapter.CleartextAuthPolicy) {
+	h.smtpPolicy = policy
 }
 
 // NewAdapterHandler creates a new AdapterHandler.
@@ -105,7 +111,7 @@ func (h *AdapterHandler) create(c *echo.Context, workspaceID *uuid.UUID) error {
 		fieldErrors = append(fieldErrors, response.FieldError{Field: "config", Message: "is required"})
 	}
 	if len(fieldErrors) == 0 {
-		fieldErrors = append(fieldErrors, validateConfig(domain.AdapterType(req.AdapterType), req.Config)...)
+		fieldErrors = append(fieldErrors, h.validateConfig(domain.AdapterType(req.AdapterType), req.Config)...)
 	}
 	if len(fieldErrors) > 0 {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
@@ -292,7 +298,7 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 		if err != nil {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		}
-		if fieldErrors := validateConfig(adapter.AdapterType, updated); len(fieldErrors) > 0 {
+		if fieldErrors := h.validateConfig(adapter.AdapterType, updated); len(fieldErrors) > 0 {
 			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
 		}
 		encrypted, err := h.crypto.Encrypt(updated)
@@ -755,7 +761,7 @@ func extractPublicConfigFields(adapterType domain.AdapterType, rawConfig []byte)
 }
 
 // validateConfig checks that required fields are present for the adapter type.
-func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []response.FieldError {
+func (h *AdapterHandler) validateConfig(adapterType domain.AdapterType, config json.RawMessage) []response.FieldError {
 	var cfgMap map[string]any
 	if json.Unmarshal(config, &cfgMap) != nil {
 		return []response.FieldError{{Field: "config", Message: "must be a valid JSON object"}}
@@ -792,7 +798,7 @@ func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []re
 			errs = append(errs, response.FieldError{Field: "config", Message: "must be a valid SMTP config object"})
 			break
 		}
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.ValidateWithPolicy(h.smtpPolicy); err != nil {
 			errs = append(errs, response.FieldError{Field: "config", Message: err.Error()})
 		}
 	}

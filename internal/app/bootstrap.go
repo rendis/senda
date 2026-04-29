@@ -239,7 +239,7 @@ func newResolutionBundle(repos repositoryBundle, cache *pgcache.PGCache, ext *Ex
 
 func newRiverClient(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool, repos repositoryBundle, infra *infraBundle) (*river.Client, error) {
 	sendWorkerOpts := []river.SendWorkerOption{
-		river.WithAdapterRuntime(repos.adapterRepo, infra.aesCrypto, river.DefaultAdapterSenderFactory),
+		river.WithAdapterRuntime(repos.adapterRepo, infra.aesCrypto, river.NewAdapterSenderFactory(newSMTPCleartextAuthPolicy(cfg))),
 	}
 	if cfg.Tracking.BaseURL != "" {
 		sendWorkerOpts = append(sendWorkerOpts, river.WithTrackingBaseURL(cfg.Tracking.BaseURL))
@@ -318,7 +318,7 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 			infra.aesCrypto,
 			infra.compiler,
 			infra.renderer,
-			newTestSendSenderFactory(infra.emailSender),
+			newTestSendSenderFactory(infra.emailSender, newSMTPCleartextAuthPolicy(cfg)),
 			resolvers.injectorMerger,
 			repos.tenantRepo,
 			repos.workspaceRepo,
@@ -327,8 +327,18 @@ func newServiceBundle(cfg *config.Config, pool *pgxpool.Pool, repos repositoryBu
 	}
 }
 
-func newTestSendSenderFactory(_ port.EmailSender) port.SenderFactory {
-	return river.DefaultAdapterSenderFactory
+func newTestSendSenderFactory(_ port.EmailSender, smtpPolicy smtpadapter.CleartextAuthPolicy) port.SenderFactory {
+	return river.NewAdapterSenderFactory(smtpPolicy)
+}
+
+func newSMTPCleartextAuthPolicy(cfg *config.Config) smtpadapter.CleartextAuthPolicy {
+	if cfg == nil {
+		return smtpadapter.CleartextAuthPolicy{}
+	}
+	return smtpadapter.CleartextAuthPolicy{
+		AllowInsecureInternalRelay: cfg.SMTP.AllowInsecureInternalRelay,
+		TrustedHosts:               cfg.SMTP.TrustedClearAuthHosts,
+	}
 }
 
 func newServerHandlerBundle(
@@ -359,7 +369,8 @@ func newServerHandlerBundle(
 		trackingProvisioner = sesadapter.NewTrackingProvisioner(repos.adapterRepo, infra.aesCrypto, cfg.Tracking.BaseURL, logger, repos.provisioningStepRepo)
 	}
 
-	adapterH := handler.NewAdapterHandler(repos.adapterRepo, infra.aesCrypto, repos.tenantRepo, repos.workspaceRepo, river.DefaultAdapterSenderFactory, repos.adapterIdentityRepo, trackingProvisioner, logger)
+	smtpPolicy := newSMTPCleartextAuthPolicy(cfg)
+	adapterH := handler.NewAdapterHandler(repos.adapterRepo, infra.aesCrypto, repos.tenantRepo, repos.workspaceRepo, river.NewAdapterSenderFactory(smtpPolicy), repos.adapterIdentityRepo, trackingProvisioner, logger)
 	templateTypeH := handler.NewTemplateTypeHandler(services.templateTypeSvc, repos.tenantRepo, repos.workspaceRepo, resolvers.cacheInvalidator)
 	templateH := handler.NewTemplateHandler(services.templateSvc, repos.templateRepo, repos.tenantRepo, repos.workspaceRepo, services.testSendSvc, services.sendSvc, repos.auditRepo, cfg.Send.BatchMaxItems, resolvers.injectorMerger, resolvers.cacheInvalidator)
 	sendH := handler.NewSendHandler(services.sendSvc, cfg.Send.BatchMaxItems)
@@ -376,6 +387,7 @@ func newServerHandlerBundle(
 
 	adapterH.SetAdapterAccessService(services.adapterAccessSvc)
 	adapterH.SetAuditStore(repos.auditRepo)
+	adapterH.SetSMTPCleartextAuthPolicy(smtpPolicy)
 	templateTypeH.SetAdapterAccessService(services.adapterAccessSvc)
 	identityH.SetAdapterAccessService(services.adapterAccessSvc)
 	identityH.SetAuditStore(repos.auditRepo)
