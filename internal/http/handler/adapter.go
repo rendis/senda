@@ -297,6 +297,9 @@ func (h *AdapterHandler) update(c *echo.Context, workspace *domain.Workspace) er
 		if err != nil {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		}
+		if fieldErrors := validateConfig(adapter.AdapterType, updated); len(fieldErrors) > 0 {
+			return response.WriteError(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "validation failed", fieldErrors...)
+		}
 		encrypted, err := h.crypto.Encrypt(updated)
 		if err != nil {
 			return response.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")

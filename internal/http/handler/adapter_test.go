@@ -70,11 +70,13 @@ func (m *mockAdapterStore) ListByWorkspace(ctx context.Context, workspaceID *uui
 // --- Mock Crypto ---
 
 type mockCrypto struct {
-	encryptFn func(plaintext []byte) ([]byte, error)
-	decryptFn func(ciphertext []byte) ([]byte, error)
+	encryptFn     func(plaintext []byte) ([]byte, error)
+	decryptFn     func(ciphertext []byte) ([]byte, error)
+	lastPlaintext []byte
 }
 
 func (m *mockCrypto) Encrypt(plaintext []byte) ([]byte, error) {
+	m.lastPlaintext = append([]byte(nil), plaintext...)
 	if m.encryptFn != nil {
 		return m.encryptFn(plaintext)
 	}
@@ -336,6 +338,99 @@ func TestAdapterHandler_Update_SharedAdapterIsReadOnly(t *testing.T) {
 	}
 	if updated {
 		t.Fatal("shared adapter update should not reach store.Update")
+	}
+}
+
+func TestAdapterHandler_Update_SMTPKeepsPasswordWhenBlank(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				WorkspaceID:     &ws.ID,
+				Name:            "SMTP Relay",
+				AdapterType:     domain.AdapterTypeSMTP,
+				ConfigEncrypted: []byte("encrypted"),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}, nil
+		},
+	}
+	crypto := &mockCrypto{
+		decryptFn: func(_ []byte) ([]byte, error) {
+			return []byte(`{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":"old-secret"}`), nil
+		},
+	}
+	e, _ := setupAdapterTest(as, crypto, ts, wsStore)
+
+	body := `{"config":{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":""}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var encryptedConfig map[string]any
+	if err := json.Unmarshal(crypto.lastPlaintext, &encryptedConfig); err != nil {
+		t.Fatalf("updated config JSON error = %v", err)
+	}
+	if encryptedConfig["password"] != "old-secret" {
+		t.Fatalf("password = %v, want old-secret", encryptedConfig["password"])
+	}
+}
+
+func TestAdapterHandler_Update_SMTPValidatesMergedConfig(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	var updated bool
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				WorkspaceID:     &ws.ID,
+				Name:            "SMTP Relay",
+				AdapterType:     domain.AdapterTypeSMTP,
+				ConfigEncrypted: []byte("encrypted"),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}, nil
+		},
+		updateFn: func(_ context.Context, _ *domain.Adapter) error {
+			updated = true
+			return nil
+		},
+	}
+	crypto := &mockCrypto{
+		decryptFn: func(_ []byte) ([]byte, error) {
+			return []byte(`{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":"old-secret"}`), nil
+		},
+	}
+	e, _ := setupAdapterTest(as, crypto, ts, wsStore)
+
+	body := `{"config":{"tls_mode":"ssl-ish"}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated {
+		t.Fatal("invalid SMTP config should not reach store.Update")
 	}
 }
 
