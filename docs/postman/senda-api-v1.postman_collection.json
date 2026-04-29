@@ -1281,7 +1281,7 @@
                 "adapters"
               ]
             },
-            "description": "Create a new email adapter. Config is encrypted server-side.\n\n**Adapter types:** ses, gmail\n\n**Required role:** workspace_admin"
+            "description": "Create a new email adapter. Config is encrypted server-side.\n\n**Adapter types:** ses, gmail, smtp\n\nSMTP config is relay-only: host, port, tls_mode (none, starttls, implicit_tls), optional auth_mode (plain, login), optional username and password. Do not include from_email or from_name in SMTP config; create manual sender email identities separately through the identities endpoint.\n\n**Required role:** workspace_admin"
           },
           "response": [],
           "event": [
@@ -1489,7 +1489,7 @@
                 "identities"
               ]
             },
-            "description": "List identities for an adapter. In a regular workspace, shared SES adapters return only the granted email identities; shared Gmail adapters return their identities as usual.\n\n**Required role:** workspace_viewer+"
+            "description": "List identities for an adapter. In a regular workspace, shared SES and SMTP adapters return only the granted email identities; shared Gmail adapters return their identities as usual.\n\n**Required role:** workspace_viewer+"
           },
           "response": [],
           "event": [
@@ -1544,7 +1544,7 @@
                 "identities"
               ]
             },
-            "description": "Create a manual adapter identity. Use the tenant `_system` workspace when creating SES email identities meant to be shared later.\n\n**Required role:** workspace_admin"
+            "description": "Create a manual adapter identity. Use the tenant `_system` workspace when creating SES or SMTP email identities meant to be shared later. SMTP identities are manual sender email records and do not require provider-domain verification.\n\n**Required role:** workspace_admin"
           },
           "response": [],
           "event": [
@@ -1799,7 +1799,7 @@
                 "workspace-access"
               ]
             },
-            "description": "List workspace grants for a SES **email identity** owned by the tenant `_system` workspace. Domain identities are not shareable."
+            "description": "List workspace grants for a SES or SMTP **email identity** owned by the tenant `_system` workspace. SES domain identities are not shareable."
           },
           "response": [],
           "event": [
@@ -1850,7 +1850,7 @@
                 "workspace-access"
               ]
             },
-            "description": "Replace the set of tenant workspaces allowed to use a SES **email identity** shared from `_system`.\n\n**Rules:** only identities of type `email` can be shared; revoking an in-use grant returns `409`."
+            "description": "Replace the set of tenant workspaces allowed to use a SES or SMTP **email identity** shared from `_system`.\n\n**Rules:** only identities of type `email` can be shared; revoking an in-use grant returns `409`."
           },
           "response": [],
           "event": [

@@ -212,9 +212,43 @@ Sharing rules:
 
 - manage sharing from tenant `_system`
 - Gmail sharing is adapter-level
-- SES sharing is email-identity-level
-- SES domain identities are not shareable
+- SES and SMTP sharing is email-identity-level
+- SES domain identities are not shareable; SMTP has only manual email identities
 - shared child-workspace entries are read-only
+
+Adapter create/update accepts `adapter_type` values `ses`, `gmail`, or `smtp`.
+
+SMTP adapters are relay-only. The config contains connection settings, not sender addresses:
+
+```json
+{
+  "name": "SMTP Production",
+  "adapter_type": "smtp",
+  "config": {
+    "host": "smtp.example.com",
+    "port": 587,
+    "tls_mode": "starttls",
+    "auth_mode": "plain",
+    "username": "user-or-apikey",
+    "password": "secret"
+  },
+  "is_default": false,
+  "rate_limit_per_second": 10
+}
+```
+
+SMTP `tls_mode` must be `none`, `starttls`, or `implicit_tls`. `auth_mode` is optional and may be `plain` or `login`; when either `username` or `password` is present, both are required. On update, omit `password` or send it as an empty string to keep the existing password.
+
+Create SMTP sender addresses separately through `POST /adapters/:id/identities`:
+
+```json
+{
+  "identity": "noreply-senda@tether.education",
+  "display_name": "Senda"
+}
+```
+
+SMTP does not support provider identity sync. For system-owned SMTP adapters, child workspaces can use only granted SMTP email identities, and template types select `sender_identity_id` the same way they do for SES.
 
 ### Template types
 
