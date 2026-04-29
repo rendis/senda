@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { applyEnvironmentSearchParam, normalizeEnvironment } from "@/lib/environment-mode";
+import { normalizeEnvironment, resolveEnvironmentSwitchPath } from "@/lib/environment-mode";
 import type { Environment } from "@/types/api";
 
 export function useEnvironmentMode() {
@@ -14,7 +14,7 @@ export function useEnvironmentMode() {
   const setEnvironment = useCallback(
     (nextEnvironment: Environment) => {
       const currentPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-      router.replace(applyEnvironmentSearchParam(currentPath, nextEnvironment));
+      router.replace(resolveEnvironmentSwitchPath(currentPath, nextEnvironment));
     },
     [pathname, router, searchParams],
   );

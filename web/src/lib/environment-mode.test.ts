@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   applyEnvironmentSearchParam,
   normalizeEnvironment,
+  resolveEnvironmentSwitchPath,
 } from "./environment-mode.ts";
 
 test("normalizeEnvironment defaults invalid values to prod", () => {
@@ -24,6 +25,16 @@ test("applyEnvironmentSearchParam preserves query params and hash", () => {
 test("applyEnvironmentSearchParam overwrites the previous environment value", () => {
   assert.equal(
     applyEnvironmentSearchParam("/t/acme/w/marketing?environment=prod", "test"),
+    "/t/acme/w/marketing?environment=test",
+  );
+});
+
+test("resolveEnvironmentSwitchPath returns workspace dashboard on environment change", () => {
+  assert.equal(
+    resolveEnvironmentSwitchPath(
+      "/t/acme/w/marketing/templates/welcome/edit?templateId=123&versionId=456&environment=prod#preview",
+      "test",
+    ),
     "/t/acme/w/marketing?environment=test",
   );
 });
