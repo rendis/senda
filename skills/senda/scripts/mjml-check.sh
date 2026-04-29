@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mjml-check.sh — pre-submit static validator for Senda MJML bodies.
-# Exit 0 = OK, exit 1 = rule violation, exit 2 = internal error.
+# Exit 0 = OK, exit 1 = rule violation, exit 2 = usage/input error.
 #
 # Usage:
 #   mjml-check.sh <path-to-mjml>
@@ -21,7 +21,7 @@ usage() {
 if [[ "$1" == "-" ]]; then
     SRC=$(cat)
 else
-    [[ -f "$1" ]] || { echo "mjml-check: internal error: file not found: $1" >&2; exit 2; }
+    [[ -f "$1" ]] || { echo "mjml-check: file not found: $1" >&2; exit 2; }
     SRC=$(<"$1")
 fi
 
