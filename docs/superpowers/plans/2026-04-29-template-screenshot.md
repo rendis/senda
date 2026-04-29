@@ -1892,6 +1892,111 @@ EOF
 
 ---
 
+## Task 14: DoD — Levantar stack y validar screenshot real
+
+This is the **acceptance gate**. The PR is NOT ready until a real running Senda instance returns a valid PNG for both desktop and mobile viewports.
+
+**Files:** none (this is operational validation; output is evidence).
+
+- [ ] **Step 1: Build the image with the new Dockerfile**
+
+```
+docker build -t senda:screenshot-dod -f docker/Dockerfile .
+```
+
+Expected: image builds. `docker images senda:screenshot-dod --format "{{.Size}}"` should be ~200-250MB.
+
+- [ ] **Step 2: Run the dev stack with screenshot enabled**
+
+```
+SENDA_SCREENSHOT_ENABLED=true make dev-stack
+```
+
+Wait until logs show `screenshot adapter enabled` from the senda container, plus the usual readiness lines (HTTP server listening on `:8081`, postgres ready, keycloak ready).
+
+- [ ] **Step 3: Bootstrap a tenant + workspace + template + published version**
+
+Use the Postman collection at `docs/postman/` or curl. Login as `tenant-admin@senda.dev` / `tenant-admin` against Keycloak (`localhost:9090`) to obtain a JWT. Create one tenant, one workspace, one template-type, one template, one version with valid MJML, and publish it. Capture the `template_id`, `tenant_code`, `workspace_code` for the next step.
+
+If the e2e test helpers from `test/e2e/` already script this, run them once with the dev stack pointed at:
+
+```
+SENDA_BASE_URL=http://localhost:8081 \
+go test -tags=e2e ./test/e2e -run TestE2E_TemplateScreenshot -v
+```
+
+- [ ] **Step 4: Hit the endpoint manually for desktop**
+
+```
+curl -s -o /tmp/screenshot-desktop.png -w "HTTP %{http_code}\nContent-Type: %{content_type}\nSize: %{size_download} bytes\n" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8081/api/v1/manage/tenants/${TENANT_CODE}/workspaces/${WORKSPACE_CODE}/templates/${TEMPLATE_ID}/screenshot?viewport=desktop"
+```
+
+Expected:
+- `HTTP 200`
+- `Content-Type: image/png`
+- `Size: > 5000 bytes`
+- File `/tmp/screenshot-desktop.png` is a valid PNG. Verify with:
+  ```
+  file /tmp/screenshot-desktop.png
+  # Expected: PNG image data, 1280 x ..., 8-bit/color RGBA, non-interlaced
+  ```
+
+- [ ] **Step 5: Hit the endpoint for mobile**
+
+```
+curl -s -o /tmp/screenshot-mobile.png -w "HTTP %{http_code}\nContent-Type: %{content_type}\nSize: %{size_download} bytes\n" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8081/api/v1/manage/tenants/${TENANT_CODE}/workspaces/${WORKSPACE_CODE}/templates/${TEMPLATE_ID}/screenshot?viewport=mobile"
+
+file /tmp/screenshot-mobile.png
+# Expected: PNG image data, 390 x ..., 8-bit/color RGBA, non-interlaced
+```
+
+The mobile width MUST be 390 (matches preset).
+
+- [ ] **Step 6: Negative test — disabled feature returns 503**
+
+Restart the stack with `SENDA_SCREENSHOT_ENABLED=false`:
+
+```
+make dev-down && SENDA_SCREENSHOT_ENABLED=false make dev-stack
+```
+
+Repeat the desktop curl. Expected:
+- `HTTP 503`
+- Body contains `"code":"SCREENSHOT_DISABLED"`
+
+- [ ] **Step 7: Negative test — invalid viewport returns 400**
+
+Re-enable, then:
+
+```
+curl -s -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8081/api/v1/manage/tenants/${TENANT_CODE}/workspaces/${WORKSPACE_CODE}/templates/${TEMPLATE_ID}/screenshot?viewport=tablet"
+```
+
+Expected: `HTTP 400` + `"code":"INVALID_VIEWPORT"`.
+
+- [ ] **Step 8: MCP smoke (optional but ideal)**
+
+If `mcp-openapi-proxy` is configured against the local stack, ask the agent (Claude Code, Codex, or Gemini CLI) to call the new tool. Confirm the agent renders the image inline (the MCP `ImageContent` block is what makes the model "see" it). If the agent shows a blob of base64 instead, the proxy did NOT detect `image/png` — investigate.
+
+- [ ] **Step 9: Attach evidence to the PR description**
+
+Drop the two captured PNGs into the PR (GitHub allows direct image upload in the description). Add a short note: "Verified: 200 OK, image/png, 1280x?? desktop and 390x?? mobile, both rendered the published template". Include the curl outputs verbatim.
+
+- [ ] **Step 10: Stop the stack**
+
+```
+make dev-down
+```
+
+Only after Steps 1-9 are evidence-backed PASS may the PR be marked ready for review.
+
+---
+
 ## Self-Review Notes
 
 **Spec coverage:** Every brainstormed decision is implemented:
