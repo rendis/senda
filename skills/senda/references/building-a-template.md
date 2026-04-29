@@ -335,6 +335,16 @@ Before publishing a version:
    POST/PUT or locale upsert. The script catches the HTML-wrapper class of
    error (`<!DOCTYPE>`, `<html>`, `<body>`, etc., including inside
    `<mj-raw>`) that gomjml only surfaces at compile time.
+
+   > **MCP-only agents (no shell):** if you operate Senda only through
+   > `senda_call_endpoint` and cannot run the script, manually verify the
+   > body contains none of `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`
+   > (literal — `<mj-body>` is fine), `<meta>`, `<title>`, `<link>`,
+   > `<base>` — anywhere, including inside `<mj-raw>`. Then run
+   > `POST .../preview-mjml` to catch compile errors. Saved templates that
+   > slip through these checks may break the visual editor's XML parser
+   > at runtime.
+
 4. Run `POST .../preview-mjml` with the current `body_mjml`. Confirm:
    - HTML output looks right.
    - Static-injector previews (locked fields with `allow_overwrite = false`)

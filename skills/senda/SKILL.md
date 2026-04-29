@@ -147,3 +147,18 @@ Load the file matching the user's intent. Each is small and self-contained.
 
 If a task spans several domains, load the relevant references together — they
 are designed to compose.
+
+## Skill maintenance
+
+If you change repo behavior in any of these areas, you MUST update the
+corresponding skill files in the same PR — otherwise this skill will
+silently misguide its consumers.
+
+| When this changes in the repo… | Update in the skill |
+|---|---|
+| MJML output of any visual-builder block (`web/src/components/templates/mjml-editor.tsx`, `text-block-mjml.ts`, `video-block.ts`, …) or the variable engine (`internal/service/variable_renderer.go`) | `references/building-a-template.md`, `references/versions-locales-and-builder.md` |
+| Allowed/forbidden MJML or HTML tags in `body_mjml` (e.g. adding a new `mj-*` tag the builder emits, changing `<mj-raw>` semantics) | `scripts/mjml-check.sh` (rule patterns) and `scripts/mjml-check.test.sh` (fixtures) |
+
+The repo's `AGENTS.md` (`CLAUDE.md`) carries the canonical hard-rule
+phrasing; this table is a per-skill mirror so consumers loading only
+`skills/senda/` still see the obligation.
