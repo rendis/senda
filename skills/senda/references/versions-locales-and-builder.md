@@ -114,7 +114,8 @@ engine first, then handed to gomjml; the compiler additionally rewrites video
 thumbnails and caches by SHA-256 of post-rewrite MJML.
 
 `editor_data` is the visual builder's serialized state — block tree (text,
-button, image, divider, spacer, banner, video, list). Treat it as opaque from
+button, image, divider, spacer, banner, video, list, plus preserved MJML code
+blocks for syntax the visual editor cannot represent). Treat it as opaque from
 the agent perspective.
 
 ## Resolution chain at send time

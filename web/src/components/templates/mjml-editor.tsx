@@ -134,7 +134,16 @@ type StaticMetadataFieldKey = "subject" | "from_name";
 type MediaFieldKey = `${string}:${"image_src" | "video_url" | "video_thumbnail"}`;
 type MetadataFieldRefKey = StaticMetadataFieldKey | MediaFieldKey;
 
-type BuilderBlockType = "text" | "button" | "image" | "divider" | "spacer" | "banner" | "video" | "list";
+type BuilderBlockType =
+  | "text"
+  | "button"
+  | "image"
+  | "divider"
+  | "spacer"
+  | "banner"
+  | "video"
+  | "list"
+  | "code";
 
 type BuilderSegment =
   | {
@@ -233,6 +242,14 @@ type BuilderListBlock = {
   align: "left" | "center" | "right";
 };
 
+type BuilderCodeBlock = {
+  id: string;
+  label?: string;
+  type: "code";
+  content: string;
+  placement: "body" | "column";
+};
+
 type BuilderBlock =
   | BuilderTextBlock
   | BuilderButtonBlock
@@ -241,7 +258,8 @@ type BuilderBlock =
   | BuilderSpacerBlock
   | BuilderBannerBlock
   | BuilderVideoBlock
-  | BuilderListBlock;
+  | BuilderListBlock
+  | BuilderCodeBlock;
 
 type BuilderDocument = {
   version: number;
@@ -1202,6 +1220,16 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
           align,
         };
       }
+      if (item.type === "code") {
+        const raw = item as Record<string, unknown>;
+        const content =
+          typeof raw.content === "string" ? raw.content : "";
+        const placement =
+          raw.placement === "body" || raw.placement === "column"
+            ? raw.placement
+            : "column";
+        return { id, label, type: "code", content, placement };
+      }
       return null;
     })
     .filter((b): b is BuilderBlock => Boolean(b));
@@ -1451,6 +1479,25 @@ function parseColumnChildToBlock(child: Element): BuilderBlock | null {
   return null;
 }
 
+function serializeMjmlElement(element: Element) {
+  if (typeof XMLSerializer !== "undefined") {
+    return new XMLSerializer().serializeToString(element);
+  }
+  return element.outerHTML;
+}
+
+function parseUnknownMjmlToCodeBlock(
+  element: Element,
+  placement: BuilderCodeBlock["placement"]
+): BuilderCodeBlock {
+  return {
+    id: nowId(),
+    type: "code",
+    content: serializeMjmlElement(element),
+    placement,
+  };
+}
+
 function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
   let segments: BuilderSegment[] = [createTextSegment("")];
   let buttonText = "";
@@ -1568,30 +1615,26 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
       }
 
       if (topTag === "mj-section") {
-        const column = topChild.getElementsByTagName("mj-column")[0];
-        if (!column) {
-          // mj-section without mj-column is not representable in the visual builder.
-          return null;
+        const columns = Array.from(topChild.children).filter(
+          (child) => child.tagName.toLowerCase() === "mj-column"
+        );
+        if (columns.length !== 1) {
+          blocks.push(parseUnknownMjmlToCodeBlock(topChild, "body"));
+          continue;
         }
+        const column = columns[0];
         for (const child of Array.from(column.children)) {
           const parsed = parseColumnChildToBlock(child);
           if (!parsed) {
-            // Unsupported tag inside a column (e.g. mj-raw, mj-table). Bailing
-            // out here is intentional: silently dropping it would let the
-            // visual builder recompile and overwrite body_mjml on save,
-            // discarding the original content.
-            return null;
+            blocks.push(parseUnknownMjmlToCodeBlock(child, "column"));
+            continue;
           }
           blocks.push(parsed);
         }
         continue;
       }
 
-      // Any other direct child of mj-body (mj-raw, mj-style, mj-include,
-      // mj-attributes, mj-class, mj-table, mj-social, mj-navbar, ...) cannot
-      // be represented as a builder block. Returning null forces the editor
-      // into code mode so the original body_mjml is preserved verbatim.
-      return null;
+      blocks.push(parseUnknownMjmlToCodeBlock(topChild, "body"));
     }
 
     if (!blocks.length) {
@@ -1681,6 +1724,8 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
       const html = renderListItemsToHtml(block.items, block.listType);
       return `\n<mj-text align="${block.align}">${html}</mj-text>`;
     }
+    case "code":
+      return block.placement === "column" ? `\n${block.content}` : "";
     default:
       return "";
   }
@@ -1706,18 +1751,23 @@ function renderBannerToMjml(block: BuilderBannerBlock): string {
 function buildTemplateMjml(document: BuilderDocument) {
   type BlockGroup =
     | { kind: "column"; blocks: BuilderBlock[] }
-    | { kind: "hero"; block: BuilderBannerBlock };
+    | { kind: "hero"; block: BuilderBannerBlock }
+    | { kind: "code"; block: BuilderCodeBlock };
 
   const groups: BlockGroup[] = [];
   let currentColumn: BuilderBlock[] = [];
 
   for (const block of document.blocks) {
-    if (block.type === "banner") {
+    if (block.type === "banner" || (block.type === "code" && block.placement === "body")) {
       if (currentColumn.length > 0) {
         groups.push({ kind: "column", blocks: currentColumn });
         currentColumn = [];
       }
-      groups.push({ kind: "hero", block });
+      if (block.type === "banner") {
+        groups.push({ kind: "hero", block });
+      } else {
+        groups.push({ kind: "code", block });
+      }
     } else {
       currentColumn.push(block);
     }
@@ -1730,6 +1780,9 @@ function buildTemplateMjml(document: BuilderDocument) {
     .map((group) => {
       if (group.kind === "hero") {
         return renderBannerToMjml(group.block);
+      }
+      if (group.kind === "code") {
+        return `\n    ${group.block.content}`;
       }
       const columnBlocks = group.blocks.map(renderColumnBlockToMjml).join("");
       return `\n    <mj-section>\n      <mj-column>${columnBlocks}\n      </mj-column>\n    </mj-section>`;
@@ -1769,6 +1822,7 @@ export function MjmlEditor({
     banner: t("blocks.banner"),
     video: t("blocks.video"),
     list: t("blocks.list"),
+    code: t("blocks.code"),
   };
 
   const router = useRouter();
@@ -3477,6 +3531,18 @@ export function MjmlEditor({
     });
   }
 
+  function updateCodeBlock(blockId: string, content: string) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) =>
+        block.id === blockId && block.type === "code"
+          ? { ...block, content }
+          : block
+      ),
+    });
+  }
+
   function updateListBlock(
     blockId: string,
     key: "listType" | "align",
@@ -4584,6 +4650,25 @@ export function MjmlEditor({
                             {block.type === "divider" ? (
                               <div className="text-xs text-muted-foreground">
                                 {t("blockNoProperties")}
+                              </div>
+                            ) : null}
+
+                            {block.type === "code" ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                  <Code2 className="h-4 w-4 shrink-0" />
+                                  <span>{t("unsupportedMjmlBlockNotice")}</span>
+                                </div>
+                                <textarea
+                                  value={block.content}
+                                  className="min-h-28 w-full resize-y rounded-md border bg-background p-2 font-mono text-xs leading-relaxed outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  onChange={(ev) =>
+                                    updateCodeBlock(block.id, ev.target.value)
+                                  }
+                                  readOnly={isReadOnlyMode}
+                                  aria-label={t("unsupportedMjmlBlockAria")}
+                                  spellCheck={false}
+                                />
                               </div>
                             ) : null}
 

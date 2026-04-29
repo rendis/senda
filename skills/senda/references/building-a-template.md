@@ -13,7 +13,8 @@ infrastructure. For lifecycle (draft → published, fork, locales), see
   `mjml`, `mj-body`, `mj-section`, `mj-column`, `mj-text`, `mj-button`,
   `mj-image`, `mj-divider`, `mj-spacer`, `mj-hero`. Other gomjml-supported
   tags (`mj-head`, `mj-attributes`, `mj-style`, `mj-class`, `mj-raw`,
-  `mj-table`, `mj-social`, …) compile fine but are not produced by the UI;
+  `mj-table`, `mj-social`, ...) compile fine and the visual editor preserves
+  them as **MJML code** blocks when it cannot map them to structured controls;
   preview them before publishing.
 
 ## Variable syntax — exhaustive
@@ -96,6 +97,11 @@ Rules the visual builder follows (and you should too):
   section and opens a new one for what follows.
 - Stack multiple sections vertically. Add `<mj-spacer>` or padding for
   vertical rhythm.
+- Unsupported MJML that the visual editor cannot represent is preserved as an
+  editable **MJML code** block. Unknown elements inside a single-column
+  section stay in that column order; unknown direct `<mj-body>` children stay
+  as body-level blocks between the known sections/heroes. If a section shape is
+  not a single direct `<mj-column>`, the whole section is preserved as code.
 
 ## Block catalog — copy-paste MJML
 
