@@ -74,17 +74,7 @@ export function AppHeader({
       </div>
       <div className="flex items-center gap-2">
         {scope.level === "workspace" ? (
-          <div className="flex items-center gap-2 rounded-full border bg-background px-1 py-1">
-            <span
-              className={cn(
-                "rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
-                environment === "prod"
-                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-                  : "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-              )}
-            >
-              {environment}
-            </span>
+          <div className="flex items-center gap-1 rounded-full border bg-background px-1 py-1">
             <div className="flex items-center gap-1">
               {(["prod", "test"] as const).map((option) => (
                 <button

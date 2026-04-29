@@ -3757,10 +3757,10 @@ export function MjmlEditor({
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1 rounded-md border bg-background h-8 px-1">
+            <div className="flex h-9 items-center rounded-md border bg-background">
               <button
                 type="button"
-                className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
+                className={`h-full px-2.5 font-mono text-[11px] font-medium transition-colors ${
                   activeLocale === "default"
                     ? LOCALE_ACTIVE_CLASS
                     : LOCALE_INACTIVE_CLASS
@@ -3774,7 +3774,7 @@ export function MjmlEditor({
                 <div key={loc.locale} className="relative group flex items-center">
                   <button
                     type="button"
-                    className={`px-2 h-6 rounded-sm font-mono text-[11px] font-medium transition-colors ${
+                    className={`h-full px-2.5 font-mono text-[11px] font-medium transition-colors ${
                       activeLocale === loc.locale
                         ? LOCALE_ACTIVE_CLASS
                         : LOCALE_INACTIVE_CLASS
@@ -3804,7 +3804,7 @@ export function MjmlEditor({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className={`h-6 w-6 flex items-center justify-center rounded-sm ${LOCALE_INACTIVE_CLASS} transition-colors`}
+                      className={`flex h-full w-8 items-center justify-center rounded-none ${LOCALE_INACTIVE_CLASS} transition-colors`}
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -3820,9 +3820,9 @@ export function MjmlEditor({
               )}
             </div>
 
-            <div className="flex items-center gap-1 rounded-md border bg-background">
+            <div className="flex h-9 items-center overflow-hidden rounded-md border bg-background">
               <button
-                className={`h-8 px-2.5 text-xs ${
+                className={`h-full px-2.5 text-xs ${
                   editorMode === "visual"
                     ? LOCALE_ACTIVE_CLASS
                     : "text-muted-foreground hover:text-foreground"
@@ -3833,7 +3833,7 @@ export function MjmlEditor({
                 <Paintbrush className="h-3.5 w-3.5" />
               </button>
               <button
-                className={`h-8 px-2.5 text-xs ${
+                className={`h-full px-2.5 text-xs ${
                   editorMode === "code"
                     ? LOCALE_ACTIVE_CLASS
                     : "text-muted-foreground hover:text-foreground"
