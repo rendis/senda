@@ -24,13 +24,17 @@ ALTER TABLE template_types
     ADD COLUMN is_bulk BOOLEAN NOT NULL DEFAULT false;
 
 -- 5. Per-(workspace, template_type, email) subscription state.
-CREATE TABLE template_type_subscription (
+
+-- Source of a subscription state change.
+CREATE TYPE subscription_source AS ENUM ('recipient_optout', 'recipient_optin', 'admin');
+
+CREATE TABLE template_type_subscriptions (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id      UUID NOT NULL REFERENCES workspaces(id),
     template_type_id  UUID NOT NULL REFERENCES template_types(id),
     email             VARCHAR(255) NOT NULL,
     subscribed        BOOLEAN NOT NULL,
-    source            TEXT NOT NULL CHECK (source IN ('recipient_optout','recipient_optin','admin')),
+    source            subscription_source NOT NULL,
     source_email_id   UUID,
     actor_id          UUID,
     notes             TEXT,
@@ -42,9 +46,9 @@ CREATE TABLE template_type_subscription (
 
 -- Partial index for the hot path: send pipeline only cares about explicit opt-outs.
 CREATE INDEX idx_tts_optout
-    ON template_type_subscription (workspace_id, template_type_id, email)
+    ON template_type_subscriptions (workspace_id, template_type_id, email)
     WHERE subscribed = false;
 
 -- Index for preference center lookups (all rows for a recipient in a workspace).
 CREATE INDEX idx_tts_recipient_lookup
-    ON template_type_subscription (workspace_id, email, template_type_id);
+    ON template_type_subscriptions (workspace_id, email, template_type_id);

@@ -1,5 +1,8 @@
 -- Drop subscription table and its indexes (cascade drops indexes).
-DROP TABLE IF EXISTS template_type_subscription;
+DROP TABLE IF EXISTS template_type_subscriptions;
+
+-- Drop the enum after the table that referenced it is gone.
+DROP TYPE IF EXISTS subscription_source;
 
 -- Drop is_bulk column.
 ALTER TABLE template_types DROP COLUMN IF EXISTS is_bulk;
