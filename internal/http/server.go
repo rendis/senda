@@ -57,8 +57,9 @@ type Server struct {
 	adapterSetupHandler *handler.AdapterSetupHandler
 
 	// HT-21 handlers (Templates).
-	templateTypeHandler *handler.TemplateTypeHandler
-	templateHandler     *handler.TemplateHandler
+	templateTypeHandler        *handler.TemplateTypeHandler
+	templateHandler            *handler.TemplateHandler
+	templateScreenshotHandler  *handler.TemplateScreenshotHandler
 
 	// HT-22 handlers (Send + Email Query).
 	sendHandler           *handler.SendHandler
@@ -216,6 +217,13 @@ func WithTemplateTypeHandler(h *handler.TemplateTypeHandler) ServerOption {
 func WithTemplateHandler(h *handler.TemplateHandler) ServerOption {
 	return func(s *Server) {
 		s.templateHandler = h
+	}
+}
+
+// WithTemplateScreenshotHandler sets the TemplateScreenshotHandler.
+func WithTemplateScreenshotHandler(h *handler.TemplateScreenshotHandler) ServerOption {
+	return func(s *Server) {
+		s.templateScreenshotHandler = h
 	}
 }
 

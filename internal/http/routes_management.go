@@ -182,6 +182,9 @@ func (s *Server) registerWorkspaceTemplateRoutes(ws *echo.Group) {
 		ws.GET("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.GetLocale, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 		ws.DELETE("/templates/:template_id/versions/:version_id/locales/:locale", s.templateHandler.DeleteLocale, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 		ws.POST("/templates/:template_id/preview-mjml", s.templateHandler.PreviewMJML, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+		if s.templateScreenshotHandler != nil {
+			ws.GET("/templates/:template_id/screenshot", s.templateScreenshotHandler.Capture, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
+		}
 		ws.POST("/templates/:template_id/test-send", s.templateHandler.TestSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
 		ws.GET("/templates/:template_id/bulk-send-config", s.templateHandler.BulkSendConfig, middleware.RequireRole(domain.RoleWorkspaceViewer, s.tenantStore, s.wsStore))
 		ws.POST("/templates/:template_id/bulk-send", s.templateHandler.BulkSend, middleware.RequireRole(domain.RoleWorkspaceEditor, s.tenantStore, s.wsStore))
