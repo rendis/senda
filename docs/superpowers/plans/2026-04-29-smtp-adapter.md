@@ -1177,6 +1177,7 @@ git commit -m "feat: add smtp adapter form"
 **Files:**
 - Modify: `web/src/components/adapters/adapter-type-badge.tsx`
 - Modify: `web/src/components/adapters/adapters-content.tsx`
+- Modify: `web/src/components/adapters/identity-panel.tsx`
 - Modify: `web/src/components/templates/template-types-content.tsx`
 
 - [ ] **Step 1: Add SMTP badge**
@@ -1218,7 +1219,47 @@ const supportsAdapterSharing = adapter.adapter_type === "gmail";
 
 Use these booleans to render sync/provisioning/sharing actions. SMTP should not render provider sync or SES provisioning, but it should render identity-level sender sharing for manual SMTP email identities.
 
-- [ ] **Step 3: Show sender identity selection for SMTP template types**
+- [ ] **Step 3: Add full-email identity creation for SMTP**
+
+In `web/src/components/adapters/identity-panel.tsx`, SMTP should not depend on provider domains. Add a simple full email form for editable SMTP adapters:
+
+```tsx
+function ManualEmailAddInput({
+  adapterId,
+  scopedPath,
+  disabled,
+}: {
+  adapterId: string;
+  scopedPath: string;
+  disabled?: boolean;
+}) {
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const create = useCreateIdentity(scopedPath, adapterId);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const identity = email.trim();
+    if (!identity) return;
+    create.mutate(
+      { identity, ...(displayName.trim() ? { display_name: displayName.trim() } : {}) },
+      { onSuccess: () => { setEmail(""); setDisplayName(""); } },
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="no-reply@example.com" className="h-8 rounded-md border bg-transparent px-2 text-xs font-mono" />
+      <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Display name" className="h-8 rounded-md border bg-transparent px-2 text-xs" />
+      <Button type="submit" size="sm" disabled={disabled || !email.trim() || create.isPending}>Add sender</Button>
+    </form>
+  );
+}
+```
+
+Render it for `adapter.adapter_type === "smtp"` and `adapter.is_editable`. Hide the provider sync button for SMTP and adjust empty copy to say SMTP sender emails are added manually.
+
+- [ ] **Step 4: Show sender identity selection for SMTP template types**
 
 In `web/src/components/templates/template-types-content.tsx`, update adapter identity logic:
 
@@ -1238,7 +1279,7 @@ if ((selectedAdapter?.adapter_type === "ses" || selectedAdapter?.adapter_type ==
 }
 ```
 
-- [ ] **Step 4: Test send from SMTP**
+- [ ] **Step 5: Test send from SMTP**
 
 Change test-send payload:
 
@@ -1248,7 +1289,7 @@ Change test-send payload:
 
 The test dialog should show the same sender email picker for SMTP that it shows for SES, using manual verified email identities.
 
-- [ ] **Step 5: Run frontend checks**
+- [ ] **Step 6: Run frontend checks**
 
 Run:
 
@@ -1259,10 +1300,10 @@ corepack pnpm --dir web lint
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add web/src/components/adapters/adapter-type-badge.tsx web/src/components/adapters/adapters-content.tsx web/src/components/templates/template-types-content.tsx
+git add web/src/components/adapters/adapter-type-badge.tsx web/src/components/adapters/adapters-content.tsx web/src/components/adapters/identity-panel.tsx web/src/components/templates/template-types-content.tsx
 git commit -m "feat: show smtp adapters in ui"
 ```
 
