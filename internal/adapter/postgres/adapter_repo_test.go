@@ -56,14 +56,13 @@ func TestAdapterRepo_CreateAndGet_SMTP(t *testing.T) {
 		WorkspaceID:        &ws.ID,
 		Name:               "SMTP Relay",
 		AdapterType:        domain.AdapterTypeSMTP,
-		ConfigEncrypted:    []byte(`{"host":"localhost","port":1025,"tls_mode":"none","from_email":"no-reply@example.com"}`),
+		ConfigEncrypted:    []byte(`{"host":"localhost","port":1025,"tls_mode":"none"}`),
 		IsDefault:          false,
 		RateLimitPerSecond: 10,
 		ConfigMeta: map[string]string{
-			"host":       "localhost",
-			"port":       "1025",
-			"tls_mode":   "none",
-			"from_email": "no-reply@example.com",
+			"host":     "localhost",
+			"port":     "1025",
+			"tls_mode": "none",
 		},
 	}
 

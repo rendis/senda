@@ -434,6 +434,56 @@ func TestAdapterHandler_Update_SMTPValidatesMergedConfig(t *testing.T) {
 	}
 }
 
+func TestAdapterHandler_Update_SMTPRejectsSenderFields(t *testing.T) {
+	_, ws, ts, wsStore := testTenantAndWorkspace()
+	adapterID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	var updated bool
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				WorkspaceID:     &ws.ID,
+				Name:            "SMTP Relay",
+				AdapterType:     domain.AdapterTypeSMTP,
+				ConfigEncrypted: []byte("encrypted"),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}, nil
+		},
+		updateFn: func(_ context.Context, _ *domain.Adapter) error {
+			updated = true
+			return nil
+		},
+	}
+	crypto := &mockCrypto{
+		decryptFn: func(_ []byte) ([]byte, error) {
+			return []byte(`{"host":"smtp.example.com","port":587,"tls_mode":"starttls"}`), nil
+		},
+	}
+	e, _ := setupAdapterTest(as, crypto, ts, wsStore)
+
+	body := `{"config":{"from_email":"sender@example.com","from_name":"Sender"}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if updated {
+		t.Fatal("invalid SMTP config should not reach store.Update")
+	}
+	if !strings.Contains(rec.Body.String(), "from_email") || !strings.Contains(rec.Body.String(), "from_name") {
+		t.Fatalf("expected sender field validation errors, got %s", rec.Body.String())
+	}
+}
+
 func TestAdapterHandler_GetWorkspaceAccess_SystemScope(t *testing.T) {
 	tenant, _, ts, wsStore := testTenantAndWorkspace()
 	systemWSID := uuid.Must(uuid.NewV7())
@@ -901,6 +951,49 @@ func TestAdapterHandler_Create_SMTPValidatesAndStoresSafeMeta(t *testing.T) {
 	}
 }
 
+func TestAdapterHandler_Create_SMTPRejectsSenderFields(t *testing.T) {
+	_, _, ts, wsStore := testTenantAndWorkspace()
+
+	var created bool
+	as := &mockAdapterStore{
+		createFn: func(_ context.Context, _ *domain.Adapter) error {
+			created = true
+			return nil
+		},
+	}
+	crypto := &mockCrypto{}
+	e, _ := setupAdapterTest(as, crypto, ts, wsStore)
+
+	body := `{
+		"name":"SMTP Relay",
+		"adapter_type":"smtp",
+		"config":{
+			"host":"smtp.example.com",
+			"port":587,
+			"tls_mode":"starttls",
+			"from_email":"sender@example.com",
+			"from_name":"Sender"
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if created {
+		t.Fatal("invalid SMTP config should not reach store.Create")
+	}
+	if crypto.lastPlaintext != nil {
+		t.Fatalf("invalid SMTP config should not be encrypted, got %s", string(crypto.lastPlaintext))
+	}
+	if !strings.Contains(rec.Body.String(), "from_email") || !strings.Contains(rec.Body.String(), "from_name") {
+		t.Fatalf("expected sender field validation errors, got %s", rec.Body.String())
+	}
+}
+
 func TestAdapterHandler_GlobalCreate_Success(t *testing.T) {
 	var created *domain.Adapter
 	as := &mockAdapterStore{
@@ -1051,6 +1144,108 @@ func TestAdapterHandler_TestSend_NoDefaultIdentity(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdapterHandler_TestSend_SharedSMTPWithoutFromDoesNotUseUngrantedDefaultIdentity(t *testing.T) {
+	tenant, ws, ts, wsStore := testTenantAndWorkspace()
+	systemWSID := uuid.Must(uuid.NewV7())
+	adapterID := uuid.Must(uuid.NewV7())
+	grantedIdentityID := uuid.Must(uuid.NewV7())
+	rawDefaultIdentityID := uuid.Must(uuid.NewV7())
+	now := time.Now().UTC()
+
+	systemWS := &domain.Workspace{ID: systemWSID, TenantID: tenant.ID, Code: "_system", Name: "System", IsSystem: true}
+	wsStore.getByIDFn = func(_ context.Context, id uuid.UUID) (*domain.Workspace, error) {
+		switch id {
+		case systemWSID:
+			return systemWS, nil
+		case ws.ID:
+			return ws, nil
+		default:
+			return nil, domain.ErrNotFound
+		}
+	}
+
+	as := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				return nil, domain.ErrNotFound
+			}
+			return &domain.Adapter{
+				ID:              adapterID,
+				WorkspaceID:     &systemWSID,
+				Name:            "Shared SMTP",
+				AdapterType:     domain.AdapterTypeSMTP,
+				ConfigEncrypted: []byte("enc:test"),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}, nil
+		},
+	}
+
+	var sent bool
+	sf := func(_ context.Context, _ *domain.Adapter, _ []byte) (port.EmailSender, error) {
+		return &mockEmailSender{
+			sendFn: func(_ context.Context, _ *port.OutgoingEmail) (string, error) {
+				sent = true
+				return "test-provider-id-123", nil
+			},
+		}, nil
+	}
+
+	is := &mockAdapterIdentityStore{
+		getDefaultFn: func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
+			return &domain.AdapterIdentity{
+				ID:           rawDefaultIdentityID,
+				AdapterID:    adapterID,
+				Identity:     "system-default@example.com",
+				IdentityType: domain.IdentityTypeEmail,
+				IsDefault:    true,
+			}, nil
+		},
+	}
+
+	e, h := setupAdapterTestFull(as, &mockCrypto{}, ts, wsStore, sf, is, nil)
+	accessSvc := service.NewAdapterAccessService(
+		as,
+		is,
+		wsStore,
+		&mockAdapterGrantStoreHandler{},
+		&mockIdentityGrantStoreHandler{
+			listGrantedIdentitiesFn: func(_ context.Context, gotAdapterID uuid.UUID, workspaceID uuid.UUID) ([]*domain.AdapterIdentity, error) {
+				if gotAdapterID != adapterID || workspaceID != ws.ID {
+					return nil, domain.ErrNotFound
+				}
+				return []*domain.AdapterIdentity{
+					{
+						ID:           grantedIdentityID,
+						AdapterID:    adapterID,
+						Identity:     "granted@example.com",
+						IdentityType: domain.IdentityTypeEmail,
+						IsDefault:    false,
+					},
+				}, nil
+			},
+		},
+		&mockTemplateTypeUsageStoreHandler{},
+	)
+	h.SetAdapterAccessService(accessSvc)
+
+	body := `{"to":"recipient@example.com","subject":"Test","body":"Hello"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manage/tenants/acme/workspaces/default/adapters/"+adapterID.String()+"/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if sent {
+		t.Fatal("test send should not use an ungranted raw default identity")
+	}
+	if !strings.Contains(rec.Body.String(), "NO_DEFAULT_IDENTITY") {
+		t.Fatalf("expected no default identity error, got %s", rec.Body.String())
 	}
 }
 

@@ -493,7 +493,10 @@ func (h *AdapterHandler) testSend(c *echo.Context, workspace *domain.Workspace) 
 		}
 		from = resolution.IdentityToEmailAddress(matched)
 	} else {
-		from = resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decrypted)
+		from, err = h.resolveDefaultFromAddress(ctx, workspace, adapter, decrypted)
+		if err != nil {
+			return mapAdapterAccessHandlerError(c, err)
+		}
 	}
 	if from.Address == "" {
 		return response.WriteError(c, http.StatusUnprocessableEntity, "NO_DEFAULT_IDENTITY", "no default sender identity and no delegate_email in config")
@@ -661,6 +664,28 @@ func mapAdapterAccessHandlerError(c *echo.Context, err error) error {
 	}
 }
 
+func (h *AdapterHandler) resolveDefaultFromAddress(ctx context.Context, workspace *domain.Workspace, adapter *domain.Adapter, decryptedConfig []byte) (port.EmailAddress, error) {
+	if workspace != nil && h.accessSvc != nil && identityScopedAdapter(adapter.AdapterType) {
+		access, err := h.accessSvc.GetAdapterAccess(ctx, workspace, adapter.ID)
+		if err != nil {
+			return port.EmailAddress{}, err
+		}
+		if access.Shared {
+			identities, err := h.accessSvc.ListIdentitiesForWorkspace(ctx, workspace, adapter.ID)
+			if err != nil {
+				return port.EmailAddress{}, err
+			}
+			for _, identity := range identities {
+				if identity.IsDefault && identity.IdentityType == domain.IdentityTypeEmail {
+					return resolution.IdentityToEmailAddress(identity), nil
+				}
+			}
+			return port.EmailAddress{}, nil
+		}
+	}
+	return resolution.ResolveFromAddress(ctx, h.identityStore, adapter, decryptedConfig), nil
+}
+
 // decryptConfigMap decrypts the adapter config and unmarshals it into a map.
 func (h *AdapterHandler) decryptConfigMap(adapter *domain.Adapter) (map[string]any, error) {
 	decrypted, err := h.crypto.Decrypt(adapter.ConfigEncrypted)
@@ -742,6 +767,12 @@ func validateConfig(adapterType domain.AdapterType, config json.RawMessage) []re
 			errs = append(errs, response.FieldError{Field: "config.delegate_email", Message: "is required"})
 		}
 	case domain.AdapterTypeSMTP:
+		if _, ok := cfgMap["from_email"]; ok {
+			errs = append(errs, response.FieldError{Field: "config.from_email", Message: "is not allowed for SMTP adapters; create a sender identity instead"})
+		}
+		if _, ok := cfgMap["from_name"]; ok {
+			errs = append(errs, response.FieldError{Field: "config.from_name", Message: "is not allowed for SMTP adapters; create a sender identity instead"})
+		}
 		var cfg smtpadapter.Config
 		if err := json.Unmarshal(config, &cfg); err != nil {
 			errs = append(errs, response.FieldError{Field: "config", Message: "must be a valid SMTP config object"})
@@ -760,6 +791,10 @@ func isValidAdapterType(t string) bool {
 		return true
 	}
 	return false
+}
+
+func identityScopedAdapter(adapterType domain.AdapterType) bool {
+	return adapterType == domain.AdapterTypeSES || adapterType == domain.AdapterTypeSMTP
 }
 
 // sameScope checks that both pointers are nil or point to the same UUID.

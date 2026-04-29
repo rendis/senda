@@ -89,10 +89,14 @@ func (a *Adapter) Send(ctx context.Context, msg *port.OutgoingEmail) (string, er
 	auth := a.auth()
 
 	switch a.cfg.TLSMode {
+	case TLSModeNone:
+		err = a.sendPlain(ctx, addr, auth, msg.From.Address, recipients, rawMsg)
+	case TLSModeStartTLS:
+		err = a.sendStartTLS(ctx, addr, auth, msg.From.Address, recipients, rawMsg)
 	case TLSModeImplicitTLS:
 		err = a.sendImplicitTLS(ctx, addr, auth, msg.From.Address, recipients, rawMsg)
 	default:
-		err = smtp.SendMail(addr, auth, msg.From.Address, recipients, rawMsg)
+		err = fmt.Errorf("unsupported SMTP tls_mode %q", a.cfg.TLSMode)
 	}
 	if err != nil {
 		return "", fmt.Errorf("smtp: send: %w", err)
@@ -148,6 +152,33 @@ func (a loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return []byte(a.username), nil
 }
 
+func (a *Adapter) sendPlain(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, rawMsg []byte) error {
+	client, err := a.dialPlainClient(ctx, addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	return sendWithClient(client, auth, from, to, rawMsg)
+}
+
+func (a *Adapter) sendStartTLS(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, rawMsg []byte) error {
+	client, err := a.dialPlainClient(ctx, addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	if ok, _ := client.Extension("STARTTLS"); !ok {
+		return fmt.Errorf("smtp: STARTTLS not supported by server")
+	}
+	if err := client.StartTLS(&tls.Config{ServerName: a.cfg.Host, MinVersion: tls.VersionTLS12}); err != nil {
+		return err
+	}
+
+	return sendWithClient(client, auth, from, to, rawMsg)
+}
+
 func (a *Adapter) sendImplicitTLS(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, rawMsg []byte) error {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: a.cfg.Host, MinVersion: tls.VersionTLS12})
@@ -167,6 +198,25 @@ func (a *Adapter) sendImplicitTLS(ctx context.Context, addr string, auth smtp.Au
 	defer func() { _ = client.Close() }()
 
 	return sendWithClient(client, auth, from, to, rawMsg)
+}
+
+func (a *Adapter) dialPlainClient(ctx context.Context, addr string) (*smtp.Client, error) {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+
+	client, err := smtp.NewClient(conn, a.cfg.Host)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return client, nil
 }
 
 func sendWithClient(client *smtp.Client, auth smtp.Auth, from string, to []string, rawMsg []byte) error {
