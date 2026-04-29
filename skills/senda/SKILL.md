@@ -81,6 +81,7 @@ For the detailed model, load:
 - **Use `X-Senda-Environment` for external integration requests.**
 - **Runtime reset is test-only.** It is available only on the management environment-scoped test surface.
 - **Test recipient policies are test-only.** Do not assume they exist in prod.
+- **SMTP adapter config is relay-only.** Register full sender email addresses as adapter identities, then select/share those identities like SES email identities.
 
 ## MCP operating playbooks
 
@@ -182,6 +183,22 @@ Load this reference when implementing or reviewing embedder code:
 For detailed flow explanations, load:
 - `references/external-integration-flow.md`
 - `references/resolution-and-inheritance.md`
+
+### SMTP adapter flow
+
+SMTP is a first-class provider adapter, not only a Mailpit/dev fallback.
+
+1. Create an adapter with `adapter_type: "smtp"`.
+2. Configure relay connection fields only: `host`, `port`, `tls_mode`, optional `auth_mode`, optional `username` and `password`.
+3. Use `tls_mode` values `none`, `starttls`, or `implicit_tls`.
+4. Use `auth_mode` values `plain` or `login` when credentials are provided.
+5. Keep `username` and `password` together; one without the other is invalid.
+6. Do not put `from_email` or `from_name` in SMTP config.
+7. Register complete sender emails as manual adapter identities.
+8. Assign a sender identity to the template type or mark an adapter identity as default.
+9. For `_system` SMTP adapters, share at the email-identity level; child workspaces can use only granted SMTP identities.
+
+The frontend defaults SMTP `rate_limit_per_second` to `10`. Operators should adjust it to the real relay policy.
 
 ## Public contracts you must understand
 
