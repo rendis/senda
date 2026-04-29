@@ -4,7 +4,7 @@
 
 **Goal:** Add SMTP as a first-class Senda adapter that supports plain local/internal relays and authenticated SMTP with STARTTLS or implicit TLS, then expose it in the existing Adapters frontend module.
 
-**Architecture:** Backend owns the canonical SMTP contract, DB enum, encrypted config, sender runtime, and default sender identity behavior. Frontend extends the existing Adapters module to create/edit/test SMTP adapters using that contract, without adding a separate SMTP page. SMTP does not implement provider identity sync; it seeds and maintains a manual default email identity from `from_email`.
+**Architecture:** Backend owns the canonical SMTP relay contract, DB enum, encrypted config, sender runtime, and manual identity access rules. Frontend extends the existing Adapters module to create/edit/test SMTP adapters using that contract, without adding a separate SMTP page. SMTP does not implement provider identity sync; users register full sender email addresses as manual identities and then choose/share them similarly to SES email identities.
 
 **Tech Stack:** Go 1.25, PostgreSQL migrations, Echo handlers, River send worker, `net/smtp`, `crypto/tls`, Next.js 16, React 19, TypeScript, Tailwind, TanStack Query.
 
@@ -12,7 +12,7 @@
 
 ## Contract
 
-Create/update adapter request:
+Create/update SMTP adapter request:
 
 ```json
 {
@@ -24,27 +24,36 @@ Create/update adapter request:
     "tls_mode": "starttls",
     "auth_mode": "plain",
     "username": "user-or-apikey",
-    "password": "secret",
-    "from_email": "no-reply@example.com",
-    "from_name": "Senda"
+    "password": "secret"
   },
   "is_default": false,
   "rate_limit_per_second": 10
 }
 ```
 
+SMTP sender identities are registered separately through the existing adapter identities API:
+
+```json
+{
+  "identity": "noreply-senda@tether.education",
+  "display_name": "Senda"
+}
+```
+
 Rules:
 
 - `adapter_type` accepts `smtp`.
-- `config.host`, `config.port`, `config.tls_mode`, and `config.from_email` are required for SMTP.
+- `config.host`, `config.port`, and `config.tls_mode` are required for SMTP.
 - `config.tls_mode` accepts `none`, `starttls`, or `implicit_tls`.
 - `config.auth_mode` is optional and accepts `plain` or `login`; default is `plain` when credentials are present.
 - `config.username` and `config.password` are optional. If either is set on create, both must be set.
 - On update, omitting or passing an empty `password` keeps the existing password. Passing a non-empty `password` replaces it.
-- `config.from_name` is optional.
-- `config_meta` may expose only `host`, `port`, `tls_mode`, and `from_email`.
+- `config_meta` may expose only `host`, `port`, `tls_mode`, and `auth_mode`.
 - SMTP config, including `password`, stays encrypted in `adapters.config_encrypted`.
-- SMTP creates or updates a manual default email identity from `from_email`; provider sync remains unsupported.
+- SMTP manual identities are email-only records created by the user. They do not require a verified provider-domain identity.
+- SMTP uses existing template type `sender_identity_id` selection. A template using SMTP must resolve a manual email identity, either explicit on the template type or default on the adapter.
+- System-owned SMTP adapters share at the identity level, like SES: child workspaces can use only granted sender identities.
+- Provider identity sync remains unsupported for SMTP.
 
 ---
 
@@ -52,16 +61,17 @@ Rules:
 
 Backend files:
 
-- Modify `migrations/000002_enums.up.sql` and `migrations/000002_enums.down.sql` only if the project accepts editing early migrations in local dev. Otherwise create a new migration such as `migrations/000042_add_smtp_adapter_type.up.sql` and matching down migration. Preferred: create migration `000042` to avoid rewriting applied history.
+- Modify `migrations/000002_enums.up.sql` and `migrations/000002_enums.down.sql` only if the project accepts editing early migrations in local dev. Otherwise create a new migration such as `migrations/000047_add_smtp_adapter_type.up.sql` and matching down migration. Preferred: create a new migration to avoid rewriting applied history.
 - Modify `internal/domain/adapter.go` to add `AdapterTypeSMTP`.
 - Modify `internal/adapter/smtp/adapter.go` to add SMTP config, validation, auth, STARTTLS, and implicit TLS.
 - Modify `internal/adapter/smtp/adapter_test.go` to cover config validation and sender construction behavior.
 - Modify `internal/adapter/river/send_worker.go` to add SMTP in `DefaultAdapterSenderFactory`.
 - Modify `internal/adapter/river/send_worker_test.go` to assert SMTP factory support.
-- Modify `internal/http/handler/adapter.go` to validate SMTP config, expose safe config meta, preserve password on update, and seed default SMTP identity.
+- Modify `internal/http/handler/adapter.go` to validate SMTP config, expose safe config meta, and preserve password on update.
 - Modify `internal/http/handler/adapter_test.go` to cover SMTP create/update/test-send validation.
-- Modify `internal/resolution/from_resolver.go` and `internal/service/from_email.go` so SMTP can fall back to `from_email` when no DB default identity exists.
-- Modify `internal/service/identity.go` to allow SMTP manual identities without provider-domain validation.
+- Modify `internal/service/identity.go` to allow SMTP manual email identities without provider-domain validation.
+- Modify `internal/service/adapter_access.go` so SMTP uses SES-style identity grants for system-owned shared adapters.
+- Modify `internal/http/handler/template_type.go` only if user-facing validation still says SES-specific where SMTP now also applies.
 - Modify `internal/app/identity_factory.go` tests only if they assert the unsupported type string directly.
 - Modify docs/API/Postman/OpenAPI after backend contract is final.
 
@@ -73,7 +83,7 @@ Frontend files:
 - Modify `web/src/components/adapters/adapters-content.tsx` to hide SES/Gmail-only actions for SMTP and support SMTP test send.
 - Modify `web/src/hooks/use-adapters.ts` only if request/response types need frontend-specific helpers.
 - Add focused tests beside existing frontend tests or create helper tests if the component is not currently easy to render.
-- DoD E2E data for final UI flow: host `127.0.0.1`, port `2525`, auth `PLAIN` or `LOGIN`, username from the user's provided SMTP relay, password from the user's provided SMTP relay, TLS mode `none`, from `noreply-senda@tether.education`, recipient `reynaldo@tether.education`. Do not print the password in logs, commits, docs, or final summaries.
+- DoD E2E data for final UI flow: host `127.0.0.1`, port `2525`, auth `PLAIN` or `LOGIN`, username from the user's provided SMTP relay, password from the user's provided SMTP relay, TLS mode `none`; then register manual identity `noreply-senda@tether.education` and send to `reynaldo@tether.education`. Do not print the password in logs, commits, docs, or final summaries.
 
 ---
 
@@ -82,8 +92,8 @@ Frontend files:
 ### Task 1: Add SMTP Adapter Type to Domain and Database
 
 **Files:**
-- Create: `migrations/000042_add_smtp_adapter_type.up.sql`
-- Create: `migrations/000042_add_smtp_adapter_type.down.sql`
+- Create: `migrations/000047_add_smtp_adapter_type.up.sql`
+- Create: `migrations/000047_add_smtp_adapter_type.down.sql`
 - Modify: `internal/domain/adapter.go`
 - Test: `internal/adapter/postgres/adapter_repo_test.go`
 
@@ -101,14 +111,13 @@ func TestAdapterRepo_CreateAndGet_SMTP(t *testing.T) {
 		WorkspaceID:        &deps.workspaceID,
 		Name:               "SMTP Relay",
 		AdapterType:        domain.AdapterTypeSMTP,
-		ConfigEncrypted:    []byte(`{"host":"localhost","port":1025,"tls_mode":"none","from_email":"no-reply@example.com"}`),
+		ConfigEncrypted:    []byte(`{"host":"localhost","port":1025,"tls_mode":"none"}`),
 		IsDefault:          false,
 		RateLimitPerSecond: 10,
 		ConfigMeta: map[string]string{
 			"host":       "localhost",
 			"port":       "1025",
 			"tls_mode":   "none",
-			"from_email": "no-reply@example.com",
 		},
 	}
 
@@ -153,13 +162,13 @@ const (
 
 - [ ] **Step 4: Add the migration**
 
-Create `migrations/000042_add_smtp_adapter_type.up.sql`:
+Create `migrations/000047_add_smtp_adapter_type.up.sql`:
 
 ```sql
 ALTER TYPE adapter_type ADD VALUE IF NOT EXISTS 'smtp';
 ```
 
-Create `migrations/000042_add_smtp_adapter_type.down.sql`:
+Create `migrations/000047_add_smtp_adapter_type.down.sql`:
 
 ```sql
 -- PostgreSQL cannot remove enum values safely without recreating dependent columns.
@@ -179,7 +188,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add migrations/000042_add_smtp_adapter_type.up.sql migrations/000042_add_smtp_adapter_type.down.sql internal/domain/adapter.go internal/adapter/postgres/adapter_repo_test.go
+git add migrations/000047_add_smtp_adapter_type.up.sql migrations/000047_add_smtp_adapter_type.down.sql internal/domain/adapter.go internal/adapter/postgres/adapter_repo_test.go
 git commit -m "feat: add smtp adapter type"
 ```
 
@@ -196,31 +205,28 @@ Add these tests to `internal/adapter/smtp/adapter_test.go`:
 ```go
 func TestConfigValidate_PlainSMTP(t *testing.T) {
 	cfg := Config{
-		Host:      "localhost",
-		Port:      1025,
-		TLSMode:   TLSModeNone,
-		FromEmail: "no-reply@example.com",
+		Host:    "localhost",
+		Port:    1025,
+		TLSMode: TLSModeNone,
 	}
 	require.NoError(t, cfg.Validate())
 }
 
 func TestConfigValidate_AuthenticatedSMTPRequiresUsernameAndPasswordTogether(t *testing.T) {
 	cfg := Config{
-		Host:      "smtp.example.com",
-		Port:      587,
-		TLSMode:   TLSModeStartTLS,
-		Username:  "apikey",
-		FromEmail: "no-reply@example.com",
+		Host:     "smtp.example.com",
+		Port:     587,
+		TLSMode:  TLSModeStartTLS,
+		Username: "apikey",
 	}
 	require.ErrorContains(t, cfg.Validate(), "smtp username and password must be provided together")
 }
 
 func TestConfigValidate_RejectsUnknownTLSMode(t *testing.T) {
 	cfg := Config{
-		Host:      "smtp.example.com",
-		Port:      587,
-		TLSMode:   TLSMode("ssl-ish"),
-		FromEmail: "no-reply@example.com",
+		Host:    "smtp.example.com",
+		Port:    587,
+		TLSMode: TLSMode("ssl-ish"),
 	}
 	require.ErrorContains(t, cfg.Validate(), "invalid SMTP tls_mode")
 }
@@ -256,8 +262,6 @@ type Config struct {
 	AuthMode  string  `json:"auth_mode,omitempty"`
 	Username  string  `json:"username,omitempty"`
 	Password  string  `json:"password,omitempty"`
-	FromEmail string  `json:"from_email"`
-	FromName  string  `json:"from_name,omitempty"`
 }
 
 func (c Config) Validate() error {
@@ -273,9 +277,6 @@ func (c Config) Validate() error {
 		return fmt.Errorf("missing SMTP tls_mode")
 	default:
 		return fmt.Errorf("invalid SMTP tls_mode %q", c.TLSMode)
-	}
-	if strings.TrimSpace(c.FromEmail) == "" {
-		return fmt.Errorf("missing SMTP from_email")
 	}
 	if c.AuthMode != "" && c.AuthMode != "plain" && c.AuthMode != "login" {
 		return fmt.Errorf("invalid SMTP auth_mode %q", c.AuthMode)
@@ -460,7 +461,7 @@ Add this test to `internal/adapter/river/send_worker_test.go`:
 ```go
 func TestDefaultAdapterSenderFactory_SMTP(t *testing.T) {
 	adapter := &domain.Adapter{AdapterType: domain.AdapterTypeSMTP}
-	cfg := []byte(`{"host":"localhost","port":1025,"tls_mode":"none","from_email":"no-reply@example.com"}`)
+	cfg := []byte(`{"host":"localhost","port":1025,"tls_mode":"none"}`)
 
 	sender, err := DefaultAdapterSenderFactory(context.Background(), adapter, cfg)
 	if err != nil {
@@ -541,9 +542,7 @@ func TestAdapterHandler_Create_SMTPValidatesAndStoresSafeMeta(t *testing.T) {
 			"tls_mode":"starttls",
 			"auth_mode":"plain",
 			"username":"apikey",
-			"password":"secret",
-			"from_email":"no-reply@example.com",
-			"from_name":"Senda"
+			"password":"secret"
 		},
 		"rate_limit_per_second":10
 	}`
@@ -621,8 +620,8 @@ case domain.AdapterTypeSMTP:
 	if v, ok := cfgMap["tls_mode"].(string); ok && v != "" {
 		meta["tls_mode"] = v
 	}
-	if v, ok := cfgMap["from_email"].(string); ok && v != "" {
-		meta["from_email"] = v
+	if v, ok := cfgMap["auth_mode"].(string); ok && v != "" {
+		meta["auth_mode"] = v
 	}
 	switch v := cfgMap["port"].(type) {
 	case float64:
@@ -668,7 +667,7 @@ func TestAdapterHandler_Update_SMTPKeepsPasswordWhenBlank(t *testing.T) {
 	h, deps := setupAdapterHandlerTest(t)
 	adapterID := uuid.Must(uuid.NewV7())
 	deps.crypto.decryptFn = func(_ []byte) ([]byte, error) {
-		return []byte(`{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":"old-secret","from_email":"old@example.com"}`), nil
+		return []byte(`{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":"old-secret"}`), nil
 	}
 	deps.adapterStore.adapter = &domain.Adapter{
 		ID:              adapterID,
@@ -678,7 +677,7 @@ func TestAdapterHandler_Update_SMTPKeepsPasswordWhenBlank(t *testing.T) {
 		ConfigEncrypted: []byte("encrypted"),
 	}
 
-	body := `{"config":{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":"","from_email":"new@example.com"}}`
+	body := `{"config":{"host":"smtp.example.com","port":587,"tls_mode":"starttls","auth_mode":"plain","username":"apikey","password":""}}`
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/adapters/"+adapterID.String(), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -769,107 +768,68 @@ git add internal/http/handler/adapter.go internal/http/handler/adapter_test.go
 git commit -m "feat: preserve smtp password on update"
 ```
 
-### Task 6: Resolve SMTP From Address and Manual Identity
+### Task 6: Support SMTP Manual Sender Identities and Sharing
 
 **Files:**
-- Modify: `internal/resolution/from_resolver.go`
-- Modify: `internal/service/from_email.go`
 - Modify: `internal/service/identity.go`
-- Modify: `internal/http/handler/adapter.go`
-- Test: `internal/service/test_send_test.go`
+- Modify: `internal/service/adapter_access.go`
+- Modify: `internal/http/handler/template_type.go`
 - Test: `internal/service/identity_factory_test.go` or `internal/service/identity_test.go`
+- Test: `internal/service/adapter_access_test.go`
+- Test: `internal/http/handler/template_type_test.go`
 
-- [ ] **Step 1: Add failing SMTP fallback test**
+- [ ] **Step 1: Add failing manual identity test**
 
-Add this test to `internal/service/test_send_test.go`:
+Add a service test that proves SMTP can register full sender email identities without a provider-domain identity:
 
 ```go
-func TestTestSendService_FallsBackToSMTPFromEmailWhenNoDefaultIdentity(t *testing.T) {
-	f := newTestSendFixture(t)
-	f.adapter.AdapterType = domain.AdapterTypeSMTP
-	f.adapter.ConfigEncrypted = []byte(`{"host":"localhost","port":1025,"tls_mode":"none","from_email":"smtp@example.com","from_name":"SMTP"}`)
-	f.crypto.decryptFn = func(_ []byte) ([]byte, error) {
-		return f.adapter.ConfigEncrypted, nil
+func TestIdentityService_CreateManual_AllowsSMTPEmailWithoutProviderDomain(t *testing.T) {
+	adapterID := uuid.Must(uuid.NewV7())
+	adapterStore := &mockAdapterStore{
+		getByIDFn: func(_ context.Context, id uuid.UUID) (*domain.Adapter, error) {
+			if id != adapterID {
+				t.Fatalf("adapter id = %s, want %s", id, adapterID)
+			}
+			return &domain.Adapter{ID: adapterID, AdapterType: domain.AdapterTypeSMTP}, nil
+		},
 	}
-	f.identityStore.getDefaultFn = func(_ context.Context, _ uuid.UUID) (*domain.AdapterIdentity, error) {
-		return nil, domain.ErrNoDefaultIdentity
+	identityStore := &mockAdapterIdentityStoreSend{
+		createFn: func(_ context.Context, identity *domain.AdapterIdentity) error {
+			if identity.Identity != "noreply-senda@tether.education" {
+				t.Fatalf("identity = %q", identity.Identity)
+			}
+			if identity.IdentityType != domain.IdentityTypeEmail {
+				t.Fatalf("identity type = %q", identity.IdentityType)
+			}
+			if identity.Source != domain.IdentitySourceManual {
+				t.Fatalf("source = %q", identity.Source)
+			}
+			return nil
+		},
 	}
+	svc := service.NewIdentityService(identityStore, adapterStore, nil, nil)
 
-	result, err := f.service.Send(context.Background(), &service.TestSendRequest{
-		TemplateID: f.template.ID,
-		To:         "recipient@example.com",
-	})
+	identity, err := svc.CreateManual(context.Background(), adapterID, "noreply-senda@tether.education", nil)
 	if err != nil {
-		t.Fatalf("Send() error = %v", err)
+		t.Fatalf("CreateManual() error = %v", err)
 	}
-	if result.FromAddress != "smtp@example.com" {
-		t.Fatalf("FromAddress = %q, want smtp@example.com", result.FromAddress)
+	if identity.Identity != "noreply-senda@tether.education" {
+		t.Fatalf("identity = %q", identity.Identity)
 	}
 }
 ```
 
-- [ ] **Step 2: Run the failing test**
+- [ ] **Step 2: Run the failing identity test**
 
 Run:
 
 ```bash
-go test ./internal/service -run TestTestSendService_FallsBackToSMTPFromEmailWhenNoDefaultIdentity -count=1
+go test ./internal/service -run TestIdentityService_CreateManual_AllowsSMTPEmailWithoutProviderDomain -count=1
 ```
 
-Expected: FAIL because `ResolveFromAddress` only knows `delegate_email`.
+Expected: FAIL because `CreateManual` requires a verified domain identity.
 
-- [ ] **Step 3: Add SMTP from fallback**
-
-Update `internal/resolution/from_resolver.go` comments and logic:
-
-```go
-// ResolveFromAddress determines the sender email address for an adapter by trying:
-// 1. The default identity from the identity store.
-// 2. SMTP from_email from config_meta.
-// 3. Gmail delegate_email from config_meta.
-// 4. SMTP from_email or Gmail delegate_email from decrypted config JSON.
-```
-
-Add before delegate lookup:
-
-```go
-if fromEmail := adapter.ConfigMeta["from_email"]; fromEmail != "" {
-	from.Address = fromEmail
-	return from
-}
-```
-
-In decrypted fallback, add:
-
-```go
-if smtpFrom, ok := cfgMap["from_email"].(string); ok && smtpFrom != "" {
-	from.Address = smtpFrom
-	if name, ok := cfgMap["from_name"].(string); ok && name != "" {
-		from.Name = name
-	}
-	return from
-}
-```
-
-Update `resolveFromEmail` in `internal/service/from_email.go` so SMTP can use the config fallback when called from real send. Change signature to:
-
-```go
-func resolveFromEmail(identityStore port.AdapterIdentityStore, ctx context.Context, adapter *domain.Adapter, decryptedConfig []byte, senderIdentityID *uuid.UUID) (string, error)
-```
-
-When no explicit identity is set and default identity lookup fails:
-
-```go
-from := resolution.ResolveFromAddress(ctx, identityStore, adapter, decryptedConfig)
-if from.Address != "" {
-	return from.Address, nil
-}
-return "", fmt.Errorf("%w: adapter %s", domain.ErrNoDefaultIdentity, adapter.ID)
-```
-
-Update callers in `internal/service/send.go` and `internal/service/send_context.go` to pass decrypted config from the resolved adapter path if available. If the prepared send path does not have decrypted config, decrypt it before resolving from.
-
-- [ ] **Step 4: Allow SMTP manual identity without provider domain**
+- [ ] **Step 3: Allow SMTP manual identities**
 
 In `internal/service/identity.go`, load the adapter at the beginning of `CreateManual`:
 
@@ -880,7 +840,7 @@ if err != nil {
 }
 ```
 
-Wrap the domain-verified check:
+Wrap the existing provider-domain verification so it is skipped only for SMTP:
 
 ```go
 if adapter.AdapterType != domain.AdapterTypeSMTP {
@@ -903,42 +863,88 @@ if adapter.AdapterType != domain.AdapterTypeSMTP {
 }
 ```
 
-- [ ] **Step 5: Seed SMTP default identity on create/update**
+- [ ] **Step 4: Add failing access tests for shared SMTP**
 
-In `internal/http/handler/adapter.go`, add helper:
+Add tests in `internal/service/adapter_access_test.go` mirroring the shared SES behavior, but using `domain.AdapterTypeSMTP`:
 
 ```go
-func smtpIdentityFromConfig(raw []byte) (identity string, displayName *string, ok bool) {
-	var cfg smtpadapter.Config
-	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.FromEmail == "" {
-		return "", nil, false
+func TestAdapterAccessService_ValidateTemplateTypeSelection_SharedSMTPRequiresGrantedSenderIdentity(t *testing.T) {
+	systemWorkspace, childWorkspace, adapterID, identityID := accessFixtureIDs(t)
+	svc := newAdapterAccessServiceFixture(t,
+		withAdapter(&domain.Adapter{ID: adapterID, WorkspaceID: &systemWorkspace.ID, AdapterType: domain.AdapterTypeSMTP}),
+		withWorkspace(systemWorkspace),
+		withIdentity(&domain.AdapterIdentity{ID: identityID, AdapterID: adapterID, Identity: "noreply-senda@tether.education", IdentityType: domain.IdentityTypeEmail}),
+		withIdentityGrant(identityID, childWorkspace.ID),
+	)
+
+	err := svc.ValidateTemplateTypeSelection(context.Background(), childWorkspace, &adapterID, &identityID)
+	if err != nil {
+		t.Fatalf("ValidateTemplateTypeSelection() error = %v", err)
 	}
-	if cfg.FromName != "" {
-		name := cfg.FromName
-		displayName = &name
+}
+
+func TestAdapterAccessService_ValidateTemplateTypeSelection_SharedSMTPRejectsMissingSenderIdentity(t *testing.T) {
+	systemWorkspace, childWorkspace, adapterID, _ := accessFixtureIDs(t)
+	svc := newAdapterAccessServiceFixture(t,
+		withAdapter(&domain.Adapter{ID: adapterID, WorkspaceID: &systemWorkspace.ID, AdapterType: domain.AdapterTypeSMTP}),
+		withWorkspace(systemWorkspace),
+	)
+
+	err := svc.ValidateTemplateTypeSelection(context.Background(), childWorkspace, &adapterID, nil)
+	if !errors.Is(err, domain.ErrSenderIdentityRequired) {
+		t.Fatalf("error = %v, want ErrSenderIdentityRequired", err)
 	}
-	return cfg.FromEmail, displayName, true
 }
 ```
 
-After successful create/update for SMTP, call `IdentityService.CreateManual` or a new small service helper that upserts the default SMTP identity. If the existing identity already exists, set it default through the store rather than creating a duplicate.
+If this repo does not have the helper names above, implement the same assertions with the existing manual mocks in `adapter_access_test.go`.
 
-- [ ] **Step 6: Run service and handler tests**
+- [ ] **Step 5: Extend identity-grant access rules to SMTP**
+
+In `internal/service/adapter_access.go`, treat SMTP like SES where access is identity-scoped:
+
+```go
+func usesIdentityGrants(adapterType domain.AdapterType) bool {
+	return adapterType == domain.AdapterTypeSES || adapterType == domain.AdapterTypeSMTP
+}
+```
+
+Use `usesIdentityGrants` in:
+
+- `GetAdapterAccess`
+- `ListIdentitiesForWorkspace`
+- `ValidateTemplateTypeSelection`
+- `ReplaceIdentityWorkspaceAccess`
+- `ListIdentityWorkspaceAccess`
+
+Keep Gmail on adapter-level grants. Do not give SMTP provider sync.
+
+- [ ] **Step 6: Update validation messages**
+
+In `internal/http/handler/template_type.go`, change SES-specific error text:
+
+```go
+response.FieldError{Field: "sender_identity_id", Message: "is required for shared adapter sender identities"}
+```
+
+In comments and docs, use “identity-scoped adapters” or “SES/SMTP” instead of “SES” when the rule now applies to both.
+
+- [ ] **Step 7: Run service and handler tests**
 
 Run:
 
 ```bash
-go test ./internal/service -run 'TestTestSendService_FallsBackToSMTPFromEmail|TestIdentityService' -count=1
-go test ./internal/http/handler -run 'TestAdapterHandler_Create_SMTP|TestAdapterHandler_Update_SMTP' -count=1
+go test ./internal/service -run 'TestIdentityService_CreateManual_AllowsSMTP|TestAdapterAccessService_.*SMTP|TestAdapterAccessService_.*SES|TestAdapterAccessService_.*Gmail' -count=1
+go test ./internal/http/handler -run 'TestTemplateTypeHandler_Create_SharedSESRequiresSenderIdentity|TestTemplateTypeHandler_.*SMTP|TestIdentityHandler' -count=1
 ```
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add internal/resolution/from_resolver.go internal/service/from_email.go internal/service/identity.go internal/http/handler/adapter.go internal/service/test_send_test.go internal/http/handler/adapter_test.go
-git commit -m "feat: resolve smtp sender identities"
+git add internal/service/identity.go internal/service/adapter_access.go internal/http/handler/template_type.go internal/service/*test.go internal/http/handler/*test.go
+git commit -m "feat: support smtp sender identities"
 ```
 
 ### Task 7: Backend Contract Docs and Verification
@@ -1005,8 +1011,6 @@ export interface SmtpConfig {
   auth_mode?: "plain" | "login";
   username?: string;
   password?: string;
-  from_email: string;
-  from_name?: string;
 }
 ```
 
@@ -1066,8 +1070,6 @@ const [smtpTLSMode, setSmtpTLSMode] = useState<"none" | "starttls" | "implicit_t
 const [smtpAuthMode, setSmtpAuthMode] = useState<"plain" | "login">("plain");
 const [smtpUsername, setSmtpUsername] = useState("");
 const [smtpPassword, setSmtpPassword] = useState("");
-const [smtpFromEmail, setSmtpFromEmail] = useState(defaults?.config_meta?.from_email ?? "");
-const [smtpFromName, setSmtpFromName] = useState("");
 ```
 
 - [ ] **Step 3: Include SMTP in type selector**
@@ -1095,8 +1097,6 @@ const config =
           ...(smtpUsername || smtpPassword ? { auth_mode: smtpAuthMode } : {}),
           ...(smtpUsername ? { username: smtpUsername } : {}),
           ...(smtpPassword ? { password: smtpPassword } : {}),
-          from_email: smtpFromEmail,
-          ...(smtpFromName ? { from_name: smtpFromName } : {}),
         };
 ```
 
@@ -1151,16 +1151,6 @@ Refactor the config section to branch `ses`, `gmail`, `smtp`. Add this SMTP bloc
         <Input id="smtp-password" type="password" value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} placeholder={isEdit ? "Leave empty to keep current" : "secret"} className="font-mono" />
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-3">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="smtp-from-email">From Email</Label>
-        <Input id="smtp-from-email" type="email" value={smtpFromEmail} onChange={(e) => setSmtpFromEmail(e.target.value)} placeholder="no-reply@example.com" className="font-mono" required={!isEdit} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="smtp-from-name">From Name</Label>
-        <Input id="smtp-from-name" value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} placeholder="Senda" />
-      </div>
-    </div>
   </div>
 )}
 ```
@@ -1187,6 +1177,7 @@ git commit -m "feat: add smtp adapter form"
 **Files:**
 - Modify: `web/src/components/adapters/adapter-type-badge.tsx`
 - Modify: `web/src/components/adapters/adapters-content.tsx`
+- Modify: `web/src/components/templates/template-types-content.tsx`
 
 - [ ] **Step 1: Add SMTP badge**
 
@@ -1221,23 +1212,43 @@ In `adapters-content.tsx`, ensure checks are explicit:
 ```ts
 const supportsIdentitySync = adapter.adapter_type === "ses" || adapter.adapter_type === "gmail";
 const supportsProvisioning = adapter.adapter_type === "ses";
-const supportsSenderSharing = adapter.adapter_type === "ses";
+const supportsSenderSharing = adapter.adapter_type === "ses" || adapter.adapter_type === "smtp";
 const supportsAdapterSharing = adapter.adapter_type === "gmail";
 ```
 
-Use these booleans to render sync/provisioning/sharing actions. Do not render SES/Gmail actions for SMTP.
+Use these booleans to render sync/provisioning/sharing actions. SMTP should not render provider sync or SES provisioning, but it should render identity-level sender sharing for manual SMTP email identities.
 
-- [ ] **Step 3: Test send from SMTP**
+- [ ] **Step 3: Show sender identity selection for SMTP template types**
+
+In `web/src/components/templates/template-types-content.tsx`, update adapter identity logic:
+
+```ts
+const usesSenderIdentity = !!selectedAdapter && (
+  selectedAdapter.adapter_type === "ses" || selectedAdapter.adapter_type === "smtp"
+);
+const showIdentitySelect = usesSenderIdentity;
+const requireExplicitSender = usesSenderIdentity && selectedAdapter.is_shared;
+```
+
+Also update create validation that currently checks only shared SES:
+
+```ts
+if ((selectedAdapter?.adapter_type === "ses" || selectedAdapter?.adapter_type === "smtp") && selectedAdapter.is_shared && !newSenderIdentityId) {
+  // preserve existing validation behavior/message shape
+}
+```
+
+- [ ] **Step 4: Test send from SMTP**
 
 Change test-send payload:
 
 ```ts
-...(adapter.adapter_type === "ses" && from ? { from } : {}),
+...((adapter.adapter_type === "ses" || adapter.adapter_type === "smtp") && from ? { from } : {}),
 ```
 
-Keep this SES-only unless backend later supports choosing SMTP identities manually in the test dialog. SMTP should use the backend default `from_email`.
+The test dialog should show the same sender email picker for SMTP that it shows for SES, using manual verified email identities.
 
-- [ ] **Step 4: Run frontend checks**
+- [ ] **Step 5: Run frontend checks**
 
 Run:
 
@@ -1248,10 +1259,10 @@ corepack pnpm --dir web lint
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add web/src/components/adapters/adapter-type-badge.tsx web/src/components/adapters/adapters-content.tsx
+git add web/src/components/adapters/adapter-type-badge.tsx web/src/components/adapters/adapters-content.tsx web/src/components/templates/template-types-content.tsx
 git commit -m "feat: show smtp adapters in ui"
 ```
 
@@ -1289,13 +1300,24 @@ TLS Mode: None
 Auth Mode: PLAIN or LOGIN
 Username: use the relay username provided by the user
 Password: use the relay password provided by the user
-From Email: noreply-senda@tether.education
 Rate Limit: 10
 ```
 
 Expected: create succeeds and table shows SMTP badge.
 
-- [ ] **Step 4: Send test email**
+- [ ] **Step 4: Register SMTP sender identity**
+
+Use the adapter identity UI to add:
+
+```text
+Identity: noreply-senda@tether.education
+Display Name: Senda
+Set as default: yes, if the UI exposes the default action separately
+```
+
+Expected: the identity appears as a verified manual email identity and can be selected by template types/test send.
+
+- [ ] **Step 5: Send test email**
 
 Use Test Send with:
 
@@ -1307,7 +1329,7 @@ Body: <p>Hello from SMTP</p>
 
 Expected: success toast. The user will validate whether the message arrives at `reynaldo@tether.education`.
 
-- [ ] **Step 5: Commit visual fixes if needed**
+- [ ] **Step 6: Commit visual fixes if needed**
 
 If visual fixes are needed:
 
@@ -1369,6 +1391,6 @@ Skip the commit if all prior task commits already captured every change.
 
 ## Self-Review Notes
 
-- Spec coverage: backend contract, DB enum, sender runtime, handler validation, password preservation, identity fallback, UI form, badge, action gating, test send, docs, and gates are covered.
+- Spec coverage: backend contract, DB enum, sender runtime, handler validation, password preservation, SMTP manual identities, identity-level sharing, UI form, badge, action gating, test send, docs, and gates are covered.
 - Placeholder scan: no unresolved placeholder markers are intentionally left. The one migration down file is intentionally irreversible because PostgreSQL enum value removal is unsafe after application.
-- Type consistency: canonical names are `AdapterTypeSMTP`, `smtp`, `SmtpConfig`, `tls_mode`, `from_email`, and `implicit_tls`.
+- Type consistency: canonical names are `AdapterTypeSMTP`, `smtp`, `SmtpConfig`, `tls_mode`, `auth_mode`, and `implicit_tls`; sender addresses are `AdapterIdentity` records, not SMTP config fields.
