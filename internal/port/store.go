@@ -328,6 +328,26 @@ type ProvisioningStepStore interface {
 	DeleteByAdapter(ctx context.Context, adapterID uuid.UUID) error
 }
 
+// TemplateTypeSubscriptionStore manages per-(workspace, template_type, email) subscription state.
+type TemplateTypeSubscriptionStore interface {
+	// Upsert inserts or updates the subscription state for (workspace, template_type, email).
+	// ON CONFLICT (workspace_id, template_type_id, email) DO UPDATE.
+	Upsert(ctx context.Context, sub *domain.TemplateTypeSubscription) error
+
+	// GetState returns the current subscription row for the given key, or
+	// a 404 AppError if none exists.
+	GetState(ctx context.Context, workspaceID, templateTypeID uuid.UUID, email string) (*domain.TemplateTypeSubscription, error)
+
+	// ListOptOutsForRecipient returns ALL rows (any subscribed value) for
+	// (workspace, email). Used by the preference center to render current state.
+	ListOptOutsForRecipient(ctx context.Context, workspaceID uuid.UUID, email string) ([]*domain.TemplateTypeSubscription, error)
+
+	// BatchCheckOptOut returns the set of emails (from the input slice) that
+	// are explicitly opted-OUT of the given template_type. Emails with no row
+	// or with subscribed=true are NOT returned.
+	BatchCheckOptOut(ctx context.Context, workspaceID, templateTypeID uuid.UUID, emails []string) (map[string]struct{}, error)
+}
+
 // ---- Pagination Types ----
 
 // ListOptions for paginated list queries.
