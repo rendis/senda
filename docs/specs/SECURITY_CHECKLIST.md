@@ -159,6 +159,7 @@
 
 - [ ] SNS webhook: verify the message signature before processing
 - [ ] Webhook dispatch: sign with HMAC-SHA256 so the receiver can verify it
+- [ ] Unsubscribe token: HMAC-SHA256, per-workspace 32-byte signing key, 12-month TTL, idempotent verify — constant-time compare via `hmac.Equal`; no DB writes on token verification failure
 - [ ] Migrations checksummed by golang-migrate
 - [ ] Docker images pinned by digest in production
 

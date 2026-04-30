@@ -20,10 +20,24 @@ live one level deeper — see `versions-locales-and-builder.md`.
 | `variable_schema` | jsonb | JSON Schema describing the `event.*` variables. |
 | `test_recipient_mode` | enum? | Optional override of workspace's recipient policy in `env=test`. |
 | `test_recipient_addresses` | string[] | Same. |
+| `is_bulk` | bool | Default `false`. When `true`, every send injects `List-Unsubscribe` / `List-Unsubscribe-Post` headers and exposes `{{ system.unsubscribe_url }}` / `{{ system.preferences_url }}` template variables. See [Bulk vs transactional](#bulk-vs-transactional). |
 | `created_at`, `updated_at`, `deleted_at` | ts | Soft-delete via `deleted_at`. |
 
 Computed at runtime (not persisted): `OwnerScope` (`global|tenant|workspace`),
 `InheritedFromSystem` (true when read from `_system`).
+
+### Bulk vs transactional
+
+Set `is_bulk: true` when creating a `template_type` for newsletters, marketing, alerts, or any
+recurring communication that the recipient should be able to opt out of. Senda will:
+
+- inject `List-Unsubscribe` and `List-Unsubscribe-Post` headers on every send (RFC 2369 + RFC 8058);
+- expose `{{ system.unsubscribe_url }}` and `{{ system.preferences_url }}` template variables;
+- consult `template_type_subscription` suppression before sending.
+
+Leave `is_bulk` at the default `false` for transactional emails (password reset, OTP, receipts,
+critical account events). These never carry an unsubscribe header and never check
+`template_type_subscription`.
 
 ### `Template`
 
@@ -48,7 +62,7 @@ one template per (type, scope).
 
 | Method | Path | RBAC | Notes |
 |---|---|---|---|
-| POST | `<ws>/template-types` | workspace_admin | `{slug, name, description?, adapter_id?, sender_identity_id?, variable_schema?, test_recipient_mode?, test_recipient_addresses?}`. Slug is kebab-case. `test_recipient_*` only valid in env=test. Subject to `allow_workspace_local_templates` policy if workspace ≠ `_system`. |
+| POST | `<ws>/template-types` | workspace_admin | `{slug, name, description?, adapter_id?, sender_identity_id?, variable_schema?, test_recipient_mode?, test_recipient_addresses?, is_bulk?}`. Slug is kebab-case. `is_bulk` defaults to `false`. `test_recipient_*` only valid in env=test. Subject to `allow_workspace_local_templates` policy if workspace ≠ `_system`. |
 | GET | `<ws>/template-types` | workspace_viewer+ | Returns local + inherited from `_system` (dedup by slug). No real cursor. |
 | GET | `<ws>/template-types/:slug` | workspace_viewer+ | Resolves down the chain. |
 | PUT | `<ws>/template-types/:slug` | workspace_admin | Patch parcial. Only mutable if owned by current workspace. |

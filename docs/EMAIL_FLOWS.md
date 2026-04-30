@@ -484,3 +484,40 @@ To trace an email end-to-end: query by `tracking_id` via `GET /api/v1/emails/:tr
 | Prometheus metrics | `internal/metrics/metrics.go` |
 | Request ID middleware | `internal/http/middleware/requestid.go` |
 | Provider event domain | `internal/domain/provider_event.go` |
+| Unsubscribe service | `internal/service/unsubscribe.go` |
+| Unsubscribe HTTP handler | `internal/http/handler/unsubscribe.go` |
+| Template-type subscription store | `internal/adapter/postgres/template_type_subscription_repo.go` |
+
+---
+
+## Unsubscribe
+
+When a `template_type` has `is_bulk = true`, every send for that type carries:
+
+- HTTP header `List-Unsubscribe: <https://<base>/api/v1/u/{token}>` (RFC 2369)
+- HTTP header `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058)
+- Two template variables resolvable in MJML: `{{ system.unsubscribe_url }}` and `{{ system.preferences_url }}`
+
+The token is HMAC-SHA256 over a JSON payload (`v`, `ws`, `tt`, `ttn`, `e`, `eid`, `iat`, `exp`) signed
+with the per-workspace key stored in `workspaces.unsubscribe_signing_key`. Tokens expire 12 months
+after issue.
+
+Suppression has three levels checked in cascade by `SuppressionBatchEvaluator.EvaluateForType`:
+
+1. **`suppression_global`** — hard bounce / complaint anywhere.
+2. **`suppression_workspace`** — opt-out-all (`reason='unsubscribe'`) or admin block.
+3. **`template_type_subscription`** — per-type opt-out from preference center or one-click.
+
+The first match blocks the send. `template_type` transactional sends (where `is_bulk = false`) are
+**never** blocked by level 3 and **never** carry the `List-Unsubscribe` header.
+
+Recipients can self-service:
+
+- `POST /api/v1/u/{token}` — one-click opt-out from this type (RFC 8058).
+- `POST /api/v1/u/{token}/all` — opt-out from all types in this workspace.
+- `POST /api/v1/u/{token}/resubscribe` — undo opt-out-all (does NOT undo hard_bounce/complaint).
+- `GET  /api/v1/u/{token}/preferences` — list types received in last 12 months + state.
+- `POST /api/v1/u/{token}/preferences` — flip subscription state per type.
+
+The browser-facing pages live in Next.js: `/u/{token}` (single-event vs all radio), `/u/{token}/preferences`
+(checkbox-per-type center).
