@@ -257,7 +257,7 @@ func TestSecurityPerimeterHardening01_AutonomousFlow(t *testing.T) {
 
 		e := echo.New()
 		e.HTTPErrorHandler = response.HTTPErrorHandler
-		e.Use(middleware.ExternalIntegration(store))
+		e.Use(middleware.ExternalIntegration(store, nil))
 		e.GET("/api/v1/external/:profile_slug/tenants/:tenant_code/workspaces/:workspace_code/template-types", func(c *echo.Context) error {
 			return c.NoContent(http.StatusOK)
 		})

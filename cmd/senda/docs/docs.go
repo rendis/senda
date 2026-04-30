@@ -25392,6 +25392,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "is_bulk": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -27143,6 +27146,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "inherited_from_system": {
+                    "type": "boolean"
+                },
+                "is_bulk": {
                     "type": "boolean"
                 },
                 "name": {

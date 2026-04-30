@@ -20,6 +20,9 @@ smtp:
   host: "mailpit"
   port: 1025
 
+tracking:
+  base_url: "http://senda:8080"
+
 log:
   level: "debug"
   format: "text"

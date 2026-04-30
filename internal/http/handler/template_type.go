@@ -125,6 +125,8 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspace *domain.Workspac
 		}
 	}
 
+	isBulk := req.IsBulk != nil && *req.IsBulk
+
 	tt, err := h.svc.Create(
 		c.Request().Context(),
 		req.Slug,
@@ -135,6 +137,7 @@ func (h *TemplateTypeHandler) create(c *echo.Context, workspace *domain.Workspac
 		variableSchema,
 		testRecipientMode,
 		testRecipientAddresses,
+		isBulk,
 		workspaceID,
 	)
 	if err != nil {

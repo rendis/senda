@@ -23,6 +23,7 @@ type TemplateTypeResponse struct {
 	TestRecipientAddresses []string      `json:"test_recipient_addresses,omitempty"`
 	OwnerScope          string           `json:"owner_scope,omitempty"`
 	InheritedFromSystem bool             `json:"inherited_from_system"`
+	IsBulk              bool             `json:"is_bulk"`
 	CreatedAt           string           `json:"created_at"`
 	UpdatedAt           string           `json:"updated_at"`
 }
@@ -42,6 +43,7 @@ func NewTemplateTypeResponse(tt *domain.TemplateType) TemplateTypeResponse {
 		Name:                tt.Name,
 		OwnerScope:          tt.OwnerScope,
 		InheritedFromSystem: tt.InheritedFromSystem,
+		IsBulk:              tt.IsBulk,
 		CreatedAt:           formatTime(tt.CreatedAt),
 		UpdatedAt:           formatTime(tt.UpdatedAt),
 	}

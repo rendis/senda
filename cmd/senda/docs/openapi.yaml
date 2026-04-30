@@ -138,6 +138,8 @@ components:
                     type: string
                 description:
                     type: string
+                is_bulk:
+                    type: boolean
                 name:
                     type: string
                 sender_identity_id:
@@ -1283,6 +1285,8 @@ components:
                 id:
                     type: string
                 inherited_from_system:
+                    type: boolean
+                is_bulk:
                     type: boolean
                 name:
                     type: string
