@@ -1707,3 +1707,155 @@ func TestSendWorker_BulkPath_TemplateTypeLookupTransientError_SkipsHeaders(t *te
 		t.Errorf("expected nil systemVars passed to renderer, got %v", renderer.lastSystemVars)
 	}
 }
+
+// ---- mockSuppressionStore ----
+
+type mockSuppressionStore struct {
+	isSuppressedFn func(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error)
+}
+
+func (m *mockSuppressionStore) AddGlobal(_ context.Context, _ *domain.SuppressionGlobal) error {
+	return nil
+}
+func (m *mockSuppressionStore) IsGloballySuppressed(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+func (m *mockSuppressionStore) RemoveGlobal(_ context.Context, _ string, _ uuid.UUID, _ string) error {
+	return nil
+}
+func (m *mockSuppressionStore) AddWorkspace(_ context.Context, _ *domain.SuppressionWorkspace) error {
+	return nil
+}
+func (m *mockSuppressionStore) IsWorkspaceSuppressed(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
+	return false, nil
+}
+func (m *mockSuppressionStore) GetActiveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string) (*domain.SuppressionWorkspace, error) {
+	return nil, domain.ErrNotFound
+}
+func (m *mockSuppressionStore) RemoveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string, _ string) error {
+	return nil
+}
+func (m *mockSuppressionStore) IsSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error) {
+	if m.isSuppressedFn != nil {
+		return m.isSuppressedFn(ctx, wsID, email)
+	}
+	return false, "", nil
+}
+func (m *mockSuppressionStore) CheckBatch(_ context.Context, _ uuid.UUID, _ []string) (map[string]string, error) {
+	return nil, nil
+}
+
+// TestSendWorker_PreSendSuppressionCheck_BlocksSend asserts that a recipient
+// suppressed after enqueue is not sent to: the worker must cancel the job,
+// update the email to status=suppressed, and not call the provider sender.
+func TestSendWorker_PreSendSuppressionCheck_BlocksSend(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	sender := &mockSender{}
+
+	suppressionStore := &mockSuppressionStore{
+		isSuppressedFn: func(_ context.Context, _ uuid.UUID, _ string) (bool, string, error) {
+			// Recipient unsubscribed while the email was queued.
+			return true, "unsubscribe", nil
+		},
+	}
+
+	worker := newTestSendWorker(
+		emailStore,
+		&mockCompiler{},
+		&mockRenderer{},
+		&mockRateLimiter{},
+		sender,
+		WithSuppressionStore(suppressionStore),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	err := worker.Work(context.Background(), job)
+	// The worker must cancel the job (JobCancel wraps the underlying error).
+	if err == nil {
+		t.Fatal("expected a cancelled-job error, got nil")
+	}
+
+	// Provider sender must NOT have been called.
+	if len(sender.calls) != 0 {
+		t.Fatalf("expected 0 send calls (suppressed), got %d", len(sender.calls))
+	}
+
+	// Email status must have been updated to suppressed.
+	var foundSuppressed bool
+	for _, call := range emailStore.updateStatusCalls {
+		if call.Status == domain.StatusSuppressed {
+			foundSuppressed = true
+		}
+	}
+	if !foundSuppressed {
+		t.Error("expected email status to be updated to StatusSuppressed")
+	}
+
+	// A suppressed event must have been added.
+	var foundSuppressedEvent bool
+	for _, call := range emailStore.addEventCalls {
+		if call.Event.EventType == domain.EventTypeSuppressed {
+			foundSuppressedEvent = true
+		}
+	}
+	if !foundSuppressedEvent {
+		t.Error("expected a suppressed event to be added")
+	}
+}
+
+// TestSendWorker_PreSendSuppressionCheck_AllowsUnsuppressed asserts that a
+// recipient not found in the suppression store still gets sent.
+func TestSendWorker_PreSendSuppressionCheck_AllowsUnsuppressed(t *testing.T) {
+	email := newTestEmail()
+	emailStore := &mockEmailStore{
+		getByTrackingIDFn: func(_ context.Context, trackingID string) (*domain.Email, error) {
+			if trackingID == email.TrackingID {
+				return email, nil
+			}
+			return nil, domain.ErrNotFound
+		},
+	}
+	sender := &mockSender{}
+
+	suppressionStore := &mockSuppressionStore{
+		isSuppressedFn: func(_ context.Context, _ uuid.UUID, _ string) (bool, string, error) {
+			return false, "", nil
+		},
+	}
+
+	worker := newTestSendWorker(
+		emailStore,
+		&mockCompiler{},
+		&mockRenderer{},
+		&mockRateLimiter{},
+		sender,
+		WithSuppressionStore(suppressionStore),
+	)
+
+	job := makeJob(SendJobArgs{
+		EmailID:    email.ID,
+		TrackingID: email.TrackingID,
+		AdapterID:  email.AdapterID,
+	}, 1)
+
+	if err := worker.Work(context.Background(), job); err != nil {
+		t.Fatalf("unexpected error for unsuppressed recipient: %v", err)
+	}
+
+	if len(sender.calls) != 1 {
+		t.Fatalf("expected 1 send call, got %d", len(sender.calls))
+	}
+}

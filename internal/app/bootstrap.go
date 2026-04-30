@@ -262,6 +262,7 @@ func newResolutionBundle(repos repositoryBundle, cache *pgcache.PGCache, ext *Ex
 func newRiverClient(cfg *config.Config, logger *slog.Logger, pool *pgxpool.Pool, repos repositoryBundle, infra *infraBundle) (*river.Client, error) {
 	sendWorkerOpts := []river.SendWorkerOption{
 		river.WithAdapterRuntime(repos.adapterRepo, infra.aesCrypto, river.NewAdapterSenderFactory(newSMTPCleartextAuthPolicy(cfg))),
+		river.WithSuppressionStore(repos.suppressionRepo),
 	}
 	// cfg.Tracking.BaseURL doubles as the public domain for unsubscribe URLs and
 	// the List-Unsubscribe HTTP header. Senda assumes both endpoints share a
