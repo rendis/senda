@@ -242,12 +242,21 @@ func (s *UnsubscribeService) OptOutAll(ctx context.Context, token string) error 
 }
 
 // Resubscribe removes the workspace-level suppression, re-enabling delivery.
+// Idempotent: if no active recipient-initiated unsubscribe exists (or the
+// active row carries a reason we don't allow recipients to override, such as
+// hard_bounce/complaint/manual), this is a no-op success.
 func (s *UnsubscribeService) Resubscribe(ctx context.Context, token string) error {
 	p, err := s.verify(ctx, token)
 	if err != nil {
 		return err
 	}
-	return s.supWS.RemoveWorkspaceSuppression(ctx, p.WorkspaceID, p.Email, "recipient_resubscribe")
+	if err := s.supWS.RemoveWorkspaceSuppression(ctx, p.WorkspaceID, p.Email, "recipient_resubscribe"); err != nil {
+		if apperr.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // GetPreferences returns the preference center view, populated with every

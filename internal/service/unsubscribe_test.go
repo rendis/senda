@@ -492,6 +492,24 @@ func TestUnsubscribeService_Resubscribe_RemovesWorkspaceSuppression(t *testing.T
 	}
 }
 
+func TestUnsubscribeService_Resubscribe_IdempotentWhenNothingActive(t *testing.T) {
+	ws := uuid.MustParse("01927e80-aaaa-bbbb-cccc-000000000009")
+	key := unsub_testKey(0)
+	now := unsub_fixedTime()
+	tok := unsub_makeToken(t, key, ws, "newsletter", "user@example.com", uuid.New(), now)
+
+	wsLookup := &fakeWorkspaceLookup{key: key, ws: &domain.Workspace{ID: ws, Name: "Acme"}}
+	// Repo signals "no active row to remove" via apperr.NotFound (e.g. recipient
+	// never opted out, or active row carries reason != 'unsubscribe' such as
+	// complaint/manual which the recipient cannot revert).
+	supWS := &fakeSuppressionWS{removeErr: apperr.NotFound("no active unsubscribe row")}
+	svc := newTestService(wsLookup, &fakeTemplateTypeLookup{}, supWS, &fakeTTSWriter{}, &fakeEmailHistory{})
+
+	if err := svc.Resubscribe(context.Background(), tok); err != nil {
+		t.Fatalf("Resubscribe must be idempotent on missing active row, got: %v", err)
+	}
+}
+
 // ---- multi-type fakes for preference tests ----
 
 // multiTTLookup returns responses keyed by slug in the order provided.
