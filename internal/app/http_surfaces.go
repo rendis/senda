@@ -85,13 +85,15 @@ func externalIntegrationSurfaceOptions(h externalIntegrationSurfaceHandlers) []s
 }
 
 type publicSurfaceHandlers struct {
-	tracking *handler.TrackingHandler
-	media    *handler.MediaHandler
+	tracking    *handler.TrackingHandler
+	media       *handler.MediaHandler
+	unsubscribe *handler.UnsubscribeHandler
 }
 
 func publicSurfaceOptions(h publicSurfaceHandlers) []sendahttp.ServerOption {
 	return []sendahttp.ServerOption{
 		sendahttp.WithTrackingHandler(h.tracking),
 		sendahttp.WithMediaHandler(h.media),
+		sendahttp.WithUnsubscribeHandler(h.unsubscribe),
 	}
 }

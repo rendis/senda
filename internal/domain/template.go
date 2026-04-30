@@ -27,6 +27,7 @@ type TemplateType struct {
 	TestRecipientAddresses []string
 	OwnerScope          string
 	InheritedFromSystem bool
+	IsBulk              bool
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	DeletedAt           *time.Time

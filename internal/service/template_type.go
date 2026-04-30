@@ -35,6 +35,7 @@ func (s *TemplateTypeService) Create(
 	variableSchema map[string]any,
 	testRecipientMode *domain.TestRecipientMode,
 	testRecipientAddresses []string,
+	isBulk bool,
 	wsID *uuid.UUID,
 ) (*domain.TemplateType, error) {
 	existing, err := s.store.FindTypeBySlugInScope(ctx, slug, wsID)
@@ -57,6 +58,7 @@ func (s *TemplateTypeService) Create(
 		VariableSchema:   variableSchema,
 		TestRecipientMode: testRecipientMode,
 		TestRecipientAddresses: append([]string(nil), testRecipientAddresses...),
+		IsBulk:           isBulk,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}

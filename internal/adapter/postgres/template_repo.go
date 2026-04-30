@@ -30,11 +30,11 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO template_types (
 		    id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema,
-		    test_recipient_mode, test_recipient_addresses
+		    test_recipient_mode, test_recipient_addresses, is_bulk
 		)
 		 VALUES (
 		    @id, @slug, @name, @description, @workspace_id, @adapter_id, @sender_identity_id, @variable_schema,
-		    @test_recipient_mode, @test_recipient_addresses
+		    @test_recipient_mode, @test_recipient_addresses, @is_bulk
 		)
 		 RETURNING created_at, updated_at`,
 		pgx.NamedArgs{
@@ -48,6 +48,7 @@ func (r *TemplateRepo) CreateType(ctx context.Context, tt *domain.TemplateType) 
 			"variable_schema":          coalesceJSON(tt.VariableSchema),
 			"test_recipient_mode":      tt.TestRecipientMode,
 			"test_recipient_addresses": domain.NormalizeRecipientAddresses(tt.TestRecipientAddresses),
+			"is_bulk":                  tt.IsBulk,
 		},
 	)
 
@@ -68,7 +69,7 @@ func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) 
 		     adapter_id = @adapter_id, sender_identity_id = @sender_identity_id,
 		     variable_schema = @variable_schema,
 		     test_recipient_mode = @test_recipient_mode, test_recipient_addresses = @test_recipient_addresses,
-		     updated_at = now()
+		     is_bulk = @is_bulk, updated_at = now()
 		 WHERE id = @id AND deleted_at IS NULL
 		 RETURNING updated_at`,
 		pgx.NamedArgs{
@@ -81,6 +82,7 @@ func (r *TemplateRepo) UpdateType(ctx context.Context, tt *domain.TemplateType) 
 			"variable_schema":          coalesceJSON(tt.VariableSchema),
 			"test_recipient_mode":      tt.TestRecipientMode,
 			"test_recipient_addresses": domain.NormalizeRecipientAddresses(tt.TestRecipientAddresses),
+			"is_bulk":                  tt.IsBulk,
 		},
 	)
 
@@ -112,7 +114,7 @@ func (r *TemplateRepo) GetTypeBySlug(ctx context.Context, slug string, chain []u
 	scopes, includeGlobal := splitChain(chain)
 
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 		        created_at, updated_at, deleted_at
 		 FROM template_types
 		 WHERE slug = @slug
@@ -140,7 +142,7 @@ func (r *TemplateRepo) FindTypeBySlugInScope(ctx context.Context, slug string, w
 	var row pgx.Row
 	if wsID == nil {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 			        created_at, updated_at, deleted_at
 			 FROM template_types
 			 WHERE slug = @slug AND workspace_id IS NULL AND deleted_at IS NULL`,
@@ -148,7 +150,7 @@ func (r *TemplateRepo) FindTypeBySlugInScope(ctx context.Context, slug string, w
 		)
 	} else {
 		row = r.pool.QueryRow(ctx,
-			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+			`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 			        created_at, updated_at, deleted_at
 			 FROM template_types
 			 WHERE slug = @slug AND workspace_id = @workspace_id AND deleted_at IS NULL`,
@@ -172,7 +174,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 		// Global scope: only global types.
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL AND id < @after_id
@@ -182,7 +184,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id IS NULL AND deleted_at IS NULL
@@ -195,7 +197,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 		// Workspace scope: types in this workspace.
 		if afterID != nil {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL AND id < @after_id
@@ -205,7 +207,7 @@ func (r *TemplateRepo) ListTypes(ctx context.Context, wsID *uuid.UUID, opts port
 			)
 		} else {
 			rows, err = r.pool.Query(ctx,
-				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+				`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 				        created_at, updated_at, deleted_at
 				 FROM template_types
 				 WHERE workspace_id = @workspace_id AND deleted_at IS NULL
@@ -375,7 +377,7 @@ func (r *TemplateRepo) GetTemplateByID(ctx context.Context, id uuid.UUID) (*doma
 
 func (r *TemplateRepo) GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses,
+		`SELECT id, slug, name, description, workspace_id, adapter_id, sender_identity_id, variable_schema, test_recipient_mode, test_recipient_addresses, is_bulk,
 		        created_at, updated_at, deleted_at
 		 FROM template_types
 		 WHERE id = @id AND deleted_at IS NULL`,
@@ -1171,7 +1173,7 @@ func scanTemplateTypeRow(row pgx.CollectableRow) (*domain.TemplateType, error) {
 	var tt domain.TemplateType
 	err := row.Scan(
 		&tt.ID, &tt.Slug, &tt.Name, &tt.Description,
-		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema, &tt.TestRecipientMode, &tt.TestRecipientAddresses,
+		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema, &tt.TestRecipientMode, &tt.TestRecipientAddresses, &tt.IsBulk,
 		&tt.CreatedAt, &tt.UpdatedAt, &tt.DeletedAt,
 	)
 	if err != nil {
@@ -1184,7 +1186,7 @@ func scanTemplateType(row pgx.Row) (*domain.TemplateType, error) {
 	var tt domain.TemplateType
 	err := row.Scan(
 		&tt.ID, &tt.Slug, &tt.Name, &tt.Description,
-		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema, &tt.TestRecipientMode, &tt.TestRecipientAddresses,
+		&tt.WorkspaceID, &tt.AdapterID, &tt.SenderIdentityID, &tt.VariableSchema, &tt.TestRecipientMode, &tt.TestRecipientAddresses, &tt.IsBulk,
 		&tt.CreatedAt, &tt.UpdatedAt, &tt.DeletedAt,
 	)
 	if err != nil {

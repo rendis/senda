@@ -103,6 +103,46 @@ func TestServer_PublicMetricsRoute_IsRegisteredWithMetricsToken(t *testing.T) {
 	}
 }
 
+func TestServer_RegistersUnsubscribeRoutes_WhenHandlerSet(t *testing.T) {
+	srv := sendahttp.NewServer(
+		testConfig(),
+		testLogger(),
+		sendahttp.WithUnsubscribeHandler(handler.NewUnsubscribeHandler(nil)),
+	)
+
+	routes := []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/u/:token"},
+		{http.MethodPost, "/api/v1/u/:token"},
+		{http.MethodPost, "/api/v1/u/:token/all"},
+		{http.MethodPost, "/api/v1/u/:token/resubscribe"},
+		{http.MethodGet, "/api/v1/u/:token/preferences"},
+		{http.MethodPost, "/api/v1/u/:token/preferences"},
+	}
+	for _, r := range routes {
+		if !routeExists(srv, r.method, r.path) {
+			t.Errorf("expected unsubscribe route %s %s to be registered when handler is set", r.method, r.path)
+		}
+	}
+}
+
+func TestServer_DoesNotRegisterUnsubscribeRoutes_WhenHandlerAbsent(t *testing.T) {
+	srv := sendahttp.NewServer(testConfig(), testLogger())
+
+	routes := []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/u/:token"},
+		{http.MethodPost, "/api/v1/u/:token"},
+		{http.MethodPost, "/api/v1/u/:token/all"},
+		{http.MethodPost, "/api/v1/u/:token/resubscribe"},
+		{http.MethodGet, "/api/v1/u/:token/preferences"},
+		{http.MethodPost, "/api/v1/u/:token/preferences"},
+	}
+	for _, r := range routes {
+		if routeExists(srv, r.method, r.path) {
+			t.Errorf("did not expect unsubscribe route %s %s to be registered when handler is absent", r.method, r.path)
+		}
+	}
+}
+
 func routeExists(srv *sendahttp.Server, method, path string) bool {
 	for _, route := range srv.Echo().Router().Routes() {
 		if route.Method == method && route.Path == path {

@@ -453,5 +453,23 @@
       "title": "Eliminar injector",
       "description": "¿Seguro que quieres eliminar \"{name}\"? Los templates que usan este injector dejarán de ver sus campos en el builder."
     }
+  },
+  "unsubscribe": {
+    "loading": "Cargando…",
+    "title_for_event": "Estás dejando de recibir correos de {workspace_name}",
+    "this_event_label": "Dejar de recibir \"{template_type_name}\"",
+    "all_label": "Dejar de recibir TODOS los correos de {workspace_name}",
+    "confirm": "Confirmar",
+    "manage_link": "Gestionar todas mis preferencias",
+    "success_event": "Ya no recibirás \"{template_type_name}\".",
+    "success_all": "Ya no recibirás ningún correo de {workspace_name}.",
+    "preferences_title": "Preferencias de correo para {email}",
+    "preferences_subtitle": "Mostrando tipos que recibiste en los últimos 12 meses de {workspace_name}.",
+    "save": "Guardar",
+    "saved": "Preferencias guardadas",
+    "all_warning": "Te diste de baja de todos los correos de {workspace_name}.",
+    "resubscribe_all": "Reactivar todos",
+    "invalid_token": "Este enlace no es válido o expiró.",
+    "last_received": "Último envío"
   }
 }

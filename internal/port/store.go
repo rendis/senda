@@ -32,6 +32,10 @@ type WorkspaceStore interface {
 	Update(ctx context.Context, ws *domain.Workspace) error
 	SoftDeleteLogical(ctx context.Context, tenantID uuid.UUID, code string) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
+
+	// GetUnsubscribeSigningKey returns the 32-byte HMAC key used to sign and
+	// verify unsubscribe tokens for this workspace.
+	GetUnsubscribeSigningKey(ctx context.Context, workspaceID uuid.UUID) ([]byte, error)
 }
 
 // WorkspaceExistenceStore provides batch existence checks for tenant-scoped workspace codes.
@@ -115,6 +119,12 @@ type TemplateStore interface {
 	SetDisabled(ctx context.Context, templateID uuid.UUID, wsID *uuid.UUID, disabled bool) error
 }
 
+// EmailHistoryType is one row of recipient history aggregated by template_type slug.
+type EmailHistoryType struct {
+	Slug       string
+	LastSentAt time.Time
+}
+
 // EmailStore manages email persistence and queries.
 type EmailStore interface {
 	Create(ctx context.Context, email *domain.Email) error
@@ -135,6 +145,11 @@ type EmailStore interface {
 	QueryByExternalID(ctx context.Context, wsID uuid.UUID, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
 	QueryByRecipient(ctx context.Context, wsID uuid.UUID, email string, cursor string, limit int) ([]*domain.Email, string, error)
 	QueryByWorkspace(ctx context.Context, wsID uuid.UUID, filters EmailFilters, cursor string, limit int) ([]*domain.Email, string, error)
+
+	// DistinctTemplateTypesForRecipient returns one row per distinct template_type_slug
+	// that the recipient received in the workspace since the given timestamp,
+	// ordered by most recent first.
+	DistinctTemplateTypesForRecipient(ctx context.Context, workspaceID uuid.UUID, email string, since time.Time) ([]EmailHistoryType, error)
 
 	// Cross-tenant (superadmin only)
 	QueryByExternalIDGlobal(ctx context.Context, externalID string, cursor string, limit int) ([]*domain.Email, string, error)
@@ -171,6 +186,15 @@ type SuppressionStore interface {
 	// Workspace
 	AddWorkspace(ctx context.Context, entry *domain.SuppressionWorkspace) error
 	IsWorkspaceSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, error)
+
+	// GetActiveWorkspaceSuppression returns the active (removed_at IS NULL) workspace
+	// suppression for (workspaceID, email), or apperr.NotFound if none.
+	GetActiveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string) (*domain.SuppressionWorkspace, error)
+
+	// RemoveWorkspaceSuppression sets removed_at and removal_reason on the active
+	// row for (workspaceID, email). Returns apperr.NotFound if no active row exists
+	// (caller may treat as no-op for idempotent resubscribe flows).
+	RemoveWorkspaceSuppression(ctx context.Context, workspaceID uuid.UUID, email string, removalReason string) error
 
 	// Combined check (optimized)
 	IsSuppressed(ctx context.Context, wsID uuid.UUID, email string) (bool, string, error) // returns (suppressed, reason, err)
@@ -322,6 +346,26 @@ type ProvisioningStepStore interface {
 
 	// DeleteByAdapter removes all provisioning steps for an adapter.
 	DeleteByAdapter(ctx context.Context, adapterID uuid.UUID) error
+}
+
+// TemplateTypeSubscriptionStore manages per-(workspace, template_type, email) subscription state.
+type TemplateTypeSubscriptionStore interface {
+	// Upsert inserts or updates the subscription state for (workspace, template_type, email).
+	// ON CONFLICT (workspace_id, template_type_id, email) DO UPDATE.
+	Upsert(ctx context.Context, sub *domain.TemplateTypeSubscription) error
+
+	// GetState returns the current subscription row for the given key, or
+	// a 404 AppError if none exists.
+	GetState(ctx context.Context, workspaceID, templateTypeID uuid.UUID, email string) (*domain.TemplateTypeSubscription, error)
+
+	// ListOptOutsForRecipient returns ALL rows (any subscribed value) for
+	// (workspace, email). Used by the preference center to render current state.
+	ListOptOutsForRecipient(ctx context.Context, workspaceID uuid.UUID, email string) ([]*domain.TemplateTypeSubscription, error)
+
+	// BatchCheckOptOut returns the set of emails (from the input slice) that
+	// are explicitly opted-OUT of the given template_type. Emails with no row
+	// or with subscribed=true are NOT returned.
+	BatchCheckOptOut(ctx context.Context, workspaceID, templateTypeID uuid.UUID, emails []string) (map[string]struct{}, error)
 }
 
 // ---- Pagination Types ----

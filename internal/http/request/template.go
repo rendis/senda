@@ -14,6 +14,7 @@ type CreateTemplateTypeRequest struct {
 	VariableSchema   json.RawMessage `json:"variable_schema,omitempty"`
 	TestRecipientMode      *string   `json:"test_recipient_mode,omitempty"`
 	TestRecipientAddresses []string  `json:"test_recipient_addresses,omitempty"`
+	IsBulk           *bool           `json:"is_bulk,omitempty"`
 }
 
 // UpdateTemplateTypeRequest is the request body for PUT template-types/:slug.

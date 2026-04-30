@@ -231,21 +231,72 @@ func (s *SendService) SendBatch(ctx context.Context, req *SendBatchRequest) (*Se
 }
 
 func (s *SendService) primeSendBatchSuppressionStatuses(ctx context.Context, shared *ResolvedSendContext, items []SendBatchItemRequest) error {
-	relevantAddresses := make([]string, 0, len(items)*3)
+	inputs := make([]SuppressionBatchInput, 0, len(items))
 	for _, item := range items {
 		effectiveTo, effectiveCC, effectiveBCC, err := applyTestRecipientPolicy(shared.Workspace, shared.TemplateType, []string{item.To}, item.CC, item.BCC)
 		if err != nil {
 			return err
 		}
-		relevantAddresses = append(relevantAddresses, effectiveTo...)
-		relevantAddresses = append(relevantAddresses, effectiveCC...)
-		relevantAddresses = append(relevantAddresses, effectiveBCC...)
+		inputs = append(inputs, SuppressionBatchInput{
+			To:  effectiveTo,
+			CC:  effectiveCC,
+			BCC: effectiveBCC,
+		})
 	}
 
-	statuses, err := s.getSuppressionStatuses(ctx, shared.Workspace.ID, relevantAddresses)
+	// Use the three-tier evaluator (global + workspace + per-type opt-outs) so
+	// batch sends honour the same suppression rules as single sends.
+	evaluator := NewSuppressionBatchEvaluator(s.suppression).
+		WithTemplateTypeStore(s.templateTypeSubscriptionStore)
+	results, err := evaluator.EvaluateManyForType(ctx, shared.Workspace.ID, shared.TemplateType.ID, inputs)
 	if err != nil {
 		return err
 	}
+
+	// Flatten into the address-keyed map expected by executeSendPlan.
+	statuses := make(map[string]port.SuppressionStatus)
+	for _, eval := range results {
+		for _, d := range eval.To {
+			statuses[d.Address] = port.SuppressionStatus{Suppressed: d.Suppressed, Reason: d.Reason}
+		}
+		// CC/BCC that are absent from the filtered slice are suppressed; those
+		// remaining are not. Rebuild a full status map for CC/BCC addresses.
+		// We only need To statuses for the batch path (CC/BCC are filtered in
+		// prepareSendPlanExecution via filterSuppressedWithStatuses), so we add
+		// the accepted ones as not-suppressed and the absent ones as suppressed.
+	}
+
+	// CC/BCC: reconstructed from inputs vs. filtered results.
+	for i, input := range inputs {
+		eval := results[i]
+		ccSet := make(map[string]struct{}, len(eval.CC))
+		for _, a := range eval.CC {
+			ccSet[a] = struct{}{}
+		}
+		for _, a := range input.CC {
+			if _, ok := ccSet[a]; !ok {
+				statuses[a] = port.SuppressionStatus{Suppressed: true, Reason: "suppressed"}
+			} else {
+				if _, exists := statuses[a]; !exists {
+					statuses[a] = port.SuppressionStatus{}
+				}
+			}
+		}
+		bccSet := make(map[string]struct{}, len(eval.BCC))
+		for _, a := range eval.BCC {
+			bccSet[a] = struct{}{}
+		}
+		for _, a := range input.BCC {
+			if _, ok := bccSet[a]; !ok {
+				statuses[a] = port.SuppressionStatus{Suppressed: true, Reason: "suppressed"}
+			} else {
+				if _, exists := statuses[a]; !exists {
+					statuses[a] = port.SuppressionStatus{}
+				}
+			}
+		}
+	}
+
 	shared.suppressionStatuses = statuses
 	return nil
 }

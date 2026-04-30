@@ -42,7 +42,10 @@ func (m *mockWorkspaceStore) Update(_ context.Context, _ *domain.Workspace) erro
 func (m *mockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.UUID, _ string) error {
 	return nil
 }
-func (m *mockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error     { return nil }
+func (m *mockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStore) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 // --- Mock Cache ---
 

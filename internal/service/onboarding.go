@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -216,14 +217,20 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 		WorkspacePoliciesInitialized:         true,
 	}
 	for _, currentWorkspace := range []*domain.Workspace{ws, testWS} {
+		wsSigningKey := make([]byte, 32)
+		if _, err := rand.Read(wsSigningKey); err != nil {
+			return nil, fmt.Errorf("generate signing key for system workspace (%s): %w", currentWorkspace.Environment, err)
+		}
 		if err := tx.QueryRow(ctx,
 			`INSERT INTO workspaces (
 			    id, logical_workspace_id, tenant_id, code, name, environment, is_system, is_active, open_tracking_enabled, default_locale,
-			    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors
+			    allow_workspace_local_templates, allow_workspace_inherited_template_forks, allow_workspace_local_injectors,
+			    unsubscribe_signing_key
 			)
 			 VALUES (
 			    @id, @logical_workspace_id, @tenant_id, @code, @name, @environment, @is_system, @is_active, @open_tracking_enabled, @default_locale,
-			    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors
+			    @allow_workspace_local_templates, @allow_workspace_inherited_template_forks, @allow_workspace_local_injectors,
+			    @unsubscribe_signing_key
 			)
 			 RETURNING is_active, created_at, updated_at`,
 			pgx.NamedArgs{
@@ -240,6 +247,7 @@ func (s *OnboardingService) Setup(ctx context.Context, claims *port.OIDCClaims, 
 				"allow_workspace_local_templates": currentWorkspace.AllowWorkspaceLocalTemplates,
 				"allow_workspace_inherited_template_forks": currentWorkspace.AllowWorkspaceInheritedTemplateForks,
 				"allow_workspace_local_injectors":          currentWorkspace.AllowWorkspaceLocalInjectors,
+				"unsubscribe_signing_key":                  wsSigningKey,
 			},
 		).Scan(&currentWorkspace.IsActive, &currentWorkspace.CreatedAt, &currentWorkspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("create system workspace (%s): %w", currentWorkspace.Environment, err)

@@ -48,6 +48,9 @@ func (m *mockWorkspaceStoreWithList) SoftDeleteLogical(_ context.Context, _ uuid
 	return nil
 }
 func (m *mockWorkspaceStoreWithList) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStoreWithList) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 // --- Mock cache with DeletePattern support (enhances the one in chain_test) ---
 

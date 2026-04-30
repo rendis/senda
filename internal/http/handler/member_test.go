@@ -178,6 +178,9 @@ func (m *memberMockWorkspaceStore) SoftDeleteLogical(_ context.Context, _ uuid.U
 	return nil
 }
 func (m *memberMockWorkspaceStore) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *memberMockWorkspaceStore) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 func setupMemberTest(ms port.MemberStore, ts port.TenantStore, ws port.WorkspaceStore) *echo.Echo {
 	e := echo.New()

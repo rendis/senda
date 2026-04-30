@@ -86,6 +86,9 @@ func (m *mockWorkspaceStoreSend) SoftDeleteLogical(_ context.Context, _ uuid.UUI
 	return nil
 }
 func (m *mockWorkspaceStoreSend) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockWorkspaceStoreSend) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 type mockEmailStoreSend struct {
 	createFn     func(ctx context.Context, email *domain.Email) error
@@ -152,6 +155,9 @@ func (m *mockEmailStoreSend) QueryByWorkspace(_ context.Context, _ uuid.UUID, _ 
 }
 func (m *mockEmailStoreSend) QueryByExternalIDGlobal(_ context.Context, _ string, _ string, _ int) ([]*domain.Email, string, error) {
 	return nil, "", nil
+}
+func (m *mockEmailStoreSend) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
+	return nil, nil
 }
 
 type mockSuppressionStoreSend struct {
@@ -230,6 +236,12 @@ func (m *mockSuppressionStoreSend) CheckBatch(ctx context.Context, wsID uuid.UUI
 		}
 	}
 	return result, nil
+}
+func (m *mockSuppressionStoreSend) GetActiveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string) (*domain.SuppressionWorkspace, error) {
+	return nil, nil
+}
+func (m *mockSuppressionStoreSend) RemoveWorkspaceSuppression(_ context.Context, _ uuid.UUID, _ string, _ string) error {
+	return nil
 }
 
 type mockCacheSend struct {

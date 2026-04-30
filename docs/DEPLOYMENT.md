@@ -39,7 +39,7 @@ The master key is used to encrypt sensitive data at rest (adapter credentials, A
 | `SENDA_SMTP_PORT`         | `1025`       | Fallback static SMTP sender port                 |
 | `SENDA_SMTP_ALLOW_INSECURE_INTERNAL_RELAY` | `false` | Allow cleartext SMTP auth only for explicitly trusted private relay IPs |
 | `SENDA_SMTP_TRUSTED_CLEAR_AUTH_HOSTS` | -- | Comma-separated private relay IPs/CIDRs allowed to use cleartext SMTP auth when the insecure internal relay flag is enabled |
-| `SENDA_TRACKING_BASE_URL` | --           | Public base URL for email tracking. Enables open-tracking pixels, SES ConfigSet/SNS auto-provisioning, and SNS webhook URL. Unset = tracking disabled, auto-provisioning returns 501 |
+| `SENDA_TRACKING_BASE_URL` | --           | Public base URL for email tracking. Enables open-tracking pixels, SES ConfigSet/SNS auto-provisioning, and SNS webhook URL. Unset = tracking disabled, auto-provisioning returns 501. Also drives `List-Unsubscribe` / `List-Unsubscribe-Post` header injection for bulk template types and the public unsubscribe page domain. |
 | `SENDA_MIGRATIONS_PATH`   | `migrations` | Path to SQL migration files inside the container |
 | `SENDA_SNS_SKIP_SIGNATURE_VERIFICATION` | `false` | Skip SNS signature verification (test-only; do not enable in production) |
 

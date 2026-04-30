@@ -20,12 +20,23 @@ infrastructure. For lifecycle (draft → published, fork, locales), see
 
 ## Variable syntax — exhaustive
 
-Senda has its own substitution engine; only two namespaces exist:
+Senda has its own substitution engine; only three namespaces exist:
 
 | Token | Source | Example |
 |---|---|---|
 | `{{ event.<name> }}` | request `variables` map (declared by `template_type.variable_schema`, NOT enforced at send) | `{{ event.first_name }}` |
 | `{{ injector.<name>.<field> }}` | resolved injector tree (DB + code) | `{{ injector.brand.logo_url }}` |
+| `{{ system.* }}` | platform-injected per-send variables (see table below) | `{{ system.unsubscribe_url }}` |
+
+### System variables
+
+These are injected automatically by the send pipeline; the caller does not supply them.
+
+| Token | Description |
+|---|---|
+| `{{ system.unsubscribe_url }}` | URL to the unsubscribe landing page (`/u/{token}`). Empty string when `is_bulk = false`. Renders to a one-time HMAC-signed link bound to the recipient and template type. |
+| `{{ system.preferences_url }}` | URL to the preference center (`/u/{token}/preferences`). Empty string when `is_bulk = false`. Same token base as `unsubscribe_url`; recipient can manage all subscriptions. |
+| `{{ system.workspace_name }}` | Human-readable workspace name. Useful for footer branding. Empty string when `is_bulk = false`. |
 
 `variable_schema` documents the contract for callers and tooling but is
 **not** validated by the send pipeline. Missing or misspelled `event.*`

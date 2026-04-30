@@ -9,7 +9,8 @@ description: >-
   identities, sender_identity, send, send batch, emails query, webhooks,
   external integration, embed, X-Senda-Environment, capabilities, fork,
   inheritance, RBAC, scope chain, template screenshot, image preview,
-  desktop and mobile preview.
+  desktop and mobile preview, is_bulk, unsubscribe, List-Unsubscribe,
+  RFC 8058, one-click opt-out, preference center, suppression.
 allowed-tools:
   - mcp__senda__*
 ---
@@ -22,17 +23,22 @@ Domain detail lives in `references/*`; load only what the current task needs.
 
 ## What Senda is
 
-Multi-tenant email orchestration platform with four operational surfaces:
+Multi-tenant email orchestration platform with five operational surfaces:
 
 1. **Management plane** — OIDC-authenticated CRUD: tenants, workspaces,
    templates, versions, injectors, adapters, identities, API keys, webhooks,
    policies, members, audit, config.
 2. **Data plane** — workspace-scoped sending and email query, authenticated
    with raw API keys (`senda_prod_…` / `senda_test_…`).
-3. **External integration surface** — embeddable builder/editor APIs at
+3. **Public unsubscribe surface** — unauthenticated endpoints under
+   `/api/v1/u/{token}`, used for RFC 8058 one-click opt-out, opt-out-all,
+   preference center reads/writes, and resubscribe. No auth required; the
+   HMAC-signed token is the credential. Only relevant for bulk template types
+   (`is_bulk = true`).
+4. **External integration surface** — embeddable builder/editor APIs at
    `/api/v1/external/:profile_slug/...`, custom auth + workspace resolver,
    `X-Senda-Environment` required.
-4. **Go SDK / embedder** — register code injectors, per-request init, external
+5. **Go SDK / embedder** — register code injectors, per-request init, external
    auth methods, external workspace resolvers, lifecycle hooks.
 
 ## Topology
@@ -132,14 +138,15 @@ Load the file matching the user's intent. Each is small and self-contained.
 | Auth selection, error model, pagination, common headers | `references/operating-via-mcp.md` |
 | Onboarding, tenants, workspaces (shared & env-scoped), policies, runtime reset, dashboards | `references/management-tenants-workspaces.md` |
 | Roles, permissions matrix, members CRUD per scope | `references/rbac-and-members.md` |
-| Template types, templates, fork, disable/enable, sharing, inheritance | `references/templates-types-and-templates.md` |
+| Template types, templates, fork, disable/enable, sharing, inheritance, `is_bulk`, bulk vs transactional | `references/templates-types-and-templates.md` |
 | Template versions, locales, lifecycle, preview, bulk-send, test-send | `references/versions-locales-and-builder.md` |
-| Authoring a template body — copy-paste MJML blocks, where to drop variables, gomjml version, end-to-end workflow | `references/building-a-template.md` |
+| Authoring a template body — copy-paste MJML blocks, where to drop variables, gomjml version, system variables (`{{ system.unsubscribe_url }}`, `{{ system.preferences_url }}`), end-to-end workflow | `references/building-a-template.md` |
 | Injectors (DB and code) — definitions, fields, precedence, inheritance | `references/injectors.md` |
 | Adapters (SES, Gmail, SMTP), identities, sharing, auto-provisioning | `references/adapters-and-identities.md` |
 | API keys, `POST /send`, `POST /send/batch`, emails query, CSV export | `references/api-keys-and-data-plane.md` |
 | Webhooks (outbound HMAC), tracking pixel, SES inbound provider webhook | `references/webhooks-and-events.md` |
 | External integration (profiles, bootstrap, session, capabilities, embed) | `references/external-integration.md` |
+| Unsubscribe flow, List-Unsubscribe headers, one-click opt-out, preference center, suppression levels, RFC 8058 | `references/templates-types-and-templates.md` (bulk vs transactional) + `docs/EMAIL_FLOWS.md#unsubscribe` |
 | Audit log, global config, suppression, media thumbnail proxy | `references/audit-config-and-extras.md` |
 | Embedding Senda as a Go library, SDK extension points | `references/sdk-extension-points.md` |
 | Scope chain, resolution algorithm, inheritance edge cases | `references/resolution-and-inheritance.md` |

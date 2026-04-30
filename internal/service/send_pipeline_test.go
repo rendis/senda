@@ -165,6 +165,9 @@ func (s *pipelineEmailStore) QueryByWorkspace(_ context.Context, _ uuid.UUID, _ 
 func (s *pipelineEmailStore) QueryByExternalIDGlobal(_ context.Context, _ string, _ string, _ int) ([]*domain.Email, string, error) {
 	return nil, "", nil
 }
+func (s *pipelineEmailStore) DistinctTemplateTypesForRecipient(_ context.Context, _ uuid.UUID, _ string, _ time.Time) ([]port.EmailHistoryType, error) {
+	return nil, nil
+}
 
 func (s *pipelineEmailStore) hotByTrackingID(trackingID string) *domain.Email {
 	email, ok := s.hotByTracking[trackingID]

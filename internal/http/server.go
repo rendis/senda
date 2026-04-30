@@ -91,6 +91,9 @@ type Server struct {
 
 	// Media handler (public, no auth).
 	mediaHandler *handler.MediaHandler
+
+	// Unsubscribe handler (public, no auth).
+	unsubscribeHandler *handler.UnsubscribeHandler
 }
 
 // ServerOption configures optional Server dependencies.
@@ -316,6 +319,13 @@ func WithTrackingHandler(h *handler.TrackingHandler) ServerOption {
 func WithMediaHandler(h *handler.MediaHandler) ServerOption {
 	return func(s *Server) {
 		s.mediaHandler = h
+	}
+}
+
+// WithUnsubscribeHandler sets the UnsubscribeHandler for public unsubscribe routes.
+func WithUnsubscribeHandler(h *handler.UnsubscribeHandler) ServerOption {
+	return func(s *Server) {
+		s.unsubscribeHandler = h
 	}
 }
 

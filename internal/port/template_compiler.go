@@ -29,4 +29,9 @@ func TemplateCompilerPublicBaseURLFromContext(ctx context.Context) (string, bool
 type VariableRenderer interface {
 	// Render replaces {{ injector.X.Y }} and {{ event.Z }} with actual values.
 	Render(template string, injectors map[string]map[string]any, eventVars map[string]any) (string, error)
+
+	// RenderWithSystem replaces {{ injector.X.Y }}, {{ event.Z }}, and
+	// {{ system.K }} with actual values. system variables bypass HTML escaping
+	// and must only contain server-generated values (e.g. signed URLs).
+	RenderWithSystem(template string, injectors map[string]map[string]any, eventVars map[string]any, systemVars map[string]string) (string, error)
 }

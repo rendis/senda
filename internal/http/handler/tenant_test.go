@@ -145,6 +145,9 @@ func (m *mockWorkspaceStore) SoftDelete(ctx context.Context, id uuid.UUID) error
 	}
 	return nil
 }
+func (m *mockWorkspaceStore) GetUnsubscribeSigningKey(_ context.Context, _ uuid.UUID) ([]byte, error) {
+	return make([]byte, 32), nil
+}
 
 // --- Helper ---
 

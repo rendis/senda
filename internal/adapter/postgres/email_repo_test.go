@@ -428,3 +428,95 @@ func TestEmailRepo_QueryByExternalIDGlobal(t *testing.T) {
 		t.Fatalf("expected 1 email, got %d", len(emails))
 	}
 }
+
+// insertEmailAt inserts a minimal email row with an explicit created_at for history tests.
+func insertEmailAt(t *testing.T, ctx context.Context, deps emailTestDeps, recipient, slug string, createdAt time.Time) {
+	t.Helper()
+	_, err := deps.pool.Exec(ctx,
+		`INSERT INTO emails (
+			id, tracking_id, workspace_id, tenant_id,
+			template_id, template_version_id, template_type_slug, template_ref,
+			recipient_email, from_email, from_name,
+			subject_rendered, status, adapter_id,
+			retry_count, max_retries, created_at, updated_at
+		) VALUES (
+			$1, $2, $3, $4,
+			$5, $6, $7, $8,
+			$9, $10, $11,
+			$12, $13, $14,
+			$15, $16, $17, $17
+		)`,
+		uuid.New(), uuid.New().String()[:32], deps.wsID, deps.tenantID,
+		uuid.New(), uuid.New(), slug, "test:"+slug,
+		recipient, "sender@test.com", "Sender",
+		"Subject", "queued", uuid.New(),
+		0, 3, createdAt,
+	)
+	if err != nil {
+		t.Fatalf("insertEmailAt(%q, %q): %v", recipient, slug, err)
+	}
+}
+
+func TestEmailRepo_DistinctTemplateTypesForRecipient(t *testing.T) {
+	ctx := context.Background()
+	deps := setupEmailTestDeps(ctx, t)
+
+	now := time.Now().UTC()
+
+	// j@x.com in-window (2 slugs)
+	insertEmailAt(t, ctx, deps, "j@x.com", "newsletter", now.Add(-30*24*time.Hour))
+	insertEmailAt(t, ctx, deps, "j@x.com", "alerts", now.Add(-7*24*time.Hour))
+	// j@x.com out-of-window (>12 months)
+	insertEmailAt(t, ctx, deps, "j@x.com", "promo", now.Add(-400*24*time.Hour))
+	// different recipient — must not appear
+	insertEmailAt(t, ctx, deps, "other@x.com", "newsletter", now.Add(-7*24*time.Hour))
+
+	since := now.AddDate(-1, 0, 0)
+	res, err := deps.repo.DistinctTemplateTypesForRecipient(ctx, deps.wsID, "j@x.com", since)
+	if err != nil {
+		t.Fatalf("DistinctTemplateTypesForRecipient() error: %v", err)
+	}
+	if len(res) != 2 {
+		t.Fatalf("expected 2 distinct types in 12-month window for j@x.com, got %d: %+v", len(res), res)
+	}
+
+	// Ordering: most recent first → alerts (7d ago) before newsletter (30d ago)
+	if res[0].Slug != "alerts" {
+		t.Fatalf("expected alerts first (most recent), got %s", res[0].Slug)
+	}
+	if res[1].Slug != "newsletter" {
+		t.Fatalf("expected newsletter second, got %s", res[1].Slug)
+	}
+	if res[0].LastSentAt.IsZero() || res[1].LastSentAt.IsZero() {
+		t.Error("expected non-zero LastSentAt in results")
+	}
+}
+
+func TestEmailRepo_DistinctTemplateTypesForRecipient_RespectsWorkspaceScope(t *testing.T) {
+	ctx := context.Background()
+	deps := setupEmailTestDeps(ctx, t)
+
+	// Create a second workspace under the same tenant.
+	wsRepo := pgadapter.NewWorkspaceRepo(deps.pool)
+	wsB := &domain.Workspace{
+		ID: uuid.New(), TenantID: deps.tenantID,
+		Code: "ws-b-" + uuid.New().String()[:8], Name: "WS B",
+	}
+	if err := wsRepo.Create(ctx, wsB); err != nil {
+		t.Fatalf("creating workspace B: %v", err)
+	}
+	depsB := emailTestDeps{pool: deps.pool, repo: deps.repo, tenantID: deps.tenantID, wsID: wsB.ID}
+
+	// Insert email in workspace A.
+	insertEmailAt(t, ctx, deps, "shared@x.com", "newsletter", time.Now().UTC().Add(-7*24*time.Hour))
+
+	// Query workspace B — must return nothing.
+	since := time.Now().UTC().AddDate(-1, 0, 0)
+	res, err := deps.repo.DistinctTemplateTypesForRecipient(ctx, depsB.wsID, "shared@x.com", since)
+	if err != nil {
+		t.Fatalf("DistinctTemplateTypesForRecipient() error: %v", err)
+	}
+	if len(res) != 0 {
+		t.Fatalf("expected 0 results for workspace B, got %d: %+v", len(res), res)
+	}
+}

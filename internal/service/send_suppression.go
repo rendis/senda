@@ -12,6 +12,10 @@ type suppressionBatchStore interface {
 	CheckBatch(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]string, error)
 }
 
+type templateTypeOptOutStore interface {
+	BatchCheckOptOut(ctx context.Context, workspaceID, templateTypeID uuid.UUID, emails []string) (map[string]struct{}, error)
+}
+
 type SuppressionRecipientDecision struct {
 	Address    string
 	Suppressed bool
@@ -32,10 +36,112 @@ type SuppressionBatchInput struct {
 
 type SuppressionBatchEvaluator struct {
 	store suppressionBatchStore
+	tts   templateTypeOptOutStore
 }
 
 func NewSuppressionBatchEvaluator(store suppressionBatchStore) *SuppressionBatchEvaluator {
 	return &SuppressionBatchEvaluator{store: store}
+}
+
+// WithTemplateTypeStore enables a third suppression layer: per (workspace, template_type, email)
+// opt-outs. Returns the evaluator for chaining.
+func (e *SuppressionBatchEvaluator) WithTemplateTypeStore(ts templateTypeOptOutStore) *SuppressionBatchEvaluator {
+	e.tts = ts
+	return e
+}
+
+// EvaluateForType performs the standard workspace-level evaluation, then layers
+// per-(template_type, email) opt-outs on top. Workspace suppressions take
+// precedence — their reason is preserved. Recipients only opted-out at the
+// template-type level get Reason="type_optout".
+//
+// If no template-type store has been attached via WithTemplateTypeStore, this
+// method degrades to the legacy Evaluate behaviour.
+func (e *SuppressionBatchEvaluator) EvaluateForType(
+	ctx context.Context,
+	workspaceID, templateTypeID uuid.UUID,
+	to, cc, bcc []string,
+) (*SuppressionBatchEvaluation, error) {
+	base, err := e.Evaluate(ctx, workspaceID, to, cc, bcc)
+	if err != nil {
+		return nil, err
+	}
+	if e.tts == nil {
+		return base, nil
+	}
+
+	// Collect addresses not already suppressed at workspace level — those are the
+	// only ones we need to check against the template-type opt-out store.
+	canonical := make([]string, 0, len(base.To)+len(base.CC)+len(base.BCC))
+	seen := make(map[string]struct{})
+	for _, d := range base.To {
+		if d.Suppressed {
+			continue
+		}
+		c := domain.CanonicalRecipientAddress(d.Address)
+		if c == "" {
+			continue
+		}
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+		canonical = append(canonical, c)
+	}
+	for _, addr := range base.CC {
+		c := domain.CanonicalRecipientAddress(addr)
+		if c == "" {
+			continue
+		}
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+		canonical = append(canonical, c)
+	}
+	for _, addr := range base.BCC {
+		c := domain.CanonicalRecipientAddress(addr)
+		if c == "" {
+			continue
+		}
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+		canonical = append(canonical, c)
+	}
+
+	optOuts, err := e.tts.BatchCheckOptOut(ctx, workspaceID, templateTypeID, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("evaluate type opt-outs: %w", err)
+	}
+	if len(optOuts) == 0 {
+		return base, nil
+	}
+
+	for i, d := range base.To {
+		if d.Suppressed {
+			continue
+		}
+		if _, ok := optOuts[domain.CanonicalRecipientAddress(d.Address)]; ok {
+			base.To[i].Suppressed = true
+			base.To[i].Reason = "type_optout"
+		}
+	}
+	base.CC = filterTypeOptOuts(base.CC, optOuts)
+	base.BCC = filterTypeOptOuts(base.BCC, optOuts)
+	return base, nil
+}
+
+func filterTypeOptOuts(addrs []string, optOuts map[string]struct{}) []string {
+	out := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		if _, ok := optOuts[domain.CanonicalRecipientAddress(a)]; ok {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 func (e *SuppressionBatchEvaluator) Evaluate(
@@ -54,6 +160,90 @@ func (e *SuppressionBatchEvaluator) Evaluate(
 		return nil, err
 	}
 	return results[0], nil
+}
+
+// EvaluateManyForType is the batch equivalent of EvaluateForType. It applies
+// the full three-tier suppression check (global + workspace + per-template-type
+// opt-outs) over multiple inputs in a single pass, sharing the workspace-level
+// batch query across all inputs.
+func (e *SuppressionBatchEvaluator) EvaluateManyForType(
+	ctx context.Context,
+	workspaceID, templateTypeID uuid.UUID,
+	inputs []SuppressionBatchInput,
+) ([]*SuppressionBatchEvaluation, error) {
+	// Step 1: workspace + global suppression across all inputs.
+	base, err := e.EvaluateMany(ctx, workspaceID, inputs)
+	if err != nil {
+		return nil, err
+	}
+	if e.tts == nil {
+		return base, nil
+	}
+
+	// Step 2: collect all addresses not already suppressed at the workspace
+	// level so we can do a single BatchCheckOptOut query.
+	canonical := collectUnsuppressedCanonical(base)
+
+	optOuts, err := e.tts.BatchCheckOptOut(ctx, workspaceID, templateTypeID, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("evaluate type opt-outs (batch): %w", err)
+	}
+	if len(optOuts) == 0 {
+		return base, nil
+	}
+
+	// Step 3: apply type opt-outs to every evaluation result.
+	applyTypeOptOutsToEvaluations(base, optOuts)
+	return base, nil
+}
+
+// collectUnsuppressedCanonical builds the deduplicated list of canonical
+// addresses that are not yet suppressed at the workspace/global level.
+func collectUnsuppressedCanonical(evals []*SuppressionBatchEvaluation) []string {
+	canonical := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, eval := range evals {
+		for _, d := range eval.To {
+			if !d.Suppressed {
+				addUniqueCanonical(&canonical, seen, d.Address)
+			}
+		}
+		for _, addr := range eval.CC {
+			addUniqueCanonical(&canonical, seen, addr)
+		}
+		for _, addr := range eval.BCC {
+			addUniqueCanonical(&canonical, seen, addr)
+		}
+	}
+	return canonical
+}
+
+func addUniqueCanonical(dst *[]string, seen map[string]struct{}, addr string) {
+	c := domain.CanonicalRecipientAddress(addr)
+	if c == "" {
+		return
+	}
+	if _, ok := seen[c]; ok {
+		return
+	}
+	seen[c] = struct{}{}
+	*dst = append(*dst, c)
+}
+
+func applyTypeOptOutsToEvaluations(evals []*SuppressionBatchEvaluation, optOuts map[string]struct{}) {
+	for _, eval := range evals {
+		for i, d := range eval.To {
+			if d.Suppressed {
+				continue
+			}
+			if _, ok := optOuts[domain.CanonicalRecipientAddress(d.Address)]; ok {
+				eval.To[i].Suppressed = true
+				eval.To[i].Reason = "type_optout"
+			}
+		}
+		eval.CC = filterTypeOptOuts(eval.CC, optOuts)
+		eval.BCC = filterTypeOptOuts(eval.BCC, optOuts)
+	}
 }
 
 func (e *SuppressionBatchEvaluator) EvaluateMany(

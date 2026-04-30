@@ -28,6 +28,15 @@ func (s *Server) registerPublicRoutes() {
 	if s.mediaHandler != nil {
 		s.echo.GET("/public/video-thumbnail", s.mediaHandler.HandleVideoThumbnail)
 	}
+
+	if s.unsubscribeHandler != nil {
+		s.echo.GET("/api/v1/u/:token", s.unsubscribeHandler.GetContext)
+		s.echo.POST("/api/v1/u/:token", s.unsubscribeHandler.OneClickOptOut)
+		s.echo.POST("/api/v1/u/:token/all", s.unsubscribeHandler.OptOutAll)
+		s.echo.POST("/api/v1/u/:token/resubscribe", s.unsubscribeHandler.Resubscribe)
+		s.echo.GET("/api/v1/u/:token/preferences", s.unsubscribeHandler.GetPreferences)
+		s.echo.POST("/api/v1/u/:token/preferences", s.unsubscribeHandler.UpdatePreferences)
+	}
 }
 
 func (s *Server) registerOnboardingRoutes(api *echo.Group) {

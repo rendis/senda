@@ -1,4 +1,4 @@
-.PHONY: dev dev-stack dev-down dev-clean build test vet test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-frontend ci-pr ci-taxonomy-check install-githooks clean help
+.PHONY: dev dev-stack dev-down dev-clean build test vet test-integration test-e2e test-e2e-run test-e2e-full test-e2e-full-run test-e2e-core test-e2e-chaos test-e2e-up test-e2e-down test-e2e-core-run test-e2e-chaos-run test-e2e-ses test-ui-unsubscribe system-validate-manifest system-matrix system-pr system-nightly system-down lint migrate-up migrate-down swagger swagger-check ci-backend-pr ci-frontend ci-pr ci-taxonomy-check install-githooks clean help
 
 COMPOSE     := docker compose -f docker/docker-compose.yml
 BINARY      := senda
@@ -15,7 +15,7 @@ GO_PACKAGES := $(shell bash scripts/go-packages.sh)
 E2E_ENV := SENDA_BASE_URL=$(SENDA_BASE_URL) \
            MAILPIT_URL=$(MAILPIT_URL) \
            SENDA_E2E_JWT_SECRET=$(SENDA_E2E_JWT_SECRET)
-E2E_DETERMINISTIC_PATTERN := '^(TestCore|TestCRUD|TestE|TestF|TestS)'
+E2E_DETERMINISTIC_PATTERN := '^(TestCore|TestCRUD|TestE|TestF|TestS|TestUnsubscribe)'
 
 ## Development
 dev: ## Start full local stack (docker services + frontend)
@@ -77,6 +77,9 @@ test-e2e-chaos: ## Run chaos E2E suite (self-managed Testcontainers harness)
 
 test-e2e-ses: ## Run SES lifecycle E2E suite (aws-sim bridge + MiniStack + signed SNS replay)
 	$(E2E_ENV) go test -tags=e2e -v -count=1 -timeout 900s ./test/e2e/ -run 'TestSESLifecycle0[1-4]_|TestSNSReplay01_'
+
+test-ui-unsubscribe: ## Local UI E2E for unsubscribe (requires `make dev` running and SENDA_E2E_LOCAL_API_KEY set)
+	go test -tags=e2e_local -v -count=1 -timeout 300s ./test/e2e -run TestUnsubscribeUI
 
 ## System test orchestration
 system-validate-manifest: ## Validate full screen manifest coverage vs app routes
