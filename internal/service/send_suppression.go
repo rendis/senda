@@ -162,6 +162,90 @@ func (e *SuppressionBatchEvaluator) Evaluate(
 	return results[0], nil
 }
 
+// EvaluateManyForType is the batch equivalent of EvaluateForType. It applies
+// the full three-tier suppression check (global + workspace + per-template-type
+// opt-outs) over multiple inputs in a single pass, sharing the workspace-level
+// batch query across all inputs.
+func (e *SuppressionBatchEvaluator) EvaluateManyForType(
+	ctx context.Context,
+	workspaceID, templateTypeID uuid.UUID,
+	inputs []SuppressionBatchInput,
+) ([]*SuppressionBatchEvaluation, error) {
+	// Step 1: workspace + global suppression across all inputs.
+	base, err := e.EvaluateMany(ctx, workspaceID, inputs)
+	if err != nil {
+		return nil, err
+	}
+	if e.tts == nil {
+		return base, nil
+	}
+
+	// Step 2: collect all addresses not already suppressed at the workspace
+	// level so we can do a single BatchCheckOptOut query.
+	canonical := collectUnsuppressedCanonical(base)
+
+	optOuts, err := e.tts.BatchCheckOptOut(ctx, workspaceID, templateTypeID, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("evaluate type opt-outs (batch): %w", err)
+	}
+	if len(optOuts) == 0 {
+		return base, nil
+	}
+
+	// Step 3: apply type opt-outs to every evaluation result.
+	applyTypeOptOutsToEvaluations(base, optOuts)
+	return base, nil
+}
+
+// collectUnsuppressedCanonical builds the deduplicated list of canonical
+// addresses that are not yet suppressed at the workspace/global level.
+func collectUnsuppressedCanonical(evals []*SuppressionBatchEvaluation) []string {
+	canonical := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, eval := range evals {
+		for _, d := range eval.To {
+			if !d.Suppressed {
+				addUniqueCanonical(&canonical, seen, d.Address)
+			}
+		}
+		for _, addr := range eval.CC {
+			addUniqueCanonical(&canonical, seen, addr)
+		}
+		for _, addr := range eval.BCC {
+			addUniqueCanonical(&canonical, seen, addr)
+		}
+	}
+	return canonical
+}
+
+func addUniqueCanonical(dst *[]string, seen map[string]struct{}, addr string) {
+	c := domain.CanonicalRecipientAddress(addr)
+	if c == "" {
+		return
+	}
+	if _, ok := seen[c]; ok {
+		return
+	}
+	seen[c] = struct{}{}
+	*dst = append(*dst, c)
+}
+
+func applyTypeOptOutsToEvaluations(evals []*SuppressionBatchEvaluation, optOuts map[string]struct{}) {
+	for _, eval := range evals {
+		for i, d := range eval.To {
+			if d.Suppressed {
+				continue
+			}
+			if _, ok := optOuts[domain.CanonicalRecipientAddress(d.Address)]; ok {
+				eval.To[i].Suppressed = true
+				eval.To[i].Reason = "type_optout"
+			}
+		}
+		eval.CC = filterTypeOptOuts(eval.CC, optOuts)
+		eval.BCC = filterTypeOptOuts(eval.BCC, optOuts)
+	}
+}
+
 func (e *SuppressionBatchEvaluator) EvaluateMany(
 	ctx context.Context,
 	wsID uuid.UUID,

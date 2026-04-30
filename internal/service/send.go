@@ -119,10 +119,6 @@ type SendService struct {
 	pool                        *pgxpool.Pool
 }
 
-type suppressionSetLookup interface {
-	GetSuppressionStatuses(ctx context.Context, wsID uuid.UUID, emails []string) (map[string]port.SuppressionStatus, error)
-}
-
 // SetAdapterAccessService wires runtime adapter access validation without widening constructor churn.
 func (s *SendService) SetAdapterAccessService(accessService *AdapterAccessService) {
 	s.accessService = accessService
@@ -492,80 +488,6 @@ func getLocalizedBody(resolved *resolution.ResolvedTemplate) string {
 	return resolved.Version.BodyMJML
 }
 
-func (s *SendService) getSuppressionStatuses(ctx context.Context, wsID uuid.UUID, addrs []string) (map[string]port.SuppressionStatus, error) {
-	unique := uniqueRecipientAddresses(addrs)
-	if len(unique) == 0 {
-		return map[string]port.SuppressionStatus{}, nil
-	}
-
-	canonicalByOriginal := make(map[string]string, len(unique))
-	lookup := make([]string, 0, len(unique))
-	seenCanonical := make(map[string]struct{}, len(unique))
-	for _, addr := range unique {
-		canonical := domain.CanonicalRecipientAddress(addr)
-		if canonical == "" {
-			continue
-		}
-		canonicalByOriginal[addr] = canonical
-		if _, ok := seenCanonical[canonical]; ok {
-			continue
-		}
-		seenCanonical[canonical] = struct{}{}
-		lookup = append(lookup, canonical)
-	}
-	if len(lookup) == 0 {
-		return map[string]port.SuppressionStatus{}, nil
-	}
-
-	if batchLookup, ok := s.suppression.(suppressionSetLookup); ok {
-		statuses, err := batchLookup.GetSuppressionStatuses(ctx, wsID, lookup)
-		if err != nil {
-			return nil, fmt.Errorf("check suppression set: %w", err)
-		}
-		if statuses == nil {
-			return map[string]port.SuppressionStatus{}, nil
-		}
-
-		result := make(map[string]port.SuppressionStatus, len(unique))
-		for _, addr := range unique {
-			result[addr] = statuses[canonicalByOriginal[addr]]
-		}
-		return result, nil
-	}
-
-	statuses := make(map[string]port.SuppressionStatus, len(unique))
-	for _, addr := range unique {
-		suppressed, reason, err := s.suppression.IsSuppressed(ctx, wsID, canonicalByOriginal[addr])
-		if err != nil {
-			return nil, fmt.Errorf("check suppression for %s: %w", addr, err)
-		}
-		statuses[addr] = port.SuppressionStatus{
-			Suppressed: suppressed,
-			Reason:     reason,
-		}
-	}
-	return statuses, nil
-}
-
-func uniqueRecipientAddresses(addrs []string) []string {
-	if len(addrs) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(addrs))
-	result := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		if _, ok := seen[addr]; ok {
-			continue
-		}
-		seen[addr] = struct{}{}
-		result = append(result, addr)
-	}
-	return result
-}
-
-// filterSuppressed returns only the addresses that are NOT on the suppression
-// list. It preserves order. If addrs is empty it returns nil.
 func (s *SendService) persistenceWriter() *SendPersistenceWriter {
 	return NewSendPersistenceWriter(s.emailStore, s.queue, s.pool)
 }
