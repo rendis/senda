@@ -446,6 +446,185 @@ func TestSuppressionRepo_RemoveWorkspaceSuppression_NoActiveRow_ReturnsNotFound(
 	}
 }
 
+func TestSuppressionRepo_AddWorkspace_DoesNotOverrideComplaint(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	email := "complaint-then-unsub@test.com"
+
+	// Insert a complaint suppression first.
+	complaint := &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionComplaint,
+	}
+	if err := deps.repo.AddWorkspace(ctx, complaint); err != nil {
+		t.Fatalf("initial AddWorkspace(complaint) error: %v", err)
+	}
+
+	// Now call AddWorkspace with reason=unsubscribe — must be a no-op.
+	unsub := &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionUnsubscribe,
+	}
+	if err := deps.repo.AddWorkspace(ctx, unsub); err != nil {
+		t.Fatalf("AddWorkspace(unsubscribe) error: %v", err)
+	}
+
+	// Reason in DB must still be complaint.
+	var reason string
+	err := deps.pool.QueryRow(ctx,
+		`SELECT reason FROM suppression_workspace WHERE workspace_id = $1 AND email = $2`,
+		deps.wsID, email,
+	).Scan(&reason)
+	if err != nil {
+		t.Fatalf("query reason: %v", err)
+	}
+	if reason != string(domain.SuppressionComplaint) {
+		t.Errorf("reason = %q, want complaint (complaint must not be overwritten by unsubscribe)", reason)
+	}
+}
+
+func TestSuppressionRepo_AddWorkspace_DoesNotOverrideManual(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	email := "manual-then-unsub@test.com"
+
+	manual := &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionManual,
+	}
+	if err := deps.repo.AddWorkspace(ctx, manual); err != nil {
+		t.Fatalf("initial AddWorkspace(manual) error: %v", err)
+	}
+
+	unsub := &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionUnsubscribe,
+	}
+	if err := deps.repo.AddWorkspace(ctx, unsub); err != nil {
+		t.Fatalf("AddWorkspace(unsubscribe) error: %v", err)
+	}
+
+	var reason string
+	err := deps.pool.QueryRow(ctx,
+		`SELECT reason FROM suppression_workspace WHERE workspace_id = $1 AND email = $2`,
+		deps.wsID, email,
+	).Scan(&reason)
+	if err != nil {
+		t.Fatalf("query reason: %v", err)
+	}
+	if reason != string(domain.SuppressionManual) {
+		t.Errorf("reason = %q, want manual (manual must not be overwritten by unsubscribe)", reason)
+	}
+}
+
+func TestSuppressionRepo_RemoveWorkspaceSuppression_OnlyRemovesUnsubscribe(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+
+	// 1. Complaint row: RemoveWorkspaceSuppression must be a no-op (returns NotFound).
+	complaintEmail := "complaint-noremove@test.com"
+	if err := deps.repo.AddWorkspace(ctx, &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       complaintEmail,
+		Reason:      domain.SuppressionComplaint,
+	}); err != nil {
+		t.Fatalf("AddWorkspace(complaint): %v", err)
+	}
+
+	err := deps.repo.RemoveWorkspaceSuppression(ctx, deps.wsID, complaintEmail, "recipient_resubscribe")
+	if err == nil {
+		t.Fatal("RemoveWorkspaceSuppression on complaint row: expected NotFound, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404 for complaint row, got: %v", err)
+	}
+
+	// Complaint row must remain active.
+	sup, err := deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, complaintEmail)
+	if err != nil {
+		t.Fatalf("complaint row must still be active: %v", err)
+	}
+	if sup.Reason != domain.SuppressionComplaint {
+		t.Errorf("reason = %q, want complaint", sup.Reason)
+	}
+
+	// 2. Unsubscribe row: RemoveWorkspaceSuppression must succeed.
+	unsubEmail := "unsub-removable@test.com"
+	if err := deps.repo.AddWorkspace(ctx, &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       unsubEmail,
+		Reason:      domain.SuppressionUnsubscribe,
+	}); err != nil {
+		t.Fatalf("AddWorkspace(unsubscribe): %v", err)
+	}
+
+	if err := deps.repo.RemoveWorkspaceSuppression(ctx, deps.wsID, unsubEmail, "recipient_resubscribe"); err != nil {
+		t.Fatalf("RemoveWorkspaceSuppression(unsubscribe) error: %v", err)
+	}
+
+	// Unsubscribe row must now be removed.
+	_, err = deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, unsubEmail)
+	if err == nil {
+		t.Fatal("unsubscribe row must be removed, but GetActiveWorkspaceSuppression returned no error")
+	}
+	if !errors.As(err, &appErr) || appErr.Code != 404 {
+		t.Fatalf("expected 404 after removal, got: %v", err)
+	}
+}
+
+func TestSuppressionRepo_AddWorkspace_ReactivatesRemovedUnsubscribe(t *testing.T) {
+	ctx := context.Background()
+	deps := setupSuppressionTestDeps(ctx, t)
+	memberRepo := pgadapter.NewMemberRepo(deps.pool)
+	_ = createTestMember(ctx, t, memberRepo) // kept for the pattern; not used directly
+
+	email := "reactivate-unsub@test.com"
+
+	// Add unsubscribe, remove it, then re-add — should reactivate.
+	if err := deps.repo.AddWorkspace(ctx, &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionUnsubscribe,
+	}); err != nil {
+		t.Fatalf("AddWorkspace: %v", err)
+	}
+	if err := deps.repo.RemoveWorkspaceSuppression(ctx, deps.wsID, email, "recipient_resubscribe"); err != nil {
+		t.Fatalf("RemoveWorkspaceSuppression: %v", err)
+	}
+
+	reactivated := &domain.SuppressionWorkspace{
+		ID:          uuid.New(),
+		WorkspaceID: deps.wsID,
+		Email:       email,
+		Reason:      domain.SuppressionUnsubscribe,
+	}
+	if err := deps.repo.AddWorkspace(ctx, reactivated); err != nil {
+		t.Fatalf("re-AddWorkspace: %v", err)
+	}
+
+	sup, err := deps.repo.GetActiveWorkspaceSuppression(ctx, deps.wsID, email)
+	if err != nil {
+		t.Fatalf("GetActiveWorkspaceSuppression after reactivation: %v", err)
+	}
+	if sup.Reason != domain.SuppressionUnsubscribe {
+		t.Errorf("reason = %q, want unsubscribe", sup.Reason)
+	}
+}
+
 func TestSuppressionRepo_AddGlobal_ReactivatesRemoved(t *testing.T) {
 	ctx := context.Background()
 	deps := setupSuppressionTestDeps(ctx, t)
