@@ -949,14 +949,17 @@ func TestS11_HeaderInjection(t *testing.T) {
 				"header injection attempt (%s) should not cause 500, got %d",
 				payload.describe, resp.StatusCode)
 
-			// If accepted, verify in Mailpit that BCC was not added
+			// If accepted, verify in Mailpit that BCC was not added.
+			// Raw headers are on a separate /headers endpoint — Mailpit does not
+			// include them in the message object returned by /api/v1/message/{ID}.
 			if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
 				mailpit := NewMailpitClient(t)
 				messages := mailpit.GetMessages()
 
 				if len(messages) > 0 {
-					lastMsg := mailpit.GetMessage(messages[len(messages)-1].ID)
-					bccHeaders := lastMsg.Headers["Bcc"]
+					lastMsgID := messages[len(messages)-1].ID
+					rawHeaders := mailpit.GetMessageHeaders(lastMsgID)
+					bccHeaders := rawHeaders["Bcc"]
 					for _, bcc := range bccHeaders {
 						require.NotContains(t, bcc, "attacker@evil.com",
 							"BCC header should not contain injected address (%s)", payload.describe)

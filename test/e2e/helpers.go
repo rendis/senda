@@ -385,15 +385,33 @@ type MailpitAddress struct {
 	Address string `json:"Address"`
 }
 
+// MailpitListUnsubscribe holds the parsed List-Unsubscribe data returned by
+// Mailpit's /api/v1/message/{ID} endpoint (since Mailpit v1.8+).
+// Mailpit parses the header and exposes it as a structured object rather than
+// in the generic Headers map.
+type MailpitListUnsubscribe struct {
+	// Header is the raw List-Unsubscribe header value, e.g. "<https://host/u/TOKEN>".
+	Header string `json:"Header"`
+	// HeaderPost is the raw List-Unsubscribe-Post header value.
+	HeaderPost string `json:"HeaderPost"`
+	// Links contains the parsed URLs extracted from the header.
+	Links []string `json:"Links"`
+	// Errors contains any parse errors encountered by Mailpit.
+	Errors string `json:"Errors"`
+}
+
 // Message represents an email message from Mailpit (single message endpoint).
+// Note: Mailpit does NOT expose custom headers in a generic Headers field on
+// this endpoint.  List-Unsubscribe data is returned as the structured
+// ListUnsubscribe field.  To read all raw headers, use GetMessageHeaders.
 type Message struct {
-	ID      string              `json:"ID"`
-	From    MailpitAddress      `json:"From"`
-	To      []MailpitAddress    `json:"To"`
-	Subject string              `json:"Subject"`
-	Text    string              `json:"Text"`
-	HTML    string              `json:"HTML"`
-	Headers map[string][]string `json:"Headers"`
+	ID              string                 `json:"ID"`
+	From            MailpitAddress         `json:"From"`
+	To              []MailpitAddress       `json:"To"`
+	Subject         string                 `json:"Subject"`
+	Text            string                 `json:"Text"`
+	HTML            string                 `json:"HTML"`
+	ListUnsubscribe MailpitListUnsubscribe `json:"ListUnsubscribe"`
 }
 
 // MessageSummary is the lightweight response from list endpoint.
@@ -432,6 +450,22 @@ func (m *MailpitClient) GetMessage(id string) *Message {
 	require.NoError(m.t, err)
 
 	return &msg
+}
+
+// GetMessageHeaders fetches all raw MIME headers for a message by ID.
+// Mailpit exposes raw headers on a separate /api/v1/message/{ID}/headers endpoint.
+func (m *MailpitClient) GetMessageHeaders(id string) map[string][]string {
+	resp, err := m.httpClient.Get(fmt.Sprintf("%s/api/v1/message/%s/headers", m.baseURL, id))
+	require.NoError(m.t, err)
+	defer resp.Body.Close()
+
+	require.Equal(m.t, http.StatusOK, resp.StatusCode)
+
+	var headers map[string][]string
+	err = json.NewDecoder(resp.Body).Decode(&headers)
+	require.NoError(m.t, err)
+
+	return headers
 }
 
 // SearchMessages searches Mailpit messages by query.

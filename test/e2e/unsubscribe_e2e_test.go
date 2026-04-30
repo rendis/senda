@@ -39,17 +39,11 @@ func extractTokenFromListUnsub(t *testing.T, value string) string {
 }
 
 // listUnsubHeaders reads List-Unsubscribe and List-Unsubscribe-Post values from a Message.
-// Message.Headers is map[string][]string (canonical form).
+// Mailpit exposes these as a structured ListUnsubscribe field on the message object,
+// not in a generic Headers map.
 func listUnsubHeaders(msg *Message) (listUnsub, listUnsubPost string) {
-	for k, vals := range msg.Headers {
-		switch strings.ToLower(k) {
-		case "list-unsubscribe":
-			listUnsub = strings.Join(vals, ", ")
-		case "list-unsubscribe-post":
-			listUnsubPost = strings.Join(vals, ", ")
-		}
-	}
-	return
+	return strings.TrimSpace(msg.ListUnsubscribe.Header),
+		strings.TrimSpace(msg.ListUnsubscribe.HeaderPost)
 }
 
 // findMessageFor returns the message ID for the first message addressed to recipient, or "".
