@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Fragment } from "react";
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,7 +13,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { emitOpenScopeSwitcher } from "@/lib/scope-switcher-events";
 import { SYSTEM_WORKSPACE_CODE } from "@/types/api";
-import { Fragment } from "react";
 
 function escapeRegExp(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -73,9 +75,18 @@ export function PageShell({
                   <BreadcrumbItem>
                     {idx === breadcrumbs.length - 1 ? (
                       <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                    ) : item.href && item.href !== "#" ? (
+                      <BreadcrumbLink asChild>
+                        <Link
+                          href={item.href}
+                          onClick={(e) => handleBreadcrumbClick(item, e)}
+                        >
+                          {item.label}
+                        </Link>
+                      </BreadcrumbLink>
                     ) : (
                       <BreadcrumbLink
-                        href={item.href ?? "#"}
+                        href="#"
                         onClick={(e) => handleBreadcrumbClick(item, e)}
                       >
                         {item.label}

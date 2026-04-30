@@ -144,6 +144,26 @@ test("extracts injector field usage from live editor sources such as token field
   });
 });
 
+test("extracts injector usage from banner background fields and overlay tokens", () => {
+  const usage = extractInjectorUsageFromTemplateSources([
+    {
+      blocks: [
+        {
+          type: "banner",
+          backgroundUrl: "{{ injector.brand.hero_image }}",
+          backgroundColor: "{{ injector.brand.hero_color }}",
+          backgroundColorMode: "injector",
+          segments: [{ kind: "token", token: "injector.brand.overlay_text" }],
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(usage, {
+    brand: ["hero_image", "hero_color", "overlay_text"],
+  });
+});
+
 test("in visual mode ignores stale code mjml injectors and uses live builder content + metadata", () => {
   const usage = resolveTestSendInjectorUsage({
     editorMode: "visual",

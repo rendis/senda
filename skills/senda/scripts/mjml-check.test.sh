@@ -81,6 +81,16 @@ run_case ok-3 0 '<mjml>
   </mj-body>
 </mjml>'
 
+run_case ok-4 0 '<mjml>
+  <mj-body>
+    <mj-section css-class="senda-builder-banner" background-url="{{ injector.brand.hero_image }}" background-size="contain" background-position="center center" background-repeat="no-repeat">
+      <mj-column>
+        <mj-text>Hello</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>'
+
 run_case fail-1 1 '<!DOCTYPE html>
 <mjml>
   <mj-body>

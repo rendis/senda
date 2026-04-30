@@ -116,7 +116,11 @@ thumbnails and caches by SHA-256 of post-rewrite MJML.
 `editor_data` is the visual builder's serialized state — block tree (text,
 button, image, divider, spacer, banner, video, list, plus preserved MJML code
 blocks for syntax the visual editor cannot represent). Treat it as opaque from
-the agent perspective.
+the agent perspective. Banner blocks may store injector-backed values for the
+background image URL, background color, and overlay text; the background color
+also records whether the editor is using color-picker mode or injector mode.
+Banner image fit/alignment are stored there too; `cover` remains the default
+hero crop behavior, while `contain` and `auto` render with `background-size`.
 
 ## Resolution chain at send time
 

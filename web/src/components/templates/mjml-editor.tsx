@@ -28,6 +28,12 @@ import {
   Rocket,
   MonitorStop,
   Paintbrush,
+  Palette,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Maximize2,
+  Minimize2,
   Trash2,
   GripVertical,
   Type,
@@ -131,7 +137,13 @@ const metadataSchema = z.object({
 
 type MetadataForm = z.infer<typeof metadataSchema>;
 type StaticMetadataFieldKey = "subject" | "from_name";
-type MediaFieldKey = `${string}:${"image_src" | "video_url" | "video_thumbnail"}`;
+type MediaFieldKey = `${string}:${
+  | "image_src"
+  | "video_url"
+  | "video_thumbnail"
+  | "banner_background_url"
+  | "banner_background_color"
+}`;
 type MetadataFieldRefKey = StaticMetadataFieldKey | MediaFieldKey;
 
 type BuilderBlockType =
@@ -205,6 +217,9 @@ type BuilderBannerBlock = {
   type: "banner";
   backgroundUrl: string;
   backgroundColor: string;
+  backgroundColorMode: "color" | "injector";
+  backgroundFit: "cover" | "contain" | "auto";
+  backgroundPosition: "left center" | "center center" | "right center";
   mode: "fixed-height" | "fluid-height";
   height: number;
   segments: BuilderSegment[];
@@ -313,6 +328,50 @@ const TOKEN_SEGMENT_KIND = "token";
 const MIN_PREVIEW_SCALE = 0.01;
 const BANNER_MODE_FIXED = "fixed-height";
 const BANNER_MODE_FLUID = "fluid-height";
+const BANNER_BACKGROUND_COLOR_MODE_COLOR = "color";
+const BANNER_BACKGROUND_COLOR_MODE_INJECTOR = "injector";
+const DEFAULT_BANNER_BACKGROUND_COLOR = "#333333";
+const BANNER_BACKGROUND_FIT_COVER = "cover";
+const BANNER_BACKGROUND_FIT_CONTAIN = "contain";
+const BANNER_BACKGROUND_FIT_AUTO = "auto";
+const DEFAULT_BANNER_BACKGROUND_POSITION = "center center";
+const BANNER_BACKGROUND_FIT_OPTIONS = [
+  { value: BANNER_BACKGROUND_FIT_COVER, label: "Cover", icon: Maximize2 },
+  { value: BANNER_BACKGROUND_FIT_CONTAIN, label: "Contain", icon: Minimize2 },
+  { value: BANNER_BACKGROUND_FIT_AUTO, label: "Original", icon: ImageIcon },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["backgroundFit"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_BACKGROUND_POSITION_OPTIONS = [
+  { value: "left center", label: "Left", icon: AlignLeft },
+  { value: DEFAULT_BANNER_BACKGROUND_POSITION, label: "Center", icon: AlignCenter },
+  { value: "right center", label: "Right", icon: AlignRight },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["backgroundPosition"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_OVERLAY_ALIGN_OPTIONS = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Center", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["align"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_SECTION_CLASS = "senda-builder-banner";
+const BANNER_ICON_BUTTON_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded border transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+const BANNER_ICON_BUTTON_ACTIVE_CLASS =
+  "border-primary bg-primary text-primary-foreground";
+const BANNER_ICON_BUTTON_INACTIVE_CLASS =
+  "border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground";
+const MJML_ATTR_BACKGROUND_COLOR = "background-color";
+const MJML_ATTR_BACKGROUND_POSITION = "background-position";
+const MJML_ATTR_BACKGROUND_URL = "background-url";
 const MIME_TEXT_PLAIN = "text/plain";
 const LOCALE_INACTIVE_CLASS = "text-muted-foreground hover:text-foreground hover:bg-muted";
 const LOCALE_ACTIVE_CLASS = "bg-primary text-primary-foreground";
@@ -326,6 +385,58 @@ function nowId() {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+function includesVariablePlaceholder(value: string) {
+  return /\{\{\s*[^}]+\s*\}\}/.test(value);
+}
+
+function parseBannerBackgroundColorMode(
+  rawMode: unknown,
+  backgroundColor: string
+): BuilderBannerBlock["backgroundColorMode"] {
+  if (rawMode === BANNER_BACKGROUND_COLOR_MODE_INJECTOR) {
+    return BANNER_BACKGROUND_COLOR_MODE_INJECTOR;
+  }
+  if (rawMode === BANNER_BACKGROUND_COLOR_MODE_COLOR) {
+    return BANNER_BACKGROUND_COLOR_MODE_COLOR;
+  }
+  return includesVariablePlaceholder(backgroundColor)
+    ? BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+    : BANNER_BACKGROUND_COLOR_MODE_COLOR;
+}
+
+function parseBannerBackgroundFit(rawFit: unknown): BuilderBannerBlock["backgroundFit"] {
+  if (
+    rawFit === BANNER_BACKGROUND_FIT_CONTAIN ||
+    rawFit === BANNER_BACKGROUND_FIT_AUTO
+  ) {
+    return rawFit;
+  }
+  return BANNER_BACKGROUND_FIT_COVER;
+}
+
+function parseBannerBackgroundPosition(
+  rawPosition: unknown
+): BuilderBannerBlock["backgroundPosition"] {
+  if (typeof rawPosition !== "string") {
+    return DEFAULT_BANNER_BACKGROUND_POSITION;
+  }
+  if (rawPosition.includes("left")) {
+    return "left center";
+  }
+  if (rawPosition.includes("right")) {
+    return "right center";
+  }
+  return DEFAULT_BANNER_BACKGROUND_POSITION;
+}
+
+function normalizeBannerColorForColorInput(value: string) {
+  return isHexColor(value) ? value : DEFAULT_BANNER_BACKGROUND_COLOR;
 }
 
 function createTextSegment(raw: string) {
@@ -1121,12 +1232,22 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
       }
       if (item.type === "banner") {
         const raw = item as Record<string, unknown>;
+        const backgroundColor =
+          typeof raw.backgroundColor === "string"
+            ? raw.backgroundColor
+            : DEFAULT_BANNER_BACKGROUND_COLOR;
         return {
           id,
           label,
           type: "banner",
           backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
-          backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#333333",
+          backgroundColor,
+          backgroundColorMode: parseBannerBackgroundColorMode(
+            raw.backgroundColorMode,
+            backgroundColor
+          ),
+          backgroundFit: parseBannerBackgroundFit(raw.backgroundFit),
+          backgroundPosition: parseBannerBackgroundPosition(raw.backgroundPosition),
           mode: raw.mode === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
           height: normalizeSpacerHeight(raw.height, 400),
           segments: Array.isArray(raw.segments)
@@ -1504,6 +1625,8 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
   let buttonHref = "#";
   let buttonColor = "#ffffff";
   let align: "left" | "center" | "right" = "center";
+  const backgroundColor =
+    element.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || DEFAULT_BANNER_BACKGROUND_COLOR;
 
   const textEl = element.getElementsByTagName("mj-text")[0];
   if (textEl) {
@@ -1517,14 +1640,19 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
   if (btnEl) {
     buttonText = stripMjmlInlineTags(btnEl.innerHTML ?? "");
     buttonHref = btnEl.getAttribute("href") || "#";
-    buttonColor = btnEl.getAttribute("background-color") || "#ffffff";
+    buttonColor = btnEl.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || "#ffffff";
   }
 
   return {
     id: nowId(),
     type: "banner",
-    backgroundUrl: element.getAttribute("background-url") || "",
-    backgroundColor: element.getAttribute("background-color") || "#333333",
+    backgroundUrl: element.getAttribute(MJML_ATTR_BACKGROUND_URL) || "",
+    backgroundColor,
+    backgroundColorMode: parseBannerBackgroundColorMode(null, backgroundColor),
+    backgroundFit: BANNER_BACKGROUND_FIT_COVER,
+    backgroundPosition: parseBannerBackgroundPosition(
+      element.getAttribute(MJML_ATTR_BACKGROUND_POSITION)
+    ),
     mode: element.getAttribute("mode") === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
     height: normalizeSpacerHeight(element.getAttribute("height"), 400),
     segments,
@@ -1532,6 +1660,52 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
     buttonHref,
     buttonColor,
     verticalAlign: parseVerticalAlign(element.getAttribute("vertical-align")),
+    align,
+    padding: normalizeSpacerHeight(element.getAttribute("padding"), 40),
+  };
+}
+
+function parseMjSectionBannerToBlock(element: Element): BuilderBannerBlock {
+  let segments: BuilderSegment[] = [createTextSegment("")];
+  let buttonText = "";
+  let buttonHref = "#";
+  let buttonColor = "#ffffff";
+  let align: "left" | "center" | "right" = "center";
+  const backgroundColor =
+    element.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || DEFAULT_BANNER_BACKGROUND_COLOR;
+
+  const textEl = element.getElementsByTagName("mj-text")[0];
+  if (textEl) {
+    segments = ensureUniqueSegmentIds(
+      parseContentToSegments(stripMjmlInlineTags(textEl.innerHTML ?? ""))
+    );
+    align = parseMjmlAlignNarrow(textEl.getAttribute("align"));
+  }
+
+  const btnEl = element.getElementsByTagName("mj-button")[0];
+  if (btnEl) {
+    buttonText = stripMjmlInlineTags(btnEl.innerHTML ?? "");
+    buttonHref = btnEl.getAttribute("href") || "#";
+    buttonColor = btnEl.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || "#ffffff";
+  }
+
+  return {
+    id: nowId(),
+    type: "banner",
+    backgroundUrl: element.getAttribute(MJML_ATTR_BACKGROUND_URL) || "",
+    backgroundColor,
+    backgroundColorMode: parseBannerBackgroundColorMode(null, backgroundColor),
+    backgroundFit: parseBannerBackgroundFit(element.getAttribute("background-size")),
+    backgroundPosition: parseBannerBackgroundPosition(
+      element.getAttribute(MJML_ATTR_BACKGROUND_POSITION)
+    ),
+    mode: BANNER_MODE_FLUID,
+    height: 400,
+    segments,
+    buttonText,
+    buttonHref,
+    buttonColor,
+    verticalAlign: "middle",
     align,
     padding: normalizeSpacerHeight(element.getAttribute("padding"), 40),
   };
@@ -1615,6 +1789,12 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
       }
 
       if (topTag === "mj-section") {
+        const cssClass = topChild.getAttribute("css-class") || "";
+        if (cssClass.split(/\s+/).includes(BANNER_SECTION_CLASS)) {
+          blocks.push(parseMjSectionBannerToBlock(topChild));
+          continue;
+        }
+
         const columns = Array.from(topChild.children).filter(
           (child) => child.tagName.toLowerCase() === "mj-column"
         );
@@ -1732,20 +1912,37 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
 }
 
 function renderBannerToMjml(block: BuilderBannerBlock): string {
-  const modeAttr = ` mode="${block.mode}"`;
-  const heightAttr = block.mode === BANNER_MODE_FIXED ? ` height="${block.height}px"` : "";
-  const bgUrl = block.backgroundUrl ? ` background-url="${block.backgroundUrl}"` : "";
-  const bgColor = ` background-color="${block.backgroundColor}"`;
-  const vAlign = ` vertical-align="${block.verticalAlign}"`;
-  const padding = ` padding="${block.padding}px"`;
+  const bgUrl = block.backgroundUrl
+    ? ` ${MJML_ATTR_BACKGROUND_URL}="${block.backgroundUrl}"`
+    : "";
+  const bgColor = block.backgroundColor
+    ? ` ${MJML_ATTR_BACKGROUND_COLOR}="${block.backgroundColor}"`
+    : "";
+  const bgPosition = ` ${MJML_ATTR_BACKGROUND_POSITION}="${block.backgroundPosition}"`;
   const textContent = renderSegmentsToText(block.segments).trim();
   const textMjml = textContent
     ? `\n        <mj-text align="${block.align}" color="#ffffff" font-size="20px">${textContent}</mj-text>`
     : "";
   const buttonMjml = block.buttonText
-    ? `\n        <mj-button href="${block.buttonHref || "#"}" background-color="${block.buttonColor}" align="${block.align}">${block.buttonText}</mj-button>`
+    ? `\n        <mj-button href="${block.buttonHref || "#"}" ${MJML_ATTR_BACKGROUND_COLOR}="${block.buttonColor}" align="${block.align}">${block.buttonText}</mj-button>`
     : "";
-  return `\n    <mj-hero${modeAttr}${heightAttr}${bgUrl}${bgColor}${vAlign}${padding}>${textMjml}${buttonMjml}\n    </mj-hero>`;
+  const emptyOverlayTextMjml =
+    !textContent && !block.buttonText
+      ? `\n        <mj-text align="${block.align}" color="#ffffff" font-size="20px">&nbsp;</mj-text>`
+      : "";
+
+  if (block.backgroundFit !== BANNER_BACKGROUND_FIT_COVER) {
+    const bgSize = ` background-size="${block.backgroundFit}"`;
+    const padding = ` padding="${block.padding}px 0"`;
+    const vAlign = ` vertical-align="${block.verticalAlign}"`;
+    return `\n    <mj-section css-class="${BANNER_SECTION_CLASS}"${bgUrl}${bgColor}${bgPosition}${bgSize} background-repeat="no-repeat"${padding}>\n      <mj-column${vAlign}>${textMjml}${buttonMjml}${emptyOverlayTextMjml}\n      </mj-column>\n    </mj-section>`;
+  }
+
+  const modeAttr = ` mode="${block.mode}"`;
+  const heightAttr = block.mode === BANNER_MODE_FIXED ? ` height="${block.height}px"` : "";
+  const vAlign = ` vertical-align="${block.verticalAlign}"`;
+  const padding = ` padding="${block.padding}px"`;
+  return `\n    <mj-hero${modeAttr}${heightAttr}${bgUrl}${bgColor}${bgPosition}${vAlign}${padding}>${textMjml}${buttonMjml}${emptyOverlayTextMjml}\n    </mj-hero>`;
 }
 
 function buildTemplateMjml(document: BuilderDocument) {
@@ -2823,7 +3020,10 @@ export function MjmlEditor({
         id,
         type: "banner",
         backgroundUrl: "",
-        backgroundColor: "#333333",
+        backgroundColor: DEFAULT_BANNER_BACKGROUND_COLOR,
+        backgroundColorMode: BANNER_BACKGROUND_COLOR_MODE_COLOR,
+        backgroundFit: BANNER_BACKGROUND_FIT_COVER,
+        backgroundPosition: DEFAULT_BANNER_BACKGROUND_POSITION,
         mode: BANNER_MODE_FLUID,
         height: 400,
         segments: [createTextSegment("Your headline here")],
@@ -2877,6 +3077,8 @@ export function MjmlEditor({
     metadataFieldRefs.current.delete(`${blockId}:image_src`);
     metadataFieldRefs.current.delete(`${blockId}:video_url`);
     metadataFieldRefs.current.delete(`${blockId}:video_thumbnail`);
+    metadataFieldRefs.current.delete(`${blockId}:banner_background_url`);
+    metadataFieldRefs.current.delete(`${blockId}:banner_background_color`);
     if (selectedMetadataField?.startsWith(`${blockId}:`)) {
       setSelectedMetadataField(null);
     }
@@ -3468,6 +3670,30 @@ export function MjmlEditor({
       blocks: builderDocument.blocks.map((block) => {
         if (block.id !== blockId || block.type !== "banner") return block;
         return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateBannerBackgroundColorMode(
+    blockId: string,
+    mode: BuilderBannerBlock["backgroundColorMode"]
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "banner") return block;
+        const backgroundColor =
+          mode === BANNER_BACKGROUND_COLOR_MODE_COLOR
+            ? normalizeBannerColorForColorInput(block.backgroundColor)
+            : isHexColor(block.backgroundColor)
+              ? ""
+              : block.backgroundColor;
+        return {
+          ...block,
+          backgroundColor,
+          backgroundColorMode: mode,
+        };
       }),
     });
   }
@@ -4676,39 +4902,249 @@ export function MjmlEditor({
                               <div className="space-y-2">
                                 <div>
                                   <Label className="text-xs">Background Image URL</Label>
-                                  <Input
-                                    value={block.backgroundUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://example.com/hero.jpg"
-                                    onChange={(ev) => updateBannerBlock(block.id, "backgroundUrl", ev.target.value)}
-                                    readOnly={isReadOnlyMode}
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <div className="flex-1">
-                                    <Label className="text-xs">Background Color</Label>
-                                    <Input
-                                      type="color"
-                                      value={block.backgroundColor}
-                                      className="h-8 mt-1 w-16"
-                                      onChange={(ev) => updateBannerBlock(block.id, "backgroundColor", ev.target.value)}
-                                      readOnly={isReadOnlyMode}
+                                  <div
+                                    onMouseDown={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedMetadataField(`${block.id}:banner_background_url`);
+                                      setSelectedBlockId(block.id);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MetadataTokenInput
+                                      ref={(node) => {
+                                        metadataFieldRefs.current.set(
+                                          `${block.id}:banner_background_url`,
+                                          node
+                                        );
+                                      }}
+                                      value={block.backgroundUrl}
+                                      className="mt-1"
+                                      placeholder="https://example.com/hero.jpg"
+                                      onChange={(value) =>
+                                        updateBannerBlock(block.id, "backgroundUrl", value)
+                                      }
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:banner_background_url`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Banner background image URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
                                     />
                                   </div>
-                                  <div className="flex-1">
-                                    <Label className="text-xs">Mode</Label>
-                                    <select
-                                      value={block.mode}
-                                      onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
-                                      disabled={!canEditDraft}
-                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                    >
-                                      <option value="fluid-height">Fluid</option>
-                                      <option value="fixed-height">Fixed</option>
-                                    </select>
+                                  <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-input bg-muted/30 p-1">
+                                    <div className="flex items-center gap-1">
+                                      {BANNER_BACKGROUND_FIT_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive = block.backgroundFit === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Image fit: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "backgroundFit",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Image fit: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="h-5 w-px bg-border" />
+                                    <div className="flex items-center gap-1">
+                                      {BANNER_BACKGROUND_POSITION_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive =
+                                          block.backgroundPosition === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Image align: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "backgroundPosition",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Image align: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
-                                {block.mode === BANNER_MODE_FIXED && (
+                                <div className="flex gap-2">
+                                  <div
+                                    className={
+                                      block.backgroundFit === BANNER_BACKGROUND_FIT_COVER
+                                        ? "flex-1"
+                                        : "w-full"
+                                    }
+                                  >
+                                    <Label className="text-xs">Background Color</Label>
+                                    <div
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedMetadataField(
+                                          `${block.id}:banner_background_color`
+                                        );
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={[
+                                        "relative mt-1 overflow-visible transition-[width] duration-200 ease-out",
+                                        block.backgroundColorMode ===
+                                        BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                          ? "w-full"
+                                          : "w-16",
+                                      ].join(" ")}
+                                    >
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            disabled={isReadOnlyMode}
+                                            className={[
+                                              "absolute -right-1.5 -top-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                                              block.backgroundColorMode ===
+                                              BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-border bg-background text-muted-foreground hover:text-foreground",
+                                            ].join(" ")}
+                                            aria-label={
+                                              block.backgroundColorMode ===
+                                              BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                ? "Use color picker for banner background color"
+                                                : "Use injector for banner background color"
+                                            }
+                                            onClick={() =>
+                                              updateBannerBackgroundColorMode(
+                                                block.id,
+                                                block.backgroundColorMode ===
+                                                  BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                  ? BANNER_BACKGROUND_COLOR_MODE_COLOR
+                                                  : BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                              )
+                                            }
+                                          >
+                                            {block.backgroundColorMode ===
+                                            BANNER_BACKGROUND_COLOR_MODE_INJECTOR ? (
+                                              <Palette className="h-3 w-3" />
+                                            ) : (
+                                              <Type className="h-3 w-3" />
+                                            )}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          {block.backgroundColorMode ===
+                                          BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                            ? "Use color picker"
+                                            : "Use injector"}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    {block.backgroundColorMode ===
+                                    BANNER_BACKGROUND_COLOR_MODE_INJECTOR ? (
+                                      <MetadataTokenInput
+                                        ref={(node) => {
+                                          metadataFieldRefs.current.set(
+                                            `${block.id}:banner_background_color`,
+                                            node
+                                          );
+                                        }}
+                                        value={block.backgroundColor}
+                                        className="h-8 overflow-hidden pr-7"
+                                        placeholder="Injector token..."
+                                        onChange={(value) =>
+                                          updateBannerBlock(
+                                            block.id,
+                                            "backgroundColor",
+                                            value
+                                          )
+                                        }
+                                        onFocus={() => {
+                                          setSelectedMetadataField(
+                                            `${block.id}:banner_background_color`
+                                          );
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="Banner background color"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    ) : (
+                                      <Input
+                                        type="color"
+                                        value={normalizeBannerColorForColorInput(
+                                          block.backgroundColor
+                                        )}
+                                        className="h-8 w-full"
+                                        onChange={(ev) =>
+                                          updateBannerBlock(
+                                            block.id,
+                                            "backgroundColor",
+                                            ev.target.value
+                                          )
+                                        }
+                                        readOnly={isReadOnlyMode}
+                                      />
+                                    )}
+                                    </div>
+                                  </div>
+                                  {block.backgroundFit === BANNER_BACKGROUND_FIT_COVER ? (
+                                    <div className="flex-1">
+                                      <Label className="text-xs">Mode</Label>
+                                      <select
+                                        value={block.mode}
+                                        onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
+                                        disabled={!canEditDraft}
+                                        className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      >
+                                        <option value="fluid-height">Fluid</option>
+                                        <option value="fixed-height">Fixed</option>
+                                      </select>
+                                    </div>
+                                  ) : null}
+                                </div>
+                                {block.backgroundFit === BANNER_BACKGROUND_FIT_COVER &&
+                                block.mode === BANNER_MODE_FIXED && (
                                   <div>
                                     <Label className="text-xs">Height (px)</Label>
                                     <Input
@@ -4723,42 +5159,81 @@ export function MjmlEditor({
                                 )}
                                 <div>
                                   <Label className="text-xs">Overlay Text</Label>
-                                  <div className="mt-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                                    <div
-                                      ref={(node) => {
-                                        if (node) {
-                                          blockEditorRefs.current[block.id] = node;
-                                        } else {
-                                          delete blockEditorRefs.current[block.id];
+                                  <div className="mt-1 flex items-start gap-2">
+                                    <div className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                                      <div
+                                        ref={(node) => {
+                                          if (node) {
+                                            blockEditorRefs.current[block.id] = node;
+                                          } else {
+                                            delete blockEditorRefs.current[block.id];
+                                          }
+                                        }}
+                                        contentEditable={!isReadOnlyMode}
+                                        suppressContentEditableWarning
+                                        className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+                                        data-placeholder="Headline text..."
+                                        onInput={(event) =>
+                                          handleBlockEditorInput(block.id, event.currentTarget)
                                         }
-                                      }}
-                                      contentEditable={!isReadOnlyMode}
-                                      suppressContentEditableWarning
-                                      className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
-                                      data-placeholder="Headline text..."
-                                      onInput={(event) =>
-                                        handleBlockEditorInput(block.id, event.currentTarget)
-                                      }
-                                      onKeyDown={(event) =>
-                                        handleBlockEditorKeyDown(block.id, event)
-                                      }
-                                      onClick={handleBlockEditorTokenClick}
-                                      onFocus={() => {
-                                        setSelectedMetadataField(null);
-                                        setSelectedBlockId(block.id);
-                                      }}
-                                      onCopy={(event) =>
-                                        handleBlockEditorCopyOrCut(block.id, event, "copy")
-                                      }
-                                      onCut={(event) =>
-                                        handleBlockEditorCopyOrCut(block.id, event, "cut")
-                                      }
-                                      onPaste={(event) => handleBlockEditorPaste(block.id, event)}
-                                      onDragOver={(event) =>
-                                        handleBlockEditorDragOver(block.id, event)
-                                      }
-                                      onDrop={(event) => handleBlockEditorDrop(block.id, event)}
-                                    />
+                                        onKeyDown={(event) =>
+                                          handleBlockEditorKeyDown(block.id, event)
+                                        }
+                                        onClick={handleBlockEditorTokenClick}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(null);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        onCopy={(event) =>
+                                          handleBlockEditorCopyOrCut(block.id, event, "copy")
+                                        }
+                                        onCut={(event) =>
+                                          handleBlockEditorCopyOrCut(block.id, event, "cut")
+                                        }
+                                        onPaste={(event) => handleBlockEditorPaste(block.id, event)}
+                                        onDragOver={(event) =>
+                                          handleBlockEditorDragOver(block.id, event)
+                                        }
+                                        onDrop={(event) => handleBlockEditorDrop(block.id, event)}
+                                      />
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1 rounded-md border border-input bg-muted/30 p-1">
+                                      {BANNER_OVERLAY_ALIGN_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive = block.align === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Overlay text align: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "align",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Overlay text align: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
                                 <div>
@@ -4795,20 +5270,30 @@ export function MjmlEditor({
                                   </div>
                                 )}
                                 <div className="flex gap-2">
-                                  <div className="flex-1">
-                                    <Label className="text-xs">V. Align</Label>
-                                    <select
-                                      value={block.verticalAlign}
-                                      onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
-                                      disabled={!canEditDraft}
-                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                    >
-                                      <option value="top">Top</option>
-                                      <option value="middle">Middle</option>
-                                      <option value="bottom">Bottom</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex-1">
+                                  {block.mode === BANNER_MODE_FIXED &&
+                                  block.backgroundFit === BANNER_BACKGROUND_FIT_COVER ? (
+                                    <div className="flex-1">
+                                      <Label className="text-xs">Content Position</Label>
+                                      <select
+                                        value={block.verticalAlign}
+                                        onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
+                                        disabled={!canEditDraft}
+                                        className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      >
+                                        <option value="top">Top</option>
+                                        <option value="middle">Middle</option>
+                                        <option value="bottom">Bottom</option>
+                                      </select>
+                                    </div>
+                                  ) : null}
+                                  <div
+                                    className={
+                                      block.mode === BANNER_MODE_FIXED &&
+                                      block.backgroundFit === BANNER_BACKGROUND_FIT_COVER
+                                        ? "flex-1"
+                                        : "w-full"
+                                    }
+                                  >
                                     <Label className="text-xs">Padding (px)</Label>
                                     <Input
                                       type="number"

@@ -170,16 +170,7 @@ function TemplateTypesTable() {
       accessorKey: "name",
       header: t("columns.name"),
       cell: ({ row }) => (
-        <div className="space-y-1">
-          <span className="text-sm text-foreground">{row.original.name}</span>
-          <ResourceStateBadges
-            badges={getTemplateTypeManagementState(
-              scope,
-              row.original,
-              workspacePolicies.data,
-            ).badges}
-          />
-        </div>
+        <span className="text-sm text-foreground">{row.original.name}</span>
       ),
     },
     {
@@ -207,8 +198,15 @@ function TemplateTypesTable() {
       accessorKey: "scope_level",
       header: t("columns.scope"),
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ScopeIndicator scope={resolveResourceDisplayScope(row.original)} />
+          <ResourceStateBadges
+            badges={getTemplateTypeManagementState(
+              scope,
+              row.original,
+              workspacePolicies.data,
+            ).badges}
+          />
         </div>
       ),
     },

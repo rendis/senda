@@ -21,10 +21,12 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "senda-dev-secret",
       "redirectUris": [
-        "http://localhost:3000/api/auth/callback/oidc"
+        "http://localhost:3000/api/auth/callback/oidc",
+        "http://localhost:3001/api/auth/callback/oidc"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://localhost:3001"
       ],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
@@ -36,7 +38,7 @@
         "email"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:3000/login"
+        "post.logout.redirect.uris": "http://localhost:3000/login##http://localhost:3001/login"
       }
     },
     {
