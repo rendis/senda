@@ -119,6 +119,11 @@ type SendWorker struct {
 	templateTypeStore port.TemplateTypeStore
 	workspaceLookup   port.WorkspaceStore
 	publicBaseURL     string
+
+	// suppressionStore enables a pre-send suppression re-check (optional).
+	// When wired, the worker re-evaluates suppression after dequeuing an email
+	// to catch recipients who unsubscribed while the email was queued.
+	suppressionStore port.SuppressionStore
 }
 
 // NewSendWorker creates a new send worker with all dependencies.
@@ -186,6 +191,14 @@ func WithWorkspaceLookup(s port.WorkspaceStore) SendWorkerOption {
 // WithUnsubscribePublicBaseURL sets the base URL used for List-Unsubscribe and preferences links.
 func WithUnsubscribePublicBaseURL(u string) SendWorkerOption {
 	return func(w *SendWorker) { w.publicBaseURL = u }
+}
+
+// WithSuppressionStore enables a pre-send suppression re-check. When wired,
+// the worker re-evaluates global and workspace suppression immediately before
+// calling the provider sender, catching recipients who unsubscribed while the
+// email was sitting in the queue.
+func WithSuppressionStore(s port.SuppressionStore) SendWorkerOption {
+	return func(w *SendWorker) { w.suppressionStore = s }
 }
 
 // Work processes a single email send job.
@@ -257,6 +270,35 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 		return w.failPermanently(ctx, email, fmt.Errorf("send: load email payload: %w", err))
 	}
 
+	// 4b. Pre-send suppression re-check (optional — no-op when not wired).
+	// This catches recipients who unsubscribed while the email was queued.
+	if w.suppressionStore != nil {
+		recipient := domain.CanonicalRecipientAddress(email.RecipientEmail)
+		suppressed, suppressionReason, serr := w.suppressionStore.IsSuppressed(ctx, email.WorkspaceID, recipient)
+		if serr != nil {
+			slog.Warn("send_worker: suppression re-check failed; allowing send to proceed",
+				append(emailLogAttrs(email), "error", serr)...)
+		} else if suppressed {
+			slog.Info("send_worker: recipient suppressed after enqueue; cancelling send",
+				append(emailLogAttrs(email), "reason", suppressionReason)...)
+			if err := w.emailStore.UpdateStatus(ctx, email.ID, domain.StatusSuppressed, domain.StatusProcessing); err != nil {
+				slog.Error("send_worker: failed to update status to suppressed", append(emailLogAttrs(email), "error", err)...)
+			}
+			suppressedAt := time.Now().UTC()
+			if err := w.emailStore.AddEvent(ctx, &domain.EmailEvent{
+				ID:         uuid.Must(uuid.NewV7()),
+				EmailID:    email.ID,
+				EventType:  domain.EventTypeSuppressed,
+				OccurredAt: suppressedAt,
+				Metadata:   map[string]any{"reason": suppressionReason, "detected_at": "pre_send"},
+				CreatedAt:  suppressedAt,
+			}); err != nil {
+				slog.Error("send_worker: failed to add suppressed event", append(emailLogAttrs(email), "error", err)...)
+			}
+			return goriver.JobCancel(fmt.Errorf("send: recipient %s suppressed after enqueue (reason=%s)", recipient, suppressionReason))
+		}
+	}
+
 	// 5. Resolve unsubscribe context for bulk template types (optional, no-op when not wired).
 	var systemVars map[string]string
 	extraHeaders := map[string]string{}
@@ -278,6 +320,7 @@ func (w *SendWorker) Work(ctx context.Context, job *goriver.Job[SendJobArgs]) er
 				tokenPayload := unsubscribe.Payload{
 					Version:          1,
 					WorkspaceID:      email.WorkspaceID,
+					TemplateTypeID:   tt.ID,
 					TemplateTypeSlug: tt.Slug,
 					TemplateTypeName: tt.Name,
 					Email:            domain.CanonicalRecipientAddress(email.RecipientEmail),

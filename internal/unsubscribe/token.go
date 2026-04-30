@@ -25,6 +25,7 @@ var (
 type Payload struct {
 	Version          int       `json:"v"`
 	WorkspaceID      uuid.UUID `json:"ws"`
+	TemplateTypeID   uuid.UUID `json:"tti"`
 	TemplateTypeSlug string    `json:"tt"`
 	TemplateTypeName string    `json:"ttn"`
 	Email            string    `json:"e"`
@@ -36,6 +37,7 @@ type Payload struct {
 type wirePayload struct {
 	Version          int       `json:"v"`
 	WorkspaceID      uuid.UUID `json:"ws"`
+	TemplateTypeID   uuid.UUID `json:"tti"`
 	TemplateTypeSlug string    `json:"tt"`
 	TemplateTypeName string    `json:"ttn"`
 	Email            string    `json:"e"`
@@ -54,6 +56,7 @@ func Generate(p Payload, key []byte) (string, error) {
 	w := wirePayload{
 		Version:          p.Version,
 		WorkspaceID:      p.WorkspaceID,
+		TemplateTypeID:   p.TemplateTypeID,
 		TemplateTypeSlug: p.TemplateTypeSlug,
 		TemplateTypeName: p.TemplateTypeName,
 		Email:            p.Email,
@@ -103,6 +106,7 @@ func Verify(token string, key []byte, now time.Time) (Payload, error) {
 	p := Payload{
 		Version:          w.Version,
 		WorkspaceID:      w.WorkspaceID,
+		TemplateTypeID:   w.TemplateTypeID,
 		TemplateTypeSlug: w.TemplateTypeSlug,
 		TemplateTypeName: w.TemplateTypeName,
 		Email:            w.Email,

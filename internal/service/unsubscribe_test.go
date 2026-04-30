@@ -66,11 +66,24 @@ func (f *fakeWorkspaceLookup) GetUnsubscribeSigningKey(_ context.Context, _ uuid
 }
 
 type fakeTemplateTypeLookup struct {
-	tt  *domain.TemplateType
-	err error
+	tt       *domain.TemplateType
+	err      error
+	byID     *domain.TemplateType
+	byIDErr  error
 }
 
 func (f *fakeTemplateTypeLookup) FindTypeBySlugInScope(_ context.Context, _ string, _ *uuid.UUID) (*domain.TemplateType, error) {
+	return f.tt, f.err
+}
+
+func (f *fakeTemplateTypeLookup) GetTypeByID(_ context.Context, _ uuid.UUID) (*domain.TemplateType, error) {
+	if f.byIDErr != nil {
+		return nil, f.byIDErr
+	}
+	if f.byID != nil {
+		return f.byID, nil
+	}
+	// Fall back to the slug-scoped result so existing tests keep working.
 	return f.tt, f.err
 }
 
@@ -405,6 +418,59 @@ func TestUnsubscribeService_UpdatePreferences_UpsertsOnePerChange(t *testing.T) 
 	}
 }
 
+func TestUnsubscribeService_OneClickOptOut_UsesTemplateTypeIDWhenPresent(t *testing.T) {
+	// Simulates an inherited/global template type: slug lookup in workspace scope
+	// returns not-found, but ID-based lookup succeeds.
+	ws := uuid.MustParse("01927e80-aaaa-bbbb-cccc-000000000099")
+	ttID := uuid.New()
+	key := unsub_testKey(0x10)
+	now := unsub_fixedTime()
+
+	// Build a token that carries the TemplateTypeID.
+	p := unsubscribe.Payload{
+		Version:          1,
+		WorkspaceID:      ws,
+		TemplateTypeID:   ttID,
+		TemplateTypeSlug: "global-newsletter",
+		TemplateTypeName: "Global Newsletter",
+		Email:            "user@example.com",
+		SourceEmailID:    uuid.New(),
+		IssuedAt:         now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	}
+	tok, err := unsubscribe.Generate(p, key)
+	if err != nil {
+		t.Fatalf("Generate token: %v", err)
+	}
+
+	wsLookup := &fakeWorkspaceLookup{
+		key: key,
+		ws:  &domain.Workspace{ID: ws, Name: "Acme"},
+	}
+	// Slug lookup returns not-found (inherited type not visible in scope).
+	// ID lookup returns the global type.
+	ttLookup := &fakeTemplateTypeLookup{
+		err:   apperr.NotFound("not in scope"),
+		byID:  &domain.TemplateType{ID: ttID, Slug: "global-newsletter", Name: "Global Newsletter"},
+	}
+	supWS := &fakeSuppressionWS{getErr: apperr.NotFound("none")}
+	tts := &fakeTTSWriter{}
+
+	svc := newTestService(wsLookup, ttLookup, supWS, tts, &fakeEmailHistory{})
+	if err := svc.OneClickOptOut(context.Background(), tok); err != nil {
+		t.Fatalf("OneClickOptOut with TemplateTypeID: %v", err)
+	}
+	if len(tts.upserted) != 1 {
+		t.Fatalf("expected 1 Upsert call, got %d", len(tts.upserted))
+	}
+	if tts.upserted[0].TemplateTypeID != ttID {
+		t.Errorf("TemplateTypeID = %v, want %v", tts.upserted[0].TemplateTypeID, ttID)
+	}
+	if tts.upserted[0].Subscribed {
+		t.Fatal("Subscribed must be false")
+	}
+}
+
 func TestUnsubscribeService_Resubscribe_RemovesWorkspaceSuppression(t *testing.T) {
 	ws := uuid.MustParse("01927e80-aaaa-bbbb-cccc-000000000008")
 	key := unsub_testKey(0)
@@ -441,6 +507,15 @@ func (m *multiTTLookup) FindTypeBySlugInScope(_ context.Context, slug string, _ 
 		return nil, apperr.NotFound("type %q not found", slug)
 	}
 	return tt, nil
+}
+
+func (m *multiTTLookup) GetTypeByID(_ context.Context, id uuid.UUID) (*domain.TemplateType, error) {
+	for _, tt := range m.responses {
+		if tt.ID == id {
+			return tt, nil
+		}
+	}
+	return nil, apperr.NotFound("type id %s not found", id)
 }
 
 // multiStateTTSWriter returns subscription state keyed by templateTypeID.

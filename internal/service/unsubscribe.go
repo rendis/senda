@@ -63,6 +63,10 @@ type unsubWorkspaceLookup interface {
 
 type unsubTemplateTypeLookup interface {
 	FindTypeBySlugInScope(ctx context.Context, slug string, wsID *uuid.UUID) (*domain.TemplateType, error)
+	// GetTypeByID resolves a template type directly by its UUID. Used when the
+	// token embeds TemplateTypeID, which handles inherited/global types that
+	// FindTypeBySlugInScope cannot find in the workspace scope alone.
+	GetTypeByID(ctx context.Context, id uuid.UUID) (*domain.TemplateType, error)
 }
 
 // unsubSuppressionWS operates on workspace-level unsubscribe suppression rows.
@@ -113,6 +117,26 @@ func NewUnsubscribeService(
 	}
 }
 
+// resolveTemplateType resolves the template type from a verified payload.
+// When the payload carries a TemplateTypeID (tokens minted after the fix that
+// embeds the ID), we perform a direct lookup by UUID so inherited/global types
+// are found regardless of workspace scope. For older tokens without an ID we
+// fall back to the slug+scope lookup.
+func (s *UnsubscribeService) resolveTemplateType(ctx context.Context, p unsubscribe.Payload) (*domain.TemplateType, error) {
+	if p.TemplateTypeID != uuid.Nil {
+		tt, err := s.tt.GetTypeByID(ctx, p.TemplateTypeID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve type by id %s: %w", p.TemplateTypeID, err)
+		}
+		return tt, nil
+	}
+	tt, err := s.tt.FindTypeBySlugInScope(ctx, p.TemplateTypeSlug, &p.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve type %s: %w", p.TemplateTypeSlug, err)
+	}
+	return tt, nil
+}
+
 // verify peeks the workspace ID from the token (without HMAC), fetches the
 // per-workspace signing key, then performs a full constant-time HMAC verify.
 func (s *UnsubscribeService) verify(ctx context.Context, token string) (unsubscribe.Payload, error) {
@@ -144,7 +168,7 @@ func (s *UnsubscribeService) GetContext(ctx context.Context, token string) (*Uns
 	}
 
 	optedOutType := false
-	tt, err := s.tt.FindTypeBySlugInScope(ctx, p.TemplateTypeSlug, &p.WorkspaceID)
+	tt, err := s.resolveTemplateType(ctx, p)
 	if err != nil && !apperr.IsNotFound(err) {
 		return nil, err
 	}
@@ -181,9 +205,9 @@ func (s *UnsubscribeService) OneClickOptOut(ctx context.Context, token string) e
 	if err != nil {
 		return err
 	}
-	tt, err := s.tt.FindTypeBySlugInScope(ctx, p.TemplateTypeSlug, &p.WorkspaceID)
+	tt, err := s.resolveTemplateType(ctx, p)
 	if err != nil {
-		return fmt.Errorf("resolve type %s: %w", p.TemplateTypeSlug, err)
+		return err
 	}
 	if tt == nil {
 		return fmt.Errorf("%w: template type %s not found", ErrInvalidToken, p.TemplateTypeSlug)
