@@ -1136,3 +1136,146 @@ func EnsureSetup(t *testing.T) {
 	MustEnsureMemberWithRole(t, client, WorkspaceEditorEmail, "workspace_editor", "workspace")
 	MustEnsureMemberWithRole(t, client, WorkspaceViewerEmail, "workspace_viewer", "workspace")
 }
+
+// TemplateTypeInput holds parameters for CreateTemplateType.
+type TemplateTypeInput struct {
+	Slug   string
+	Name   string
+	IsBulk bool
+}
+
+// CreateTemplateType creates a template type via the manage API.
+// Uses the default adapter from EnsureSetup. Accepts 201 or 409 (idempotent).
+// Always ensures the adapter default identity is seeded so that sends work.
+func (c *TestClient) CreateTemplateType(t *testing.T, in TemplateTypeInput) {
+	t.Helper()
+	adapterID := mustEnsureWorkspaceAdapter(t, c, TenantCode, WorkspaceCode, 100)
+	EnsureDefaultAdapterIdentity(t, adapterID, TestFromEmail)
+	body := map[string]any{
+		"slug":       in.Slug,
+		"name":       in.Name,
+		"is_bulk":    in.IsBulk,
+		"adapter_id": adapterID,
+	}
+	path := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s/template-types", TenantCode, WorkspaceCode)
+	resp := c.Post(path, body)
+	defer resp.Body.Close()
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, resp.StatusCode,
+		"CreateTemplateType: unexpected status %d: %s", resp.StatusCode, ReadResponseBody(t, resp))
+}
+
+// CreateAndPublishTemplate creates a template with a published version containing the given MJML.
+// slug is used for looking up the template type, templateSlug is the MJML body label (not a real slug).
+// Accepts idempotent outcomes.
+func (c *TestClient) CreateAndPublishTemplate(t *testing.T, typeSlug, _ string, bodyMJML string) {
+	t.Helper()
+	wp := fmt.Sprintf("/api/v1/manage/tenants/%s/workspaces/%s", TenantCode, WorkspaceCode)
+
+	// Resolve template type ID.
+	getResp := c.Get(fmt.Sprintf("%s/template-types/%s", wp, typeSlug))
+	defer getResp.Body.Close()
+	RequireStatus(t, getResp, http.StatusOK)
+	var ttBody struct {
+		ID string `json:"id"`
+	}
+	ParseJSONResponse(t, getResp, &ttBody)
+	require.NotEmpty(t, ttBody.ID, "template type ID must not be empty for slug %s", typeSlug)
+
+	// Create template.
+	createTplResp := c.Post(wp+"/templates", map[string]string{"template_type_id": ttBody.ID})
+	if createTplResp.StatusCode != http.StatusCreated && createTplResp.StatusCode != http.StatusConflict {
+		t.Fatalf("CreateAndPublishTemplate: create template: status %d: %s",
+			createTplResp.StatusCode, ReadResponseBody(t, createTplResp))
+	}
+	createTplResp.Body.Close()
+
+	// Resolve template ID.
+	templateID := GetTemplateIDByTypeID(t, ttBody.ID)
+	require.NotEmpty(t, templateID, "template ID must not be empty for type %s", ttBody.ID)
+
+	// Create version.
+	versionID := GetLatestVersionID(t, templateID)
+	if versionID == "" {
+		createVerResp := c.Post(fmt.Sprintf("%s/templates/%s/versions", wp, templateID), map[string]string{
+			"subject":        "E2E Test",
+			"preview_text":   "E2E preview",
+			"from_email":     TestFromEmail,
+			"from_name":      TestFromName,
+			"body_mjml":      bodyMJML,
+			"default_locale": "en",
+		})
+		defer createVerResp.Body.Close()
+		RequireStatus(t, createVerResp, http.StatusCreated)
+		var verBody struct {
+			ID string `json:"id"`
+		}
+		ParseJSONResponse(t, createVerResp, &verBody)
+		versionID = verBody.ID
+		require.NotEmpty(t, versionID)
+	}
+
+	// Set locale.
+	localeResp := c.Put(fmt.Sprintf("%s/templates/%s/versions/%s/locales/en", wp, templateID, versionID), map[string]string{
+		"subject":      "E2E Test",
+		"preview_text": "E2E preview",
+		"from_name":    TestFromName,
+		"body_mjml":    bodyMJML,
+	})
+	require.Contains(t, []int{http.StatusOK, http.StatusConflict}, localeResp.StatusCode,
+		"set locale: unexpected status %d: %s", localeResp.StatusCode, ReadResponseBody(t, localeResp))
+	localeResp.Body.Close()
+
+	// Publish.
+	publishResp := c.Post(fmt.Sprintf("%s/templates/%s/versions/%s/publish", wp, templateID, versionID), nil)
+	require.Contains(t, []int{http.StatusNoContent, http.StatusConflict}, publishResp.StatusCode,
+		"publish: unexpected status %d: %s", publishResp.StatusCode, ReadResponseBody(t, publishResp))
+	publishResp.Body.Close()
+}
+
+// SendEmailInput holds parameters for SendEmail.
+type SendEmailInput struct {
+	TemplateTypeSlug string
+	TemplateSlug     string // not used in ref, present for future extensibility
+	Recipient        string
+	Variables        map[string]any
+}
+
+// SendEmail sends a single email via POST /api/v1/send using an API key.
+// It creates and sets a fresh API key using the superadmin token the client already holds.
+func (c *TestClient) SendEmail(t *testing.T, in SendEmailInput) {
+	t.Helper()
+	_, apiKey := MustCreateAPIKey(t, c, TenantCode, WorkspaceCode, "unsub-send")
+	sendClient := NewTestClient(t)
+	sendClient.SetAPIKey(apiKey)
+
+	ref := fmt.Sprintf("%s:%s:%s", TenantCode, WorkspaceCode, in.TemplateTypeSlug)
+	body := map[string]any{
+		"ref": ref,
+		"to":  []string{in.Recipient},
+	}
+	if len(in.Variables) > 0 {
+		body["variables"] = in.Variables
+	}
+
+	resp := sendClient.Post("/api/v1/send", body)
+	defer resp.Body.Close()
+	RequireStatus(t, resp, http.StatusAccepted)
+}
+
+// RawHTTP performs an HTTP request against the server without authentication.
+// Pass nil body for requests with no body (e.g. POST one-click unsubscribe).
+func (c *TestClient) RawHTTP(t *testing.T, method, path string, body []byte) *http.Response {
+	t.Helper()
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
+	require.NoError(t, err)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := c.httpClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
