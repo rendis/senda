@@ -228,10 +228,35 @@ func TestUnsubscribeUI_FullFlow(t *testing.T) {
 		// Create the template type + template programmatically.
 		managePath := fmt.Sprintf("%s/api/v1/manage/tenants/%s/workspaces/%s", backend, tenantCode, workspaceCode)
 
+		// Resolve the workspace's default adapter so the new template_type can send.
+		listAdaptersResp := localAPICall(t, http.MethodGet, managePath+"/adapters", manageToken, nil)
+		adaptersBody, _ := io.ReadAll(listAdaptersResp.Body)
+		listAdaptersResp.Body.Close()
+		require.Equal(t, http.StatusOK, listAdaptersResp.StatusCode, "list adapters: %s", adaptersBody)
+		var adaptersList struct {
+			Items []struct {
+				ID        string `json:"id"`
+				IsDefault bool   `json:"is_default"`
+			} `json:"items"`
+		}
+		require.NoError(t, json.Unmarshal(adaptersBody, &adaptersList))
+		var adapterID string
+		for _, a := range adaptersList.Items {
+			if a.IsDefault {
+				adapterID = a.ID
+				break
+			}
+		}
+		if adapterID == "" && len(adaptersList.Items) > 0 {
+			adapterID = adaptersList.Items[0].ID
+		}
+		require.NotEmpty(t, adapterID, "workspace must have at least one adapter (set is_default on it)")
+
 		createTTResp := localAPICall(t, http.MethodPost, managePath+"/template-types", manageToken, map[string]any{
-			"slug":    typeSlug,
-			"name":    "UI Unsubscribe Bulk Test",
-			"is_bulk": true,
+			"slug":       typeSlug,
+			"name":       "UI Unsubscribe Bulk Test",
+			"is_bulk":    true,
+			"adapter_id": adapterID,
 		})
 		createTTResp.Body.Close()
 		require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, createTTResp.StatusCode,
