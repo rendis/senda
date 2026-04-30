@@ -1,6 +1,15 @@
 import ky from "ky";
 
-const api = ky.create({ prefix: "/api/v1" });
+// In server components (Node.js) a relative URL has no origin to resolve
+// against, so fetch fails with "invalid URL". Detect the runtime and use an
+// absolute base when running server-side, falling back to the relative path
+// used by client-side requests (which go through Next.js rewrites).
+const baseUrl =
+  typeof window === "undefined"
+    ? (process.env.SENDA_BACKEND_URL ?? "http://localhost:8081") + "/api/v1"
+    : "/api/v1";
+
+const api = ky.create({ prefix: baseUrl });
 
 export type UnsubscribeContext = {
   workspace_name: string;
