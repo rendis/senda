@@ -143,6 +143,8 @@ Conventional Commits. No AI attribution / `Co-Authored-By` lines on commits or P
 
 **Hard rule — visual builder & variable engine.** If a PR adds, renames, removes, or changes the MJML output of a builder block (`web/src/components/templates/mjml-editor.tsx`, `text-block-mjml.ts`, `video-block.ts`, …) or touches `internal/service/variable_renderer.go`, you MUST update `skills/senda/references/building-a-template.md` and `versions-locales-and-builder.md` in the **same PR**.
 
+**Hard rule — MJML composition rules.** If a PR changes which MJML / HTML tags are allowed or forbidden in `body_mjml` (e.g. adds a new `mj-*` tag the builder emits, relaxes or tightens an HTML-document-tag block, changes `<mj-raw>` semantics), you MUST update `skills/senda/scripts/mjml-check.sh` (rule patterns) AND `skills/senda/scripts/mjml-check.test.sh` (fixtures) in the **same PR**. The skill mandates `mjml-check.sh` as a pre-submit gate; if the script and the docs disagree, agents will produce broken templates.
+
 **General rule.** Before closing any task, ask: *“If a fresh agent reads `skills/senda/` after this PR is merged, will it still get a correct picture of how to operate Senda?”* If the answer is anything other than a confident yes, update the skill in the same PR.
 
 The full decision table (which references to touch when an HTTP route, RBAC matrix, enum, webhook event, SDK type, etc. changes) lives in [`skills/senda/SKILL.md`](skills/senda/SKILL.md). Use it as the checklist; do not re-implement it here.

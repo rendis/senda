@@ -163,6 +163,17 @@ through a buggy `ref` → 422 `SYSTEM_WORKSPACE_BLOCKED`.
 
 ## Gotchas
 
+- **Pre-submit gate**: run `bash skills/senda/scripts/mjml-check.sh <file>`
+  on the candidate `body_mjml` before any version `POST`/`PUT` or locale
+  upsert. It blocks the HTML-wrapper class of error (`<!DOCTYPE>`,
+  `<html>`, `<body>`, etc., including inside `<mj-raw>`) that
+  `preview-mjml` only catches at compile time and that the visual editor's
+  XML parser may surface as a runtime error. See
+  `building-a-template.md` "Anti-pattern: HTML wrappers".
+  If shell access is unavailable (MCP-only operation), manually scan
+  `body_mjml` for the forbidden tags listed in that anti-pattern
+  section and rely on `POST .../preview-mjml` as the next-best gate
+  before saving.
 - **No placeholder validation**: a typo in `{{ injector.foo.bar }}` is not
   flagged at save or publish; it just silently empties at render. Run
   `preview-mjml` before publishing.

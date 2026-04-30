@@ -15,7 +15,8 @@ infrastructure. For lifecycle (draft → published, fork, locales), see
   tags (`mj-head`, `mj-attributes`, `mj-style`, `mj-class`, `mj-raw`,
   `mj-table`, `mj-social`, ...) compile fine and the visual editor preserves
   them as **MJML code** blocks when it cannot map them to structured controls;
-  preview them before publishing.
+  preview them before publishing. **`<mj-raw>` accepts small HTML snippets
+  only, never a full HTML document — see "Anti-pattern: HTML wrappers" below.**
 
 ## Variable syntax — exhaustive
 
@@ -102,6 +103,46 @@ Rules the visual builder follows (and you should too):
   section stay in that column order; unknown direct `<mj-body>` children stay
   as body-level blocks between the known sections/heroes. If a section shape is
   not a single direct `<mj-column>`, the whole section is preserved as code.
+
+## Anti-pattern: HTML wrappers
+
+**MJML compiles INTO HTML.** Wrapping MJML in HTML is double-wrapping and
+breaks the gomjml/XML parser at runtime. Do **not** add any of these to a
+`body_mjml`, anywhere in the document, including inside `<mj-raw>`:
+`<!DOCTYPE>`, `<html>`, `<head>`, `<body>` (literal — `<mj-body>` is fine),
+`<meta>`, `<title>`, `<link>`, `<base>`.
+
+```mjml
+<!-- WRONG — runtime XML parsing error -->
+<mjml>
+  <mj-body>
+    <mj-raw>
+      <!DOCTYPE html>
+      <html><head><meta charset="utf-8"></head>
+        <body>Hi {{ event.first_name }}</body>
+      </html>
+    </mj-raw>
+  </mj-body>
+</mjml>
+```
+
+```mjml
+<!-- RIGHT — let MJML produce the HTML wrapper for you -->
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text>Hi {{ event.first_name }}</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+```
+
+`<mj-raw>` is for small inline HTML snippets the builder cannot express
+(e.g. a one-off `<div class="x">…</div>`), never a full document. If you
+need a document title or stylesheet, use `<mj-head>` with `<mj-title>` /
+`<mj-style>`.
 
 ## Block catalog — copy-paste MJML
 
@@ -289,14 +330,29 @@ Before publishing a version:
    empty string with no error.
 2. Every `{{ injector.<name>.<field> }}` matches a real injector visible in
    this workspace (`?include_inherited=true`). Same: silent empty if missing.
-3. Run `POST .../preview-mjml` with the current `body_mjml`. Confirm:
+3. Run `bash skills/senda/scripts/mjml-check.sh <file>` (or pipe the body
+   to `mjml-check.sh -`). It must exit 0 before you submit any version
+   POST/PUT or locale upsert. The script catches the HTML-wrapper class of
+   error (`<!DOCTYPE>`, `<html>`, `<body>`, etc., including inside
+   `<mj-raw>`) that gomjml only surfaces at compile time.
+
+   > **MCP-only agents (no shell):** if you operate Senda only through
+   > `senda_call_endpoint` and cannot run the script, manually verify the
+   > body contains none of `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`
+   > (literal — `<mj-body>` is fine), `<meta>`, `<title>`, `<link>`,
+   > `<base>` — anywhere, including inside `<mj-raw>`. Then run
+   > `POST .../preview-mjml` to catch compile errors. Saved templates that
+   > slip through these checks may break the visual editor's XML parser
+   > at runtime.
+
+4. Run `POST .../preview-mjml` with the current `body_mjml`. Confirm:
    - HTML output looks right.
    - Static-injector previews (locked fields with `allow_overwrite = false`)
      are filled in. Override-able fields stay as `{{ ... }}` in preview —
      that is expected.
-4. Run `POST .../test-send` with realistic `variables` and `injectors`
+5. Run `POST .../test-send` with realistic `variables` and `injectors`
    payloads. Confirm rendering in the inbox.
-5. `POST .../publish` (admin role).
+6. `POST .../publish` (admin role).
 
 ## Cuándo consultar OpenAPI / MCP
 
