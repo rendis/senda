@@ -158,6 +158,10 @@
       "banner": "Banner",
       "video": "Video",
       "list": "Lista",
+      "mediaContent": "Media + Contenido",
+      "ctaGroup": "Grupo CTA",
+      "featureList": "Lista destacada",
+      "footerCta": "Footer CTA",
       "code": "Código MJML"
     },
     "reorderBlock": "Reordenar bloque",

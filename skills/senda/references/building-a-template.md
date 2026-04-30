@@ -104,9 +104,17 @@ Rules the visual builder follows (and you should too):
 
 - Wrap regular blocks (text, button, image, divider, spacer, video, list)
   inside `<mj-section><mj-column>...</mj-column></mj-section>`.
-- `<mj-hero>` (banner) sits **directly under `<mj-body>`**, not inside a
-  section. Mixing banners between regular blocks closes the current
-  section and opens a new one for what follows.
+- Banner blocks sit **directly under `<mj-body>`**. The default fill mode
+  renders as `<mj-hero>`; fit modes that need `background-size` render as a
+  marked `<mj-section css-class="senda-builder-banner">`. Mixing banners
+  between regular blocks closes the current section and opens a new one for
+  what follows.
+- Rich section blocks also sit **directly under `<mj-body>`** because they own
+  their internal columns and mobile stacking. The visual builder currently
+  emits four marked sections: `senda-builder-media-content`,
+  `senda-builder-cta-group`, `senda-builder-feature-list`, and
+  `senda-builder-footer-cta`. Footer CTA is just another section block: it can
+  appear more than once and can be placed between any other builder blocks.
 - Stack multiple sections vertically. Add `<mj-spacer>` or padding for
   vertical rhythm.
 - Unsupported MJML that the visual editor cannot represent is preserved as an
@@ -248,14 +256,15 @@ For numbered lists use `<ol>` with `list-style-type: decimal` (or
 
 ### Banner / Hero
 
-`<mj-hero>` lives directly under `<mj-body>`, not inside a section.
+Default banners render as `<mj-hero>` directly under `<mj-body>`.
 
 ```mjml
 <mj-hero
   mode="fixed-height"
   height="320px"
   background-url="{{ injector.brand.hero_image }}"
-  background-color="#1f2937"
+  background-color="{{ injector.brand.hero_color }}"
+  background-position="center center"
   vertical-align="middle"
   padding="40px">
 
@@ -275,7 +284,53 @@ For numbered lists use `<ol>` with `list-style-type: decimal` (or
 
 `mode` is `fixed-height` (use `height`) or `fluid-height` (height defined
 by content). `background-url` is optional; without it, `background-color`
-fills.
+fills. The visual builder supports injector tokens in the banner background
+image URL, background color (when switched to injector mode), and overlay text.
+It also exposes image fit (`cover`, `contain`, `auto`), horizontal image
+alignment (`left`, `center`, `right`), and horizontal overlay text alignment.
+When overlay text and button are both empty, the builder emits an empty
+`mj-text` line so the banner keeps the same height while editing or previewing.
+`cover` uses `<mj-hero>` and may crop; `contain` / `auto` use a marked
+`<mj-section>` with `background-size` and `background-repeat="no-repeat"` so
+the image can be drawn without the forced hero crop.
+
+### Rich section blocks
+
+The visual builder includes four higher-level components for common newsletter
+and marketing layouts:
+
+- **Media + Content** (`senda-builder-media-content`) renders a two-column
+  image/text section. On mobile, MJML stacks the image and copy into two rows.
+  Use it for benefits, testimonials, screenshots, and narrative sections.
+- **CTA Group** (`senda-builder-cta-group`) renders centered copy with one or
+  two buttons, or a split text-plus-button box. Split mode stacks copy over
+  buttons on mobile.
+- **Feature List** (`senda-builder-feature-list`) renders a title, icon/text
+  rows, optional footer copy, and an optional accent band for milestones or
+  benefit lists.
+- **Footer CTA** (`senda-builder-footer-cta`) renders a branded closing band
+  with headline copy, button, optional background image, and optional logo. It
+  can be used more than once and does not need to be the last section.
+
+Media + Content image/button URLs, CTA Group button URLs, and Footer CTA
+button/background/logo URLs may be injector tokens. These blocks are direct
+body-level sections, not children of the regular single-column wrapper. At
+send time, injector/system placeholders rendered inside MJML attributes are
+XML-escaped before gomjml compiles the body, so URLs with query strings remain
+valid MJML.
+
+```mjml
+<mj-section css-class="senda-builder-media-content" background-color="#ffffff" padding="24px 20px">
+  <mj-column width="45%">
+    <mj-image src="{{ injector.brand.hero_image }}" alt="Preview" padding="0 12px" />
+  </mj-column>
+  <mj-column width="55%">
+    <mj-text font-size="22px" font-weight="600">Benefits</mj-text>
+    <mj-text font-size="15px" line-height="1.5">Short supporting copy.</mj-text>
+    <mj-button href="#" background-color="#5429ff" border-radius="24px">Learn more</mj-button>
+  </mj-column>
+</mj-section>
+```
 
 ## Composing a real template — full example
 
@@ -381,8 +436,9 @@ Before publishing a version:
 - **Image and video thumbnails**: hosts may be allowlisted by the deployment
   for the `/public/video-thumbnail` proxy. If a thumbnail URL is rejected,
   fall back to a normal `<mj-image>` linking to the video.
-- **Banner placement**: `<mj-hero>` must NOT be wrapped in `<mj-section>`.
-  The builder enforces this; in raw MJML you must too.
+- **Banner placement**: banner blocks must NOT be wrapped in another
+  `<mj-section>`. Use direct `<mj-hero>` for cover banners, or the builder's
+  direct `<mj-section css-class="senda-builder-banner">` shape for fit modes.
 - **Placeholder validation**: there is none at save/publish time. Use
   `preview-mjml` and `test-send` aggressively.
 - **gomjml is not 100% MJML.io**: the upstream MJML reference at mjml.io

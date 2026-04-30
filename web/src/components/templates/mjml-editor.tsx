@@ -26,8 +26,16 @@ import {
   Save,
   Send,
   Rocket,
+  Monitor,
   MonitorStop,
   Paintbrush,
+  Palette,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Maximize2,
+  Minimize2,
+  Smartphone,
   Trash2,
   GripVertical,
   Type,
@@ -131,8 +139,25 @@ const metadataSchema = z.object({
 
 type MetadataForm = z.infer<typeof metadataSchema>;
 type StaticMetadataFieldKey = "subject" | "from_name";
-type MediaFieldKey = `${string}:${"image_src" | "video_url" | "video_thumbnail"}`;
+type MediaFieldKey = `${string}:${
+  | "image_src"
+  | "section_image_src"
+  | "footer_logo_src"
+  | "footer_background_url"
+  | "media_button_href"
+  | "cta_primary_href"
+  | "cta_secondary_href"
+  | "footer_button_href"
+  | "video_url"
+  | "video_thumbnail"
+  | "banner_background_url"
+  | "banner_background_color"
+}`;
 type MetadataFieldRefKey = StaticMetadataFieldKey | MediaFieldKey;
+const BUILDER_BLOCK_MEDIA_CONTENT = "media-content";
+const BUILDER_BLOCK_CTA_GROUP = "cta-group";
+const BUILDER_BLOCK_FEATURE_LIST = "feature-list";
+const BUILDER_BLOCK_FOOTER_CTA = "footer-cta";
 
 type BuilderBlockType =
   | "text"
@@ -143,6 +168,10 @@ type BuilderBlockType =
   | "banner"
   | "video"
   | "list"
+  | typeof BUILDER_BLOCK_MEDIA_CONTENT
+  | typeof BUILDER_BLOCK_CTA_GROUP
+  | typeof BUILDER_BLOCK_FEATURE_LIST
+  | typeof BUILDER_BLOCK_FOOTER_CTA
   | "code";
 
 type BuilderSegment =
@@ -205,6 +234,9 @@ type BuilderBannerBlock = {
   type: "banner";
   backgroundUrl: string;
   backgroundColor: string;
+  backgroundColorMode: "color" | "injector";
+  backgroundFit: "cover" | "contain" | "auto";
+  backgroundPosition: "left center" | "center center" | "right center";
   mode: "fixed-height" | "fluid-height";
   height: number;
   segments: BuilderSegment[];
@@ -242,6 +274,72 @@ type BuilderListBlock = {
   align: "left" | "center" | "right";
 };
 
+type BuilderMediaContentBlock = {
+  id: string;
+  label?: string;
+  type: typeof BUILDER_BLOCK_MEDIA_CONTENT;
+  imageSrc: string;
+  imageAlt: string;
+  imagePosition: "left" | "right";
+  title: string;
+  body: string;
+  buttonText: string;
+  buttonHref: string;
+  backgroundColor: string;
+  padding: number;
+};
+
+type BuilderCtaGroupBlock = {
+  id: string;
+  label?: string;
+  type: typeof BUILDER_BLOCK_CTA_GROUP;
+  layout: "stacked" | "split";
+  text: string;
+  primaryText: string;
+  primaryHref: string;
+  secondaryText: string;
+  secondaryHref: string;
+  backgroundColor: string;
+  buttonColor: string;
+  buttonTextColor: string;
+  align: "left" | "center" | "right";
+  padding: number;
+};
+
+type FeatureListItem = {
+  id: string;
+  icon: string;
+  text: string;
+};
+
+type BuilderFeatureListBlock = {
+  id: string;
+  label?: string;
+  type: typeof BUILDER_BLOCK_FEATURE_LIST;
+  title: string;
+  items: FeatureListItem[];
+  footerText: string;
+  bandText: string;
+  backgroundColor: string;
+  accentColor: string;
+  padding: number;
+};
+
+type BuilderFooterCtaBlock = {
+  id: string;
+  label?: string;
+  type: typeof BUILDER_BLOCK_FOOTER_CTA;
+  text: string;
+  buttonText: string;
+  buttonHref: string;
+  logoSrc: string;
+  logoAlt: string;
+  backgroundColor: string;
+  backgroundUrl: string;
+  accentColor: string;
+  padding: number;
+};
+
 type BuilderCodeBlock = {
   id: string;
   label?: string;
@@ -259,6 +357,10 @@ type BuilderBlock =
   | BuilderBannerBlock
   | BuilderVideoBlock
   | BuilderListBlock
+  | BuilderMediaContentBlock
+  | BuilderCtaGroupBlock
+  | BuilderFeatureListBlock
+  | BuilderFooterCtaBlock
   | BuilderCodeBlock;
 
 type BuilderDocument = {
@@ -297,6 +399,7 @@ type TemplateVariable = {
 type PreviewStageSize = { width: number; height: number };
 type PreviewDocumentSize = { width: number; height: number };
 type PreviewSplitMode = "ratio" | "px";
+type PreviewViewportMode = "desktop" | "mobile";
 
 const DEFAULT_BLOCK_WIDTH = "w-64";
 const MIN_PANEL_WIDTH = 280;
@@ -305,6 +408,7 @@ const DEFAULT_PREVIEW_DOCUMENT_SIZE: PreviewDocumentSize = {
   width: 900,
   height: 700,
 };
+const MOBILE_PREVIEW_WIDTH = 390;
 const VARIABLE_DND_MIME = "application/x-senda-variable";
 const BLOCK_DND_MIME = "application/x-senda-block-id";
 const LIST_ITEM_DND_MIME = "application/x-senda-list-item";
@@ -313,6 +417,60 @@ const TOKEN_SEGMENT_KIND = "token";
 const MIN_PREVIEW_SCALE = 0.01;
 const BANNER_MODE_FIXED = "fixed-height";
 const BANNER_MODE_FLUID = "fluid-height";
+const BANNER_BACKGROUND_COLOR_MODE_COLOR = "color";
+const BANNER_BACKGROUND_COLOR_MODE_INJECTOR = "injector";
+const DEFAULT_BANNER_BACKGROUND_COLOR = "#333333";
+const BANNER_BACKGROUND_FIT_COVER = "cover";
+const BANNER_BACKGROUND_FIT_CONTAIN = "contain";
+const BANNER_BACKGROUND_FIT_AUTO = "auto";
+const DEFAULT_BANNER_BACKGROUND_POSITION = "center center";
+const BANNER_BACKGROUND_FIT_OPTIONS = [
+  { value: BANNER_BACKGROUND_FIT_COVER, label: "Cover", icon: Maximize2 },
+  { value: BANNER_BACKGROUND_FIT_CONTAIN, label: "Contain", icon: Minimize2 },
+  { value: BANNER_BACKGROUND_FIT_AUTO, label: "Original", icon: ImageIcon },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["backgroundFit"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_BACKGROUND_POSITION_OPTIONS = [
+  { value: "left center", label: "Left", icon: AlignLeft },
+  { value: DEFAULT_BANNER_BACKGROUND_POSITION, label: "Center", icon: AlignCenter },
+  { value: "right center", label: "Right", icon: AlignRight },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["backgroundPosition"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_OVERLAY_ALIGN_OPTIONS = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Center", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+] satisfies ReadonlyArray<{
+  value: BuilderBannerBlock["align"];
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+const BANNER_SECTION_CLASS = "senda-builder-banner";
+const BANNER_ICON_BUTTON_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded border transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+const BANNER_ICON_BUTTON_ACTIVE_CLASS =
+  "border-primary bg-primary text-primary-foreground";
+const BANNER_ICON_BUTTON_INACTIVE_CLASS =
+  "border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground";
+const BLOCK_PALETTE_BUTTON_CLASS =
+  "h-8 min-w-0 justify-start px-2 text-left";
+const BLOCK_PALETTE_ICON_CLASS = "h-3.5 w-3.5 mr-1 shrink-0";
+const BLOCK_PALETTE_LABEL_CLASS = "min-w-0 truncate";
+const SECTION_BLOCK_TYPES = new Set<BuilderBlockType>([
+  BUILDER_BLOCK_MEDIA_CONTENT,
+  BUILDER_BLOCK_CTA_GROUP,
+  BUILDER_BLOCK_FEATURE_LIST,
+  BUILDER_BLOCK_FOOTER_CTA,
+]);
+const MJML_ATTR_BACKGROUND_COLOR = "background-color";
+const MJML_ATTR_BACKGROUND_POSITION = "background-position";
+const MJML_ATTR_BACKGROUND_URL = "background-url";
 const MIME_TEXT_PLAIN = "text/plain";
 const LOCALE_INACTIVE_CLASS = "text-muted-foreground hover:text-foreground hover:bg-muted";
 const LOCALE_ACTIVE_CLASS = "bg-primary text-primary-foreground";
@@ -326,6 +484,58 @@ function nowId() {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+function includesVariablePlaceholder(value: string) {
+  return /\{\{\s*[^}]+\s*\}\}/.test(value);
+}
+
+function parseBannerBackgroundColorMode(
+  rawMode: unknown,
+  backgroundColor: string
+): BuilderBannerBlock["backgroundColorMode"] {
+  if (rawMode === BANNER_BACKGROUND_COLOR_MODE_INJECTOR) {
+    return BANNER_BACKGROUND_COLOR_MODE_INJECTOR;
+  }
+  if (rawMode === BANNER_BACKGROUND_COLOR_MODE_COLOR) {
+    return BANNER_BACKGROUND_COLOR_MODE_COLOR;
+  }
+  return includesVariablePlaceholder(backgroundColor)
+    ? BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+    : BANNER_BACKGROUND_COLOR_MODE_COLOR;
+}
+
+function parseBannerBackgroundFit(rawFit: unknown): BuilderBannerBlock["backgroundFit"] {
+  if (
+    rawFit === BANNER_BACKGROUND_FIT_CONTAIN ||
+    rawFit === BANNER_BACKGROUND_FIT_AUTO
+  ) {
+    return rawFit;
+  }
+  return BANNER_BACKGROUND_FIT_COVER;
+}
+
+function parseBannerBackgroundPosition(
+  rawPosition: unknown
+): BuilderBannerBlock["backgroundPosition"] {
+  if (typeof rawPosition !== "string") {
+    return DEFAULT_BANNER_BACKGROUND_POSITION;
+  }
+  if (rawPosition.includes("left")) {
+    return "left center";
+  }
+  if (rawPosition.includes("right")) {
+    return "right center";
+  }
+  return DEFAULT_BANNER_BACKGROUND_POSITION;
+}
+
+function normalizeBannerColorForColorInput(value: string) {
+  return isHexColor(value) ? value : DEFAULT_BANNER_BACKGROUND_COLOR;
 }
 
 function createTextSegment(raw: string) {
@@ -847,6 +1057,49 @@ function createListItem(text: string = ""): ListItem {
   };
 }
 
+function createFeatureListItem(text: string, icon = "*"): FeatureListItem {
+  return {
+    id: nowId(),
+    icon,
+    text,
+  };
+}
+
+function normalizeFeatureListItems(raw: unknown): FeatureListItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .map((item) => ({
+      id: typeof item.id === "string" && item.id.trim() ? item.id : nowId(),
+      icon: typeof item.icon === "string" && item.icon.trim() ? item.icon : "*",
+      text: typeof item.text === "string" ? item.text : "",
+    }));
+}
+
+function escapeMjmlText(raw: string) {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeMjmlAttribute(raw: string) {
+  return escapeMjmlText(raw)
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function textToHtml(raw: string) {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(escapeMjmlText)
+    .join("<br />");
+}
+
 function renderListItemsToHtml(
   items: ListItem[],
   listType: BuilderListBlock["listType"],
@@ -1121,12 +1374,22 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
       }
       if (item.type === "banner") {
         const raw = item as Record<string, unknown>;
+        const backgroundColor =
+          typeof raw.backgroundColor === "string"
+            ? raw.backgroundColor
+            : DEFAULT_BANNER_BACKGROUND_COLOR;
         return {
           id,
           label,
           type: "banner",
           backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
-          backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#333333",
+          backgroundColor,
+          backgroundColorMode: parseBannerBackgroundColorMode(
+            raw.backgroundColorMode,
+            backgroundColor
+          ),
+          backgroundFit: parseBannerBackgroundFit(raw.backgroundFit),
+          backgroundPosition: parseBannerBackgroundPosition(raw.backgroundPosition),
           mode: raw.mode === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
           height: normalizeSpacerHeight(raw.height, 400),
           segments: Array.isArray(raw.segments)
@@ -1220,6 +1483,86 @@ function normalizeBuilderDocument(raw: unknown): BuilderDocument {
           align,
         };
       }
+      if (item.type === BUILDER_BLOCK_MEDIA_CONTENT) {
+        const raw = item as Record<string, unknown>;
+        return {
+          id,
+          label,
+          type: BUILDER_BLOCK_MEDIA_CONTENT,
+          imageSrc: typeof raw.imageSrc === "string" ? raw.imageSrc : "",
+          imageAlt: typeof raw.imageAlt === "string" ? raw.imageAlt : "",
+          imagePosition: raw.imagePosition === "right" ? "right" : "left",
+          title: typeof raw.title === "string" ? raw.title : "",
+          body: typeof raw.body === "string" ? raw.body : "",
+          buttonText: typeof raw.buttonText === "string" ? raw.buttonText : "",
+          buttonHref: typeof raw.buttonHref === "string" ? raw.buttonHref : "#",
+          backgroundColor:
+            typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#ffffff",
+          padding: normalizeSpacerHeight(raw.padding, 24),
+        };
+      }
+      if (item.type === BUILDER_BLOCK_CTA_GROUP) {
+        const raw = item as Record<string, unknown>;
+        return {
+          id,
+          label,
+          type: BUILDER_BLOCK_CTA_GROUP,
+          layout: raw.layout === "split" ? "split" : "stacked",
+          text: typeof raw.text === "string" ? raw.text : "",
+          primaryText: typeof raw.primaryText === "string" ? raw.primaryText : "",
+          primaryHref: typeof raw.primaryHref === "string" ? raw.primaryHref : "#",
+          secondaryText: typeof raw.secondaryText === "string" ? raw.secondaryText : "",
+          secondaryHref: typeof raw.secondaryHref === "string" ? raw.secondaryHref : "#",
+          backgroundColor:
+            typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#f4f3ff",
+          buttonColor: typeof raw.buttonColor === "string" ? raw.buttonColor : "#5429ff",
+          buttonTextColor:
+            typeof raw.buttonTextColor === "string" ? raw.buttonTextColor : "#ffffff",
+          align,
+          padding: normalizeSpacerHeight(raw.padding, 28),
+        };
+      }
+      if (item.type === BUILDER_BLOCK_FEATURE_LIST) {
+        const raw = item as Record<string, unknown>;
+        const items = normalizeFeatureListItems(raw.items);
+        return {
+          id,
+          label,
+          type: BUILDER_BLOCK_FEATURE_LIST,
+          title: typeof raw.title === "string" ? raw.title : "",
+          items: items.length
+            ? items
+            : [
+                createFeatureListItem("First milestone", "*"),
+                createFeatureListItem("Second milestone", "o"),
+                createFeatureListItem("Third milestone", "+"),
+              ],
+          footerText: typeof raw.footerText === "string" ? raw.footerText : "",
+          bandText: typeof raw.bandText === "string" ? raw.bandText : "",
+          backgroundColor:
+            typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#f7f7ff",
+          accentColor: typeof raw.accentColor === "string" ? raw.accentColor : "#5429ff",
+          padding: normalizeSpacerHeight(raw.padding, 30),
+        };
+      }
+      if (item.type === BUILDER_BLOCK_FOOTER_CTA) {
+        const raw = item as Record<string, unknown>;
+        return {
+          id,
+          label,
+          type: BUILDER_BLOCK_FOOTER_CTA,
+          text: typeof raw.text === "string" ? raw.text : "",
+          buttonText: typeof raw.buttonText === "string" ? raw.buttonText : "",
+          buttonHref: typeof raw.buttonHref === "string" ? raw.buttonHref : "#",
+          logoSrc: typeof raw.logoSrc === "string" ? raw.logoSrc : "",
+          logoAlt: typeof raw.logoAlt === "string" ? raw.logoAlt : "",
+          backgroundColor:
+            typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#111447",
+          backgroundUrl: typeof raw.backgroundUrl === "string" ? raw.backgroundUrl : "",
+          accentColor: typeof raw.accentColor === "string" ? raw.accentColor : "#8095ff",
+          padding: normalizeSpacerHeight(raw.padding, 38),
+        };
+      }
       if (item.type === "code") {
         const raw = item as Record<string, unknown>;
         const content =
@@ -1288,6 +1631,75 @@ function sanitizePreviewHtml(rawHtml: string) {
   );
 
   return html;
+}
+
+const MOBILE_PREVIEW_STYLE = `<style data-senda-mobile-preview>
+html,
+body {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+body > div[role="article"] {
+  transform-origin: top left !important;
+}
+.senda-builder-media-content,
+.senda-builder-cta-group,
+.senda-builder-feature-list,
+.senda-builder-footer-cta {
+  overflow-x: hidden !important;
+}
+.senda-builder-media-content .mj-column-per-45,
+.senda-builder-media-content .mj-column-per-55,
+.senda-builder-cta-group .mj-column-per-35,
+.senda-builder-cta-group .mj-column-per-65 {
+  display: block !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+.senda-builder-media-content div,
+.senda-builder-cta-group div,
+.senda-builder-feature-list div,
+.senda-builder-footer-cta div {
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+.senda-builder-media-content img,
+.senda-builder-footer-cta img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+</style>`;
+
+function applyMobilePreviewStyle(html: string) {
+  if (!html || html.includes("data-senda-mobile-preview")) {
+    return html;
+  }
+  if (/<\/head\s*>/i.test(html)) {
+    return html.replace(/<\/head\s*>/i, `${MOBILE_PREVIEW_STYLE}</head>`);
+  }
+  return `${MOBILE_PREVIEW_STYLE}${html}`;
+}
+
+function applyMobilePreviewDocumentStyle(doc: Document) {
+  doc.documentElement.style.setProperty("overflow-x", "hidden", "important");
+  if (doc.body) {
+    doc.body.style.setProperty("overflow", "hidden", "important");
+  }
+  if (!doc.querySelector("style[data-senda-mobile-preview-runtime]")) {
+    const style = doc.createElement("style");
+    style.setAttribute("data-senda-mobile-preview-runtime", "true");
+    style.textContent = MOBILE_PREVIEW_STYLE.replace(
+      /^<style data-senda-mobile-preview>|<\/style>$/g,
+      ""
+    );
+    doc.head?.appendChild(style);
+  }
 }
 
 function InjectorFieldTypeIcon({
@@ -1504,6 +1916,8 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
   let buttonHref = "#";
   let buttonColor = "#ffffff";
   let align: "left" | "center" | "right" = "center";
+  const backgroundColor =
+    element.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || DEFAULT_BANNER_BACKGROUND_COLOR;
 
   const textEl = element.getElementsByTagName("mj-text")[0];
   if (textEl) {
@@ -1517,14 +1931,19 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
   if (btnEl) {
     buttonText = stripMjmlInlineTags(btnEl.innerHTML ?? "");
     buttonHref = btnEl.getAttribute("href") || "#";
-    buttonColor = btnEl.getAttribute("background-color") || "#ffffff";
+    buttonColor = btnEl.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || "#ffffff";
   }
 
   return {
     id: nowId(),
     type: "banner",
-    backgroundUrl: element.getAttribute("background-url") || "",
-    backgroundColor: element.getAttribute("background-color") || "#333333",
+    backgroundUrl: element.getAttribute(MJML_ATTR_BACKGROUND_URL) || "",
+    backgroundColor,
+    backgroundColorMode: parseBannerBackgroundColorMode(null, backgroundColor),
+    backgroundFit: BANNER_BACKGROUND_FIT_COVER,
+    backgroundPosition: parseBannerBackgroundPosition(
+      element.getAttribute(MJML_ATTR_BACKGROUND_POSITION)
+    ),
     mode: element.getAttribute("mode") === BANNER_MODE_FIXED ? BANNER_MODE_FIXED : BANNER_MODE_FLUID,
     height: normalizeSpacerHeight(element.getAttribute("height"), 400),
     segments,
@@ -1532,6 +1951,52 @@ function parseMjHeroToBlock(element: Element): BuilderBannerBlock {
     buttonHref,
     buttonColor,
     verticalAlign: parseVerticalAlign(element.getAttribute("vertical-align")),
+    align,
+    padding: normalizeSpacerHeight(element.getAttribute("padding"), 40),
+  };
+}
+
+function parseMjSectionBannerToBlock(element: Element): BuilderBannerBlock {
+  let segments: BuilderSegment[] = [createTextSegment("")];
+  let buttonText = "";
+  let buttonHref = "#";
+  let buttonColor = "#ffffff";
+  let align: "left" | "center" | "right" = "center";
+  const backgroundColor =
+    element.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || DEFAULT_BANNER_BACKGROUND_COLOR;
+
+  const textEl = element.getElementsByTagName("mj-text")[0];
+  if (textEl) {
+    segments = ensureUniqueSegmentIds(
+      parseContentToSegments(stripMjmlInlineTags(textEl.innerHTML ?? ""))
+    );
+    align = parseMjmlAlignNarrow(textEl.getAttribute("align"));
+  }
+
+  const btnEl = element.getElementsByTagName("mj-button")[0];
+  if (btnEl) {
+    buttonText = stripMjmlInlineTags(btnEl.innerHTML ?? "");
+    buttonHref = btnEl.getAttribute("href") || "#";
+    buttonColor = btnEl.getAttribute(MJML_ATTR_BACKGROUND_COLOR) || "#ffffff";
+  }
+
+  return {
+    id: nowId(),
+    type: "banner",
+    backgroundUrl: element.getAttribute(MJML_ATTR_BACKGROUND_URL) || "",
+    backgroundColor,
+    backgroundColorMode: parseBannerBackgroundColorMode(null, backgroundColor),
+    backgroundFit: parseBannerBackgroundFit(element.getAttribute("background-size")),
+    backgroundPosition: parseBannerBackgroundPosition(
+      element.getAttribute(MJML_ATTR_BACKGROUND_POSITION)
+    ),
+    mode: BANNER_MODE_FLUID,
+    height: 400,
+    segments,
+    buttonText,
+    buttonHref,
+    buttonColor,
+    verticalAlign: "middle",
     align,
     padding: normalizeSpacerHeight(element.getAttribute("padding"), 40),
   };
@@ -1615,6 +2080,12 @@ function parseBuilderDocumentFromMjml(rawMjml: string): BuilderDocument | null {
       }
 
       if (topTag === "mj-section") {
+        const cssClass = topChild.getAttribute("css-class") || "";
+        if (cssClass.split(/\s+/).includes(BANNER_SECTION_CLASS)) {
+          blocks.push(parseMjSectionBannerToBlock(topChild));
+          continue;
+        }
+
         const columns = Array.from(topChild.children).filter(
           (child) => child.tagName.toLowerCase() === "mj-column"
         );
@@ -1732,40 +2203,175 @@ function renderColumnBlockToMjml(block: BuilderBlock): string {
 }
 
 function renderBannerToMjml(block: BuilderBannerBlock): string {
-  const modeAttr = ` mode="${block.mode}"`;
-  const heightAttr = block.mode === BANNER_MODE_FIXED ? ` height="${block.height}px"` : "";
-  const bgUrl = block.backgroundUrl ? ` background-url="${block.backgroundUrl}"` : "";
-  const bgColor = ` background-color="${block.backgroundColor}"`;
-  const vAlign = ` vertical-align="${block.verticalAlign}"`;
-  const padding = ` padding="${block.padding}px"`;
+  const bgUrl = block.backgroundUrl
+    ? ` ${MJML_ATTR_BACKGROUND_URL}="${block.backgroundUrl}"`
+    : "";
+  const bgColor = block.backgroundColor
+    ? ` ${MJML_ATTR_BACKGROUND_COLOR}="${block.backgroundColor}"`
+    : "";
+  const bgPosition = ` ${MJML_ATTR_BACKGROUND_POSITION}="${block.backgroundPosition}"`;
   const textContent = renderSegmentsToText(block.segments).trim();
   const textMjml = textContent
     ? `\n        <mj-text align="${block.align}" color="#ffffff" font-size="20px">${textContent}</mj-text>`
     : "";
   const buttonMjml = block.buttonText
-    ? `\n        <mj-button href="${block.buttonHref || "#"}" background-color="${block.buttonColor}" align="${block.align}">${block.buttonText}</mj-button>`
+    ? `\n        <mj-button href="${block.buttonHref || "#"}" ${MJML_ATTR_BACKGROUND_COLOR}="${block.buttonColor}" align="${block.align}">${block.buttonText}</mj-button>`
     : "";
-  return `\n    <mj-hero${modeAttr}${heightAttr}${bgUrl}${bgColor}${vAlign}${padding}>${textMjml}${buttonMjml}\n    </mj-hero>`;
+  const emptyOverlayTextMjml =
+    !textContent && !block.buttonText
+      ? `\n        <mj-text align="${block.align}" color="#ffffff" font-size="20px">&nbsp;</mj-text>`
+      : "";
+
+  if (block.backgroundFit !== BANNER_BACKGROUND_FIT_COVER) {
+    const bgSize = ` background-size="${block.backgroundFit}"`;
+    const padding = ` padding="${block.padding}px 0"`;
+    const vAlign = ` vertical-align="${block.verticalAlign}"`;
+    return `\n    <mj-section css-class="${BANNER_SECTION_CLASS}"${bgUrl}${bgColor}${bgPosition}${bgSize} background-repeat="no-repeat"${padding}>\n      <mj-column${vAlign}>${textMjml}${buttonMjml}${emptyOverlayTextMjml}\n      </mj-column>\n    </mj-section>`;
+  }
+
+  const modeAttr = ` mode="${block.mode}"`;
+  const heightAttr = block.mode === BANNER_MODE_FIXED ? ` height="${block.height}px"` : "";
+  const vAlign = ` vertical-align="${block.verticalAlign}"`;
+  const padding = ` padding="${block.padding}px"`;
+  return `\n    <mj-hero${modeAttr}${heightAttr}${bgUrl}${bgColor}${bgPosition}${vAlign}${padding}>${textMjml}${buttonMjml}${emptyOverlayTextMjml}\n    </mj-hero>`;
+}
+
+function renderMediaContentToMjml(block: BuilderMediaContentBlock): string {
+  const imageSrc = escapeMjmlAttribute(
+    resolveSrcForMjml(block.imageSrc, "image", "260px")
+  );
+  const imageAlt = block.imageAlt ? ` alt="${escapeMjmlAttribute(block.imageAlt)}"` : "";
+  const buttonHref = escapeMjmlAttribute(block.buttonHref || "#");
+  const backgroundColor = escapeMjmlAttribute(block.backgroundColor);
+  const mediaColumn = `\n      <mj-column width="45%">\n        <mj-image src="${imageSrc}"${
+    imageAlt
+  } padding="0 12px" />\n      </mj-column>`;
+  const title = block.title
+    ? `\n        <mj-text font-size="22px" font-weight="600" color="#111827">${textToHtml(block.title)}</mj-text>`
+    : "";
+  const body = block.body
+    ? `\n        <mj-text font-size="15px" line-height="1.5" color="#111827">${textToHtml(block.body)}</mj-text>`
+    : "";
+  const button = block.buttonText
+    ? `\n        <mj-button href="${buttonHref}" ${MJML_ATTR_BACKGROUND_COLOR}="#5429ff" color="#ffffff" border-radius="24px" align="left">${escapeMjmlText(block.buttonText)}</mj-button>`
+    : "";
+  const contentColumn = `\n      <mj-column width="55%">${title}${body}${button}\n      </mj-column>`;
+  const columns =
+    block.imagePosition === "right"
+      ? `${contentColumn}${mediaColumn}`
+      : `${mediaColumn}${contentColumn}`;
+
+  return `\n    <mj-section css-class="senda-builder-media-content" ${MJML_ATTR_BACKGROUND_COLOR}="${backgroundColor}" padding="${block.padding}px 20px">${columns}\n    </mj-section>`;
+}
+
+function renderCtaGroupToMjml(block: BuilderCtaGroupBlock): string {
+  const primaryHref = escapeMjmlAttribute(block.primaryHref || "#");
+  const secondaryHref = escapeMjmlAttribute(block.secondaryHref || "#");
+  const backgroundColor = escapeMjmlAttribute(block.backgroundColor);
+  const buttonColor = escapeMjmlAttribute(block.buttonColor);
+  const buttonTextColor = escapeMjmlAttribute(block.buttonTextColor);
+  const text = block.text
+    ? `\n        <mj-text align="${block.align}" font-size="17px" line-height="1.45" color="#111447">${textToHtml(block.text)}</mj-text>`
+    : "";
+  const primary = block.primaryText
+    ? `\n        <mj-button href="${primaryHref}" align="${block.align}" ${MJML_ATTR_BACKGROUND_COLOR}="${buttonColor}" color="${buttonTextColor}" border-radius="24px">${escapeMjmlText(block.primaryText)}</mj-button>`
+    : "";
+  const secondary = block.secondaryText
+    ? `\n        <mj-button href="${secondaryHref}" align="${block.align}" ${MJML_ATTR_BACKGROUND_COLOR}="${buttonColor}" color="${buttonTextColor}" border-radius="24px">${escapeMjmlText(block.secondaryText)}</mj-button>`
+    : "";
+
+  if (block.layout === "split") {
+    return `\n    <mj-section css-class="senda-builder-cta-group" ${MJML_ATTR_BACKGROUND_COLOR}="${backgroundColor}" padding="${block.padding}px 20px">\n      <mj-column width="65%">${text}\n      </mj-column>\n      <mj-column width="35%">${primary}${secondary}\n      </mj-column>\n    </mj-section>`;
+  }
+
+  return `\n    <mj-section css-class="senda-builder-cta-group" ${MJML_ATTR_BACKGROUND_COLOR}="${backgroundColor}" padding="${block.padding}px 20px">\n      <mj-column>${text}${primary}${secondary}\n      </mj-column>\n    </mj-section>`;
+}
+
+function renderFeatureListToMjml(block: BuilderFeatureListBlock): string {
+  const backgroundColor = escapeMjmlAttribute(block.backgroundColor);
+  const accentColor = escapeMjmlAttribute(block.accentColor);
+  const title = block.title
+    ? `\n        <mj-text align="center" font-size="24px" font-weight="700" color="${accentColor}">${textToHtml(block.title)}</mj-text>`
+    : "";
+  const items = block.items
+    .map((item) => {
+      const content = textToHtml(item.text) || "&nbsp;";
+      return `\n        <mj-text font-size="17px" line-height="1.45" color="#111447"><span style="display:inline-block;width:54px;font-size:34px;color:${accentColor};vertical-align:top;">${escapeMjmlText(item.icon)}</span><span style="display:inline-block;width:calc(100% - 64px);vertical-align:top;">${content}</span></mj-text>`;
+    })
+    .join("");
+  const footer = block.footerText
+    ? `\n        <mj-text font-size="14px" line-height="1.5" color="#4b4a63">${textToHtml(block.footerText)}</mj-text>`
+    : "";
+  const band = block.bandText
+    ? `\n    <mj-section ${MJML_ATTR_BACKGROUND_COLOR}="${accentColor}" padding="22px 20px">\n      <mj-column>\n        <mj-text align="center" color="#ffffff" font-size="18px">${textToHtml(block.bandText)}</mj-text>\n      </mj-column>\n    </mj-section>`
+    : "";
+
+  return `\n    <mj-section css-class="senda-builder-feature-list" ${MJML_ATTR_BACKGROUND_COLOR}="${backgroundColor}" padding="${block.padding}px 20px">\n      <mj-column>${title}${items}${footer}\n      </mj-column>\n    </mj-section>${band}`;
+}
+
+function renderFooterCtaToMjml(block: BuilderFooterCtaBlock): string {
+  const backgroundUrl = escapeMjmlAttribute(block.backgroundUrl);
+  const buttonHref = escapeMjmlAttribute(block.buttonHref || "#");
+  const logoSrc = escapeMjmlAttribute(block.logoSrc);
+  const logoAlt = block.logoAlt ? ` alt="${escapeMjmlAttribute(block.logoAlt)}"` : "";
+  const backgroundColor = escapeMjmlAttribute(block.backgroundColor);
+  const accentColor = escapeMjmlAttribute(block.accentColor);
+  const bgUrl = block.backgroundUrl
+    ? ` ${MJML_ATTR_BACKGROUND_URL}="${backgroundUrl}" background-size="cover" background-repeat="no-repeat"`
+    : "";
+  const text = block.text
+    ? `\n        <mj-text align="center" color="${accentColor}" font-size="23px" line-height="1.25">${textToHtml(block.text)}</mj-text>`
+    : "";
+  const button = block.buttonText
+    ? `\n        <mj-button href="${buttonHref}" align="center" ${MJML_ATTR_BACKGROUND_COLOR}="#5429ff" color="#ffffff" border-radius="24px">${escapeMjmlText(block.buttonText)}</mj-button>`
+    : "";
+  const logo = block.logoSrc
+    ? `\n        <mj-image src="${logoSrc}"${logoAlt} width="170px" padding-top="34px" />`
+    : "";
+
+  return `\n    <mj-section css-class="senda-builder-footer-cta" ${MJML_ATTR_BACKGROUND_COLOR}="${backgroundColor}"${bgUrl} padding="${block.padding}px 20px">\n      <mj-column>${text}${button}${logo}\n      </mj-column>\n    </mj-section>`;
+}
+
+function renderSectionBlockToMjml(block: BuilderBlock): string {
+  switch (block.type) {
+    case BUILDER_BLOCK_MEDIA_CONTENT:
+      return renderMediaContentToMjml(block);
+    case BUILDER_BLOCK_CTA_GROUP:
+      return renderCtaGroupToMjml(block);
+    case BUILDER_BLOCK_FEATURE_LIST:
+      return renderFeatureListToMjml(block);
+    case BUILDER_BLOCK_FOOTER_CTA:
+      return renderFooterCtaToMjml(block);
+    default:
+      return "";
+  }
 }
 
 function buildTemplateMjml(document: BuilderDocument) {
   type BlockGroup =
     | { kind: "column"; blocks: BuilderBlock[] }
     | { kind: "hero"; block: BuilderBannerBlock }
+    | { kind: "section"; block: BuilderBlock }
     | { kind: "code"; block: BuilderCodeBlock };
 
   const groups: BlockGroup[] = [];
   let currentColumn: BuilderBlock[] = [];
 
   for (const block of document.blocks) {
-    if (block.type === "banner" || (block.type === "code" && block.placement === "body")) {
+    if (
+      block.type === "banner" ||
+      SECTION_BLOCK_TYPES.has(block.type) ||
+      (block.type === "code" && block.placement === "body")
+    ) {
       if (currentColumn.length > 0) {
         groups.push({ kind: "column", blocks: currentColumn });
         currentColumn = [];
       }
       if (block.type === "banner") {
         groups.push({ kind: "hero", block });
-      } else {
+      } else if (SECTION_BLOCK_TYPES.has(block.type)) {
+        groups.push({ kind: "section", block });
+      } else if (block.type === "code") {
         groups.push({ kind: "code", block });
       }
     } else {
@@ -1780,6 +2386,9 @@ function buildTemplateMjml(document: BuilderDocument) {
     .map((group) => {
       if (group.kind === "hero") {
         return renderBannerToMjml(group.block);
+      }
+      if (group.kind === "section") {
+        return renderSectionBlockToMjml(group.block);
       }
       if (group.kind === "code") {
         return `\n    ${group.block.content}`;
@@ -1822,6 +2431,10 @@ export function MjmlEditor({
     banner: t("blocks.banner"),
     video: t("blocks.video"),
     list: t("blocks.list"),
+    [BUILDER_BLOCK_MEDIA_CONTENT]: t("blocks.mediaContent"),
+    [BUILDER_BLOCK_CTA_GROUP]: t("blocks.ctaGroup"),
+    [BUILDER_BLOCK_FEATURE_LIST]: t("blocks.featureList"),
+    [BUILDER_BLOCK_FOOTER_CTA]: t("blocks.footerCta"),
     code: t("blocks.code"),
   };
 
@@ -1934,6 +2547,8 @@ export function MjmlEditor({
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [previewSplitMode, setPreviewSplitMode] =
     useState<PreviewSplitMode>("ratio");
+  const [previewViewportMode, setPreviewViewportMode] =
+    useState<PreviewViewportMode>("desktop");
   const [previewPanelWidthPx, setPreviewPanelWidthPx] = useState<number>(
     MIN_PANEL_WIDTH
   );
@@ -1955,6 +2570,7 @@ export function MjmlEditor({
   const previewStageObserverRef = useRef<ResizeObserver | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewObserverCleanupRef = useRef<(() => void) | null>(null);
+  const previewViewportModeRef = useRef<PreviewViewportMode>("desktop");
   const [previewStageSize, setPreviewStageSize] = useState<PreviewStageSize>({
     width: 0,
     height: 0,
@@ -2390,14 +3006,19 @@ export function MjmlEditor({
     };
   }, [isResizeDragging]);
 
+  const previewFrameHtml =
+    previewViewportMode === "mobile"
+      ? applyMobilePreviewStyle(previewHtml)
+      : previewHtml;
+
   useEffect(() => {
-    if (!previewHtml) {
+    if (!previewFrameHtml) {
       setPreviewFrameUrl("");
       setPreviewDocumentSize(DEFAULT_PREVIEW_DOCUMENT_SIZE);
       return;
     }
 
-    const blob = new Blob([previewHtml], {
+    const blob = new Blob([previewFrameHtml], {
       type: "text/html;charset=utf-8",
     });
     const objectUrl = URL.createObjectURL(blob);
@@ -2406,13 +3027,27 @@ export function MjmlEditor({
     return () => {
       URL.revokeObjectURL(objectUrl);
     };
-  }, [previewHtml]);
+  }, [previewFrameHtml]);
 
   useEffect(() => {
     setPreviewDocumentSize(DEFAULT_PREVIEW_DOCUMENT_SIZE);
     previewObserverCleanupRef.current?.();
     previewObserverCleanupRef.current = null;
   }, [previewFrameUrl]);
+
+  useEffect(() => {
+    if (previewViewportMode !== "mobile") {
+      return;
+    }
+    try {
+      const doc = previewIframeRef.current?.contentDocument;
+      if (doc) {
+        applyMobilePreviewDocumentStyle(doc);
+      }
+    } catch {
+      // Ignore preview-only styling failures.
+    }
+  }, [previewViewportMode, previewFrameUrl]);
 
   useEffect(() => {
     return () => {
@@ -2561,7 +3196,10 @@ export function MjmlEditor({
 
   function updatePreviewDocumentSize(next: PreviewDocumentSize) {
     setPreviewDocumentSize((current) => {
-      const width = Math.max(1, Math.ceil(next.width));
+      const width =
+        previewViewportModeRef.current === "mobile"
+          ? current.width
+          : Math.max(1, Math.ceil(next.width));
       const height = Math.max(1, Math.ceil(next.height));
       if (
         Math.abs(current.width - width) <= 1 &&
@@ -2646,6 +3284,9 @@ export function MjmlEditor({
     try {
       const doc = event.currentTarget.contentDocument;
       if (doc) {
+        if (previewViewportModeRef.current === "mobile") {
+          applyMobilePreviewDocumentStyle(doc);
+        }
         decoratePreviewDocumentPlaceholders(doc, resolveTemplateTokenMeta);
       }
     } catch {
@@ -2683,9 +3324,27 @@ export function MjmlEditor({
       watchedSubject,
     ],
   );
-  const previewNaturalWidth = Math.max(1, previewDocumentSize.width);
+  const previewNaturalWidth =
+    previewViewportMode === "mobile"
+      ? MOBILE_PREVIEW_WIDTH
+      : Math.max(1, previewDocumentSize.width);
   const previewNaturalHeight = Math.max(1, previewDocumentSize.height);
-  const previewScale = getPreviewScale(previewDocumentSize, previewStageSize);
+  const previewScale =
+    previewViewportMode === "mobile"
+      ? Math.max(
+          MIN_PREVIEW_SCALE,
+          Math.min(
+            1,
+            MOBILE_PREVIEW_WIDTH / previewNaturalWidth,
+            previewStageSize.width > 0
+              ? previewStageSize.width / previewNaturalWidth
+              : 1
+          )
+        )
+      : getPreviewScale(
+          { width: previewNaturalWidth, height: previewNaturalHeight },
+          previewStageSize
+        );
   const previewScaledWidth = Math.max(
     1,
     Math.round(previewNaturalWidth * previewScale)
@@ -2693,6 +3352,10 @@ export function MjmlEditor({
   const previewScaledHeight = Math.max(
     1,
     Math.round(previewNaturalHeight * previewScale)
+  );
+  const previewFrameHeight = Math.max(
+    previewScaledHeight,
+    previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight
   );
 
   function updateBuilderDocument(next: BuilderDocument | null) {
@@ -2823,7 +3486,10 @@ export function MjmlEditor({
         id,
         type: "banner",
         backgroundUrl: "",
-        backgroundColor: "#333333",
+        backgroundColor: DEFAULT_BANNER_BACKGROUND_COLOR,
+        backgroundColorMode: BANNER_BACKGROUND_COLOR_MODE_COLOR,
+        backgroundFit: BANNER_BACKGROUND_FIT_COVER,
+        backgroundPosition: DEFAULT_BANNER_BACKGROUND_POSITION,
         mode: BANNER_MODE_FLUID,
         height: 400,
         segments: [createTextSegment("Your headline here")],
@@ -2856,6 +3522,66 @@ export function MjmlEditor({
         ],
         align: "left",
       };
+    } else if (type === BUILDER_BLOCK_MEDIA_CONTENT) {
+      newBlock = {
+        id,
+        type: BUILDER_BLOCK_MEDIA_CONTENT,
+        imageSrc: "",
+        imageAlt: "Section image",
+        imagePosition: "left",
+        title: "Benefits",
+        body: "Describe the offer, product, or story with a concise paragraph or bullet-style lines.",
+        buttonText: "Learn more",
+        buttonHref: "#",
+        backgroundColor: "#ffffff",
+        padding: 24,
+      };
+    } else if (type === BUILDER_BLOCK_CTA_GROUP) {
+      newBlock = {
+        id,
+        type: BUILDER_BLOCK_CTA_GROUP,
+        layout: "stacked",
+        text: "Invite readers to continue with one or more clear actions.",
+        primaryText: "Primary action",
+        primaryHref: "#",
+        secondaryText: "",
+        secondaryHref: "#",
+        backgroundColor: "#f4f3ff",
+        buttonColor: "#5429ff",
+        buttonTextColor: "#ffffff",
+        align: "center",
+        padding: 28,
+      };
+    } else if (type === BUILDER_BLOCK_FEATURE_LIST) {
+      newBlock = {
+        id,
+        type: BUILDER_BLOCK_FEATURE_LIST,
+        title: "Key milestones",
+        items: [
+          createFeatureListItem("First highlighted achievement or benefit.", "*"),
+          createFeatureListItem("Second highlighted achievement or benefit.", "o"),
+          createFeatureListItem("Third highlighted achievement or benefit.", "+"),
+        ],
+        footerText: "Close the section with supporting context or gratitude.",
+        bandText: "Thank you for your trust and collaboration.",
+        backgroundColor: "#f7f7ff",
+        accentColor: "#5429ff",
+        padding: 30,
+      };
+    } else if (type === BUILDER_BLOCK_FOOTER_CTA) {
+      newBlock = {
+        id,
+        type: BUILDER_BLOCK_FOOTER_CTA,
+        text: "Let us build the next experience together.",
+        buttonText: "Schedule a meeting",
+        buttonHref: "#",
+        logoSrc: "",
+        logoAlt: "Logo",
+        backgroundColor: "#111447",
+        backgroundUrl: "",
+        accentColor: "#8095ff",
+        padding: 38,
+      };
     } else {
       newBlock = {
         id,
@@ -2864,19 +3590,60 @@ export function MjmlEditor({
       };
     }
 
+    const selectedIndex = builderDocument.blocks.findIndex(
+      (block) => block.id === selectedBlockId
+    );
+    const insertIndex =
+      selectedIndex >= 0 ? selectedIndex + 1 : builderDocument.blocks.length;
+    const nextBlocks = [...builderDocument.blocks];
+    nextBlocks.splice(insertIndex, 0, newBlock);
+
     updateBuilderDocument({
       ...builderDocument,
-      blocks: [...builderDocument.blocks, newBlock],
+      blocks: nextBlocks,
     });
     setSelectedBlockId(id);
+  }
+
+  function renderBlockPaletteButton(
+    type: BuilderBlockType,
+    label: string,
+    Icon: ComponentType<{ className?: string }>
+  ) {
+    return (
+      <Tooltip key={type}>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canEditDraft}
+            onClick={() => addBlock(type)}
+            className={BLOCK_PALETTE_BUTTON_CLASS}
+          >
+            <Icon className={BLOCK_PALETTE_ICON_CLASS} />
+            <span className={BLOCK_PALETTE_LABEL_CLASS}>{label}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    );
   }
 
   function removeBlock(blockId: string) {
     if (!builderDocument || !canEditDraft) return;
 
     metadataFieldRefs.current.delete(`${blockId}:image_src`);
+    metadataFieldRefs.current.delete(`${blockId}:section_image_src`);
+    metadataFieldRefs.current.delete(`${blockId}:footer_logo_src`);
+    metadataFieldRefs.current.delete(`${blockId}:footer_background_url`);
+    metadataFieldRefs.current.delete(`${blockId}:media_button_href`);
+    metadataFieldRefs.current.delete(`${blockId}:cta_primary_href`);
+    metadataFieldRefs.current.delete(`${blockId}:cta_secondary_href`);
+    metadataFieldRefs.current.delete(`${blockId}:footer_button_href`);
     metadataFieldRefs.current.delete(`${blockId}:video_url`);
     metadataFieldRefs.current.delete(`${blockId}:video_thumbnail`);
+    metadataFieldRefs.current.delete(`${blockId}:banner_background_url`);
+    metadataFieldRefs.current.delete(`${blockId}:banner_background_color`);
     if (selectedMetadataField?.startsWith(`${blockId}:`)) {
       setSelectedMetadataField(null);
     }
@@ -3472,6 +4239,30 @@ export function MjmlEditor({
     });
   }
 
+  function updateBannerBackgroundColorMode(
+    blockId: string,
+    mode: BuilderBannerBlock["backgroundColorMode"]
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== "banner") return block;
+        const backgroundColor =
+          mode === BANNER_BACKGROUND_COLOR_MODE_COLOR
+            ? normalizeBannerColorForColorInput(block.backgroundColor)
+            : isHexColor(block.backgroundColor)
+              ? ""
+              : block.backgroundColor;
+        return {
+          ...block,
+          backgroundColor,
+          backgroundColorMode: mode,
+        };
+      }),
+    });
+  }
+
   function getBannerBlockSegments(blockId: string) {
     if (!builderDocument) return null;
     const block = builderDocument.blocks.find((b) => b.id === blockId);
@@ -3526,6 +4317,116 @@ export function MjmlEditor({
       ...builderDocument,
       blocks: builderDocument.blocks.map((block) => {
         if (block.id !== blockId || block.type !== "video") return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateMediaContentBlock(
+    blockId: string,
+    key: keyof Omit<BuilderMediaContentBlock, "id" | "type">,
+    value: string | number
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_MEDIA_CONTENT) return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateCtaGroupBlock(
+    blockId: string,
+    key: keyof Omit<BuilderCtaGroupBlock, "id" | "type">,
+    value: string | number
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_CTA_GROUP) return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateFeatureListBlock(
+    blockId: string,
+    key: keyof Omit<BuilderFeatureListBlock, "id" | "type" | "items">,
+    value: string | number
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_FEATURE_LIST) return block;
+        return { ...block, [key]: value };
+      }),
+    });
+  }
+
+  function updateFeatureListItem(
+    blockId: string,
+    itemId: string,
+    key: keyof Omit<FeatureListItem, "id">,
+    value: string
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_FEATURE_LIST) return block;
+        return {
+          ...block,
+          items: block.items.map((item) =>
+            item.id === itemId ? { ...item, [key]: value } : item
+          ),
+        };
+      }),
+    });
+  }
+
+  function addFeatureListItem(blockId: string) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_FEATURE_LIST) return block;
+        return {
+          ...block,
+          items: [...block.items, createFeatureListItem("New item", "*")],
+        };
+      }),
+    });
+  }
+
+  function removeFeatureListItem(blockId: string, itemId: string) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_FEATURE_LIST) return block;
+        const items = block.items.filter((item) => item.id !== itemId);
+        return {
+          ...block,
+          items: items.length ? items : [createFeatureListItem("", "*")],
+        };
+      }),
+    });
+  }
+
+  function updateFooterCtaBlock(
+    blockId: string,
+    key: keyof Omit<BuilderFooterCtaBlock, "id" | "type">,
+    value: string | number
+  ) {
+    if (!builderDocument) return;
+    updateBuilderDocument({
+      ...builderDocument,
+      blocks: builderDocument.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== BUILDER_BLOCK_FOOTER_CTA) return block;
         return { ...block, [key]: value };
       }),
     });
@@ -4078,78 +4979,34 @@ export function MjmlEditor({
                   </button>
                   {blocksOpen && (
                     <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("text")}
-                        className="h-8"
-                      >
-                        <Type className="h-3.5 w-3.5 mr-1" /> {t("blocks.text")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("button")}
-                        className="h-8"
-                      >
-                        {t("blocks.button")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("image")}
-                        className="h-8"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5 mr-1" /> {t("blocks.image")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("divider")}
-                        className="h-8"
-                      >
-                        <Minus className="h-3.5 w-3.5 mr-1" /> {t("blocks.divider")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("spacer")}
-                        className="h-8"
-                      >
-                        <Grip className="h-3.5 w-3.5 mr-1" /> {t("blocks.spacer")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("banner")}
-                        className="h-8"
-                      >
-                        <LayoutTemplate className="h-3.5 w-3.5 mr-1" /> {t("blocks.banner")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("video")}
-                        className="h-8"
-                      >
-                        <Play className="h-3.5 w-3.5 mr-1" /> {t("blocks.video")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canEditDraft}
-                        onClick={() => addBlock("list")}
-                        className="h-8"
-                      >
-                        <List className="h-3.5 w-3.5 mr-1" /> {t("blocks.list")}
-                      </Button>
+                      {renderBlockPaletteButton("text", t("blocks.text"), Type)}
+                      {renderBlockPaletteButton("button", t("blocks.button"), Link2)}
+                      {renderBlockPaletteButton("image", t("blocks.image"), ImageIcon)}
+                      {renderBlockPaletteButton("divider", t("blocks.divider"), Minus)}
+                      {renderBlockPaletteButton("spacer", t("blocks.spacer"), Grip)}
+                      {renderBlockPaletteButton("banner", t("blocks.banner"), LayoutTemplate)}
+                      {renderBlockPaletteButton("video", t("blocks.video"), Play)}
+                      {renderBlockPaletteButton("list", t("blocks.list"), List)}
+                      {renderBlockPaletteButton(
+                        BUILDER_BLOCK_MEDIA_CONTENT,
+                        t("blocks.mediaContent"),
+                        ImageIcon
+                      )}
+                      {renderBlockPaletteButton(
+                        BUILDER_BLOCK_CTA_GROUP,
+                        t("blocks.ctaGroup"),
+                        Rocket
+                      )}
+                      {renderBlockPaletteButton(
+                        BUILDER_BLOCK_FEATURE_LIST,
+                        t("blocks.featureList"),
+                        List
+                      )}
+                      {renderBlockPaletteButton(
+                        BUILDER_BLOCK_FOOTER_CTA,
+                        t("blocks.footerCta"),
+                        LayoutTemplate
+                      )}
                     </div>
                   )}
                 </>
@@ -4676,39 +5533,249 @@ export function MjmlEditor({
                               <div className="space-y-2">
                                 <div>
                                   <Label className="text-xs">Background Image URL</Label>
-                                  <Input
-                                    value={block.backgroundUrl}
-                                    className="h-8 mt-1"
-                                    placeholder="https://example.com/hero.jpg"
-                                    onChange={(ev) => updateBannerBlock(block.id, "backgroundUrl", ev.target.value)}
-                                    readOnly={isReadOnlyMode}
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <div className="flex-1">
-                                    <Label className="text-xs">Background Color</Label>
-                                    <Input
-                                      type="color"
-                                      value={block.backgroundColor}
-                                      className="h-8 mt-1 w-16"
-                                      onChange={(ev) => updateBannerBlock(block.id, "backgroundColor", ev.target.value)}
-                                      readOnly={isReadOnlyMode}
+                                  <div
+                                    onMouseDown={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedMetadataField(`${block.id}:banner_background_url`);
+                                      setSelectedBlockId(block.id);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MetadataTokenInput
+                                      ref={(node) => {
+                                        metadataFieldRefs.current.set(
+                                          `${block.id}:banner_background_url`,
+                                          node
+                                        );
+                                      }}
+                                      value={block.backgroundUrl}
+                                      className="mt-1"
+                                      placeholder="https://example.com/hero.jpg"
+                                      onChange={(value) =>
+                                        updateBannerBlock(block.id, "backgroundUrl", value)
+                                      }
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:banner_background_url`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Banner background image URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
                                     />
                                   </div>
-                                  <div className="flex-1">
-                                    <Label className="text-xs">Mode</Label>
-                                    <select
-                                      value={block.mode}
-                                      onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
-                                      disabled={!canEditDraft}
-                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                    >
-                                      <option value="fluid-height">Fluid</option>
-                                      <option value="fixed-height">Fixed</option>
-                                    </select>
+                                  <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-input bg-muted/30 p-1">
+                                    <div className="flex items-center gap-1">
+                                      {BANNER_BACKGROUND_FIT_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive = block.backgroundFit === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Image fit: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "backgroundFit",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Image fit: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="h-5 w-px bg-border" />
+                                    <div className="flex items-center gap-1">
+                                      {BANNER_BACKGROUND_POSITION_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive =
+                                          block.backgroundPosition === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Image align: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "backgroundPosition",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Image align: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
-                                {block.mode === BANNER_MODE_FIXED && (
+                                <div className="flex gap-2">
+                                  <div
+                                    className={
+                                      block.backgroundFit === BANNER_BACKGROUND_FIT_COVER
+                                        ? "flex-1"
+                                        : "w-full"
+                                    }
+                                  >
+                                    <Label className="text-xs">Background Color</Label>
+                                    <div
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedMetadataField(
+                                          `${block.id}:banner_background_color`
+                                        );
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={[
+                                        "relative mt-1 overflow-visible transition-[width] duration-200 ease-out",
+                                        block.backgroundColorMode ===
+                                        BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                          ? "w-full"
+                                          : "w-16",
+                                      ].join(" ")}
+                                    >
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            disabled={isReadOnlyMode}
+                                            className={[
+                                              "absolute -right-1.5 -top-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                                              block.backgroundColorMode ===
+                                              BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-border bg-background text-muted-foreground hover:text-foreground",
+                                            ].join(" ")}
+                                            aria-label={
+                                              block.backgroundColorMode ===
+                                              BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                ? "Use color picker for banner background color"
+                                                : "Use injector for banner background color"
+                                            }
+                                            onClick={() =>
+                                              updateBannerBackgroundColorMode(
+                                                block.id,
+                                                block.backgroundColorMode ===
+                                                  BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                                  ? BANNER_BACKGROUND_COLOR_MODE_COLOR
+                                                  : BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                              )
+                                            }
+                                          >
+                                            {block.backgroundColorMode ===
+                                            BANNER_BACKGROUND_COLOR_MODE_INJECTOR ? (
+                                              <Palette className="h-3 w-3" />
+                                            ) : (
+                                              <Type className="h-3 w-3" />
+                                            )}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          {block.backgroundColorMode ===
+                                          BANNER_BACKGROUND_COLOR_MODE_INJECTOR
+                                            ? "Use color picker"
+                                            : "Use injector"}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    {block.backgroundColorMode ===
+                                    BANNER_BACKGROUND_COLOR_MODE_INJECTOR ? (
+                                      <MetadataTokenInput
+                                        ref={(node) => {
+                                          metadataFieldRefs.current.set(
+                                            `${block.id}:banner_background_color`,
+                                            node
+                                          );
+                                        }}
+                                        value={block.backgroundColor}
+                                        className="h-8 overflow-hidden pr-7"
+                                        placeholder="Injector token..."
+                                        onChange={(value) =>
+                                          updateBannerBlock(
+                                            block.id,
+                                            "backgroundColor",
+                                            value
+                                          )
+                                        }
+                                        onFocus={() => {
+                                          setSelectedMetadataField(
+                                            `${block.id}:banner_background_color`
+                                          );
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="Banner background color"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    ) : (
+                                      <Input
+                                        type="color"
+                                        value={normalizeBannerColorForColorInput(
+                                          block.backgroundColor
+                                        )}
+                                        className="h-8 w-full"
+                                        onChange={(ev) =>
+                                          updateBannerBlock(
+                                            block.id,
+                                            "backgroundColor",
+                                            ev.target.value
+                                          )
+                                        }
+                                        readOnly={isReadOnlyMode}
+                                      />
+                                    )}
+                                    </div>
+                                  </div>
+                                  {block.backgroundFit === BANNER_BACKGROUND_FIT_COVER ? (
+                                    <div className="flex-1">
+                                      <Label className="text-xs">Mode</Label>
+                                      <select
+                                        value={block.mode}
+                                        onChange={(ev) => updateBannerBlock(block.id, "mode", ev.target.value)}
+                                        disabled={!canEditDraft}
+                                        className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      >
+                                        <option value="fluid-height">Fluid</option>
+                                        <option value="fixed-height">Fixed</option>
+                                      </select>
+                                    </div>
+                                  ) : null}
+                                </div>
+                                {block.backgroundFit === BANNER_BACKGROUND_FIT_COVER &&
+                                block.mode === BANNER_MODE_FIXED && (
                                   <div>
                                     <Label className="text-xs">Height (px)</Label>
                                     <Input
@@ -4723,42 +5790,81 @@ export function MjmlEditor({
                                 )}
                                 <div>
                                   <Label className="text-xs">Overlay Text</Label>
-                                  <div className="mt-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                                    <div
-                                      ref={(node) => {
-                                        if (node) {
-                                          blockEditorRefs.current[block.id] = node;
-                                        } else {
-                                          delete blockEditorRefs.current[block.id];
+                                  <div className="mt-1 flex items-start gap-2">
+                                    <div className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                                      <div
+                                        ref={(node) => {
+                                          if (node) {
+                                            blockEditorRefs.current[block.id] = node;
+                                          } else {
+                                            delete blockEditorRefs.current[block.id];
+                                          }
+                                        }}
+                                        contentEditable={!isReadOnlyMode}
+                                        suppressContentEditableWarning
+                                        className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+                                        data-placeholder="Headline text..."
+                                        onInput={(event) =>
+                                          handleBlockEditorInput(block.id, event.currentTarget)
                                         }
-                                      }}
-                                      contentEditable={!isReadOnlyMode}
-                                      suppressContentEditableWarning
-                                      className="min-h-6 w-full whitespace-pre-wrap break-words text-sm font-mono outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
-                                      data-placeholder="Headline text..."
-                                      onInput={(event) =>
-                                        handleBlockEditorInput(block.id, event.currentTarget)
-                                      }
-                                      onKeyDown={(event) =>
-                                        handleBlockEditorKeyDown(block.id, event)
-                                      }
-                                      onClick={handleBlockEditorTokenClick}
-                                      onFocus={() => {
-                                        setSelectedMetadataField(null);
-                                        setSelectedBlockId(block.id);
-                                      }}
-                                      onCopy={(event) =>
-                                        handleBlockEditorCopyOrCut(block.id, event, "copy")
-                                      }
-                                      onCut={(event) =>
-                                        handleBlockEditorCopyOrCut(block.id, event, "cut")
-                                      }
-                                      onPaste={(event) => handleBlockEditorPaste(block.id, event)}
-                                      onDragOver={(event) =>
-                                        handleBlockEditorDragOver(block.id, event)
-                                      }
-                                      onDrop={(event) => handleBlockEditorDrop(block.id, event)}
-                                    />
+                                        onKeyDown={(event) =>
+                                          handleBlockEditorKeyDown(block.id, event)
+                                        }
+                                        onClick={handleBlockEditorTokenClick}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(null);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        onCopy={(event) =>
+                                          handleBlockEditorCopyOrCut(block.id, event, "copy")
+                                        }
+                                        onCut={(event) =>
+                                          handleBlockEditorCopyOrCut(block.id, event, "cut")
+                                        }
+                                        onPaste={(event) => handleBlockEditorPaste(block.id, event)}
+                                        onDragOver={(event) =>
+                                          handleBlockEditorDragOver(block.id, event)
+                                        }
+                                        onDrop={(event) => handleBlockEditorDrop(block.id, event)}
+                                      />
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1 rounded-md border border-input bg-muted/30 p-1">
+                                      {BANNER_OVERLAY_ALIGN_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive = block.align === option.value;
+                                        return (
+                                          <Tooltip key={option.value}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={!canEditDraft}
+                                                aria-label={`Overlay text align: ${option.label}`}
+                                                aria-pressed={isActive}
+                                                className={[
+                                                  BANNER_ICON_BUTTON_CLASS,
+                                                  isActive
+                                                    ? BANNER_ICON_BUTTON_ACTIVE_CLASS
+                                                    : BANNER_ICON_BUTTON_INACTIVE_CLASS,
+                                                ].join(" ")}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  updateBannerBlock(
+                                                    block.id,
+                                                    "align",
+                                                    option.value
+                                                  );
+                                                }}
+                                              >
+                                                <Icon className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                              Overlay text align: {option.label}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
                                 <div>
@@ -4795,20 +5901,30 @@ export function MjmlEditor({
                                   </div>
                                 )}
                                 <div className="flex gap-2">
-                                  <div className="flex-1">
-                                    <Label className="text-xs">V. Align</Label>
-                                    <select
-                                      value={block.verticalAlign}
-                                      onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
-                                      disabled={!canEditDraft}
-                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                    >
-                                      <option value="top">Top</option>
-                                      <option value="middle">Middle</option>
-                                      <option value="bottom">Bottom</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex-1">
+                                  {block.mode === BANNER_MODE_FIXED &&
+                                  block.backgroundFit === BANNER_BACKGROUND_FIT_COVER ? (
+                                    <div className="flex-1">
+                                      <Label className="text-xs">Content Position</Label>
+                                      <select
+                                        value={block.verticalAlign}
+                                        onChange={(ev) => updateBannerBlock(block.id, "verticalAlign", ev.target.value)}
+                                        disabled={!canEditDraft}
+                                        className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      >
+                                        <option value="top">Top</option>
+                                        <option value="middle">Middle</option>
+                                        <option value="bottom">Bottom</option>
+                                      </select>
+                                    </div>
+                                  ) : null}
+                                  <div
+                                    className={
+                                      block.mode === BANNER_MODE_FIXED &&
+                                      block.backgroundFit === BANNER_BACKGROUND_FIT_COVER
+                                        ? "flex-1"
+                                        : "w-full"
+                                    }
+                                  >
                                     <Label className="text-xs">Padding (px)</Label>
                                     <Input
                                       type="number"
@@ -4816,6 +5932,441 @@ export function MjmlEditor({
                                       value={block.padding}
                                       className="h-8 mt-1"
                                       onChange={(ev) => updateBannerBlock(block.id, "padding", Number.parseInt(ev.target.value, 10) || 0)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === BUILDER_BLOCK_MEDIA_CONTENT && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Image URL</Label>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:section_image_src`, handle);
+                                      }}
+                                      value={block.imageSrc}
+                                      className="min-h-8 mt-1"
+                                      placeholder="https://example.com/image.png"
+                                      onChange={(value) => updateMediaContentBlock(block.id, "imageSrc", value)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:section_image_src`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Media content image URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Image Side</Label>
+                                    <select
+                                      value={block.imagePosition}
+                                      onChange={(ev) => updateMediaContentBlock(block.id, "imagePosition", ev.target.value)}
+                                      disabled={!canEditDraft}
+                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="left">Left</option>
+                                      <option value="right">Right</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Background</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.backgroundColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateMediaContentBlock(block.id, "backgroundColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Title</Label>
+                                  <Input
+                                    value={block.title}
+                                    className="h-8 mt-1"
+                                    onChange={(ev) => updateMediaContentBlock(block.id, "title", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Body</Label>
+                                  <textarea
+                                    value={block.body}
+                                    className="mt-1 min-h-20 w-full resize-y rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    onChange={(ev) => updateMediaContentBlock(block.id, "body", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Button Text</Label>
+                                    <Input
+                                      value={block.buttonText}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateMediaContentBlock(block.id, "buttonText", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Button URL</Label>
+                                    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                                      <MetadataTokenInput
+                                        ref={(handle) => {
+                                          metadataFieldRefs.current.set(`${block.id}:media_button_href`, handle);
+                                        }}
+                                        value={block.buttonHref}
+                                        className="min-h-8"
+                                        onChange={(value) => updateMediaContentBlock(block.id, "buttonHref", value)}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(`${block.id}:media_button_href`);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="Media content button URL"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === BUILDER_BLOCK_CTA_GROUP && (
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Layout</Label>
+                                    <select
+                                      value={block.layout}
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "layout", ev.target.value)}
+                                      disabled={!canEditDraft}
+                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="stacked">Stacked</option>
+                                      <option value="split">Text + button</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Align</Label>
+                                    <select
+                                      value={block.align}
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "align", ev.target.value)}
+                                      disabled={!canEditDraft}
+                                      className="h-8 mt-1 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="left">Left</option>
+                                      <option value="center">Center</option>
+                                      <option value="right">Right</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Text</Label>
+                                  <textarea
+                                    value={block.text}
+                                    className="mt-1 min-h-20 w-full resize-y rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    onChange={(ev) => updateCtaGroupBlock(block.id, "text", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Primary Button</Label>
+                                    <Input
+                                      value={block.primaryText}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "primaryText", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Primary URL</Label>
+                                    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                                      <MetadataTokenInput
+                                        ref={(handle) => {
+                                          metadataFieldRefs.current.set(`${block.id}:cta_primary_href`, handle);
+                                        }}
+                                        value={block.primaryHref}
+                                        className="min-h-8"
+                                        onChange={(value) => updateCtaGroupBlock(block.id, "primaryHref", value)}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(`${block.id}:cta_primary_href`);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="CTA primary URL"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Secondary Button</Label>
+                                    <Input
+                                      value={block.secondaryText}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "secondaryText", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Secondary URL</Label>
+                                    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                                      <MetadataTokenInput
+                                        ref={(handle) => {
+                                          metadataFieldRefs.current.set(`${block.id}:cta_secondary_href`, handle);
+                                        }}
+                                        value={block.secondaryHref}
+                                        className="min-h-8"
+                                        onChange={(value) => updateCtaGroupBlock(block.id, "secondaryHref", value)}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(`${block.id}:cta_secondary_href`);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="CTA secondary URL"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Background</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.backgroundColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "backgroundColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Button</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.buttonColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "buttonColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Text</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.buttonTextColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateCtaGroupBlock(block.id, "buttonTextColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === BUILDER_BLOCK_FEATURE_LIST && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Title</Label>
+                                  <Input
+                                    value={block.title}
+                                    className="h-8 mt-1"
+                                    onChange={(ev) => updateFeatureListBlock(block.id, "title", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Items</Label>
+                                  <div className="mt-1 space-y-1">
+                                    {block.items.map((item) => (
+                                      <div key={item.id} className="flex items-center gap-1">
+                                        <Input
+                                          value={item.icon}
+                                          className="h-7 w-12 text-xs"
+                                          onChange={(ev) => updateFeatureListItem(block.id, item.id, "icon", ev.target.value)}
+                                          readOnly={isReadOnlyMode}
+                                        />
+                                        <Input
+                                          value={item.text}
+                                          className="h-7 min-w-0 flex-1 text-xs"
+                                          onChange={(ev) => updateFeatureListItem(block.id, item.id, "text", ev.target.value)}
+                                          readOnly={isReadOnlyMode}
+                                        />
+                                        {canEditDraft && (
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-7 w-7 items-center justify-center rounded text-destructive hover:bg-muted"
+                                            onClick={() => removeFeatureListItem(block.id, item.id)}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {canEditDraft && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 mt-2 w-full text-xs"
+                                      onClick={() => addFeatureListItem(block.id)}
+                                    >
+                                      <Plus className="h-3 w-3 mr-1" /> Add Item
+                                    </Button>
+                                  )}
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Footer Text</Label>
+                                  <textarea
+                                    value={block.footerText}
+                                    className="mt-1 min-h-16 w-full resize-y rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    onChange={(ev) => updateFeatureListBlock(block.id, "footerText", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Bottom Band</Label>
+                                  <Input
+                                    value={block.bandText}
+                                    className="h-8 mt-1"
+                                    onChange={(ev) => updateFeatureListBlock(block.id, "bandText", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Background</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.backgroundColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateFeatureListBlock(block.id, "backgroundColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Accent</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.accentColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateFeatureListBlock(block.id, "accentColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {block.type === BUILDER_BLOCK_FOOTER_CTA && (
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs">Text</Label>
+                                  <textarea
+                                    value={block.text}
+                                    className="mt-1 min-h-20 w-full resize-y rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    onChange={(ev) => updateFooterCtaBlock(block.id, "text", ev.target.value)}
+                                    readOnly={isReadOnlyMode}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Button Text</Label>
+                                    <Input
+                                      value={block.buttonText}
+                                      className="h-8 mt-1"
+                                      onChange={(ev) => updateFooterCtaBlock(block.id, "buttonText", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Button URL</Label>
+                                    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                                      <MetadataTokenInput
+                                        ref={(handle) => {
+                                          metadataFieldRefs.current.set(`${block.id}:footer_button_href`, handle);
+                                        }}
+                                        value={block.buttonHref}
+                                        className="min-h-8"
+                                        onChange={(value) => updateFooterCtaBlock(block.id, "buttonHref", value)}
+                                        onFocus={() => {
+                                          setSelectedMetadataField(`${block.id}:footer_button_href`);
+                                          setSelectedBlockId(block.id);
+                                        }}
+                                        disabled={isReadOnlyMode}
+                                        ariaLabel="Footer CTA button URL"
+                                        resolveTokenMeta={resolveMetadataTokenMeta}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Background Image URL</Label>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:footer_background_url`, handle);
+                                      }}
+                                      value={block.backgroundUrl}
+                                      className="min-h-8 mt-1"
+                                      placeholder="https://example.com/footer-bg.png"
+                                      onChange={(value) => updateFooterCtaBlock(block.id, "backgroundUrl", value)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:footer_background_url`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Footer CTA background image URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Logo URL</Label>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <MetadataTokenInput
+                                      ref={(handle) => {
+                                        metadataFieldRefs.current.set(`${block.id}:footer_logo_src`, handle);
+                                      }}
+                                      value={block.logoSrc}
+                                      className="min-h-8 mt-1"
+                                      placeholder="https://example.com/logo.png"
+                                      onChange={(value) => updateFooterCtaBlock(block.id, "logoSrc", value)}
+                                      onFocus={() => {
+                                        setSelectedMetadataField(`${block.id}:footer_logo_src`);
+                                        setSelectedBlockId(block.id);
+                                      }}
+                                      disabled={isReadOnlyMode}
+                                      ariaLabel="Footer CTA logo URL"
+                                      resolveTokenMeta={resolveMetadataTokenMeta}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Background</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.backgroundColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateFooterCtaBlock(block.id, "backgroundColor", ev.target.value)}
+                                      readOnly={isReadOnlyMode}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Accent</Label>
+                                    <Input
+                                      type="color"
+                                      value={normalizeBannerColorForColorInput(block.accentColor)}
+                                      className="h-8 mt-1 w-full"
+                                      onChange={(ev) => updateFooterCtaBlock(block.id, "accentColor", ev.target.value)}
                                       readOnly={isReadOnlyMode}
                                     />
                                   </div>
@@ -5260,18 +6811,62 @@ export function MjmlEditor({
           <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center justify-between h-10 px-4 border-b bg-card">
               <span className="text-sm font-semibold">Preview</span>
+              <div className="flex items-center gap-1 rounded-md border border-input bg-muted/30 p-1">
+                {[
+                  {
+                    value: "desktop" as const,
+                    label: "Desktop",
+                    icon: Monitor,
+                  },
+                  {
+                    value: "mobile" as const,
+                    label: "Mobile",
+                    icon: Smartphone,
+                  },
+                ].map((option) => {
+                  const Icon = option.icon;
+                  const isActive = previewViewportMode === option.value;
+                  return (
+                    <Tooltip key={option.value}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Preview ${option.label}`}
+                          aria-pressed={isActive}
+                          className={[
+                            "inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                            isActive
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground",
+                          ].join(" ")}
+                          onClick={() => {
+                            previewViewportModeRef.current = option.value;
+                            setPreviewViewportMode(option.value);
+                          }}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span>{option.label}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {option.label} preview
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden bg-surface p-6">
+            <div className="flex-1 overflow-auto bg-surface p-6">
               <div
                 ref={previewStageCallbackRef}
-                className="flex h-full w-full items-start justify-center overflow-hidden"
+                className="flex min-h-full w-full items-start justify-center overflow-visible"
               >
                 {previewFrameUrl ? (
                   <div
                     className="relative overflow-hidden rounded-md border border-border/60 bg-card"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
+                      height: `${previewFrameHeight}px`,
                     }}
                   >
                     <iframe
@@ -5279,6 +6874,7 @@ export function MjmlEditor({
                       src={previewFrameUrl}
                       onLoad={handlePreviewIframeLoad}
                       className="pointer-events-none border-0 bg-card"
+                      scrolling={previewViewportMode === "mobile" ? "no" : "auto"}
                       style={{
                         width: `${previewNaturalWidth}px`,
                         height: `${previewNaturalHeight}px`,
@@ -5294,7 +6890,7 @@ export function MjmlEditor({
                     className="flex items-center justify-center rounded-md border bg-card text-sm text-muted-foreground"
                     style={{
                       width: `${previewScaledWidth}px`,
-                      height: `${previewStageSize.height > 0 ? previewStageSize.height : previewScaledHeight}px`,
+                      height: `${previewFrameHeight}px`,
                     }}
                   >
                     {previewMutation.isPending

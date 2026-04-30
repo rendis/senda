@@ -343,3 +343,55 @@ func TestRender_SystemPrefix_PreservesAmpersandsInURLs(t *testing.T) {
 		t.Fatalf("system var URL must be passed through unescaped\n want: %q\n got:  %q", want, out)
 	}
 }
+
+func TestRenderWithSystem_EscapesResolvedInjectorValuesInsideMJMLAttributes(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `<mj-button href="{{ injector.brand.profile_url }}">Visit {{ injector.brand.profile_url }}</mj-button>`
+	injectors := map[string]map[string]any{
+		"brand": {
+			"profile_url": `https://example.com/profile?a=1&b=2" onclick="bad`,
+		},
+	}
+	out, err := r.RenderWithSystem(body, injectors, nil, nil)
+	if err != nil {
+		t.Fatalf("RenderWithSystem: %v", err)
+	}
+	want := `<mj-button href="https://example.com/profile?a=1&amp;b=2&#34; onclick=&#34;bad">Visit https://example.com/profile?a=1&b=2" onclick="bad</mj-button>`
+	if out != want {
+		t.Fatalf("attribute values should be escaped while text remains plain\n want: %q\n got:  %q", want, out)
+	}
+}
+
+func TestRenderWithSystem_EscapesAttributeAfterQuotedGreaterThan(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `<mj-button title="A > B" href="{{ injector.brand.profile_url }}">Visit</mj-button>`
+	injectors := map[string]map[string]any{
+		"brand": {
+			"profile_url": "https://example.com/profile?a=1&b=2",
+		},
+	}
+	out, err := r.RenderWithSystem(body, injectors, nil, nil)
+	if err != nil {
+		t.Fatalf("RenderWithSystem: %v", err)
+	}
+	want := `<mj-button title="A > B" href="https://example.com/profile?a=1&amp;b=2">Visit</mj-button>`
+	if out != want {
+		t.Fatalf("quoted greater-than must not hide later attribute context\n want: %q\n got:  %q", want, out)
+	}
+}
+
+func TestRenderWithSystem_EscapesResolvedSystemValuesInsideMJMLAttributes(t *testing.T) {
+	r := service.NewVariableRenderer()
+	body := `<mj-button href="{{ system.unsubscribe_url }}">Unsubscribe</mj-button>`
+	systemVars := map[string]string{
+		"unsubscribe_url": "https://example.com/u/abc?token=xyz&signature=def",
+	}
+	out, err := r.RenderWithSystem(body, nil, nil, systemVars)
+	if err != nil {
+		t.Fatalf("RenderWithSystem: %v", err)
+	}
+	want := `<mj-button href="https://example.com/u/abc?token=xyz&amp;signature=def">Unsubscribe</mj-button>`
+	if out != want {
+		t.Fatalf("system URL must be escaped in MJML attributes\n want: %q\n got:  %q", want, out)
+	}
+}

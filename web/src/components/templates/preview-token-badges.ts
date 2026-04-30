@@ -46,11 +46,11 @@ const PREVIEW_TOKEN_STYLES = `
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.85em;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.1;
   vertical-align: baseline;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .${PREVIEW_TOKEN_INJECTOR_CLASSNAME} {

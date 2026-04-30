@@ -144,6 +144,56 @@ test("extracts injector field usage from live editor sources such as token field
   });
 });
 
+test("extracts injector usage from banner background fields and overlay tokens", () => {
+  const usage = extractInjectorUsageFromTemplateSources([
+    {
+      blocks: [
+        {
+          type: "banner",
+          backgroundUrl: "{{ injector.brand.hero_image }}",
+          backgroundColor: "{{ injector.brand.hero_color }}",
+          backgroundColorMode: "injector",
+          segments: [{ kind: "token", token: "injector.brand.overlay_text" }],
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(usage, {
+    brand: ["hero_image", "hero_color", "overlay_text"],
+  });
+});
+
+test("extracts injector usage from rich section URL fields", () => {
+  const usage = extractInjectorUsageFromTemplateSources([
+    {
+      blocks: [
+        {
+          type: "media-content",
+          imageSrc: "{{ injector.brand.profile_image }}",
+          buttonHref: "{{ injector.brand.profile_url }}",
+        },
+        {
+          type: "cta-group",
+          primaryHref: "{{ injector.actions.primary_url }}",
+          secondaryHref: "{{ injector.actions.secondary_url }}",
+        },
+        {
+          type: "footer-cta",
+          backgroundUrl: "{{ injector.brand.footer_bg }}",
+          logoSrc: "{{ injector.brand.logo_url }}",
+          buttonHref: "{{ injector.actions.meeting_url }}",
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(usage, {
+    brand: ["profile_image", "profile_url", "footer_bg", "logo_url"],
+    actions: ["primary_url", "secondary_url", "meeting_url"],
+  });
+});
+
 test("in visual mode ignores stale code mjml injectors and uses live builder content + metadata", () => {
   const usage = resolveTestSendInjectorUsage({
     editorMode: "visual",

@@ -50,16 +50,27 @@ func (r *VariableRenderer) RenderHTML(template string, injectors map[string]map[
 
 // render is the internal implementation shared by Render, RenderWithSystem, and RenderHTML.
 func (r *VariableRenderer) render(template string, injectors map[string]map[string]any, eventVars map[string]any, systemVars map[string]string, escapeHTML bool) (string, error) {
-	result := variablePattern.ReplaceAllStringFunc(template, func(match string) string {
-		submatch := variablePattern.FindStringSubmatch(match)
-		if len(submatch) < 2 {
-			return match
-		}
-		path := submatch[1]
+	matches := variablePattern.FindAllStringSubmatchIndex(template, -1)
+	if len(matches) == 0 {
+		return template, nil
+	}
 
+	var result strings.Builder
+	result.Grow(len(template))
+	cursor := 0
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+		matchStart, matchEnd := match[0], match[1]
+		pathStart, pathEnd := match[2], match[3]
+		result.WriteString(template[cursor:matchStart])
+		cursor = matchEnd
+
+		path := template[pathStart:pathEnd]
 		parts := strings.SplitN(path, ".", 2)
 		if len(parts) < 2 {
-			return ""
+			continue
 		}
 
 		prefix := parts[0]
@@ -76,22 +87,56 @@ func (r *VariableRenderer) render(template string, injectors map[string]map[stri
 		case "injector":
 			resolved, ok = resolveInjectorVar(injectors, rest)
 		case "system":
-			// system vars bypass HTML escaping — they are trusted server-generated URLs.
-			return resolveSystemVar(systemVars, rest)
+			// system vars bypass text-node escaping but still need XML attribute
+			// escaping when used inside MJML attributes.
+			resolved, ok = resolveSystemVar(systemVars, rest), true
 		default:
-			return ""
+			continue
 		}
 
 		if !ok {
-			return ""
+			continue
 		}
-		if escapeHTML {
+		if escapeHTML || (!escapeHTML && isPlaceholderInXMLAttribute(template, matchStart)) {
 			resolved = html.EscapeString(resolved)
 		}
-		return resolved
-	})
+		result.WriteString(resolved)
+	}
+	result.WriteString(template[cursor:])
 
-	return result, nil
+	return result.String(), nil
+}
+
+func isPlaceholderInXMLAttribute(template string, matchStart int) bool {
+	if matchStart < 0 || matchStart > len(template) {
+		return false
+	}
+
+	var quote byte
+	tagOpen := false
+	for i := 0; i < matchStart; i++ {
+		switch template[i] {
+		case '"', '\'':
+			if !tagOpen {
+				continue
+			}
+			switch quote {
+			case 0:
+				quote = template[i]
+			case template[i]:
+				quote = 0
+			}
+		case '<':
+			if quote == 0 {
+				tagOpen = true
+			}
+		case '>':
+			if quote == 0 {
+				tagOpen = false
+			}
+		}
+	}
+	return tagOpen && quote != 0
 }
 
 // resolveEventVar returns the string representation of eventVars[key] and whether it was found.
