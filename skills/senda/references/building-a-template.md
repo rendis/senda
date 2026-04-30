@@ -109,6 +109,12 @@ Rules the visual builder follows (and you should too):
   marked `<mj-section css-class="senda-builder-banner">`. Mixing banners
   between regular blocks closes the current section and opens a new one for
   what follows.
+- Rich section blocks also sit **directly under `<mj-body>`** because they own
+  their internal columns and mobile stacking. The visual builder currently
+  emits four marked sections: `senda-builder-media-content`,
+  `senda-builder-cta-group`, `senda-builder-feature-list`, and
+  `senda-builder-footer-cta`. Footer CTA is just another section block: it can
+  appear more than once and can be placed between any other builder blocks.
 - Stack multiple sections vertically. Add `<mj-spacer>` or padding for
   vertical rhythm.
 - Unsupported MJML that the visual editor cannot represent is preserved as an
@@ -287,6 +293,44 @@ When overlay text and button are both empty, the builder emits an empty
 `cover` uses `<mj-hero>` and may crop; `contain` / `auto` use a marked
 `<mj-section>` with `background-size` and `background-repeat="no-repeat"` so
 the image can be drawn without the forced hero crop.
+
+### Rich section blocks
+
+The visual builder includes four higher-level components for common newsletter
+and marketing layouts:
+
+- **Media + Content** (`senda-builder-media-content`) renders a two-column
+  image/text section. On mobile, MJML stacks the image and copy into two rows.
+  Use it for benefits, testimonials, screenshots, and narrative sections.
+- **CTA Group** (`senda-builder-cta-group`) renders centered copy with one or
+  two buttons, or a split text-plus-button box. Split mode stacks copy over
+  buttons on mobile.
+- **Feature List** (`senda-builder-feature-list`) renders a title, icon/text
+  rows, optional footer copy, and an optional accent band for milestones or
+  benefit lists.
+- **Footer CTA** (`senda-builder-footer-cta`) renders a branded closing band
+  with headline copy, button, optional background image, and optional logo. It
+  can be used more than once and does not need to be the last section.
+
+Media + Content image/button URLs, CTA Group button URLs, and Footer CTA
+button/background/logo URLs may be injector tokens. These blocks are direct
+body-level sections, not children of the regular single-column wrapper. At
+send time, injector/system placeholders rendered inside MJML attributes are
+XML-escaped before gomjml compiles the body, so URLs with query strings remain
+valid MJML.
+
+```mjml
+<mj-section css-class="senda-builder-media-content" background-color="#ffffff" padding="24px 20px">
+  <mj-column width="45%">
+    <mj-image src="{{ injector.brand.hero_image }}" alt="Preview" padding="0 12px" />
+  </mj-column>
+  <mj-column width="55%">
+    <mj-text font-size="22px" font-weight="600">Benefits</mj-text>
+    <mj-text font-size="15px" line-height="1.5">Short supporting copy.</mj-text>
+    <mj-button href="#" background-color="#5429ff" border-radius="24px">Learn more</mj-button>
+  </mj-column>
+</mj-section>
+```
 
 ## Composing a real template — full example
 

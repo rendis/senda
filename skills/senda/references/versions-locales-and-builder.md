@@ -82,7 +82,8 @@ Apply to `<ws>` and `<envWS>` (workspace) and to `/api/v1/manage/global/...`
 | POST | `<ws>/templates/:tid/bulk-send` | editor+ | `{items: [...]}` up to `max_items` (100 default). Local templates only. |
 
 > Looking for ready-to-use MJML blocks (text, button, image, banner, list,
-> video, divider, spacer) and a step-by-step "compose a body from zero"
+> video, divider, spacer, media/content sections, CTA groups, feature lists,
+> footer CTAs) and a step-by-step "compose a body from zero"
 > workflow? Load `building-a-template.md`. This file owns the lifecycle and
 > reference shape of versions/locales; that one owns authoring.
 
@@ -114,13 +115,20 @@ engine first, then handed to gomjml; the compiler additionally rewrites video
 thumbnails and caches by SHA-256 of post-rewrite MJML.
 
 `editor_data` is the visual builder's serialized state — block tree (text,
-button, image, divider, spacer, banner, video, list, plus preserved MJML code
-blocks for syntax the visual editor cannot represent). Treat it as opaque from
-the agent perspective. Banner blocks may store injector-backed values for the
-background image URL, background color, and overlay text; the background color
-also records whether the editor is using color-picker mode or injector mode.
-Banner image fit/alignment are stored there too; `cover` remains the default
-hero crop behavior, while `contain` and `auto` render with `background-size`.
+button, image, divider, spacer, banner, video, list, rich section blocks, plus
+preserved MJML code blocks for syntax the visual editor cannot represent).
+Treat it as opaque from the agent perspective. Banner blocks may store
+injector-backed values for the background image URL, background color, and
+overlay text; the background color also records whether the editor is using
+color-picker mode or injector mode. Banner image fit/alignment are stored
+there too; `cover` remains the default hero crop behavior, while `contain` and
+`auto` render with `background-size`. Rich section blocks are body-level
+sections that can own multiple columns: media/content, CTA group, feature
+list, and footer CTA. Footer CTA is repeatable and positional; use it as a
+closing band, mid-message campaign band, or any other full-width CTA section.
+When the send/test-send renderer resolves placeholders inside MJML attributes,
+it XML-escapes the resolved value before gomjml compilation; text-node
+placeholders keep the plain value.
 
 ## Resolution chain at send time
 

@@ -91,6 +91,24 @@ run_case ok-4 0 '<mjml>
   </mj-body>
 </mjml>'
 
+run_case ok-5 0 '<mjml>
+  <mj-body>
+    <mj-section css-class="senda-builder-media-content" background-color="#ffffff" padding="24px 20px">
+      <mj-column width="45%">
+        <mj-image src="{{ injector.brand.hero_image }}" alt="Preview" />
+      </mj-column>
+      <mj-column width="55%">
+        <mj-text>Benefits</mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section css-class="senda-builder-footer-cta" background-color="#111447">
+      <mj-column>
+        <mj-text>Coordinate a meeting</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>'
+
 run_case fail-1 1 '<!DOCTYPE html>
 <mjml>
   <mj-body>

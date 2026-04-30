@@ -158,6 +158,10 @@
       "banner": "Banner",
       "video": "Video",
       "list": "List",
+      "mediaContent": "Media + Content",
+      "ctaGroup": "CTA Group",
+      "featureList": "Feature List",
+      "footerCta": "Footer CTA",
       "code": "MJML code"
     },
     "reorderBlock": "Reorder block",
