@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@tiptap/core": "^3.22.4",
-    "@hookform/resolvers": "^5.2.2",
+    "@hookform/resolvers": "^5.4.0",
     "@monaco-editor/react": "^4.7.0",
     "@scalar/nextjs-api-reference": "^0.10.11",
     "@tanstack/react-query": "^5.99.2",
@@ -52,11 +52,11 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "react-hook-form": "^7.71.1",
+    "react-hook-form": "^7.76.1",
     "recharts": "^3.7.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.1",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
